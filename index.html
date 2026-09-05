@@ -97,7 +97,7 @@
                         
                         <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-20">
                             <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-12 w-12 mb-4"></div>
-                            <h2 class="text-center text-gray-800 font-bold">최신 AI가 글자를 읽고 있습니다...</h2>
+                            <h2 class="text-center text-gray-800 font-bold" id="loadingText">최신 AI가 글자를 읽고 있습니다...</h2>
                             <p class="text-center text-gray-500 text-sm mt-2">약 3~5초 정도 소요됩니다.</p>
                         </div>
 
@@ -305,6 +305,7 @@
         const imagePreview = document.getElementById('imagePreview');
         const uploadPrompt = document.getElementById('uploadPrompt');
         const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
         const resetBtn = document.getElementById('resetBtn');
         const memoPad = document.getElementById('memoPad');
         const copyBtn = document.getElementById('copyBtn');
@@ -474,11 +475,43 @@
             memoPad.value = '';
             currentExtractedData = null;
             saveDbBtn.classList.add('hidden');
+            loadingText.innerText = "최신 AI가 글자를 읽고 있습니다...";
         });
 
-        // 🌟🌟 핵심 수정: 구글 완전 최신 AI 모델(gemini-3.6-flash)로 변경! 🌟🌟
+        // 🌟 핵심 수정: 가장 안정적인 gemini-1.5-flash 모델 적용 및 "자동 재시도" 로직 추가 🌟
+        async function fetchWithRetry(url, options, retries = 3) {
+            for (let i = 0; i < retries; i++) {
+                const response = await fetch(url, options);
+                
+                if (response.ok) {
+                    return response; // 성공하면 바로 반환
+                }
+                
+                // 에러 발생 시 내용 확인
+                let errorDetail = `상태 코드: ${response.status}`;
+                try {
+                    const errData = await response.json();
+                    errorDetail = errData.error?.message || errorDetail;
+                } catch(e) { }
+
+                // 만약 503(서버혼잡), 429(요청과다), 또는 high demand 문구가 포함되어 있다면 재시도
+                if (response.status === 503 || response.status === 429 || errorDetail.toLowerCase().includes('high demand')) {
+                    if (i < retries - 1) {
+                        console.log(`[서버 혼잡] ${i+1}차 재시도 중...`);
+                        loadingText.innerText = `구글 서버 혼잡! ${i+1}차 자동 재시도 중...`;
+                        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 후 다시 시도
+                        continue;
+                    }
+                }
+                
+                // 재시도해도 안되거나 다른 에러면 그대로 던지기
+                throw new Error(errorDetail);
+            }
+        }
+
         async function extractInformation(base64Data, mimeType) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+            // 가장 안정적인 정식 버전 사용
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
 
             const payload = {
                 contents: [{
@@ -514,20 +547,12 @@
             };
 
             try {
-                const response = await fetch(apiUrl, {
+                // fetch 대신 우리가 만든 fetchWithRetry 사용
+                const response = await fetchWithRetry(apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
-                if (!response.ok) {
-                    let errorDetail = `상태 코드: ${response.status}`;
-                    try {
-                        const errData = await response.json();
-                        errorDetail = errData.error?.message || errorDetail;
-                    } catch(e) { }
-                    throw new Error(errorDetail);
-                }
                 
                 const result = await response.json();
                 if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
@@ -543,6 +568,7 @@
                 showToast("❌ 에러: 화면 중앙의 경고창 메시지를 확인해주세요.");
             } finally {
                 loadingOverlay.style.display = 'none';
+                loadingText.innerText = "최신 AI가 글자를 읽고 있습니다...";
             }
         }
 
