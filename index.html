@@ -97,7 +97,7 @@
                         
                         <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-20">
                             <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-12 w-12 mb-4"></div>
-                            <h2 class="text-center text-gray-800 font-bold" id="loadingText">최신 AI가 글자를 읽고 있습니다...</h2>
+                            <h2 class="text-center text-gray-800 font-bold" id="loadingText">AI가 글자를 읽고 있습니다...</h2>
                             <p class="text-center text-gray-500 text-sm mt-2">약 3~5초 정도 소요됩니다.</p>
                         </div>
 
@@ -255,7 +255,6 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // 파이어베이스 설정 (폰값연구소)
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
             authDomain: "phoneplace-db.firebaseapp.com",
@@ -292,14 +291,12 @@
                 }, (error) => {
                     console.error("Firebase 데이터 읽기 에러:", error);
                 });
-
             } catch (error) {
                 console.error("Firebase 초기화 에러:", error);
             }
         }
         initFirebase();
 
-        // UI 요소들
         const cameraUpload = document.getElementById('cameraUpload');
         const galleryUpload = document.getElementById('galleryUpload');
         const imagePreview = document.getElementById('imagePreview');
@@ -349,7 +346,6 @@
             apiModal.classList.remove('flex');
         });
 
-        // 탭 전환
         tabScanner.addEventListener('click', () => {
             scannerView.classList.remove('hidden');
             dbView.classList.add('hidden');
@@ -409,7 +405,6 @@
             welfare: document.getElementById('val-welfare')
         };
 
-        // 자동 압축 함수
         function compressImage(file, callback) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -475,43 +470,18 @@
             memoPad.value = '';
             currentExtractedData = null;
             saveDbBtn.classList.add('hidden');
-            loadingText.innerText = "최신 AI가 글자를 읽고 있습니다...";
         });
 
-        // 🌟 핵심 수정: 가장 안정적인 gemini-1.5-flash 모델 적용 및 "자동 재시도" 로직 추가 🌟
-        async function fetchWithRetry(url, options, retries = 3) {
-            for (let i = 0; i < retries; i++) {
-                const response = await fetch(url, options);
-                
-                if (response.ok) {
-                    return response; // 성공하면 바로 반환
-                }
-                
-                // 에러 발생 시 내용 확인
-                let errorDetail = `상태 코드: ${response.status}`;
-                try {
-                    const errData = await response.json();
-                    errorDetail = errData.error?.message || errorDetail;
-                } catch(e) { }
-
-                // 만약 503(서버혼잡), 429(요청과다), 또는 high demand 문구가 포함되어 있다면 재시도
-                if (response.status === 503 || response.status === 429 || errorDetail.toLowerCase().includes('high demand')) {
-                    if (i < retries - 1) {
-                        console.log(`[서버 혼잡] ${i+1}차 재시도 중...`);
-                        loadingText.innerText = `구글 서버 혼잡! ${i+1}차 자동 재시도 중...`;
-                        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기 후 다시 시도
-                        continue;
-                    }
-                }
-                
-                // 재시도해도 안되거나 다른 에러면 그대로 던지기
-                throw new Error(errorDetail);
-            }
-        }
-
+        // 🌟🌟 핵심 수정: 작동하는 AI 버전을 찾을 때까지 "자동으로 탐색"하는 무적의 스캐너! 🌟🌟
         async function extractInformation(base64Data, mimeType) {
-            // 가장 안정적인 정식 버전 사용
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+            
+            // 구글이 지원하는 최신 모델들을 순서대로 모두 시도합니다.
+            const modelsToTry = [
+                "gemini-1.5-flash",
+                "gemini-1.5-flash-latest",
+                "gemini-1.5-pro",
+                "gemini-pro"
+            ];
 
             const payload = {
                 contents: [{
@@ -546,29 +516,50 @@
                 }
             };
 
-            try {
-                // fetch 대신 우리가 만든 fetchWithRetry 사용
-                const response = await fetchWithRetry(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            let success = false;
+            let lastErrorMessage = "";
+
+            for (let i = 0; i < modelsToTry.length; i++) {
+                const currentModel = modelsToTry[i];
+                loadingText.innerText = `AI 접속 중... (현재 모델: ${currentModel})`;
                 
-                const result = await response.json();
-                if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
-                    const parsedData = JSON.parse(result.candidates[0].content.parts[0].text);
-                    updateUI(parsedData);
-                    showToast("✅ 스캔 성공! 파이어베이스 저장 버튼이 활성화되었습니다.");
-                } else {
-                     throw new Error("AI가 글자를 찾지 못했습니다.");
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${geminiApiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts) {
+                            const parsedData = JSON.parse(result.candidates[0].content.parts[0].text);
+                            updateUI(parsedData);
+                            showToast("✅ 스캔 성공! 파이어베이스 저장 버튼이 활성화되었습니다.");
+                            success = true;
+                            break; // 성공하면 즉시 반복문을 종료하고 빠져나옵니다.
+                        }
+                    } else {
+                        // 실패 시 다음 모델로 넘어가기 전에 에러를 저장해둡니다.
+                        const errData = await response.json();
+                        lastErrorMessage = errData.error?.message || `상태 코드: ${response.status}`;
+                        console.warn(`[${currentModel} 모델 접속 실패]`, lastErrorMessage);
+                    }
+                } catch (error) {
+                    lastErrorMessage = error.message;
+                    console.warn(`[${currentModel} 모델 접속 에러]`, lastErrorMessage);
                 }
-            } catch (error) {
-                console.error(error);
-                alert("🚨 [스캔 실패 원인 분석] 🚨\n\n구글 서버에서 다음 이유로 거절했습니다:\n" + error.message);
-                showToast("❌ 에러: 화면 중앙의 경고창 메시지를 확인해주세요.");
-            } finally {
+            }
+
+            // 모든 모델을 다 돌아봤는데도 전부 튕겼다면 최종 에러창을 띄웁니다.
+            if (!success) {
                 loadingOverlay.style.display = 'none';
-                loadingText.innerText = "최신 AI가 글자를 읽고 있습니다...";
+                alert("🚨 [스캔 실패 원인 분석] 🚨\n\n모든 AI 서버 접속에 실패했습니다. 구글 서버 거절 사유:\n" + lastErrorMessage);
+                showToast("❌ 에러: 화면 중앙의 경고창 메시지를 확인해주세요.");
+            } else {
+                loadingOverlay.style.display = 'none';
             }
         }
 
@@ -692,4 +683,3 @@
     </script>
 </body>
 </html>
-```
