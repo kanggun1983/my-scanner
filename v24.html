@@ -1,0 +1,980 @@
+```html
+<!DOCTYPE html>
+<html lang="ko" translate="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="google" content="notranslate">
+    <title>스마트 고객 정보 추출기 V24</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        
+        .modal-input {
+            width: 100%;
+            background-color: transparent;
+            font-weight: 700;
+            color: #1f2937;
+            outline: none;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            padding: 2px 0;
+        }
+        .modal-input:focus {
+            border-bottom: 2px solid #6366f1;
+        }
+
+        /* 줌 모달용 스타일 */
+        #imageZoomModal img {
+            transition: transform 0.2s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-2 md:p-8 text-gray-800">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- 헤더 -->
+        <header class="flex items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border-b-4 border-indigo-600">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V24: 구글 최신 AI 모델(3.5) 적용 완료</span>
+                </h1>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">이미지 확대 기능 유지 및 서비스 종료된 구글 AI 모델 긴급 교체</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
+                    <i class="fa-solid fa-key text-yellow-500"></i> <span class="hidden sm:inline ml-1">AI 키 설정</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 탭 네비게이션 -->
+        <div class="flex gap-2 border-b-2 border-gray-200 px-2 sm:px-6 pt-2 bg-white rounded-t-2xl shadow-sm">
+            <button id="tabScanner" onclick="switchTab('scanner')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-camera text-lg"></i> 스캐너 화면
+            </button>
+            <button id="tabDB" onclick="switchTab('db')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-database text-lg"></i> 고객 DB 목록
+            </button>
+        </div>
+
+        <!-- 스캐너 뷰 -->
+        <div id="scannerView" class="grid grid-cols-1 lg:grid-cols-12 gap-6 bg-white p-4 rounded-b-2xl shadow-sm">
+            
+            <!-- 왼쪽: 이미지 업로드 영역 -->
+            <div class="lg:col-span-5 space-y-4">
+                <div class="glass-panel p-6 rounded-2xl h-full flex flex-col">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-image text-gray-400"></i> 전산 화면 스캔하기
+                    </h2>
+                    
+                    <div class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 relative overflow-hidden min-h-[250px] p-4">
+                        
+                        <div id="uploadPrompt" class="flex flex-col items-center text-center w-full z-10">
+                            <i class="fa-solid fa-expand text-4xl mb-4 text-indigo-400"></i>
+                            <div class="flex flex-col w-full gap-3 mt-2">
+                                <button type="button" onclick="document.getElementById('cameraUpload').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 w-full">
+                                    <i class="fa-solid fa-camera"></i> 바로 사진 찍기
+                                </button>
+                                <button type="button" onclick="document.getElementById('galleryUpload').click()" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 w-full">
+                                    <i class="fa-regular fa-image"></i> 갤러리/스샷 첨부
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 🌟 이미지 터치 시 확대 기능 (유지됨) 🌟 -->
+                        <img id="imagePreview" class="absolute inset-0 w-full h-full object-contain hidden bg-black/5 z-0 cursor-zoom-in" onclick="openImageModal()" />
+                        
+                        <!-- 확대 안내 버튼 -->
+                        <div id="zoomHint" class="absolute bottom-3 right-3 bg-black/70 text-white text-xs px-3 py-1.5 rounded-full hidden z-10 pointer-events-none flex items-center gap-1 shadow-lg">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i> 터치해서 확대
+                        </div>
+                        
+                        <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-20">
+                            <div class="loader ease-linear rounded-full border-4 border-t-4 border-indigo-500 h-12 w-12 mb-4"></div>
+                            <h2 class="text-center text-gray-800 font-bold" id="loadingText">AI 분석 중입니다...</h2>
+                        </div>
+
+                        <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="hidden" />
+                        <input type="file" id="galleryUpload" accept="image/*" class="hidden" />
+                    </div>
+
+                    <button id="resetBtn" class="mt-4 w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition hidden">다시 찍기</button>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 추출 정보 -->
+            <div class="lg:col-span-7 space-y-4">
+                <div class="glass-panel p-4 sm:p-6 rounded-2xl relative">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-address-card text-indigo-500"></i> 추출된 고객 정보
+                    </h2>
+                    
+                    <div id="infoGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                            <p class="text-xs text-gray-500 font-semibold">방문일 (스캔 일자)</p>
+                            <input type="date" id="val-date" class="bg-transparent font-bold text-gray-800 outline-none text-right">
+                        </div>
+                        <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-200 focus-within:border-indigo-500 flex items-center justify-between transition">
+                            <p class="text-xs text-indigo-600 font-semibold mb-1">담당자 (등록자)</p>
+                            <input type="text" id="val-manager" class="w-full bg-transparent font-bold text-gray-800 outline-none text-right" placeholder="이름 입력">
+                        </div>
+
+                        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition">
+                            <p class="text-xs text-blue-600 font-semibold mb-1">고객명</p>
+                            <input type="text" id="val-name" class="w-full bg-transparent font-bold text-lg text-gray-800 outline-none" placeholder="이름 입력">
+                        </div>
+                        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition">
+                            <p class="text-xs text-blue-600 font-semibold mb-1">전화번호</p>
+                            <input type="text" id="val-phone" class="w-full bg-transparent font-bold text-lg text-gray-800 outline-none" placeholder="010-0000-0000">
+                        </div>
+
+                        <div class="p-3 bg-red-50/50 rounded-xl border border-red-100 focus-within:border-red-500 transition">
+                            <p class="text-xs text-red-600 font-semibold mb-1">통신사</p>
+                            <select id="val-carrier" class="w-full bg-transparent font-bold text-gray-800 outline-none">
+                                <option value="미정">미정</option>
+                                <option value="SKT">SKT</option>
+                                <option value="KT">KT</option>
+                                <option value="LG U+">LG U+</option>
+                                <option value="알뜰폰">알뜰폰</option>
+                            </select>
+                        </div>
+                        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition">
+                            <p class="text-xs text-blue-600 font-semibold mb-1">생년월일 / 나이</p>
+                            <input type="text" id="val-dob" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="-">
+                        </div>
+
+                        <div class="p-3 bg-orange-50/50 rounded-xl border border-orange-200 focus-within:border-orange-500 transition">
+                            <p class="text-xs text-orange-600 font-semibold mb-1">모바일 개통일 (가입일자)</p>
+                            <div class="flex items-center justify-between">
+                                <input type="date" id="val-activation" class="bg-transparent font-bold text-gray-800 outline-none w-2/3">
+                                <span id="val-dday" class="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded shadow-sm border border-red-100">D+0일</span>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 focus-within:border-indigo-500 transition">
+                            <p class="text-xs text-indigo-600 font-semibold mb-1">현재 사용 단말기</p>
+                            <input type="text" id="val-device" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="-">
+                        </div>
+                        
+                        <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-200 focus-within:border-pink-500 transition">
+                            <p class="text-xs text-pink-600 font-semibold mb-1">단말기 잔여 할부금 / 개월수</p>
+                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 15만 / 5개월">
+                        </div>
+                        <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
+                            <p class="text-xs text-purple-600 font-semibold mb-1">현재 요금제</p>
+                            <input type="text" id="val-plan" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="-">
+                        </div>
+
+                        <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
+                            <p class="text-xs text-purple-600 font-semibold mb-1">월 기본료(청구금액)</p>
+                            <input type="text" id="val-fee" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="-">
+                        </div>
+                        <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
+                            <p class="text-xs text-purple-600 font-semibold mb-1">3개월 평균 사용량 (데이터/통화)</p>
+                            <input type="text" id="val-usage" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 15GB / 150분">
+                        </div>
+
+                        <div class="p-3 bg-green-50/50 rounded-xl border border-green-200 sm:col-span-2 grid grid-cols-2 gap-2">
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-green-700 font-semibold mb-1">가족결합 유무</p>
+                                <input type="text" id="val-combination" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="-">
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-green-700 font-semibold mb-1">복지할인 등 기타</p>
+                                <input type="text" id="val-welfare" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="-">
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-teal-50/50 rounded-xl border border-teal-200 sm:col-span-2 grid grid-cols-2 gap-2">
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-teal-700 font-semibold mb-1">인터넷 상품명</p>
+                                <input type="text" id="val-internet" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="예: 기가인터넷">
+                            </div>
+                            <div>
+                                <p class="text-[10px] sm:text-xs text-teal-700 font-semibold mb-1">티비 상품명</p>
+                                <input type="text" id="val-tv" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="예: 베이직TV">
+                            </div>
+                            <div class="col-span-2 flex items-center justify-between mt-1 pt-2 border-t border-teal-100">
+                                <div class="w-2/3">
+                                    <p class="text-[10px] sm:text-xs text-teal-700 font-semibold mb-1">유선 가입/재약정일 (36M 만료계산)</p>
+                                    <input type="date" id="val-wireddate" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none">
+                                </div>
+                                <span id="val-wired-dday" class="text-xs font-bold text-teal-600 bg-white px-2 py-1 rounded shadow-sm border border-teal-200">날짜입력</span>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 sm:col-span-2 mt-1">
+                            <p class="text-xs text-gray-700 font-bold mb-2">모바일 할인 유형 (수동 체크)</p>
+                            <div class="flex flex-wrap gap-3">
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="radio" name="discountType" value="선택약정" class="w-4 h-4 text-green-600">
+                                    <span class="text-sm font-bold text-gray-700">선택약정</span>
+                                </label>
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="radio" name="discountType" value="공시지원금" class="w-4 h-4 text-blue-600">
+                                    <span class="text-sm font-bold text-gray-700">공시지원금</span>
+                                </label>
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="radio" name="discountType" value="해당없음" class="w-4 h-4 text-gray-600">
+                                    <span class="text-sm font-bold text-gray-700">해당없음(만료/무약정)</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 sm:p-6 rounded-2xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-bold flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square text-orange-500"></i> 고객 메모
+                        </h2>
+                        <button id="saveDbBtn" class="text-sm px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition flex items-center gap-1 font-bold shadow-md hidden animate-pulse">
+                            <i class="fa-solid fa-cloud-arrow-up"></i> DB 저장
+                        </button>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div>
+                            <p class="text-xs font-bold text-gray-500 mb-1">일반 상담 메모</p>
+                            <textarea id="memoPad" class="w-full min-h-[80px] p-3 bg-yellow-50/50 border border-yellow-200 rounded-xl resize-y focus:outline-none focus:ring-2 focus:ring-orange-300 transition text-gray-800 text-sm leading-relaxed" placeholder="상담 내용을 기록하세요..."></textarea>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-indigo-500 mb-1">OB (아웃바운드) 메모</p>
+                            <textarea id="obMemoPad" class="w-full min-h-[80px] p-3 bg-indigo-50/30 border border-indigo-200 rounded-xl resize-y focus:outline-none focus:ring-2 focus:ring-indigo-300 transition text-gray-800 text-sm leading-relaxed" placeholder="OB 진행 내역 및 반응을 기록하세요..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 고객 DB 뷰 -->
+        <div id="dbView" class="hidden glass-panel p-4 sm:p-6 rounded-b-2xl bg-white shadow-sm min-h-[600px] flex flex-col">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <h2 class="text-xl font-bold flex items-center gap-2 text-gray-800">
+                    <i class="fa-solid fa-users text-indigo-500"></i> 내 고객 목록
+                </h2>
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                    <input type="text" id="searchInput" placeholder="이름 또는 번호 검색" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
+                </div>
+            </div>
+
+            <div class="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                <button class="filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-gray-800 text-white transition whitespace-nowrap" data-filter="all">전체고객 보기</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="m6">⚡ M+6 (6개월↑)</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="target18">📱 기변타겟 (18개월↑)</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="expired">🚨 약정만료</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-blue-50 text-blue-600 border border-blue-200 transition whitespace-nowrap" data-filter="status_prospect">💙 가망고객</button>
+            </div>
+
+            <div class="overflow-x-auto border border-gray-200 rounded-xl flex-1 relative bg-white">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 bg-gray-50 uppercase border-b border-gray-200">
+                        <tr>
+                            <th class="px-4 py-3 whitespace-nowrap">고객명 / 스캔일</th>
+                            <th class="px-4 py-3 whitespace-nowrap">연락처 및 액션</th>
+                            <th class="px-4 py-3 whitespace-nowrap">단말기 / 개통일 / 결합</th>
+                            <th class="px-4 py-3 whitespace-nowrap">영업상태 및 타겟</th>
+                            <th class="px-4 py-3 whitespace-nowrap text-center">미리보기</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dbTableBody">
+                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 font-bold">데이터를 불러오는 중입니다...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🌟 원본 이미지 확대 팝업 (모달) 🌟 -->
+    <div id="imageZoomModal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[100] cursor-zoom-out" onclick="closeImageModal()">
+        <button class="absolute top-4 right-4 text-white text-4xl font-bold p-4 opacity-70 hover:opacity-100">&times;</button>
+        <img id="zoomedImage" class="max-w-full max-h-full object-contain" />
+    </div>
+
+    <!-- 🌟 상세정보 팝업창 (미리보기 모달) 🌟 -->
+    <div id="detailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-2 sm:p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden">
+            <div class="p-3 sm:p-4 border-b bg-gray-50 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-id-card text-indigo-500"></i> 고객 상세 카드
+                </h3>
+                <button id="closeDetailModal" class="text-gray-400 hover:text-gray-700 text-xl px-2">&times;</button>
+            </div>
+            
+            <div class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-900" id="modalName">-</h2>
+                        <p class="text-indigo-600 font-bold mt-1 text-lg" id="modalPhone">-</p>
+                    </div>
+                    <div class="flex gap-2 sm:flex-col justify-center">
+                        <a id="modalCallBtn" href="#" onclick="autoLogContact('tel')" class="bg-green-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-600 transition shadow-sm text-sm justify-center">
+                            <i class="fa-solid fa-phone"></i> 전화걸기
+                        </a>
+                        <a id="modalSmsBtn" href="#" onclick="autoLogContact('sms')" class="bg-blue-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-blue-600 transition shadow-sm text-sm justify-center">
+                            <i class="fa-solid fa-envelope"></i> 문자보내기
+                        </a>
+                    </div>
+                </div>
+
+                <div class="bg-white border-2 border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
+                    <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2"><i class="fa-solid fa-chart-line text-blue-500"></i> 영업/컨택 기록</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <p class="text-xs text-gray-500 font-semibold mb-1">현재 상태 (진행도)</p>
+                            <select id="modalSalesStatus" class="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="미정">⚪ 상태 미정</option>
+                                <option value="가망고객">💙 가망고객 (진행중)</option>
+                                <option value="판매성공">🟢 판매성공 (개통완료)</option>
+                                <option value="고객거부">🔴 고객거부 (취소)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500 font-semibold mb-1">최근 연락한 날짜</p>
+                            <div class="flex items-center gap-2">
+                                <input type="date" id="modalContactDate" class="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none bg-white">
+                                <button id="btnTodayContact" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-gray-700 transition">오늘 연락</button>
+                            </div>
+                        </div>
+                        <div class="sm:col-span-2 mt-1 border-t pt-2">
+                            <p class="text-xs text-indigo-600 font-semibold mb-1">최종 컨택 담당자</p>
+                            <input type="text" id="modalContactManager" class="w-full p-2 border border-indigo-200 rounded-lg text-sm font-bold text-gray-800 outline-none bg-indigo-50/30" placeholder="연락하신 분 이름을 적어주세요">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 sm:gap-3 text-sm">
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">방문/스캔일</span>
+                        <input type="date" id="modalVisitDate" class="modal-input text-xs sm:text-sm">
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500 relative">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">모바일 개통일 (D+일)</span>
+                        <div class="flex items-center gap-1">
+                            <input type="date" id="modalActivation" class="modal-input text-xs sm:text-sm w-2/3">
+                            <span id="modalDdayBadge" class="text-[10px] sm:text-xs font-bold text-red-500 ml-auto"></span>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">최초 등록 담당자</span>
+                        <input type="text" id="modalManager" class="modal-input text-xs sm:text-sm" placeholder="이름">
+                    </div>
+                    
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">통신사</span>
+                        <select id="modalCarrier" class="modal-input text-xs sm:text-sm">
+                            <option value="미정">미정</option>
+                            <option value="SKT">SKT</option>
+                            <option value="KT">KT</option>
+                            <option value="LG U+">LG U+</option>
+                            <option value="알뜰폰">알뜰폰</option>
+                        </select>
+                    </div>
+
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할인 유형</span>
+                        <select id="modalDiscount" class="modal-input text-xs sm:text-sm">
+                            <option value="미정">선택안함</option>
+                            <option value="선택약정">선택약정</option>
+                            <option value="공시지원금">공시지원금</option>
+                            <option value="해당없음">해당없음(만료)</option>
+                        </select>
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">생년월일/나이</span>
+                        <input type="text" id="modalDob" class="modal-input text-xs sm:text-sm" placeholder="-">
+                    </div>
+                    
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">사용 단말기</span>
+                        <input type="text" id="modalDevice" class="modal-input text-xs sm:text-sm" placeholder="단말기명">
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">잔여 할부금/개월수</span>
+                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보">
+                    </div>
+                    
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">사용 요금제</span>
+                        <input type="text" id="modalPlan" class="modal-input text-xs sm:text-sm" placeholder="요금제명">
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">월 청구금액</span>
+                        <input type="text" id="modalFee" class="modal-input text-xs sm:text-sm" placeholder="요금">
+                    </div>
+                    
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">가족결합/복지</span>
+                        <input type="text" id="modalCombination" class="modal-input text-xs sm:text-sm" placeholder="결합/복지정보">
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">평균 사용량</span>
+                        <input type="text" id="modalUsage" class="modal-input text-xs sm:text-sm" placeholder="데이터/통화">
+                    </div>
+                    
+                    <div class="bg-teal-50/30 p-2 sm:p-3 rounded-lg border border-teal-200 focus-within:border-teal-500 sm:col-span-2">
+                        <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">인터넷/TV 상품</span>
+                        <input type="text" id="modalInternetTv" class="modal-input text-xs sm:text-sm" placeholder="인터넷 및 TV 상품명">
+                        <div class="flex items-center gap-1 mt-2 pt-2 border-t border-teal-100">
+                            <span class="text-[10px] sm:text-xs text-teal-600 whitespace-nowrap">유선가입일:</span>
+                            <input type="date" id="modalWiredDate" class="modal-input text-xs sm:text-sm w-32">
+                            <span id="modalWiredBadge" class="text-[10px] sm:text-xs font-bold text-teal-600 ml-auto whitespace-nowrap bg-white px-1 rounded border border-teal-100"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <div>
+                        <p class="text-xs font-bold text-gray-800 mb-1">일반 상담 메모</p>
+                        <textarea id="modalMemo" class="w-full min-h-[60px] p-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800"></textarea>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-indigo-700 mb-1">OB 메모 (아웃바운드)</p>
+                        <textarea id="modalObMemo" class="w-full min-h-[60px] p-2 bg-indigo-50/30 border border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800" placeholder="OB 컨택 내용 기록..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-3 sm:p-4 border-t bg-gray-50 flex justify-between items-center">
+                <button id="modalDeleteBtn" class="text-red-500 font-bold px-2 py-2 hover:bg-red-50 rounded-lg transition text-xs sm:text-sm flex items-center gap-1">
+                    <i class="fa-solid fa-trash-can"></i> 삭제
+                </button>
+                <div class="flex gap-2">
+                    <button id="closeDetailBtn2" class="px-3 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 text-xs sm:text-sm">취소</button>
+                    <button id="saveDetailBtn" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md text-xs sm:text-sm">저장</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API 설정 모달 -->
+    <div id="apiModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-2">🔑 AI 키 설정</h3>
+            <p class="text-xs text-gray-500 mb-4 font-bold border-b pb-3">aistudio.google.com에서 새로 발급받은 'AIza...' 키를 넣어주세요.</p>
+            <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full border p-3 rounded-lg mb-4 focus:ring-2 focus:ring-indigo-500 outline-none">
+            <div class="flex justify-end gap-2">
+                <button id="closeApiModal" class="px-4 py-2 bg-gray-100 font-bold rounded-lg">취소</button>
+                <button id="saveApiKey" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
+            authDomain: "phoneplace-db.firebaseapp.com",
+            projectId: "phoneplace-db",
+            storageBucket: "phoneplace-db.firebasestorage.app",
+            messagingSenderId: "677969361393",
+            appId: "1:677969361393:web:0f05a20ead3d575e1d6c50"
+        };
+
+        let db, auth, customerDB = [], currentFilter = 'all';
+        let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+        let currentDetailId = null;
+
+        async function initFirebase() {
+            try {
+                const app = initializeApp(myFirebaseConfig);
+                auth = getAuth(app); db = getFirestore(app);
+                signInAnonymously(auth).catch(e => console.log("인증 무시, DB 진행"));
+                onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
+                    customerDB = [];
+                    snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
+                    if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
+                });
+            } catch (error) { console.error("Firebase 에러:", error); }
+        }
+        initFirebase();
+
+        window.switchTab = function(tabId) {
+            const tScanner = document.getElementById('tabScanner'), tDB = document.getElementById('tabDB');
+            const vScanner = document.getElementById('scannerView'), vDB = document.getElementById('dbView');
+            if (tabId === 'scanner') {
+                vScanner.classList.remove('hidden'); vDB.classList.add('hidden');
+                tScanner.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
+                tDB.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
+            } else {
+                vDB.classList.remove('hidden'); vScanner.classList.add('hidden');
+                tDB.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
+                tScanner.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
+                renderDB();
+            }
+        };
+
+        function getTodayStr() {
+            const t = new Date();
+            return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        }
+        document.getElementById('val-date').value = getTodayStr();
+
+        function getDdayAndMonths(dateStr) {
+            if(!dateStr) return { days: 0, months: 0 };
+            const actDate = new Date(dateStr); const today = new Date();
+            const diffTime = today - actDate;
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            const diffMonths = Math.floor(diffDays / 30.416);
+            return { days: diffDays > 0 ? diffDays : 0, months: diffMonths > 0 ? diffMonths : 0 };
+        }
+
+        function getWiredRemainingDays(dateStr) {
+            if(!dateStr) return "날짜를 입력하세요";
+            const startDate = new Date(dateStr);
+            const endDate = new Date(startDate);
+            endDate.setMonth(endDate.getMonth() + 36); 
+
+            const today = new Date();
+            today.setHours(0,0,0,0); endDate.setHours(0,0,0,0);
+            const diffTime = endDate - today;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > 0) return `D-${diffDays}일 남음`;
+            else if (diffDays === 0) return `오늘 만료!`;
+            else return `만료됨 (D+${Math.abs(diffDays)})`;
+        }
+
+        document.getElementById('val-activation').addEventListener('change', function(e) {
+            const calc = getDdayAndMonths(e.target.value);
+            document.getElementById('val-dday').textContent = `D+${calc.days}일`;
+        });
+        document.getElementById('val-wireddate').addEventListener('change', function(e) {
+            document.getElementById('val-wired-dday').textContent = getWiredRemainingDays(e.target.value);
+        });
+        document.getElementById('modalActivation').addEventListener('change', function(e) {
+            const calc = getDdayAndMonths(e.target.value);
+            document.getElementById('modalDdayBadge').textContent = `(D+${calc.days})`;
+        });
+        document.getElementById('modalWiredDate').addEventListener('change', function(e) {
+            document.getElementById('modalWiredBadge').textContent = getWiredRemainingDays(e.target.value);
+        });
+
+        // 🌟 이미지 확대 모달 제어 기능 (완벽 유지) 🌟
+        window.openImageModal = function() {
+            const src = document.getElementById('imagePreview').src;
+            if(!src) return;
+            document.getElementById('zoomedImage').src = src;
+            document.getElementById('imageZoomModal').style.display = 'flex';
+        };
+        window.closeImageModal = function() {
+            document.getElementById('imageZoomModal').style.display = 'none';
+        };
+
+        document.getElementById('apiSettingBtn').onclick = () => { document.getElementById('apiKeyInput').value = geminiApiKey; document.getElementById('apiModal').style.display = 'flex'; };
+        document.getElementById('closeApiModal').onclick = () => { document.getElementById('apiModal').style.display = 'none'; };
+        document.getElementById('saveApiKey').onclick = () => {
+            geminiApiKey = document.getElementById('apiKeyInput').value.trim();
+            geminiApiKey ? localStorage.setItem('geminiApiKey', geminiApiKey) : localStorage.removeItem('geminiApiKey');
+            document.getElementById('apiModal').style.display = 'none'; alert("저장 완료!");
+        };
+
+        function compressImage(file, callback) {
+            const r = new FileReader();
+            r.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height, max = 1200;
+                    if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    callback(canvas.toDataURL('image/jpeg', 0.7)); 
+                };
+                img.src = e.target.result;
+            };
+            r.readAsDataURL(file);
+        }
+
+        async function handleFile(e) {
+            if (!e.target.files[0]) return;
+            if (!geminiApiKey) return alert("우측 상단 [AI 키 설정]을 먼저 완료해주세요.");
+
+            document.getElementById('uploadPrompt').classList.add('hidden');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('resetBtn').classList.remove('hidden');
+
+            compressImage(e.target.files[0], async (base64) => {
+                document.getElementById('imagePreview').src = base64; 
+                document.getElementById('imagePreview').classList.remove('hidden');
+                document.getElementById('zoomHint').classList.remove('hidden'); // 확대 힌트 표시
+                await extractInformation(base64.split(',')[1], "image/jpeg");
+            });
+        }
+        document.getElementById('cameraUpload').onchange = handleFile; 
+        document.getElementById('galleryUpload').onchange = handleFile;
+
+        document.getElementById('resetBtn').onclick = () => {
+            document.getElementById('cameraUpload').value = ''; document.getElementById('galleryUpload').value = ''; 
+            document.getElementById('imagePreview').src = ''; document.getElementById('imagePreview').classList.add('hidden'); 
+            document.getElementById('zoomHint').classList.add('hidden'); // 확대 힌트 숨김
+            document.getElementById('uploadPrompt').classList.remove('hidden'); document.getElementById('resetBtn').classList.add('hidden');
+            document.getElementById('saveDbBtn').classList.add('hidden');
+            document.getElementById('val-date').value = getTodayStr();
+            document.getElementById('val-carrier').value = '미정';
+            
+            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'val-manager'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('val-dday').textContent = 'D+0일';
+            document.getElementById('val-wired-dday').textContent = '날짜입력';
+            const radios = document.getElementsByName('discountType'); for (let r of radios) r.checked = false;
+        };
+
+        // 🌟 핵심 원인 해결: 구글에서 서비스 종료한 1.5 모델 대신 가장 최신 표준인 gemini-3.5-flash 모델로 변경 완료 🌟
+        async function extractInformation(base64Data, mimeType) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
+            const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
+규칙: 1. 마스킹(***) 무시. 2. 이름/번호는 진짜. 3. discountType은 "선택약정", "공시지원금", "해당없음" 택1.
+4. activationDate, wiredDate 는 반드시 "YYYY-MM-DD" 포맷 변환.
+5. fee(월청구금액), usage(3개월평균 데이터/통화량), combination(결합), welfare(복지할인), internetProd(인터넷상품), tvProd(TV상품).
+6. installment: 단말기의 남은 할부원금 및 할부 개월수 (예: 150,000원 / 5개월. 할부가 없으면 '해당없음' 또는 '완납')
+7. carrier: 화면의 로고나 텍스트를 보고 "SKT", "KT", "LG U+", "알뜰폰" 중 하나로 정확히 추출. (알 수 없으면 "미정")
+항목: name, phone, dob, carrier, device, installment, activationDate, plan, fee, usage, combination, welfare, discountType, internetProd, tvProd, wiredDate`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: promptText }, { inlineData: { mimeType: mimeType, data: base64Data } }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: { type: "OBJECT", properties: { "name":{type:"STRING"}, "phone":{type:"STRING"}, "dob":{type:"STRING"}, "carrier":{type:"STRING"}, "device":{type:"STRING"}, "installment":{type:"STRING"}, "activationDate":{type:"STRING"}, "plan":{type:"STRING"}, "fee":{type:"STRING"}, "usage":{type:"STRING"}, "combination":{type:"STRING"}, "welfare":{type:"STRING"}, "discountType":{type:"STRING"}, "internetProd":{type:"STRING"}, "tvProd":{type:"STRING"}, "wiredDate":{type:"STRING"} } }
+                }
+            };
+
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(`[구글 서버 거절 사유]\n${errData.error?.message || response.status}\n\n1. AI 키가 정확한지 확인해주세요.\n2. aistudio.google.com 에서 키를 '새로 발급' 받아주세요!`);
+                }
+                
+                const result = await response.json();
+                const data = JSON.parse(result.candidates[0].content.parts[0].text);
+                
+                document.getElementById('val-name').value = data.name || '';
+                document.getElementById('val-phone').value = data.phone || '';
+                document.getElementById('val-dob').value = data.dob || '';
+                document.getElementById('val-carrier').value = ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(data.carrier) ? data.carrier : '미정';
+                document.getElementById('val-device').value = data.device || '';
+                document.getElementById('val-installment').value = data.installment || ''; 
+                document.getElementById('val-fee').value = data.fee || '';
+                document.getElementById('val-usage').value = data.usage || '';
+                document.getElementById('val-combination').value = data.combination || '';
+                document.getElementById('val-welfare').value = data.welfare || '';
+                document.getElementById('val-plan').value = data.plan || '';
+                
+                document.getElementById('val-internet').value = data.internetProd || '';
+                document.getElementById('val-tv').value = data.tvProd || '';
+
+                let actDate = data.activationDate || '';
+                if(actDate && actDate.length === 10) {
+                    document.getElementById('val-activation').value = actDate;
+                    const calc = getDdayAndMonths(actDate);
+                    document.getElementById('val-dday').textContent = `D+${calc.days}일`;
+                }
+                
+                let wDate = data.wiredDate || '';
+                if(wDate && wDate.length === 10) {
+                    document.getElementById('val-wireddate').value = wDate;
+                    document.getElementById('val-wired-dday').textContent = getWiredRemainingDays(wDate);
+                }
+
+                const radios = document.getElementsByName('discountType');
+                for (let r of radios) r.checked = false;
+                if(data.discountType) {
+                    const matchedRadio = document.querySelector(`input[name="discountType"][value="${data.discountType}"]`);
+                    if(matchedRadio) matchedRadio.checked = true;
+                }
+
+                document.getElementById('saveDbBtn').classList.remove('hidden');
+            } catch (error) { 
+                alert("🚨 AI 스캔 에러 🚨\n\n" + error.message);
+            } 
+            finally { document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+
+        document.getElementById('saveDbBtn').addEventListener('click', async () => {
+            if (!db) return alert("DB 연결중입니다.");
+            const phoneVal = document.getElementById('val-phone').value;
+            const docId = phoneVal ? phoneVal.replace(/[^0-9]/g, '') : Date.now().toString();
+            const checkedDiscount = document.querySelector('input[name="discountType"]:checked');
+
+            const savedData = {
+                visitDate: document.getElementById('val-date').value,
+                manager: document.getElementById('val-manager').value || '',
+                name: document.getElementById('val-name').value,
+                phone: document.getElementById('val-phone').value,
+                carrier: document.getElementById('val-carrier').value,
+                device: document.getElementById('val-device').value,
+                installment: document.getElementById('val-installment').value,
+                activationDate: document.getElementById('val-activation').value, 
+                dob: document.getElementById('val-dob').value,
+                plan: document.getElementById('val-plan').value,
+                fee: document.getElementById('val-fee').value,
+                usage: document.getElementById('val-usage').value,
+                combination: document.getElementById('val-combination').value,
+                welfare: document.getElementById('val-welfare').value,
+                internetProd: document.getElementById('val-internet').value,
+                tvProd: document.getElementById('val-tv').value,
+                wiredDate: document.getElementById('val-wireddate').value,
+                discountType: checkedDiscount ? checkedDiscount.value : '미정',
+                memo: document.getElementById('memoPad').value,
+                obMemo: document.getElementById('obMemoPad').value,
+                salesStatus: '미정', 
+                lastContactDate: '',
+                contactManager: '',
+                updatedAt: new Date().toISOString()
+            };
+
+            try {
+                await setDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
+                alert("저장 성공!"); 
+                document.getElementById('saveDbBtn').classList.add('hidden'); 
+                switchTab('db');
+            } catch (error) { alert("저장 실패!"); }
+        });
+
+        window.logActionAndCall = async function(docId, actionType, phoneNum) {
+            if(db && docId) {
+                setDoc(doc(db, 'smart_customers', docId), { 
+                    lastContactDate: getTodayStr(), 
+                    updatedAt: new Date().toISOString() 
+                }, { merge: true }).catch(e=>console.log(e));
+            }
+            window.location.href = `${actionType}:${phoneNum}`;
+        };
+
+        window.deleteCustomer = async function(docId) {
+            if (confirm("이 고객을 영구 삭제할까요?")) {
+                await deleteDoc(doc(db, 'smart_customers', docId));
+                document.getElementById('detailModal').style.display = 'none';
+            }
+        };
+
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                filterBtns.forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white'); b.classList.add('bg-gray-100', 'text-gray-600'); });
+                if(e.target.getAttribute('data-filter') === 'status_prospect'){
+                    e.target.className = "filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-blue-600 text-white transition whitespace-nowrap";
+                } else {
+                    e.target.classList.remove('bg-gray-100', 'text-gray-600'); e.target.classList.add('active', 'bg-gray-800', 'text-white');
+                }
+                currentFilter = e.target.getAttribute('data-filter');
+                renderDB();
+            });
+        });
+
+        document.getElementById('searchInput').addEventListener('input', renderDB);
+
+        function getStatusBadge(status) {
+            if(status === '가망고객') return `<span class="bg-blue-100 text-blue-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-blue-200">💙 가망</span>`;
+            if(status === '판매성공') return `<span class="bg-green-100 text-green-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-green-200">🟢 성공</span>`;
+            if(status === '고객거부') return `<span class="bg-red-100 text-red-800 text-[10px] px-1.5 py-0.5 rounded font-bold border border-red-200">🔴 거부</span>`;
+            return `<span class="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-200">미정</span>`;
+        }
+
+        function renderDB() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
+            
+            let filteredDB = customerDB.filter(c => {
+                const matchSearch = (c.name || '').toLowerCase().includes(query) || (c.phone || '').replace(/-/g, '').includes(query.replace(/-/g, ''));
+                if (!matchSearch) return false;
+
+                const calc = getDdayAndMonths(c.activationDate);
+                const months = calc.months;
+
+                if (currentFilter === 'm6') return months >= 6 && months < 18; 
+                if (currentFilter === 'target18') return months >= 18; 
+                if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
+                if (currentFilter === 'status_prospect') return c.salesStatus === '가망고객';
+                return true; 
+            });
+
+            if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
+
+            filteredDB.sort((a,b) => new Date(b.visitDate || b.updatedAt || 0) - new Date(a.visitDate || a.updatedAt || 0)).forEach((c) => {
+                const calc = getDdayAndMonths(c.activationDate);
+                
+                let targetBadges = '';
+                if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">18M+</span>`;
+                else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold">M+6</span>`;
+                if((c.discountType || '').includes('해당없음')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold">약정만료</span>`;
+
+                let extraBadges = '';
+                if(c.combination && c.combination !== '-' && c.combination !== '해당없음') extraBadges += `<span class="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 whitespace-nowrap">👪 ${c.combination}</span>`;
+                if(c.welfare && c.welfare !== '-' && c.welfare !== '해당없음') extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
+                if(c.wiredDate) extraBadges += `<span class="bg-teal-50 text-teal-600 px-1 rounded border border-teal-100 whitespace-nowrap">📺 유선: ${getWiredRemainingDays(c.wiredDate)}</span>`;
+
+                let carrierBadge = '';
+                if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">SKT</span>`;
+                else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">KT</span>`;
+                else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">LG U+</span>`;
+                else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">알뜰폰</span>`;
+
+                tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
+                    <td class="px-3 py-3">
+                        <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
+                        <div class="text-[10px] text-gray-500 mt-1">${c.visitDate || '-'}</div>
+                    </td>
+                    <td class="px-3 py-3">
+                        <div class="font-bold text-gray-800 text-sm mb-1.5 flex items-center">${c.phone || '-'}${carrierBadge}</div>
+                        <div class="flex gap-1.5">
+                            <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
+                            <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
+                        </div>
+                    </td>
+                    <td class="px-3 py-3 text-xs">
+                        <div class="font-bold text-gray-700 truncate max-w-[120px] mb-0.5">${c.device || '기종미상'}</div>
+                        ${c.installment && c.installment !== '해당없음' && c.installment !== '완납' && c.installment !== '-' ? `<div class="text-[10px] text-pink-600 font-bold mb-1 bg-pink-50 px-1 py-0.5 rounded inline-block border border-pink-100">💳 할부: ${c.installment}</div><br>` : ''}
+                        <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
+                        ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
+                        ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
+                    </td>
+                    <td class="px-3 py-3">
+                        <div class="flex flex-col gap-1 items-start">
+                            ${getStatusBadge(c.salesStatus)}
+                            ${targetBadges ? `<div class="flex gap-1 flex-wrap">${targetBadges}</div>` : ''}
+                        </div>
+                        ${c.lastContactDate ? `<div class="text-[9px] text-gray-500 font-medium mt-1">최근: ${c.lastContactDate}</div>` : ''}
+                    </td>
+                    <td class="px-3 py-3 text-center">
+                        <button onclick="openDetailModal('${c.id}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg p-1.5 transition shadow-sm">
+                            <i class="fa-solid fa-magnifying-glass font-bold"></i>
+                        </button>
+                    </td>
+                </tr>`;
+            });
+        }
+
+        const detailModal = document.getElementById('detailModal');
+        
+        window.openDetailModal = function(id) {
+            const c = customerDB.find(x => x.id === id);
+            if(!c) return;
+            currentDetailId = id;
+            
+            document.getElementById('modalName').textContent = c.name || '-';
+            document.getElementById('modalPhone').textContent = c.phone || '-';
+            document.getElementById('modalCallBtn').setAttribute('onclick', `autoLogContact('tel', '${c.phone}')`);
+            document.getElementById('modalSmsBtn').setAttribute('onclick', `autoLogContact('sms', '${c.phone}')`);
+            
+            document.getElementById('modalVisitDate').value = c.visitDate || '';
+            document.getElementById('modalManager').value = c.manager || '';
+            document.getElementById('modalActivation').value = c.activationDate || '';
+            
+            const calc = getDdayAndMonths(c.activationDate);
+            document.getElementById('modalDdayBadge').textContent = c.activationDate ? `(D+${calc.days})` : '';
+            
+            document.getElementById('modalCarrier').value = c.carrier && ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(c.carrier) ? c.carrier : '미정';
+            document.getElementById('modalDob').value = c.dob || '';
+            document.getElementById('modalDevice').value = c.device || '';
+            document.getElementById('modalInstallment').value = c.installment || ''; 
+            document.getElementById('modalPlan').value = c.plan || '';
+            document.getElementById('modalFee').value = c.fee || '';
+            document.getElementById('modalUsage').value = c.usage || '';
+            
+            document.getElementById('modalCombination').value = (c.combination && c.combination !== '해당없음' ? c.combination : '') + (c.welfare && c.welfare !== '해당없음' ? ` / ${c.welfare}` : '');
+            let intTvStr = '';
+            if(c.internetProd) intTvStr += c.internetProd;
+            if(c.tvProd) intTvStr += (intTvStr ? ' + ' : '') + c.tvProd;
+            document.getElementById('modalInternetTv').value = intTvStr;
+            
+            document.getElementById('modalWiredDate').value = c.wiredDate || '';
+            document.getElementById('modalWiredBadge').textContent = c.wiredDate ? getWiredRemainingDays(c.wiredDate) : '';
+
+            const discountSelect = document.getElementById('modalDiscount');
+            discountSelect.value = c.discountType && c.discountType !== '미정' ? c.discountType : '미정';
+            
+            document.getElementById('modalSalesStatus').value = c.salesStatus || '미정';
+            document.getElementById('modalContactDate').value = c.lastContactDate || '';
+            document.getElementById('modalContactManager').value = c.contactManager || '';
+            
+            document.getElementById('modalMemo').value = c.memo || '';
+            document.getElementById('modalObMemo').value = c.obMemo || ''; 
+
+            detailModal.style.display = 'flex';
+        };
+
+        function closeDetailModalFunc() {
+            detailModal.style.display = 'none';
+            currentDetailId = null;
+        }
+        document.getElementById('closeDetailModal').onclick = closeDetailModalFunc;
+        document.getElementById('closeDetailBtn2').onclick = closeDetailModalFunc;
+
+        document.getElementById('btnTodayContact').onclick = () => {
+            document.getElementById('modalContactDate').value = getTodayStr();
+        };
+
+        document.getElementById('modalDeleteBtn').onclick = () => {
+            if(currentDetailId) window.deleteCustomer(currentDetailId);
+        };
+
+        document.getElementById('saveDetailBtn').onclick = async () => {
+            if(!currentDetailId || !db) return;
+            const updatedData = {
+                visitDate: document.getElementById('modalVisitDate').value,
+                manager: document.getElementById('modalManager').value,
+                activationDate: document.getElementById('modalActivation').value,
+                carrier: document.getElementById('modalCarrier').value,
+                dob: document.getElementById('modalDob').value,
+                device: document.getElementById('modalDevice').value,
+                installment: document.getElementById('modalInstallment').value, 
+                discountType: document.getElementById('modalDiscount').value,
+                plan: document.getElementById('modalPlan').value,
+                fee: document.getElementById('modalFee').value,
+                usage: document.getElementById('modalUsage').value,
+                wiredDate: document.getElementById('modalWiredDate').value,
+                
+                salesStatus: document.getElementById('modalSalesStatus').value,
+                lastContactDate: document.getElementById('modalContactDate').value,
+                contactManager: document.getElementById('modalContactManager').value,
+                
+                memo: document.getElementById('modalMemo').value,
+                obMemo: document.getElementById('modalObMemo').value,
+                updatedAt: new Date().toISOString()
+            };
+            try {
+                await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
+                alert("상세 정보가 완벽하게 수정되었습니다!");
+                closeDetailModalFunc();
+            } catch (e) { alert("업데이트 실패!"); }
+        };
+
+    </script>
+</body>
+</html>
+```
