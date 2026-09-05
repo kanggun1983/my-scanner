@@ -46,7 +46,7 @@
                 <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-blue-500"></i> AI 스마트 전산 스캐너 <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full ml-2">☁️ 클라우드 연결됨</span>
                 </h1>
-                <p class="text-sm text-gray-500 mt-1">전산 사진을 찍어 업로드하면 고객 정보를 자동으로 추출하고 파이어베이스에 영구 보관합니다.</p>
+                <p class="text-sm text-gray-500 mt-1">전산 사진을 찍거나 캡처본을 올리면 고객 정보를 추출하여 영구 보관합니다.</p>
             </div>
             <div class="flex items-center gap-3">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -68,30 +68,47 @@
         <!-- 스캐너 뷰 -->
         <div id="scannerView" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
-            <!-- 왼쪽: 이미지 업로드 -->
+            <!-- 왼쪽: 이미지 업로드 영역 -->
             <div class="lg:col-span-5 space-y-4">
                 <div class="glass-panel p-6 rounded-2xl h-full flex flex-col">
                     <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
-                        <i class="fa-solid fa-image text-gray-400"></i> 전산 화면 카메라 촬영/업로드
+                        <i class="fa-solid fa-image text-gray-400"></i> 전산 화면 스캔하기
                     </h2>
                     
-                    <label for="imageUpload" class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 hover:bg-gray-100 transition cursor-pointer relative overflow-hidden min-h-[300px]">
-                        <div id="uploadPrompt" class="flex flex-col items-center text-gray-500 p-6 text-center">
-                            <i class="fa-solid fa-camera text-4xl mb-3 text-blue-400"></i>
-                            <p class="font-bold text-gray-700 text-lg">터치하여 모니터 촬영하기</p>
-                            <p class="text-xs mt-2 text-gray-400">자동 압축 기능이 적용되어 있어<br>고화질 사진도 에러 없이 스캔됩니다.</p>
+                    <!-- 버튼이 두 개로 나뉜 새로운 업로드 영역 -->
+                    <div class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 relative overflow-hidden min-h-[300px] p-6">
+                        
+                        <div id="uploadPrompt" class="flex flex-col items-center text-center w-full z-10">
+                            <i class="fa-solid fa-expand text-4xl mb-4 text-blue-400"></i>
+                            <p class="font-bold text-gray-700 text-lg mb-4">전산 화면을 어떻게 올리시겠어요?</p>
+                            
+                            <div class="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                                <!-- 카메라 직접 촬영 버튼 -->
+                                <button type="button" onclick="document.getElementById('cameraUpload').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md transition flex items-center justify-center gap-2 flex-1">
+                                    <i class="fa-solid fa-camera"></i> 바로 사진 찍기
+                                </button>
+                                <!-- 갤러리 스크린샷 버튼 -->
+                                <button type="button" onclick="document.getElementById('galleryUpload').click()" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-lg shadow-md transition flex items-center justify-center gap-2 flex-1">
+                                    <i class="fa-regular fa-image"></i> 갤러리/스샷 첨부
+                                </button>
+                            </div>
+                            
+                            <p class="text-xs mt-4 text-gray-400">자동 압축 기능이 적용되어 있어<br>고화질 사진이나 스샷 모두 빠르게 스캔됩니다.</p>
                         </div>
                         
-                        <img id="imagePreview" class="absolute inset-0 w-full h-full object-contain hidden bg-black/5" />
+                        <img id="imagePreview" class="absolute inset-0 w-full h-full object-contain hidden bg-black/5 z-0" />
                         
-                        <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-10">
+                        <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-20">
                             <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-12 w-12 mb-4"></div>
                             <h2 class="text-center text-gray-800 font-bold">AI가 글자를 읽고 있습니다...</h2>
                             <p class="text-center text-gray-500 text-sm mt-2">약 3~5초 정도 소요됩니다.</p>
                         </div>
 
-                        <input type="file" id="imageUpload" accept="image/*" class="hidden" />
-                    </label>
+                        <!-- 숨겨진 파일 선택기 2개 (하나는 카메라 전용, 하나는 갤러리 전용) -->
+                        <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="hidden" />
+                        <input type="file" id="galleryUpload" accept="image/*" class="hidden" />
+                    </div>
+
                     <button id="resetBtn" class="mt-4 w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition hidden">
                         <i class="fa-solid fa-rotate-right mr-1"></i> 다시 찍기
                     </button>
@@ -289,7 +306,8 @@
         initFirebase();
 
         // UI 요소들
-        const imageUpload = document.getElementById('imageUpload');
+        const cameraUpload = document.getElementById('cameraUpload');
+        const galleryUpload = document.getElementById('galleryUpload');
         const imagePreview = document.getElementById('imagePreview');
         const uploadPrompt = document.getElementById('uploadPrompt');
         const loadingOverlay = document.getElementById('loadingOverlay');
@@ -368,7 +386,7 @@
                 await setDoc(doc(db, 'smart_customers', docId), newData, { merge: true });
                 showToast("☁️ 폰값연구소 클라우드에 영구 저장 완료!");
                 saveDbBtn.classList.add('hidden');
-                tabDB.click(); // 저장 후 DB탭으로 자동 이동
+                tabDB.click(); 
             } catch (error) {
                 showToast("저장 중 오류가 발생했습니다.");
             }
@@ -396,7 +414,7 @@
             welfare: document.getElementById('val-welfare')
         };
 
-        // 🌟 스마트폰 고화질 사진을 위한 자동 압축 함수 🌟
+        // 자동 압축 함수
         function compressImage(file, callback) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -405,7 +423,7 @@
                     const canvas = document.createElement('canvas');
                     let width = img.width;
                     let height = img.height;
-                    const max_size = 1200; // 최대 가로세로 1200px로 축소 (문자 인식엔 충분함)
+                    const max_size = 1200; 
 
                     if (width > height) {
                         if (width > max_size) { height *= max_size / width; width = max_size; }
@@ -417,7 +435,6 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // 압축된 Base64 데이터 반환 (0.7 품질)
                     callback(canvas.toDataURL('image/jpeg', 0.7)); 
                 };
                 img.src = e.target.result;
@@ -425,7 +442,8 @@
             reader.readAsDataURL(file);
         }
 
-        imageUpload.addEventListener('change', async (e) => {
+        // 이미지 파일 선택 공통 로직
+        async function handleImageSelection(e) {
             const file = e.target.files[0];
             if (!file) return;
 
@@ -440,19 +458,22 @@
             loadingOverlay.style.display = 'flex';
             resetBtn.classList.remove('hidden');
 
-            // 이미지 압축 실행 후 AI 전송
             compressImage(file, async function(compressedBase64) {
                 imagePreview.src = compressedBase64;
                 imagePreview.classList.remove('hidden');
                 
-                // 불필요한 'data:image/jpeg;base64,' 부분 잘라내기
                 const base64Data = compressedBase64.split(',')[1];
                 await extractInformation(base64Data, "image/jpeg");
             });
-        });
+        }
+
+        // 카메라 촬영과 갤러리 선택에 모두 이벤트 연결
+        cameraUpload.addEventListener('change', handleImageSelection);
+        galleryUpload.addEventListener('change', handleImageSelection);
 
         resetBtn.addEventListener('click', () => {
-            imageUpload.value = '';
+            cameraUpload.value = '';
+            galleryUpload.value = '';
             imagePreview.src = '';
             imagePreview.classList.add('hidden');
             uploadPrompt.classList.remove('hidden');
@@ -463,7 +484,6 @@
             saveDbBtn.classList.add('hidden');
         });
 
-        // 🌟 수정된 부분: 정식 모델(gemini-1.5-flash) 사용 🌟
         async function extractInformation(base64Data, mimeType) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
 
@@ -645,4 +665,4 @@
     </script>
 </body>
 </html>
-```
+```eof
