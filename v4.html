@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>스마트 고객 정보 추출기 (클라우드)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .loader {
+            border-top-color: #3b82f6;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 text-gray-800">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        <!-- 헤더 -->
+        <header class="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border-b-4 border-blue-600">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-blue-500"></i> AI 스마트 전산 스캐너 <span class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full ml-2 font-bold">🚀 V4 최종버전</span>
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">상단에 [V4 최종버전]이 보이면 완벽하게 성공하신 겁니다!</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition border border-gray-200">
+                    <i class="fa-solid fa-key text-yellow-500 mr-1"></i> AI 키 설정
+                </button>
+            </div>
+        </header>
+
+        <!-- 탭 네비게이션 -->
+        <div class="flex gap-2 border-b border-gray-200 px-2">
+            <button id="tabScanner" class="px-4 py-3 font-bold text-blue-600 border-b-2 border-blue-600 flex items-center gap-2 transition-colors">
+                <i class="fa-solid fa-camera"></i> 정보 스캐너
+            </button>
+            <button id="tabDB" class="px-4 py-3 font-bold text-gray-500 hover:text-blue-500 flex items-center gap-2 transition-colors">
+                <i class="fa-solid fa-database"></i> 고객 DB 관리
+            </button>
+        </div>
+
+        <!-- 스캐너 뷰 -->
+        <div id="scannerView" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <div class="lg:col-span-5 space-y-4">
+                <div class="glass-panel p-6 rounded-2xl h-full flex flex-col">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-image text-gray-400"></i> 전산 화면 올리기
+                    </h2>
+                    
+                    <div class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 relative overflow-hidden min-h-[300px] p-6">
+                        <div id="uploadPrompt" class="flex flex-col items-center text-center w-full z-10">
+                            <i class="fa-solid fa-expand text-4xl mb-4 text-blue-400"></i>
+                            <div class="flex flex-col sm:flex-row gap-3 w-full justify-center">
+                                <button type="button" onclick="document.getElementById('cameraUpload').click()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-md flex-1">
+                                    <i class="fa-solid fa-camera"></i> 바로 사진 찍기
+                                </button>
+                                <button type="button" onclick="document.getElementById('galleryUpload').click()" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-6 rounded-lg shadow-md flex-1">
+                                    <i class="fa-regular fa-image"></i> 갤러리/스샷 첨부
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <img id="imagePreview" class="absolute inset-0 w-full h-full object-contain hidden bg-black/5 z-0" />
+                        
+                        <div id="loadingOverlay" class="absolute inset-0 bg-white/80 backdrop-blur-sm hidden flex-col items-center justify-center z-20">
+                            <div class="loader ease-linear rounded-full border-4 border-t-4 border-blue-500 h-12 w-12 mb-4"></div>
+                            <h2 class="text-center text-gray-800 font-bold" id="loadingText">글자를 읽고 있습니다...</h2>
+                        </div>
+
+                        <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="hidden" />
+                        <input type="file" id="galleryUpload" accept="image/*" class="hidden" />
+                    </div>
+                    <button id="resetBtn" class="mt-4 w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition hidden">다시 찍기</button>
+                </div>
+            </div>
+
+            <!-- 추출 정보 -->
+            <div class="lg:col-span-7 space-y-4">
+                <div class="glass-panel p-6 rounded-2xl relative">
+                    <h2 class="text-lg font-bold mb-4 flex items-center gap-2"><i class="fa-solid fa-address-card text-blue-500"></i> 추출된 고객 정보</h2>
+                    <div id="infoGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-100"><p class="text-xs text-blue-600 font-semibold mb-1">고객명</p><p id="val-name" class="font-bold text-lg">-</p></div>
+                        <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-100"><p class="text-xs text-blue-600 font-semibold mb-1">전화번호</p><p id="val-phone" class="font-bold text-lg">-</p></div>
+                        <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-100"><p class="text-xs text-blue-600 font-semibold mb-1">나이</p><p id="val-dob" class="font-bold">-</p></div>
+                        <div class="p-4 bg-purple-50/50 rounded-xl border border-purple-100"><p class="text-xs text-purple-600 font-semibold mb-1">요금제</p><p id="val-plan" class="font-bold truncate">-</p></div>
+                        <div class="p-4 bg-purple-50/50 rounded-xl border border-purple-100"><p class="text-xs text-purple-600 font-semibold mb-1">기본료</p><p id="val-fee" class="font-bold">-</p></div>
+                        <div class="p-4 bg-purple-50/50 rounded-xl border border-purple-100"><p class="text-xs text-purple-600 font-semibold mb-1">데이터</p><p id="val-usage" class="font-bold">-</p></div>
+                        <div class="p-4 bg-green-50/50 rounded-xl border border-green-100 sm:col-span-2 grid grid-cols-3 gap-2">
+                            <div><p class="text-xs text-green-600 font-semibold mb-1">결합</p><p id="val-combination" class="font-bold text-sm">-</p></div>
+                            <div><p class="text-xs text-green-600 font-semibold mb-1">약정</p><p id="val-contract" class="font-bold text-sm">-</p></div>
+                            <div><p class="text-xs text-green-600 font-semibold mb-1">복지</p><p id="val-welfare" class="font-bold text-sm">-</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-6 rounded-2xl flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <h2 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-pen-to-square text-orange-500"></i> 상담 메모</h2>
+                        <button id="saveDbBtn" class="text-sm px-4 py-2 bg-blue-600 text-white rounded-lg font-bold hidden">클라우드 저장</button>
+                    </div>
+                    <textarea id="memoPad" class="w-full flex-1 min-h-[150px] p-4 bg-yellow-50/50 border border-yellow-200 rounded-xl resize-y focus:outline-none focus:ring-2 focus:ring-orange-300"></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- DB 뷰 -->
+        <div id="dbView" class="hidden glass-panel p-6 rounded-2xl min-h-[600px] flex flex-col">
+            <h2 class="text-xl font-bold flex items-center gap-2 text-gray-800 mb-4"><i class="fa-solid fa-users text-blue-500"></i> 고객 목록</h2>
+            <div class="overflow-x-auto border border-gray-200 rounded-xl flex-1 relative">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 bg-gray-50 uppercase border-b">
+                        <tr><th class="px-6 py-3">고객명</th><th class="px-6 py-3">전화번호</th><th class="px-6 py-3">가입기간</th><th class="px-6 py-3">요금제</th><th class="px-6 py-3">삭제</th></tr>
+                    </thead>
+                    <tbody id="dbTableBody">
+                        <tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">데이터 없음</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- API 모달 -->
+    <div id="apiModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center z-50">
+        <div class="bg-white p-6 rounded-2xl max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold mb-2">🔑 AI 키 설정</h3>
+            <input type="password" id="apiKeyInput" placeholder="여기에 키를 붙여넣으세요" class="w-full border p-3 rounded-lg mb-4">
+            <div class="flex justify-end gap-2">
+                <button id="closeApiModal" class="px-4 py-2 bg-gray-100 rounded-lg font-bold">취소</button>
+                <button id="saveApiKey" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 파이어베이스 설정
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
+            authDomain: "phoneplace-db.firebaseapp.com",
+            projectId: "phoneplace-db",
+            storageBucket: "phoneplace-db.firebasestorage.app",
+            messagingSenderId: "677969361393",
+            appId: "1:677969361393:web:0f05a20ead3d575e1d6c50"
+        };
+
+        let db, customerDB = [], currentExtractedData = null;
+
+        async function initFirebase() {
+            try {
+                const app = initializeApp(myFirebaseConfig);
+                await signInAnonymously(getAuth(app));
+                db = getFirestore(app);
+                onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
+                    customerDB = [];
+                    snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
+                    if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
+                });
+            } catch (e) { console.error("DB 연결 실패"); }
+        }
+        initFirebase();
+
+        // UI 제어
+        const apiModal = document.getElementById('apiModal'), apiKeyInput = document.getElementById('apiKeyInput');
+        let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
+
+        document.getElementById('apiSettingBtn').onclick = () => { apiKeyInput.value = geminiApiKey; apiModal.style.display = 'flex'; };
+        document.getElementById('closeApiModal').onclick = () => apiModal.style.display = 'none';
+        document.getElementById('saveApiKey').onclick = () => {
+            geminiApiKey = apiKeyInput.value.trim();
+            geminiApiKey ? localStorage.setItem('geminiApiKey', geminiApiKey) : localStorage.removeItem('geminiApiKey');
+            apiModal.style.display = 'none'; alert("키 저장 완료!");
+        };
+
+        document.getElementById('tabScanner').onclick = () => { document.getElementById('scannerView').classList.remove('hidden'); document.getElementById('dbView').classList.add('hidden'); };
+        document.getElementById('tabDB').onclick = () => { document.getElementById('dbView').classList.remove('hidden'); document.getElementById('scannerView').classList.add('hidden'); renderDB(); };
+
+        // 이미지 처리
+        function compressImage(file, callback) {
+            const r = new FileReader();
+            r.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let w = img.width, h = img.height, max = 1200;
+                    if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
+                    canvas.width = w; canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    callback(canvas.toDataURL('image/jpeg', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            r.readAsDataURL(file);
+        }
+
+        async function handleFile(e) {
+            if (!e.target.files[0]) return;
+            if (!geminiApiKey) return alert("우측 상단 [AI 키 설정]을 먼저 해주세요!");
+            
+            document.getElementById('uploadPrompt').classList.add('hidden');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('resetBtn').classList.remove('hidden');
+
+            compressImage(e.target.files[0], async (base64) => {
+                document.getElementById('imagePreview').src = base64;
+                document.getElementById('imagePreview').classList.remove('hidden');
+                await runAI(base64.split(',')[1]);
+            });
+        }
+        document.getElementById('cameraUpload').onchange = handleFile;
+        document.getElementById('galleryUpload').onchange = handleFile;
+
+        document.getElementById('resetBtn').onclick = () => {
+            document.getElementById('cameraUpload').value = ''; document.getElementById('galleryUpload').value = '';
+            document.getElementById('imagePreview').classList.add('hidden');
+            document.getElementById('uploadPrompt').classList.remove('hidden');
+            document.getElementById('resetBtn').classList.add('hidden');
+            document.getElementById('saveDbBtn').classList.add('hidden');
+            document.getElementById('memoPad').value = '';
+        };
+
+        // 🔥 3.6 최신버전 강제 호출 로직 🔥
+        async function runAI(base64Data) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${geminiApiKey}`;
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [
+                        { text: `전산 화면을 분석해 JSON을 만들어줘. 항목: name, phone, dob, plan, fee, usage, combination, contract, welfare, monthsUsed. (마스킹된 글자는 무시해)` },
+                        { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+                    ]
+                }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: { "name":{type:"STRING"}, "phone":{type:"STRING"}, "dob":{type:"STRING"}, "plan":{type:"STRING"}, "fee":{type:"STRING"}, "usage":{type:"STRING"}, "combination":{type:"STRING"}, "contract":{type:"STRING"}, "welfare":{type:"STRING"}, "monthsUsed":{type:"INTEGER"} }
+                    }
+                }
+            };
+
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error?.message || response.status);
+                }
+                const data = await response.json();
+                const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                
+                currentExtractedData = result;
+                document.getElementById('val-name').textContent = result.name || '-';
+                document.getElementById('val-phone').textContent = result.phone || '-';
+                document.getElementById('val-dob').textContent = result.dob || '-';
+                document.getElementById('val-plan').textContent = result.plan || '-';
+                document.getElementById('val-fee').textContent = result.fee || '-';
+                document.getElementById('val-usage').textContent = result.usage || '-';
+                document.getElementById('val-combination').textContent = result.combination || '-';
+                document.getElementById('val-contract').textContent = result.contract || '-';
+                document.getElementById('val-welfare').textContent = result.welfare || '-';
+                document.getElementById('memoPad').value = `고객명: ${result.name||''} (${result.phone||''})\n요금제: ${result.plan||''}\n상담메모:\n`;
+                document.getElementById('saveDbBtn').classList.remove('hidden');
+                
+            } catch (err) {
+                alert("🚨 [에러 원인 분석] 🚨\n\n" + err.message);
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        // DB 저장
+        document.getElementById('saveDbBtn').onclick = async () => {
+            if(!currentExtractedData) return;
+            const docId = currentExtractedData.phone ? currentExtractedData.phone.replace(/-/g, '') : Date.now().toString();
+            try {
+                await setDoc(doc(db, 'smart_customers', docId), { ...currentExtractedData, memo: document.getElementById('memoPad').value, updatedAt: new Date().toISOString() }, {merge: true});
+                alert("클라우드 저장 성공!"); document.getElementById('tabDB').click();
+            } catch(e) { alert("저장 실패!"); }
+        };
+
+        window.deleteCustomer = async (id) => { if(confirm("삭제하시겠습니까?")) await deleteDoc(doc(db, 'smart_customers', id)); };
+
+        function renderDB() {
+            const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
+            if(customerDB.length===0) return tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center">데이터 없음</td></tr>';
+            customerDB.sort((a,b)=>new Date(b.updatedAt||0)-new Date(a.updatedAt||0)).forEach(c => {
+                tbody.innerHTML += `<tr class="border-b"><td class="px-6 py-4 font-bold">${c.name||'-'}</td><td class="px-6 py-4 text-blue-600">${c.phone||'-'}</td><td class="px-6 py-4">${c.monthsUsed||'-'}개월</td><td class="px-6 py-4 truncate max-w-[100px]">${c.plan||'-'}</td><td class="px-6 py-4"><button onclick="deleteCustomer('${c.id}')" class="text-red-600 font-bold">삭제</button></td></tr>`;
+            });
+        }
+    </script>
+</body>
+</html>
