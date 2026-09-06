@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V35</title>
+    <title>스마트 고객 정보 추출기 V37</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -89,9 +89,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V35: 다중 약속 분리형</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V37: 3.5 버전 고정</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">요금제/부가/보험/기타 약속 개별 관리 시스템</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">다중 약속분리 / 자동 하이픈 / 생년월일 표시</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -388,7 +388,6 @@
                     </div>
                 </div>
 
-                <!-- 🌟 다중 약속 분리형 UI 🌟 -->
                 <div class="bg-purple-50/40 border-2 border-purple-200 rounded-xl p-3 sm:p-4 shadow-sm">
                     <div class="flex items-center justify-between mb-3 border-b border-purple-200 pb-2">
                         <h4 class="text-sm font-bold text-purple-800"><i class="fa-solid fa-calendar-check"></i> 고객 약속 / 후속 업무 관리</h4>
@@ -702,6 +701,28 @@
         }
         initFirebase();
 
+        // 🌟 전화번호 입력 시 자동 하이픈(-) 적용 함수 🌟
+        document.getElementById('val-phone').addEventListener('input', function(e) {
+            let val = e.target.value.replace(/[^0-9]/g, '');
+            if (val.length > 3 && val.length <= 7) {
+                e.target.value = val.replace(/(\d{3})(\d+)/, '$1-$2');
+            } else if (val.length > 7) {
+                e.target.value = val.replace(/(\d{3})(\d{3,4})(\d+)/, '$1-$2-$3').substring(0, 13);
+            }
+        });
+
+        // 🌟 테이블 렌더링용 전화번호 포맷 함수 🌟
+        function formatPhone(phone) {
+            if (!phone) return '-';
+            let cleaned = phone.replace(/[^0-9]/g, '');
+            if (cleaned.length === 11) {
+                return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+            } else if (cleaned.length === 10) {
+                return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+            }
+            return phone;
+        }
+
         const manualInputs = document.querySelectorAll('#infoGrid input, #infoGrid select, #memoPad, #obMemoPad');
         manualInputs.forEach(input => {
             input.addEventListener('input', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
@@ -814,7 +835,6 @@
             return installmentStr; 
         }
 
-        // 🌟 다중 약속 분리형에 맞춘 날짜 지정 함수 🌟
         window.fillPromDate = function(targetId, addDays) {
             const actDateStr = document.getElementById('modalActivation').value;
             if (!actDateStr) return alert("먼저 '모바일 개통일'을 입력해주세요!");
@@ -828,7 +848,6 @@
             
             document.getElementById(targetId).value = `${yyyy}-${mm}-${dd}`;
             
-            // 날짜 지정 시 완료 체크박스 자동 해제
             const chkId = targetId.replace('Date', 'Chk');
             if(document.getElementById(chkId)) document.getElementById(chkId).checked = false;
         };
@@ -922,6 +941,7 @@
         };
 
         async function extractInformation(base64Data, mimeType) {
+            // 🌟 고객님의 지시사항을 어기지 않겠습니다. 완전히 3.5 버전으로 고정했습니다! 🌟
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
@@ -950,7 +970,10 @@
                 const data = JSON.parse(result.candidates[0].content.parts[0].text);
                 
                 document.getElementById('val-name').value = data.name || '';
-                document.getElementById('val-phone').value = data.phone || '';
+                
+                // 🌟 AI 추출 시 폰 번호 하이픈 자동 포맷팅 🌟
+                document.getElementById('val-phone').value = formatPhone(data.phone || '');
+                
                 document.getElementById('val-dob').value = data.dob || '';
                 document.getElementById('val-carrier').value = ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(data.carrier) ? data.carrier : '미정';
                 document.getElementById('val-device').value = data.device || '';
@@ -1011,7 +1034,6 @@
             const finalLastDate = existingCustomer ? (existingCustomer.lastContactDate || '') : '';
             const finalContactManager = existingCustomer ? (existingCustomer.contactManager || '') : '';
             
-            // 다중 약속 데이터 유지
             const finalPromPlanDate = existingCustomer ? (existingCustomer.promPlanDate || '') : '';
             const finalPromPlanMemo = existingCustomer ? (existingCustomer.promPlanMemo || '') : '';
             const finalPromPlanChk = existingCustomer ? (existingCustomer.promPlanChk || false) : false;
@@ -1156,7 +1178,6 @@
                 if (currentFilter === 'target18') return months >= 18; 
                 if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
                 if (currentFilter === 'status_prospect') return c.salesStatus === '가망고객';
-                // 필터 '약속/할일': 4개 항목 중 하나라도 날짜가 있으면 통과
                 if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate); 
                 return true; 
             });
@@ -1165,7 +1186,6 @@
 
             if (currentFilter === 'promise') {
                 filteredDB.sort((a,b) => {
-                    // 가장 빠른 약속일을 찾아 정렬 기준으로 삼음
                     const getMinDate = (c) => {
                         let dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate].filter(d => d);
                         return dates.length > 0 ? dates.sort()[0] : '9999-12-31';
@@ -1189,15 +1209,15 @@
                 if(c.welfare && c.welfare !== '-' && c.welfare !== '해당없음') extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
                 if(c.wiredDate) extraBadges += `<span class="bg-teal-50 text-teal-600 px-1 rounded border border-teal-100 whitespace-nowrap">📺 유선: ${getWiredRemainingDays(c.wiredDate)}</span>`;
 
+                // 🌟 LG U+ 뱃지를 'LG' 로 축소 🌟
                 let carrierBadge = '';
-                if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">SKT</span>`;
-                else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">KT</span>`;
-                else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">LG U+</span>`;
-                else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">알뜰폰</span>`;
+                if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">SKT</span>`;
+                else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">KT</span>`;
+                else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">LG</span>`;
+                else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">알뜰폰</span>`;
 
                 let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate);
 
-                // 🌟 다중 약속 뱃지 생성 로직 🌟
                 let promiseBadgeHtml = '';
                 const promises = [
                     { name: '요금제', date: c.promPlanDate, memo: c.promPlanMemo, chk: c.promPlanChk },
@@ -1243,7 +1263,10 @@
                         <div class="text-[10px] text-gray-500 mt-1">${c.visitDate || '-'}</div>
                     </td>
                     <td class="px-3 py-3">
-                        <div class="font-bold text-gray-800 text-sm mb-1.5 flex items-center">${c.phone || '-'}${carrierBadge}</div>
+                        <!-- 🌟 자동 하이픈 및 생년월일 노출 🌟 -->
+                        <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center">${formatPhone(c.phone)}${carrierBadge}</div>
+                        ${c.dob && c.dob !== '-' ? `<div class="text-[10px] text-gray-500 font-medium mb-1.5 pl-0.5"><i class="fa-solid fa-cake-candles text-gray-300 mr-1"></i>${c.dob}</div>` : '<div class="mb-1.5"></div>'}
+                        
                         <div class="flex items-center gap-1.5">
                             <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
                             <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
@@ -1290,7 +1313,8 @@
             currentDetailId = id;
             
             document.getElementById('modalName').textContent = c.name || '-';
-            document.getElementById('modalPhone').textContent = c.phone || '-';
+            // 모달창 상단 전화번호 띄울때도 하이픈 자동적용
+            document.getElementById('modalPhone').textContent = formatPhone(c.phone || '-');
             
             document.getElementById('modalCallBtn').onclick = () => logActionAndCall(id, 'tel', c.phone);
             document.getElementById('modalSmsBtn').onclick = () => logActionAndCall(id, 'sms', c.phone);
@@ -1327,7 +1351,6 @@
             document.getElementById('modalContactDate').value = c.lastContactDate || '';
             document.getElementById('modalContactManager').value = c.contactManager || '';
             
-            // 🌟 다중 약속 데이터 바인딩 🌟
             document.getElementById('promPlanDate').value = c.promPlanDate || '';
             document.getElementById('promPlanMemo').value = c.promPlanMemo || '';
             document.getElementById('promPlanChk').checked = c.promPlanChk || false;
@@ -1388,7 +1411,6 @@
                 lastContactDate: document.getElementById('modalContactDate').value,
                 contactManager: document.getElementById('modalContactManager').value,
                 
-                // 다중 약속 데이터 저장
                 promPlanDate: document.getElementById('promPlanDate').value,
                 promPlanMemo: document.getElementById('promPlanMemo').value,
                 promPlanChk: document.getElementById('promPlanChk').checked,
