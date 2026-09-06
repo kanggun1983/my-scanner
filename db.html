@@ -14,13 +14,12 @@
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3208/3208003.png">
     <link rel="manifest" id="dynamic-manifest">
     <script>
-        // 현재 파일(db.html) 주소를 인식하여 기존 명함과 꼬이지 않도록 독립적인 앱 생성
         document.addEventListener('DOMContentLoaded', () => {
             const manifest = {
                 "name": "고객DB관리",
                 "short_name": "고객DB관리",
                 "display": "standalone",
-                "start_url": window.location.href.split('?')[0], // 현재 접속한 URL 고정
+                "start_url": window.location.href.split('?')[0], 
                 "background_color": "#f3f4f6",
                 "theme_color": "#4f46e5",
                 "icons": [{
@@ -94,9 +93,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V30: 3.5 모델 확정 & 기능 분리 완전판</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V30: 최종 검토 완료판</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">연락 타임라인 분리 및 재스캔 시 기존 데이터 보존 기능 탑재</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">개통보고 데이터 자동 저장 및 실시간 화면 동기화 완벽 적용</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -333,7 +332,6 @@
                             <th class="px-4 py-3 whitespace-nowrap">고객명 / 스캔일</th>
                             <th class="px-4 py-3 whitespace-nowrap">연락처 및 액션</th>
                             <th class="px-4 py-3 whitespace-nowrap">단말기 / 개통일 / 결합</th>
-                            <!-- 🌟 추가된 할부 정보 열 🌟 -->
                             <th class="px-4 py-3 whitespace-nowrap">할부 / 남은개월수</th>
                             <th class="px-4 py-3 whitespace-nowrap">영업상태 및 타겟</th>
                             <th class="px-4 py-3 whitespace-nowrap text-center">미리보기</th>
@@ -347,13 +345,13 @@
         </div>
     </div>
 
-    <!-- 이미지 확대 팝업 (모달) -->
+    <!-- 이미지 확대 팝업 -->
     <div id="imageZoomModal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[100] cursor-zoom-out" onclick="closeImageModal()">
         <button class="absolute top-4 right-4 text-white text-4xl font-bold p-4 opacity-70 hover:opacity-100">&times;</button>
         <img id="zoomedImage" class="max-w-full max-h-full object-contain" />
     </div>
 
-    <!-- 상세정보 팝업창 (미리보기 모달) -->
+    <!-- 상세정보 모달 -->
     <div id="detailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-2 sm:p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden">
             <div class="p-3 sm:p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -452,8 +450,8 @@
                         <input type="text" id="modalDevice" class="modal-input text-xs sm:text-sm" placeholder="단말기명">
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
-                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할부원금/개월수 (기록값)</span>
-                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보 원본">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할부원금/개월수</span>
+                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보">
                     </div>
                     
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
@@ -680,16 +678,11 @@
 
         function getDdayAndMonths(dateStr) {
             if(!dateStr) return { days: 0, months: 0 };
-            
-            // 날짜 파싱 오류 방지를 위한 정제 로직 (YYYY-MM-DD 형식만 안전하게 파싱)
             const parts = dateStr.split('-');
             if(parts.length !== 3) return { days: 0, months: 0 };
-            
-            // new Date(Year, Month - 1, Day) 형태로 타임존 밀림 현상 완벽 방지
             const actDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)); 
             const today = new Date();
-            today.setHours(0,0,0,0); actDate.setHours(0,0,0,0); // 시간 값 무시하고 날짜만 비교
-            
+            today.setHours(0,0,0,0); actDate.setHours(0,0,0,0);
             const diffTime = today - actDate;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const diffMonths = Math.floor(diffDays / 30.416);
@@ -718,7 +711,6 @@
         function getDynamicInstallment(installmentStr, activationDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
-            
             if (!activationDateStr) return installmentStr;
             
             const parts = activationDateStr.split('-');
@@ -732,10 +724,8 @@
             
             if (monthsPassed <= 0) return installmentStr; 
 
-            // AI가 "24개월", "24M", "24" 등 어떤 포맷을 주더라도 유연하게 개월 수만 추출
             const splitData = installmentStr.split('/');
             if (splitData.length >= 2) {
-                // '/' 뒤에 있는 문자열에서 숫자만 추출
                 const monthStr = splitData[1].replace(/[^0-9]/g, '');
                 if (monthStr) {
                     const origMonths = parseInt(monthStr, 10);
@@ -761,8 +751,6 @@
                     if (amount > 0) {
                         let monthly = amount / origMonths; 
                         let remainAmt = monthly * remainMonths; 
-                        
-                        // toLocaleString() 적용하여 100원 단위 유실 방지
                         return `${Math.floor(remainAmt).toLocaleString()}원 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
                     }
                     return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
@@ -977,7 +965,6 @@
                 prosPay: finalProsPay,
                 prosPlan: finalProsPlan,
                 
-                // 개통보고 데이터 보존 처리 (스캔/저장 시 덮어써지지 않게)
                 repJumin: existingCustomer ? (existingCustomer.repJumin || '') : '',
                 repAddress: existingCustomer ? (existingCustomer.repAddress || '') : '',
                 repUsim: existingCustomer ? (existingCustomer.repUsim || '') : '',
@@ -1276,7 +1263,6 @@
             } catch (e) { alert("업데이트 실패!"); }
         };
 
-        // ------------------ 🌟 새로워진 개통보고 폼 데이터 보존 및 덮어쓰기 로직 🌟 ------------------
         const reportModal = document.getElementById('reportModal');
         const reportInputs = ['rep-jumin', 'rep-address', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
         let reportCustomerData = null;
@@ -1286,7 +1272,6 @@
             reportCustomerData = customerDB.find(x => x.id === currentDetailId);
             if(!reportCustomerData) return;
             
-            // DB에 저장해 둔 보고서 내역이 있으면 불러오고, 없으면 기본값(빈칸) 세팅
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
             document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
             document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
@@ -1299,7 +1284,6 @@
             document.getElementById('rep-usedphone').value = reportCustomerData.repUsedPhone || '';
             document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
             
-            // 할부개월수/할인유형은 전용 보고서 값이 있으면 우선 적용, 없으면 메인 정보에서 가져오기
             document.getElementById('rep-installment').value = reportCustomerData.repInstallment || reportCustomerData.installment || '';
             document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
@@ -1348,7 +1332,6 @@
             document.getElementById(id).addEventListener('input', updateReportPreview);
         });
 
-        // 🌟 [텍스트 복사하기] 누를 때 폼의 모든 정보들을 DB에 저장 & 메인 데이터 동기화 🌟
         document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
             const textarea = document.createElement('textarea');
@@ -1363,7 +1346,6 @@
                     const newDiscount = document.getElementById('rep-discount').value;
                     const newInstallment = document.getElementById('rep-installment').value;
                     
-                    // 작성한 보고서 정보들을 DB에 모두 저장합니다.
                     await setDoc(doc(db, 'smart_customers', currentDetailId), {
                         salesStatus: '판매성공',
                         repJumin: document.getElementById('rep-jumin').value,
@@ -1380,14 +1362,15 @@
                         repUsedPhone: document.getElementById('rep-usedphone').value,
                         repBranch: document.getElementById('rep-branch').value,
                         
-                        // 메인 데이터(상세카드 정보)도 개통보고에 맞게 동기화 (할인유형 덮어쓰기)
                         discountType: newDiscount || '미정',
+                        installment: newInstallment || '', 
                         updatedAt: new Date().toISOString()
                     }, { merge: true });
                     
-                    // 모달창이 열려있으므로 실시간으로 UI 셀렉트 박스도 맞춰서 변경해줍니다.
+                    // 🌟 상세 카드 모달 화면 실시간 즉시 동기화 적용 🌟
                     document.getElementById('modalSalesStatus').value = '판매성공';
                     if (newDiscount) document.getElementById('modalDiscount').value = newDiscount;
+                    if (newInstallment) document.getElementById('modalInstallment').value = newInstallment;
                 }
 
                 alert('✅ 개통보고 양식이 성공적으로 복사되었습니다!\n작성하신 모든 정보가 DB에 저장되며 영업상태가 [판매성공]으로 변경됩니다.');
@@ -1399,7 +1382,6 @@
             document.body.removeChild(textarea);
         });
 
-        // ------------------ 가망/상담보고 폼 팝업 연동 로직 ------------------
         const prospectModal = document.getElementById('prospectModal');
         const prospectInputs = ['pros-carrier', 'pros-device', 'pros-wired', 'pros-pay', 'pros-plan'];
         
