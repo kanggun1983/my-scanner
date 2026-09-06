@@ -451,8 +451,12 @@
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">사용 단말기</span>
                         <input type="text" id="modalDevice" class="modal-input text-xs sm:text-sm" placeholder="단말기명">
                     </div>
+                    <!-- 🌟 상세 모달에서도 다이나믹 뱃지 표시 🌟 -->
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
-                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">잔여 할부금/개월수 (기록값)</span>
+                        <span class="flex items-center justify-between text-[10px] sm:text-xs text-gray-500 mb-1">
+                            잔여 할부/개월 (초기값)
+                            <span id="modalInstallmentDynamic" class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded font-bold hidden"></span>
+                        </span>
                         <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보">
                     </div>
                     
@@ -712,7 +716,7 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        // 🌟 [추가된 부분] 방문일(등록일) 기준으로 오늘 날짜까지의 할부 자동 계산 함수 🌟
+        // 🌟 [강화된 부분] 방문일(등록일) 기준으로 오늘 날짜까지의 할부 자동 계산 함수 🌟
         function getDynamicInstallment(installmentStr, visitDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납')) return installmentStr;
@@ -729,53 +733,60 @@
                 monthsPassed--;
             }
             
-            if (monthsPassed <= 0) return installmentStr; // 한 달도 안 지났으면 원래 문자열 그대로 반환
+            // 💡 중요: 스캔한 지 한 달이 지나지 않았으면 (또는 미래 날짜면) 초기값을 그대로 반환합니다!
+            if (monthsPassed <= 0) return installmentStr; 
 
             // 할부 개월 수 파싱 시도 ('X개월' 형태)
-            const monthMatch = installmentStr.match(/(\d+)\s*개월/);
+            const monthMatch = installmentStr.match(/(\d+)\s*(?:개월|달)/);
             if (monthMatch) {
                 const origMonths = parseInt(monthMatch[1], 10);
+                if (origMonths <= 0) return installmentStr;
+                
                 const remainMonths = origMonths - monthsPassed;
                 
                 if (remainMonths <= 0) return '🎉 완납 (자동처리)'; // 기한이 다 됨
 
-                // 금액 파싱 ('/' 앞부분)
-                const parts = installmentStr.split('/');
-                if (parts.length === 2) {
-                    let amountStr = parts[0];
-                    let amount = 0;
+                // 금액 파싱 (슬래시가 없는 경우도 처리)
+                let amountStr = installmentStr;
+                if (installmentStr.includes('/')) {
+                    amountStr = installmentStr.split('/')[0];
+                } else {
+                    amountStr = installmentStr.replace(monthMatch[0], ''); 
+                }
+
+                let amount = 0;
+                
+                // '만', '천' 한글 단위 해석
+                if (amountStr.includes('만')) {
+                    let partsMan = amountStr.split('만');
+                    let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
+                    let remainderStr = partsMan[1].replace(/[^0-9]/g, '');
+                    let remainder = parseInt(remainderStr || '0', 10);
+                    if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
+                    amount = (man * 10000) + remainder;
+                } else {
+                    // 숫자만 있는 경우 (예: 150000)
+                    amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
+                }
+                
+                // 남은 금액 계산
+                if (amount > 0) {
+                    let monthly = amount / origMonths; // 월 납부금액
+                    let remainAmt = monthly * remainMonths; // 남은 총액
                     
-                    // '만', '천' 한글 단위 해석
-                    if (amountStr.includes('만')) {
-                        let partsMan = amountStr.split('만');
-                        let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
-                        let remainderStr = partsMan[1].replace(/[^0-9]/g, '');
-                        let remainder = parseInt(remainderStr || '0', 10);
-                        if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
-                        amount = (man * 10000) + remainder;
+                    let resultStr = '';
+                    if (remainAmt >= 10000) {
+                        let man = Math.floor(remainAmt / 10000);
+                        let cheon = Math.floor((remainAmt % 10000) / 1000);
+                        resultStr = `${man}만` + (cheon > 0 ? ` ${cheon}천` : '') + '원';
                     } else {
-                        // 숫자만 있는 경우 (예: 150000)
-                        amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
+                        resultStr = Math.floor(remainAmt).toLocaleString() + '원';
                     }
-                    
-                    // 남은 금액 계산
-                    if (amount > 0) {
-                        let monthly = amount / origMonths; // 월 납부금액
-                        let remainAmt = monthly * remainMonths; // 남은 총액
-                        
-                        let resultStr = '';
-                        if (remainAmt >= 10000) {
-                            let man = Math.floor(remainAmt / 10000);
-                            let cheon = Math.floor((remainAmt % 10000) / 1000);
-                            resultStr = `${man}만` + (cheon > 0 ? ` ${cheon}천` : '') + '원';
-                        } else {
-                            resultStr = Math.floor(remainAmt).toLocaleString() + '원';
-                        }
-                        return `${resultStr} / ${remainMonths}개월 (-${monthsPassed}M)`;
-                    }
+                    // 변화를 시각적으로 쉽게 알 수 있게 화살표 뱃지 추가
+                    return `${resultStr} / ${remainMonths}개월 (⬇${monthsPassed}M)`;
                 }
                 // 금액 계산을 못했으면 개월 수만 업데이트해서 반환
-                return `금액확인필요 / ${remainMonths}개월 (-${monthsPassed}M)`;
+                return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
             }
             return installmentStr; // 정규식에 안 맞으면 원래 문자열 반환
         }
@@ -1135,7 +1146,7 @@
                     </td>
                     <td class="px-3 py-3 text-xs">
                         ${c.installment && c.installment !== '해당없음' && c.installment !== '완납' && c.installment !== '-' 
-                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="최초 스캔/등록된 데이터: ${c.installment}">💳 ${dynamicInstallment}</div>` 
+                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="최초 등록값: ${c.installment}">💳 ${dynamicInstallment}</div>` 
                             : '<span class="text-[11px] text-gray-400 font-medium">해당없음/완납</span>'}
                     </td>
                     <td class="px-3 py-3">
@@ -1178,6 +1189,17 @@
             document.getElementById('modalDob').value = c.dob || '';
             document.getElementById('modalDevice').value = c.device || '';
             document.getElementById('modalInstallment').value = c.installment || ''; 
+            
+            // 🌟 상세 모달 내의 다이나믹 뱃지 처리 🌟
+            const dynInst = getDynamicInstallment(c.installment, c.visitDate);
+            const dynEl = document.getElementById('modalInstallmentDynamic');
+            if (dynInst && dynInst !== c.installment) {
+                dynEl.textContent = `👉 현재예상: ${dynInst}`;
+                dynEl.classList.remove('hidden');
+            } else {
+                dynEl.classList.add('hidden');
+            }
+
             document.getElementById('modalPlan').value = c.plan || '';
             document.getElementById('modalFee').value = c.fee || '';
             document.getElementById('modalUsage').value = c.usage || '';
