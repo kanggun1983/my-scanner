@@ -848,12 +848,16 @@
                 const timeStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
                 
                 const actionName = actionType === 'tel' ? '📞 전화발신' : '💬 문자발송';
+                
+                // === 변경된 부분: 담당자 이름 우선순위 결정 ===
                 let managerName = '담당자미상';
                 
-                if (currentDetailId === docId && document.getElementById('modalContactManager').value) {
-                    managerName = document.getElementById('modalContactManager').value;
-                } else if (document.getElementById('val-manager').value) {
-                    managerName = document.getElementById('val-manager').value;
+                if (currentDetailId === docId && document.getElementById('modalContactManager').value.trim()) {
+                    managerName = document.getElementById('modalContactManager').value.trim();
+                } else if (document.getElementById(`listManager_${docId}`) && document.getElementById(`listManager_${docId}`).value.trim()) {
+                    managerName = document.getElementById(`listManager_${docId}`).value.trim();
+                } else if (document.getElementById('val-manager').value.trim()) {
+                    managerName = document.getElementById('val-manager').value.trim();
                 }
 
                 const customer = customerDB.find(c => c.id === docId);
@@ -949,6 +953,7 @@
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">LG U+</span>`;
                 else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">알뜰폰</span>`;
 
+                // === 변경된 부분: 리스트 창에 전화버튼 옆 담당자 입력칸 추가 ===
                 tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
@@ -956,9 +961,10 @@
                     </td>
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-800 text-sm mb-1.5 flex items-center">${c.phone || '-'}${carrierBadge}</div>
-                        <div class="flex gap-1.5">
+                        <div class="flex items-center gap-1.5">
                             <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
                             <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
+                            <input type="text" id="listManager_${c.id}" value="${c.contactManager || c.manager || ''}" placeholder="담당자" class="w-14 text-[10px] px-1 py-0.5 border border-gray-300 rounded outline-none focus:border-indigo-400 text-gray-700 bg-white" onclick="event.stopPropagation()">
                         </div>
                     </td>
                     <td class="px-3 py-3 text-xs">
