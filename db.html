@@ -498,10 +498,22 @@
                         <textarea id="modalObMemo" class="w-full min-h-[70px] p-2 bg-indigo-50/30 border border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800" placeholder="수동으로 입력할 메모 내용..."></textarea>
                     </div>
                     
-                    <!-- 🔥 새로 추가된 상담보고 내역 표시 칸 🔥 -->
-                    <div>
-                        <p class="text-xs font-bold text-blue-600 mb-1"><i class="fa-solid fa-file-lines"></i> 최근 상담보고 내역</p>
-                        <textarea id="modalProspectMemo" class="w-full min-h-[70px] p-2 bg-blue-50/20 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[11px] text-gray-700 leading-relaxed" placeholder="위의 [상담보고 폼]에서 복사하기를 누르면 여기에 자동으로 내용이 기록됩니다."></textarea>
+                    <!-- 🔥 새롭게 수정된 [최근 상담보고 내역] (입력 폼 그리드) 🔥 -->
+                    <div class="bg-blue-50/20 border border-blue-200 rounded-xl p-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-xs font-bold text-blue-700"><i class="fa-solid fa-file-lines"></i> 최근 상담보고 내역 (가망)</p>
+                            <button id="detailCopyProspectBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-[10px] font-bold transition flex items-center gap-1 shadow-sm">
+                                <i class="fa-solid fa-copy"></i> 복사
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs mb-2">
+                            <input type="text" id="detailProsCarrier" placeholder="원하는통신사" class="border border-blue-200 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <input type="text" id="detailProsDevice" placeholder="원하는단말" class="border border-blue-200 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <input type="text" id="detailProsWired" placeholder="유선동판(동반)유무" class="border border-blue-200 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <input type="text" id="detailProsPay" placeholder="현금/할부(개월)" class="border border-blue-200 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                            <input type="text" id="detailProsPlan" placeholder="원하는요금제" class="border border-blue-200 p-2 rounded col-span-2 focus:ring-1 focus:ring-blue-500 outline-none bg-white">
+                        </div>
+                        <textarea id="modalProspectMemo" class="w-full min-h-[40px] p-2 bg-white border border-blue-200 rounded focus:ring-1 focus:ring-blue-500 outline-none text-[11px] text-gray-700 leading-relaxed" placeholder="추가 수기 메모 (직접 수정/추가 가능)"></textarea>
                     </div>
 
                     <div>
@@ -560,7 +572,7 @@
         </div>
     </div>
 
-    <!-- 가망/상담보고 모달 -->
+    <!-- 가망/상담보고 모달 (선택 사항으로 남겨둠) -->
     <div id="prospectModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-2 sm:p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col overflow-hidden">
             <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
@@ -578,11 +590,11 @@
                     <input type="text" id="pros-pay" placeholder="현금/할부(개월)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none">
                     <input type="text" id="pros-plan" placeholder="원하는요금제" class="border border-gray-300 p-2 rounded col-span-2 focus:ring-1 focus:ring-blue-500 outline-none">
                 </div>
-                <textarea id="prospectPreview" readonly class="w-full h-[180px] p-3 mt-2 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
+                <textarea id="prospectPreview" readonly class="w-full h-[140px] p-3 mt-2 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
             </div>
             <div class="p-3 border-t bg-gray-50">
                 <button id="copyProspectBtn" class="w-full px-4 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-copy"></i> 텍스트 복사하기
+                    <i class="fa-solid fa-download"></i> 내역에 저장하기 (복사 포함)
                 </button>
             </div>
         </div>
@@ -843,7 +855,15 @@
             
             const finalMemo = document.getElementById('memoPad').value || (existingCustomer ? (existingCustomer.memo || '') : '');
             const finalObMemo = document.getElementById('obMemoPad').value || (existingCustomer ? (existingCustomer.obMemo || '') : '');
+            
+            // 기존 데이터 유지용
             const finalProspectMemo = existingCustomer ? (existingCustomer.prospectMemo || '') : '';
+            const finalProsCarrier = existingCustomer ? (existingCustomer.prosCarrier || '') : '';
+            const finalProsDevice = existingCustomer ? (existingCustomer.prosDevice || '') : '';
+            const finalProsWired = existingCustomer ? (existingCustomer.prosWired || '') : '';
+            const finalProsPay = existingCustomer ? (existingCustomer.prosPay || '') : '';
+            const finalProsPlan = existingCustomer ? (existingCustomer.prosPlan || '') : '';
+
             const finalHistory = document.getElementById('historyPad').value || (existingCustomer ? (existingCustomer.contactHistory || '') : '');
             const finalStatus = existingCustomer ? (existingCustomer.salesStatus || '미정') : '미정';
             const finalLastDate = existingCustomer ? (existingCustomer.lastContactDate || '') : '';
@@ -868,9 +888,16 @@
                 tvProd: document.getElementById('val-tv').value,
                 wiredDate: document.getElementById('val-wireddate').value,
                 discountType: checkedDiscount ? checkedDiscount.value : '미정',
+                
                 memo: finalMemo,
                 obMemo: finalObMemo,
                 prospectMemo: finalProspectMemo,
+                prosCarrier: finalProsCarrier,
+                prosDevice: finalProsDevice,
+                prosWired: finalProsWired,
+                prosPay: finalProsPay,
+                prosPlan: finalProsPlan,
+                
                 contactHistory: finalHistory, 
                 salesStatus: finalStatus, 
                 lastContactDate: finalLastDate,
@@ -1077,8 +1104,15 @@
             
             document.getElementById('modalMemo').value = c.memo || '';
             document.getElementById('modalObMemo').value = c.obMemo || ''; 
-            document.getElementById('modalProspectMemo').value = c.prospectMemo || '';
             
+            // 🔥 가망/상담보고 데이터 연동 🔥
+            document.getElementById('modalProspectMemo').value = c.prospectMemo || '';
+            document.getElementById('detailProsCarrier').value = c.prosCarrier || '';
+            document.getElementById('detailProsDevice').value = c.prosDevice || '';
+            document.getElementById('detailProsWired').value = c.prosWired || '';
+            document.getElementById('detailProsPay').value = c.prosPay || '';
+            document.getElementById('detailProsPlan').value = c.prosPlan || '';
+
             const historyEl = document.getElementById('modalHistory');
             historyEl.value = c.contactHistory || ''; 
             setTimeout(() => { historyEl.scrollTop = historyEl.scrollHeight; }, 10);
@@ -1101,6 +1135,7 @@
             if(currentDetailId) window.deleteCustomer(currentDetailId);
         };
 
+        // 상세 정보 저장
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
             const updatedData = {
@@ -1123,7 +1158,15 @@
                 
                 memo: document.getElementById('modalMemo').value,
                 obMemo: document.getElementById('modalObMemo').value,
+                
+                // 가망보고 내역 저장
                 prospectMemo: document.getElementById('modalProspectMemo').value,
+                prosCarrier: document.getElementById('detailProsCarrier').value,
+                prosDevice: document.getElementById('detailProsDevice').value,
+                prosWired: document.getElementById('detailProsWired').value,
+                prosPay: document.getElementById('detailProsPay').value,
+                prosPlan: document.getElementById('detailProsPlan').value,
+
                 contactHistory: document.getElementById('modalHistory').value,
                 updatedAt: new Date().toISOString()
             };
@@ -1210,13 +1253,19 @@
             document.body.removeChild(textarea);
         });
 
-        // ------------------ 가망/상담보고 관련 로직 ------------------
+        // ------------------ 가망/상담보고 폼 팝업 연동 로직 ------------------
         const prospectModal = document.getElementById('prospectModal');
         const prospectInputs = ['pros-carrier', 'pros-device', 'pros-wired', 'pros-pay', 'pros-plan'];
         
         document.getElementById('openProspectBtn').addEventListener('click', () => {
             if(!currentDetailId) return;
-            prospectInputs.forEach(id => document.getElementById(id).value = '');
+            // 상세창에 있는 값을 팝업 폼으로 불러옴
+            document.getElementById('pros-carrier').value = document.getElementById('detailProsCarrier').value;
+            document.getElementById('pros-device').value = document.getElementById('detailProsDevice').value;
+            document.getElementById('pros-wired').value = document.getElementById('detailProsWired').value;
+            document.getElementById('pros-pay').value = document.getElementById('detailProsPay').value;
+            document.getElementById('pros-plan').value = document.getElementById('detailProsPlan').value;
+            
             updateProspectPreview();
             prospectModal.style.display = 'flex';
         });
@@ -1227,14 +1276,10 @@
 
         function updateProspectPreview() {
             if(!currentDetailId) return;
-            const customer = customerDB.find(x => x.id === currentDetailId);
-            
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
             
             const text = `-상담보고 ${dateStr}-\n\n` +
-            `고객명: ${customer.name || ''}\n` +
-            `연락처: ${customer.phone || ''}\n` +
             `원하는통신사: ${document.getElementById('pros-carrier').value}\n` +
             `원하는단말: ${document.getElementById('pros-device').value}\n` +
             `유선동판유무: ${document.getElementById('pros-wired').value}\n` +
@@ -1248,6 +1293,7 @@
             document.getElementById(id).addEventListener('input', updateProspectPreview);
         });
 
+        // 팝업 안에서 복사/저장 누를 때
         document.getElementById('copyProspectBtn').addEventListener('click', () => {
             const text = document.getElementById('prospectPreview').value;
             const textarea = document.createElement('textarea');
@@ -1257,14 +1303,45 @@
             try {
                 document.execCommand('copy');
                 
-                // 새로 만든 [최근 상담보고 내역] 칸에 텍스트 자동 삽입
-                const prospectMemoEl = document.getElementById('modalProspectMemo');
-                if (prospectMemoEl) {
-                    prospectMemoEl.value = text + (prospectMemoEl.value ? '\n\n' + prospectMemoEl.value : '');
-                }
-                
-                alert('✅ 복사 성공!\n(상세 카드의 [최근 상담보고 내역] 칸에도 자동 입력되었습니다. 저장 버튼을 눌러 보존하세요)');
+                // 팝업에서 작성한 내용을 메인 상세 카드의 폼에 그대로 꽂아넣기
+                document.getElementById('detailProsCarrier').value = document.getElementById('pros-carrier').value;
+                document.getElementById('detailProsDevice').value = document.getElementById('pros-device').value;
+                document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
+                document.getElementById('detailProsPay').value = document.getElementById('pros-pay').value;
+                document.getElementById('detailProsPlan').value = document.getElementById('pros-plan').value;
+
+                alert('✅ 내역에 깔끔하게 적용되었습니다!\n(클립보드 복사 완료. 상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
                 prospectModal.style.display = 'none';
+            } catch (err) {
+                alert('저장에 실패했습니다.');
+            }
+            document.body.removeChild(textarea);
+        });
+
+        // 🔥 메인 상세 카드 창에서 [복사] 버튼 누를 때 🔥
+        document.getElementById('detailCopyProspectBtn').addEventListener('click', () => {
+            const today = new Date();
+            const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
+            
+            let text = `-상담보고 ${dateStr}-\n\n` +
+            `원하는통신사: ${document.getElementById('detailProsCarrier').value}\n` +
+            `원하는단말: ${document.getElementById('detailProsDevice').value}\n` +
+            `유선동판유무: ${document.getElementById('detailProsWired').value}\n` +
+            `현금/할부: ${document.getElementById('detailProsPay').value}\n` +
+            `원하는요금제: ${document.getElementById('detailProsPlan').value}`;
+
+            const addMemo = document.getElementById('modalProspectMemo').value;
+            if(addMemo) {
+                text += `\n\n[추가 수기메모]\n${addMemo}`;
+            }
+
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                alert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!');
             } catch (err) {
                 alert('복사에 실패했습니다.');
             }
