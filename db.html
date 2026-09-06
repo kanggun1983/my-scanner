@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="ko" translate="no">
 <head>
@@ -500,7 +501,6 @@
                         <textarea id="modalObMemo" class="w-full min-h-[70px] p-2 bg-indigo-50/30 border border-indigo-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800" placeholder="수동으로 입력할 메모 내용..."></textarea>
                     </div>
                     
-                    <!-- 🔥 새롭게 수정된 [최근 상담보고 내역] (입력 폼 그리드) 🔥 -->
                     <div class="bg-blue-50/20 border border-blue-200 rounded-xl p-3">
                         <div class="flex items-center justify-between mb-2">
                             <p class="text-xs font-bold text-blue-700"><i class="fa-solid fa-file-lines"></i> 최근 상담보고 내역 (가망)</p>
@@ -568,13 +568,13 @@
             </div>
             <div class="p-3 border-t bg-gray-50">
                 <button id="copyReportBtn" class="w-full px-4 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-md flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-copy"></i> 텍스트 복사하기
+                    <i class="fa-solid fa-copy"></i> 복사 및 내역에 저장하기
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- 가망/상담보고 모달 (선택 사항으로 남겨둠) -->
+    <!-- 가망/상담보고 모달 -->
     <div id="prospectModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-2 sm:p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col overflow-hidden">
             <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
@@ -647,23 +647,15 @@
         }
         initFirebase();
 
-        // 🌟 [추가된 부분] 폼에 수기로 텍스트를 입력하거나 옵션을 선택할 경우 DB 저장 버튼 활성화 🌟
         const manualInputs = document.querySelectorAll('#infoGrid input, #infoGrid select, #memoPad, #obMemoPad');
         manualInputs.forEach(input => {
-            input.addEventListener('input', () => {
-                document.getElementById('saveDbBtn').classList.remove('hidden');
-            });
-            input.addEventListener('change', () => {
-                document.getElementById('saveDbBtn').classList.remove('hidden');
-            });
+            input.addEventListener('input', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
+            input.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
         });
         
-        // 할인 유형(라디오 버튼) 클릭 시에도 DB 저장 버튼 활성화
         const radioInputs = document.querySelectorAll('input[name="discountType"]');
         radioInputs.forEach(radio => {
-            radio.addEventListener('change', () => {
-                document.getElementById('saveDbBtn').classList.remove('hidden');
-            });
+            radio.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
         });
 
         window.switchTab = function(tabId) {
@@ -689,7 +681,16 @@
 
         function getDdayAndMonths(dateStr) {
             if(!dateStr) return { days: 0, months: 0 };
-            const actDate = new Date(dateStr); const today = new Date();
+            
+            // 날짜 파싱 오류 방지를 위한 정제 로직 (YYYY-MM-DD 형식만 안전하게 파싱)
+            const parts = dateStr.split('-');
+            if(parts.length !== 3) return { days: 0, months: 0 };
+            
+            // new Date(Year, Month - 1, Day) 형태로 타임존 밀림 현상 완벽 방지
+            const actDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10)); 
+            const today = new Date();
+            today.setHours(0,0,0,0); actDate.setHours(0,0,0,0); // 시간 값 무시하고 날짜만 비교
+            
             const diffTime = today - actDate;
             const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
             const diffMonths = Math.floor(diffDays / 30.416);
@@ -698,7 +699,10 @@
 
         function getWiredRemainingDays(dateStr) {
             if(!dateStr) return "날짜를 입력하세요";
-            const startDate = new Date(dateStr);
+            const parts = dateStr.split('-');
+            if(parts.length !== 3) return "잘못된 날짜";
+
+            const startDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             const endDate = new Date(startDate);
             endDate.setMonth(endDate.getMonth() + 36); 
 
@@ -712,71 +716,60 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        // 🌟 [수정된 부분] 정확한 타임존 계산, 유연한 정규식, 백원 단위 보존 로직 추가 🌟
         function getDynamicInstallment(installmentStr, activationDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
-            
-            // 예외 처리 (수동으로 해당없음/완납 등을 기입한 경우 그대로 유지)
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
+            
             if (!activationDateStr) return installmentStr;
             
-            // 타임존 버그(하루 전날로 밀리는 현상)를 방지하기 위한 안전한 날짜 파싱
-            const [year, month, day] = activationDateStr.split('-');
-            const actDate = new Date(year, month - 1, day);
+            const parts = activationDateStr.split('-');
+            if(parts.length !== 3) return installmentStr;
+
+            const actDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
             const today = new Date();
             
-            // 개통일 기준으로 오늘까지 경과한 개월 수 계산
             let monthsPassed = (today.getFullYear() - actDate.getFullYear()) * 12 + (today.getMonth() - actDate.getMonth());
+            if (today.getDate() < actDate.getDate()) monthsPassed--;
             
-            // 월 납부 기준: 아직 해당 월의 일자가 안 지났으면 한 달 차감 안 됨
-            if (today.getDate() < actDate.getDate()) {
-                monthsPassed--;
-            }
-            
-            // 개통한지 1달도 안 지났거나 개통일이 미래면 원본 그대로 표시
             if (monthsPassed <= 0) return installmentStr; 
 
-            // AI가 '24', '24M', '24개월' 등 다양한 형태로 줄 경우를 대비해 유연하게 뒷부분 숫자 추출
-            const parts = installmentStr.split('/');
-            if (parts.length < 2) return installmentStr; // '/'가 없으면 계산 불가, 원본 리턴
-
-            const monthMatch = parts[1].match(/(\d+)/); // 뒷부분 문자열에서 숫자만 쏙 빼냄
-            if (monthMatch) {
-                const origMonths = parseInt(monthMatch[1], 10);
-                if (origMonths <= 0) return installmentStr;
-                
-                const remainMonths = origMonths - monthsPassed;
-                
-                // 남은 기간이 0 이하면 완납 표시
-                if (remainMonths <= 0) return '🎉 완납 (자동처리)';
-
-                let amountStr = parts[0];
-                let amount = 0;
-                
-                if (amountStr.includes('만')) {
-                    let partsMan = amountStr.split('만');
-                    let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
-                    let remainderStr = partsMan[1].replace(/[^0-9]/g, '');
-                    let remainder = parseInt(remainderStr || '0', 10);
-                    if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
-                    amount = (man * 10000) + remainder;
-                } else {
-                    amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
-                }
-                
-                if (amount > 0) {
-                    let monthly = amount / origMonths; // 한달에 얼마내는지
-                    let remainAmt = monthly * remainMonths; // 남은 달 * 한달요금 = 남은 총액
+            // AI가 "24개월", "24M", "24" 등 어떤 포맷을 주더라도 유연하게 개월 수만 추출
+            const splitData = installmentStr.split('/');
+            if (splitData.length >= 2) {
+                // '/' 뒤에 있는 문자열에서 숫자만 추출
+                const monthStr = splitData[1].replace(/[^0-9]/g, '');
+                if (monthStr) {
+                    const origMonths = parseInt(monthStr, 10);
+                    if (origMonths <= 0) return installmentStr;
                     
-                    // 정확한 100원 단위까지 살려서 깔끔한 콤마(,) 형태로 포맷팅
-                    let resultStr = Math.floor(remainAmt).toLocaleString() + '원';
+                    const remainMonths = origMonths - monthsPassed;
+                    if (remainMonths <= 0) return '🎉 완납 (자동처리)';
+
+                    let amountStr = splitData[0];
+                    let amount = 0;
                     
-                    return `${resultStr} / ${remainMonths}개월 (⬇${monthsPassed}M)`;
+                    if (amountStr.includes('만')) {
+                        let partsMan = amountStr.split('만');
+                        let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
+                        let remainderStr = partsMan[1].replace(/[^0-9]/g, '');
+                        let remainder = parseInt(remainderStr || '0', 10);
+                        if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
+                        amount = (man * 10000) + remainder;
+                    } else {
+                        amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
+                    }
+                    
+                    if (amount > 0) {
+                        let monthly = amount / origMonths; 
+                        let remainAmt = monthly * remainMonths; 
+                        
+                        // toLocaleString() 적용하여 100원 단위 유실 방지
+                        return `${Math.floor(remainAmt).toLocaleString()}원 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
+                    }
+                    return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
                 }
-                // 원금을 파싱하지 못했으면 개월 수만 빼서 보여줌
-                return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
             }
-            return installmentStr; // 정규식에 안 맞으면 그냥 원본 리턴
+            return installmentStr; 
         }
 
         document.getElementById('val-activation').addEventListener('change', function(e) {
@@ -944,7 +937,6 @@
             const finalMemo = document.getElementById('memoPad').value || (existingCustomer ? (existingCustomer.memo || '') : '');
             const finalObMemo = document.getElementById('obMemoPad').value || (existingCustomer ? (existingCustomer.obMemo || '') : '');
             
-            // 기존 데이터 유지용
             const finalProspectMemo = existingCustomer ? (existingCustomer.prospectMemo || '') : '';
             const finalProsCarrier = existingCustomer ? (existingCustomer.prosCarrier || '') : '';
             const finalProsDevice = existingCustomer ? (existingCustomer.prosDevice || '') : '';
@@ -964,7 +956,7 @@
                 phone: document.getElementById('val-phone').value,
                 carrier: document.getElementById('val-carrier').value,
                 device: document.getElementById('val-device').value,
-                installment: document.getElementById('val-installment').value, // 원본 훼손 방지
+                installment: document.getElementById('val-installment').value, 
                 activationDate: document.getElementById('val-activation').value, 
                 dob: document.getElementById('val-dob').value,
                 plan: document.getElementById('val-plan').value,
@@ -986,6 +978,21 @@
                 prosPay: finalProsPay,
                 prosPlan: finalProsPlan,
                 
+                // 개통보고 데이터 보존 처리 (스캔/저장 시 덮어써지지 않게)
+                repJumin: existingCustomer ? (existingCustomer.repJumin || '') : '',
+                repAddress: existingCustomer ? (existingCustomer.repAddress || '') : '',
+                repUsim: existingCustomer ? (existingCustomer.repUsim || '') : '',
+                repUsimPay: existingCustomer ? (existingCustomer.repUsimPay || '') : '',
+                repType: existingCustomer ? (existingCustomer.repType || '') : '',
+                repAddons: existingCustomer ? (existingCustomer.repAddons || '') : '',
+                repInsurance: existingCustomer ? (existingCustomer.repInsurance || '') : '',
+                repPrincipal: existingCustomer ? (existingCustomer.repPrincipal || '') : '',
+                repInstallment: existingCustomer ? (existingCustomer.repInstallment || '') : '',
+                repDiscount: existingCustomer ? (existingCustomer.repDiscount || '') : '',
+                repSubsidy: existingCustomer ? (existingCustomer.repSubsidy || '') : '',
+                repUsedPhone: existingCustomer ? (existingCustomer.repUsedPhone || '') : '',
+                repBranch: existingCustomer ? (existingCustomer.repBranch || '') : '',
+
                 contactHistory: finalHistory, 
                 salesStatus: finalStatus, 
                 lastContactDate: finalLastDate,
@@ -1089,7 +1096,6 @@
                 return true; 
             });
 
-            // 🌟 6개 열(colspan=6) 유지 🌟
             if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
 
             filteredDB.sort((a,b) => new Date(b.visitDate || b.updatedAt || 0) - new Date(a.visitDate || a.updatedAt || 0)).forEach((c) => {
@@ -1111,10 +1117,8 @@
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">LG U+</span>`;
                 else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">알뜰폰</span>`;
 
-                // 🌟 할부 정보 자동 계산 적용 (c.activationDate 기준) 🌟
                 let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate);
 
-                // 🌟 할부 정보를 별도의 td 열로 분리 🌟
                 tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
@@ -1179,7 +1183,6 @@
             document.getElementById('modalDob').value = c.dob || '';
             document.getElementById('modalDevice').value = c.device || '';
             
-            // 🌟 원본 훼손 방지를 위해 상세보기에는 스캔/저장했던 원본 기록을 그대로 보여줌 🌟
             document.getElementById('modalInstallment').value = c.installment || ''; 
             
             document.getElementById('modalPlan').value = c.plan || '';
@@ -1205,7 +1208,6 @@
             document.getElementById('modalMemo').value = c.memo || '';
             document.getElementById('modalObMemo').value = c.obMemo || ''; 
             
-            // 🔥 가망/상담보고 데이터 연동 🔥
             document.getElementById('modalProspectMemo').value = c.prospectMemo || '';
             document.getElementById('detailProsCarrier').value = c.prosCarrier || '';
             document.getElementById('detailProsDevice').value = c.prosDevice || '';
@@ -1235,7 +1237,6 @@
             if(currentDetailId) window.deleteCustomer(currentDetailId);
         };
 
-        // 상세 정보 저장
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
             const updatedData = {
@@ -1245,7 +1246,7 @@
                 carrier: document.getElementById('modalCarrier').value,
                 dob: document.getElementById('modalDob').value,
                 device: document.getElementById('modalDevice').value,
-                installment: document.getElementById('modalInstallment').value, // 원본으로 저장됨
+                installment: document.getElementById('modalInstallment').value, 
                 discountType: document.getElementById('modalDiscount').value,
                 plan: document.getElementById('modalPlan').value,
                 fee: document.getElementById('modalFee').value,
@@ -1259,7 +1260,6 @@
                 memo: document.getElementById('modalMemo').value,
                 obMemo: document.getElementById('modalObMemo').value,
                 
-                // 가망보고 내역 저장
                 prospectMemo: document.getElementById('modalProspectMemo').value,
                 prosCarrier: document.getElementById('detailProsCarrier').value,
                 prosDevice: document.getElementById('detailProsDevice').value,
@@ -1277,7 +1277,7 @@
             } catch (e) { alert("업데이트 실패!"); }
         };
 
-        // ------------------ 개통보고 관련 로직 ------------------
+        // ------------------ 🌟 새로워진 개통보고 폼 데이터 보존 및 덮어쓰기 로직 🌟 ------------------
         const reportModal = document.getElementById('reportModal');
         const reportInputs = ['rep-jumin', 'rep-address', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
         let reportCustomerData = null;
@@ -1287,10 +1287,22 @@
             reportCustomerData = customerDB.find(x => x.id === currentDetailId);
             if(!reportCustomerData) return;
             
-            reportInputs.forEach(id => document.getElementById(id).value = '');
+            // DB에 저장해 둔 보고서 내역이 있으면 불러오고, 없으면 기본값(빈칸) 세팅
+            document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
+            document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
+            document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
+            document.getElementById('rep-usim-pay').value = reportCustomerData.repUsimPay || '';
+            document.getElementById('rep-type').value = reportCustomerData.repType || '';
+            document.getElementById('rep-addons').value = reportCustomerData.repAddons || '';
+            document.getElementById('rep-insurance').value = reportCustomerData.repInsurance || '';
+            document.getElementById('rep-principal').value = reportCustomerData.repPrincipal || '';
+            document.getElementById('rep-subsidy').value = reportCustomerData.repSubsidy || '';
+            document.getElementById('rep-usedphone').value = reportCustomerData.repUsedPhone || '';
+            document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
             
-            document.getElementById('rep-installment').value = reportCustomerData.installment || '';
-            document.getElementById('rep-discount').value = reportCustomerData.discountType || '';
+            // 할부개월수/할인유형은 전용 보고서 값이 있으면 우선 적용, 없으면 메인 정보에서 가져오기
+            document.getElementById('rep-installment').value = reportCustomerData.repInstallment || reportCustomerData.installment || '';
+            document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
             updateReportPreview(); 
             reportModal.style.display = 'flex';
@@ -1337,18 +1349,53 @@
             document.getElementById(id).addEventListener('input', updateReportPreview);
         });
 
-        document.getElementById('copyReportBtn').addEventListener('click', () => {
+        // 🌟 [텍스트 복사하기] 누를 때 폼의 모든 정보들을 DB에 저장 & 메인 데이터 동기화 🌟
+        document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
             const textarea = document.createElement('textarea');
             textarea.value = text;
             document.body.appendChild(textarea);
             textarea.select();
+            
             try {
                 document.execCommand('copy');
-                alert('✅ 개통보고 양식이 성공적으로 복사되었습니다!');
+                
+                if (currentDetailId && db) {
+                    const newDiscount = document.getElementById('rep-discount').value;
+                    const newInstallment = document.getElementById('rep-installment').value;
+                    
+                    // 작성한 보고서 정보들을 DB에 모두 저장합니다.
+                    await setDoc(doc(db, 'smart_customers', currentDetailId), {
+                        salesStatus: '판매성공',
+                        repJumin: document.getElementById('rep-jumin').value,
+                        repAddress: document.getElementById('rep-address').value,
+                        repUsim: document.getElementById('rep-usim').value,
+                        repUsimPay: document.getElementById('rep-usim-pay').value,
+                        repType: document.getElementById('rep-type').value,
+                        repAddons: document.getElementById('rep-addons').value,
+                        repInsurance: document.getElementById('rep-insurance').value,
+                        repPrincipal: document.getElementById('rep-principal').value,
+                        repInstallment: newInstallment,
+                        repDiscount: newDiscount,
+                        repSubsidy: document.getElementById('rep-subsidy').value,
+                        repUsedPhone: document.getElementById('rep-usedphone').value,
+                        repBranch: document.getElementById('rep-branch').value,
+                        
+                        // 메인 데이터(상세카드 정보)도 개통보고에 맞게 동기화 (할인유형 덮어쓰기)
+                        discountType: newDiscount || '미정',
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                    
+                    // 모달창이 열려있으므로 실시간으로 UI 셀렉트 박스도 맞춰서 변경해줍니다.
+                    document.getElementById('modalSalesStatus').value = '판매성공';
+                    if (newDiscount) document.getElementById('modalDiscount').value = newDiscount;
+                }
+
+                alert('✅ 개통보고 양식이 성공적으로 복사되었습니다!\n작성하신 모든 정보가 DB에 저장되며 영업상태가 [판매성공]으로 변경됩니다.');
                 reportModal.style.display = 'none'; 
+                
             } catch (err) {
-                alert('복사에 실패했습니다.');
+                alert('복사 및 저장에 실패했습니다.');
             }
             document.body.removeChild(textarea);
         });
@@ -1359,7 +1406,6 @@
         
         document.getElementById('openProspectBtn').addEventListener('click', () => {
             if(!currentDetailId) return;
-            // 상세창에 있는 값을 팝업 폼으로 불러옴
             document.getElementById('pros-carrier').value = document.getElementById('detailProsCarrier').value;
             document.getElementById('pros-device').value = document.getElementById('detailProsDevice').value;
             document.getElementById('pros-wired').value = document.getElementById('detailProsWired').value;
@@ -1393,7 +1439,6 @@
             document.getElementById(id).addEventListener('input', updateProspectPreview);
         });
 
-        // 팝업 안에서 복사/저장 누를 때
         document.getElementById('copyProspectBtn').addEventListener('click', () => {
             const text = document.getElementById('prospectPreview').value;
             const textarea = document.createElement('textarea');
@@ -1403,7 +1448,6 @@
             try {
                 document.execCommand('copy');
                 
-                // 팝업에서 작성한 내용을 메인 상세 카드의 폼에 그대로 꽂아넣기
                 document.getElementById('detailProsCarrier').value = document.getElementById('pros-carrier').value;
                 document.getElementById('detailProsDevice').value = document.getElementById('pros-device').value;
                 document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
@@ -1418,7 +1462,6 @@
             document.body.removeChild(textarea);
         });
 
-        // 🔥 메인 상세 카드 창에서 [복사] 버튼 누를 때 🔥
         document.getElementById('detailCopyProspectBtn').addEventListener('click', () => {
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
@@ -1451,3 +1494,4 @@
     </script>
 </body>
 </html>
+```
