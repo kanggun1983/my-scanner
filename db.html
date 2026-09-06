@@ -212,8 +212,8 @@
                         </div>
                         
                         <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-200 focus-within:border-pink-500 transition">
-                            <p class="text-xs text-pink-600 font-semibold mb-1">단말기 잔여 할부금 / 개월수</p>
-                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 15만 / 5개월">
+                            <p class="text-xs text-pink-600 font-semibold mb-1">할부원금 / 개월수 (개통기준)</p>
+                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 150만 / 24개월">
                         </div>
                         <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
                             <p class="text-xs text-purple-600 font-semibold mb-1">현재 요금제</p>
@@ -451,13 +451,9 @@
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">사용 단말기</span>
                         <input type="text" id="modalDevice" class="modal-input text-xs sm:text-sm" placeholder="단말기명">
                     </div>
-                    <!-- 🌟 상세 모달에서도 다이나믹 뱃지 표시 🌟 -->
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
-                        <span class="flex items-center justify-between text-[10px] sm:text-xs text-gray-500 mb-1">
-                            잔여 할부/개월 (초기값)
-                            <span id="modalInstallmentDynamic" class="text-[10px] bg-pink-100 text-pink-700 px-1 rounded font-bold hidden"></span>
-                        </span>
-                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할부원금/개월수 (기록값)</span>
+                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보 원본">
                     </div>
                     
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
@@ -716,47 +712,43 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        // 🌟 [강화된 부분] 방문일(등록일) 기준으로 오늘 날짜까지의 할부 자동 계산 함수 🌟
-        function getDynamicInstallment(installmentStr, visitDateStr) {
+        // 🌟 [추가된 부분] 개통일(activationDate) 기준으로 오늘 날짜까지의 할부 자동 차감 계산 🌟
+        function getDynamicInstallment(installmentStr, activationDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
-            if (installmentStr.includes('해당없음') || installmentStr.includes('완납')) return installmentStr;
+            // 예외 처리 (수동으로 해당없음/완납 등을 기입한 경우 그대로 유지)
+            if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
             
-            if (!visitDateStr) return installmentStr;
-            const visitDate = new Date(visitDateStr);
+            if (!activationDateStr) return installmentStr;
+            
+            const actDate = new Date(activationDateStr);
             const today = new Date();
             
-            // 등록일(방문일) 기준으로 오늘까지 경과한 개월 수 계산
-            let monthsPassed = (today.getFullYear() - visitDate.getFullYear()) * 12 + (today.getMonth() - visitDate.getMonth());
+            // 개통일 기준으로 오늘까지 경과한 개월 수 계산
+            let monthsPassed = (today.getFullYear() - actDate.getFullYear()) * 12 + (today.getMonth() - actDate.getMonth());
             
-            // 아직 일자가 안 지났으면 한 달을 빼줌 (월 청구 기준)
-            if (today.getDate() < visitDate.getDate()) {
+            // 월 납부 기준: 아직 해당 월의 일자가 안 지났으면 한 달 차감 안 됨
+            if (today.getDate() < actDate.getDate()) {
                 monthsPassed--;
             }
             
-            // 💡 중요: 스캔한 지 한 달이 지나지 않았으면 (또는 미래 날짜면) 초기값을 그대로 반환합니다!
+            // 개통한지 1달도 안 지났거나 개통일이 미래면 원본 그대로 표시
             if (monthsPassed <= 0) return installmentStr; 
 
-            // 할부 개월 수 파싱 시도 ('X개월' 형태)
-            const monthMatch = installmentStr.match(/(\d+)\s*(?:개월|달)/);
+            // 문자열에서 할부 개월 수 숫자 파싱 시도 (예: '24개월')
+            const monthMatch = installmentStr.match(/(\d+)\s*개월/);
             if (monthMatch) {
                 const origMonths = parseInt(monthMatch[1], 10);
                 if (origMonths <= 0) return installmentStr;
                 
                 const remainMonths = origMonths - monthsPassed;
                 
-                if (remainMonths <= 0) return '🎉 완납 (자동처리)'; // 기한이 다 됨
+                // 남은 기간이 0 이하면 완납 표시
+                if (remainMonths <= 0) return '🎉 완납 (자동처리)';
 
-                // 금액 파싱 (슬래시가 없는 경우도 처리)
-                let amountStr = installmentStr;
-                if (installmentStr.includes('/')) {
-                    amountStr = installmentStr.split('/')[0];
-                } else {
-                    amountStr = installmentStr.replace(monthMatch[0], ''); 
-                }
-
+                // 금액 파싱 (보통 150만 / 24개월 형태로 저장되므로 '/' 기준 분리)
+                let amountStr = installmentStr.split('/')[0];
                 let amount = 0;
                 
-                // '만', '천' 한글 단위 해석
                 if (amountStr.includes('만')) {
                     let partsMan = amountStr.split('만');
                     let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
@@ -765,14 +757,12 @@
                     if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
                     amount = (man * 10000) + remainder;
                 } else {
-                    // 숫자만 있는 경우 (예: 150000)
                     amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
                 }
                 
-                // 남은 금액 계산
                 if (amount > 0) {
-                    let monthly = amount / origMonths; // 월 납부금액
-                    let remainAmt = monthly * remainMonths; // 남은 총액
+                    let monthly = amount / origMonths; // 한달에 얼마내는지
+                    let remainAmt = monthly * remainMonths; // 남은 달 * 한달요금 = 남은 총액
                     
                     let resultStr = '';
                     if (remainAmt >= 10000) {
@@ -782,13 +772,13 @@
                     } else {
                         resultStr = Math.floor(remainAmt).toLocaleString() + '원';
                     }
-                    // 변화를 시각적으로 쉽게 알 수 있게 화살표 뱃지 추가
+                    // 계산에 성공하면 포맷팅해서 리턴
                     return `${resultStr} / ${remainMonths}개월 (⬇${monthsPassed}M)`;
                 }
-                // 금액 계산을 못했으면 개월 수만 업데이트해서 반환
+                // 원금을 파싱하지 못했으면 개월 수만 빼서 보여줌
                 return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
             }
-            return installmentStr; // 정규식에 안 맞으면 원래 문자열 반환
+            return installmentStr; // 정규식에 안 맞으면 그냥 원본 리턴
         }
 
         document.getElementById('val-activation').addEventListener('change', function(e) {
@@ -976,7 +966,7 @@
                 phone: document.getElementById('val-phone').value,
                 carrier: document.getElementById('val-carrier').value,
                 device: document.getElementById('val-device').value,
-                installment: document.getElementById('val-installment').value, // 할부기록 원본값 저장
+                installment: document.getElementById('val-installment').value, // 원본 훼손 방지
                 activationDate: document.getElementById('val-activation').value, 
                 dob: document.getElementById('val-dob').value,
                 plan: document.getElementById('val-plan').value,
@@ -1101,6 +1091,7 @@
                 return true; 
             });
 
+            // 🌟 6개 열(colspan=6) 유지 🌟
             if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
 
             filteredDB.sort((a,b) => new Date(b.visitDate || b.updatedAt || 0) - new Date(a.visitDate || a.updatedAt || 0)).forEach((c) => {
@@ -1122,9 +1113,10 @@
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">LG U+</span>`;
                 else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm">알뜰폰</span>`;
 
-                // 🌟 할부 정보 자동 계산 적용 (c.visitDate 기준) 🌟
-                let dynamicInstallment = getDynamicInstallment(c.installment, c.visitDate);
+                // 🌟 할부 정보 자동 계산 적용 (c.activationDate 기준) 🌟
+                let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate);
 
+                // 🌟 할부 정보를 별도의 td 열로 분리 🌟
                 tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
@@ -1146,7 +1138,7 @@
                     </td>
                     <td class="px-3 py-3 text-xs">
                         ${c.installment && c.installment !== '해당없음' && c.installment !== '완납' && c.installment !== '-' 
-                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="최초 등록값: ${c.installment}">💳 ${dynamicInstallment}</div>` 
+                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="최초 스캔/등록된 원본 데이터: ${c.installment}">💳 ${dynamicInstallment}</div>` 
                             : '<span class="text-[11px] text-gray-400 font-medium">해당없음/완납</span>'}
                     </td>
                     <td class="px-3 py-3">
@@ -1188,18 +1180,10 @@
             document.getElementById('modalCarrier').value = c.carrier && ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(c.carrier) ? c.carrier : '미정';
             document.getElementById('modalDob').value = c.dob || '';
             document.getElementById('modalDevice').value = c.device || '';
+            
+            // 🌟 원본 훼손 방지를 위해 상세보기에는 스캔/저장했던 원본 기록을 그대로 보여줌 🌟
             document.getElementById('modalInstallment').value = c.installment || ''; 
             
-            // 🌟 상세 모달 내의 다이나믹 뱃지 처리 🌟
-            const dynInst = getDynamicInstallment(c.installment, c.visitDate);
-            const dynEl = document.getElementById('modalInstallmentDynamic');
-            if (dynInst && dynInst !== c.installment) {
-                dynEl.textContent = `👉 현재예상: ${dynInst}`;
-                dynEl.classList.remove('hidden');
-            } else {
-                dynEl.classList.add('hidden');
-            }
-
             document.getElementById('modalPlan').value = c.plan || '';
             document.getElementById('modalFee').value = c.fee || '';
             document.getElementById('modalUsage').value = c.usage || '';
@@ -1263,7 +1247,7 @@
                 carrier: document.getElementById('modalCarrier').value,
                 dob: document.getElementById('modalDob').value,
                 device: document.getElementById('modalDevice').value,
-                installment: document.getElementById('modalInstallment').value, 
+                installment: document.getElementById('modalInstallment').value, // 원본으로 저장됨
                 discountType: document.getElementById('modalDiscount').value,
                 plan: document.getElementById('modalPlan').value,
                 fee: document.getElementById('modalFee').value,
