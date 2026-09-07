@@ -1576,7 +1576,7 @@
                     const newDevice = document.getElementById('rep-device').value; 
                     const newPrincipal = document.getElementById('rep-principal').value;
                     
-                    // 🌟 할인 유형 파싱 방어 로직 (입력값이 '선약', '선택' 등일 경우 규격에 맞게 치환) 🌟
+                    // 🌟 할인 유형 파싱 방어 로직 🌟
                     let parsedDiscount = '미정';
                     if (newDiscount) {
                         if (newDiscount.includes('선약') || newDiscount.includes('선택')) parsedDiscount = '선택약정';
@@ -1601,9 +1601,12 @@
                         }
                     }
 
+                    const todayStr = getTodayStr(); // 개통일을 오늘로 잡기 위함
+
                     // 기본 개통보고 폼 데이터 업데이트 객체
                     const updateData = {
                         salesStatus: '판매성공',
+                        activationDate: todayStr, // 🌟 새로 개통했으므로 개통일을 오늘 날짜로 무조건 자동 갱신 🌟
                         repJumin: document.getElementById('rep-jumin').value, 
                         repAddress: document.getElementById('rep-address').value, 
                         repUsim: document.getElementById('rep-usim').value, 
@@ -1620,7 +1623,6 @@
                         updatedAt: new Date().toISOString()
                     };
 
-                    // 🌟 폼에서 입력된 개통 정보만 메인 DB 원본에 덮어쓰기 (다른 정보 보존) 🌟
                     if (newDevice) {
                         updateData.repDevice = newDevice;
                         updateData.device = newDevice;
@@ -1634,8 +1636,11 @@
 
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
-                    // 🌟 2번 스샷(상세 모달)의 화면단도 즉시 최신 데이터로 변경 🌟
+                    // 🌟 화면단(상세 모달)도 즉시 최신 데이터 및 개통일(오늘)로 변경 🌟
                     document.getElementById('modalSalesStatus').value = '판매성공';
+                    document.getElementById('modalActivation').value = todayStr;
+                    document.getElementById('modalDdayBadge').textContent = '(D+0)'; // 개통일이 오늘이므로 D+0
+
                     if (newDevice) document.getElementById('modalDevice').value = newDevice;
                     if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
                     if (parsedDiscount !== '미정') {
@@ -1643,7 +1648,7 @@
                         if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
                     }
                 }
-                alert('✅ 개통보고 양식이 성공적으로 복사 및 DB에 반영되었습니다!');
+                alert('✅ 개통보고 양식이 복사되고 개통일/단말기 정보가 새로 반영되었습니다!');
                 reportModal.style.display = 'none'; 
             } catch (err) { alert('복사 및 저장에 실패했습니다.'); console.error(err); }
             document.body.removeChild(textarea);
