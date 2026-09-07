@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V35</title>
+    <title>스마트 고객 정보 추출기 V41</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -80,6 +80,24 @@
         .modal-input:focus {
             border-bottom: 2px solid #6366f1;
         }
+
+        /* 🖨️ PDF 인쇄를 위한 전용 스타일 및 숨김 처리 (버그 수정) */
+        #printSection { display: none; } /* 평상시에는 절대 보이지 않게 감춤 */
+        
+        @media print {
+            body > *:not(#printSection) { display: none !important; }
+            #printSection { 
+                display: block !important; 
+                position: absolute; 
+                top: 0; left: 0; 
+                width: 100%; 
+                font-family: 'Pretendard', sans-serif;
+                color: black; 
+                background: white; 
+                padding: 20px; 
+            }
+            @page { margin: 1cm; }
+        }
     </style>
 </head>
 <body class="min-h-screen p-2 md:p-8 text-gray-800">
@@ -89,9 +107,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V35: 최종 릴리즈</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V41: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">법정대리인 완벽지원 / 자동 동기화 및 에러방지</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">UI 최적화 / PDF출력 / 법정대리인 완벽지원</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -241,6 +259,16 @@
                             </div>
                         </div>
 
+                        <!-- 미성년자 법정대리인 입력칸 (스캐너 화면) -->
+                        <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-200 sm:col-span-2 focus-within:border-pink-500 transition">
+                            <p class="text-[10px] sm:text-xs text-pink-700 font-bold mb-2"><i class="fa-solid fa-child"></i> 미성년자 법정대리인 (선택)</p>
+                            <div class="grid grid-cols-3 gap-2">
+                                <input type="text" id="val-legal-name" class="w-full bg-white/60 border border-pink-100 p-2 rounded text-sm font-bold text-gray-800 outline-none focus:ring-1 focus:ring-pink-400" placeholder="법대 이름">
+                                <input type="text" id="val-legal-phone" class="w-full bg-white/60 border border-pink-100 p-2 rounded text-sm font-bold text-gray-800 outline-none focus:ring-1 focus:ring-pink-400" placeholder="연락처">
+                                <input type="text" id="val-legal-dob" class="w-full bg-white/60 border border-pink-100 p-2 rounded text-sm font-bold text-gray-800 outline-none focus:ring-1 focus:ring-pink-400" placeholder="생년월일">
+                            </div>
+                        </div>
+
                         <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 sm:col-span-2 mt-1">
                             <p class="text-xs text-gray-700 font-bold mb-2">모바일 할인 유형 (수동 체크)</p>
                             <div class="flex flex-wrap gap-3">
@@ -256,24 +284,6 @@
                                     <input type="radio" name="discountType" value="해당없음" class="w-4 h-4 text-gray-600">
                                     <span class="text-sm font-bold text-gray-700">해당없음(만료/무약정)</span>
                                 </label>
-                            </div>
-                        </div>
-
-                        <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-100 sm:col-span-2 mt-1">
-                            <p class="text-[10px] sm:text-xs text-pink-700 font-bold mb-2"><i class="fa-solid fa-child"></i> 미성년자 법정대리인 (필요시 입력)</p>
-                            <div class="grid grid-cols-3 gap-2">
-                                <div>
-                                    <p class="text-[9px] text-pink-600 mb-0.5">이름</p>
-                                    <input type="text" id="val-legal-name" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="이름">
-                                </div>
-                                <div>
-                                    <p class="text-[9px] text-pink-600 mb-0.5">연락처</p>
-                                    <input type="text" id="val-legal-phone" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="010-0000-0000">
-                                </div>
-                                <div>
-                                    <p class="text-[9px] text-pink-600 mb-0.5">생년월일</p>
-                                    <input type="text" id="val-legal-dob" class="w-full bg-transparent font-bold text-sm text-gray-800 outline-none" placeholder="생년월일">
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -334,14 +344,15 @@
                             <th class="px-4 py-3 whitespace-nowrap">고객명 / 스캔일</th>
                             <th class="px-4 py-3 whitespace-nowrap">연락처 및 액션</th>
                             <th class="px-4 py-3 whitespace-nowrap">단말기 / 개통일 / 결합</th>
+                            <th class="px-4 py-3 whitespace-nowrap text-center">할인유형</th>
                             <th class="px-4 py-3 whitespace-nowrap">할부 / 남은개월수</th>
                             <th class="px-4 py-3 whitespace-nowrap">영업상태 및 타겟</th>
                             <th class="px-4 py-3 whitespace-nowrap">고객 약속목록</th>
-                            <th class="px-4 py-3 whitespace-nowrap text-center">미리보기</th>
+                            <th class="px-4 py-3 whitespace-nowrap text-center">상세</th>
                         </tr>
                     </thead>
                     <tbody id="dbTableBody">
-                        <tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 font-bold">데이터를 불러오는 중입니다...</td></tr>
+                        <tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 font-bold">데이터를 불러오는 중입니다...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -370,7 +381,6 @@
                         <h2 class="text-2xl font-bold text-gray-900" id="modalName">-</h2>
                         <p class="text-indigo-600 font-bold mt-1 text-lg" id="modalPhone">-</p>
                     </div>
-                    <!-- 법정대리인 버튼이 추가되면서 공간이 부족해지지 않도록 유연하게 수정 -->
                     <div class="flex gap-1.5 sm:gap-2 sm:flex-col justify-center items-stretch flex-wrap">
                         <button id="modalCallBtn" class="bg-green-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-green-600 transition shadow-sm text-xs sm:text-sm flex-1">
                             <i class="fa-solid fa-phone"></i> 본인
@@ -416,7 +426,6 @@
                     </div>
                     
                     <div class="space-y-3">
-                        <!-- 1. 요금제 변경 -->
                         <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm">
                             <div class="flex justify-between items-center mb-2">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
@@ -430,12 +439,11 @@
                                 </div>
                             </div>
                             <div class="flex gap-2">
-                                <input type="date" id="promPlanDate" class="w-1/3 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                                <input type="date" id="promPlanDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                                 <input type="text" id="promPlanMemo" placeholder="상세내용 (예: 55요금제 하향)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                             </div>
                         </div>
 
-                        <!-- 2. 부가서비스 해지 -->
                         <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm">
                             <div class="flex justify-between items-center mb-2">
                                 <label class="flex items-center gap-1.5 cursor-pointer">
@@ -448,31 +456,29 @@
                                 </div>
                             </div>
                             <div class="flex gap-2">
-                                <input type="date" id="promAddonDate" class="w-1/3 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                                <input type="date" id="promAddonDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                                 <input type="text" id="promAddonMemo" placeholder="상세내용 (예: V컬러링 해지)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                             </div>
                         </div>
 
-                        <!-- 3. 보험 해지 -->
                         <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm flex flex-col gap-2">
                             <label class="flex items-center gap-1.5 cursor-pointer">
                                 <input type="checkbox" id="promInsChk" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
                                 <span class="text-xs font-bold text-gray-700">✅ 보험 해지</span>
                             </label>
                             <div class="flex gap-2">
-                                <input type="date" id="promInsDate" class="w-1/3 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                                <input type="date" id="promInsDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                                 <input type="text" id="promInsMemo" placeholder="상세내용 (예: 파손보험 해지)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                             </div>
                         </div>
 
-                        <!-- 4. 기타(그외약속) -->
                         <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm flex flex-col gap-2">
                             <label class="flex items-center gap-1.5 cursor-pointer">
                                 <input type="checkbox" id="promOtherChk" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
                                 <span class="text-xs font-bold text-gray-700">✅ 기타 / 일반약속</span>
                             </label>
                             <div class="flex gap-2">
-                                <input type="date" id="promOtherDate" class="w-1/3 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                                <input type="date" id="promOtherDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                                 <input type="text" id="promOtherMemo" placeholder="상세내용 (예: 인터넷 가입 상담)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                             </div>
                         </div>
@@ -615,6 +621,7 @@
                     <i class="fa-solid fa-trash-can"></i> 삭제
                 </button>
                 <div class="flex gap-2">
+                    <button id="printDetailBtn" class="px-3 py-2 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-800 shadow-md text-xs sm:text-sm flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-print"></i> 고객카드 출력</button>
                     <button id="openReportBtn" class="px-3 py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 shadow-md text-xs sm:text-sm flex items-center gap-1"><i class="fa-solid fa-file-signature"></i> 개통보고</button>
                     <button id="closeDetailBtn2" class="px-3 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300 text-xs sm:text-sm">취소</button>
                     <button id="saveDetailBtn" class="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md text-xs sm:text-sm">저장</button>
@@ -657,9 +664,9 @@
                 </div>
                 <textarea id="reportPreview" readonly class="w-full h-[230px] p-3 mt-2 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
             </div>
-            <div class="p-3 border-t bg-gray-50">
-                <button id="copyReportBtn" class="w-full px-4 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-md flex items-center justify-center gap-2">
-                    <i class="fa-solid fa-copy"></i> 복사 및 DB에 반영(저장)
+            <div class="p-3 border-t bg-gray-50 flex gap-2">
+                <button id="copyReportBtn" class="flex-1 px-3 py-2.5 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 shadow-md flex items-center justify-center gap-1.5 text-xs sm:text-sm">
+                    <i class="fa-solid fa-copy"></i> 복사+저장
                 </button>
             </div>
         </div>
@@ -738,7 +745,6 @@
         }
         initFirebase();
 
-        // 🌟 생년월일(DOB) 6자리 or 8자리 통일 포맷 함수 🌟
         function formatDob(dob) {
             if (!dob || dob === '-') return '-';
             let cleaned = dob.replace(/[^0-9]/g, '');
@@ -750,51 +756,36 @@
             return dob; 
         }
 
-        // 생년월일 텍스트박스 입력 시 자동 포맷 (입력 완료 후 바탕 터치 시 적용)
-        function handleDobBlur(e) {
-            e.target.value = formatDob(e.target.value);
-        }
+        function handleDobBlur(e) { e.target.value = formatDob(e.target.value); }
         document.getElementById('val-dob').addEventListener('blur', handleDobBlur);
         document.getElementById('modalDob').addEventListener('blur', handleDobBlur);
         document.getElementById('val-legal-dob').addEventListener('blur', handleDobBlur);
         document.getElementById('modalLegalDob').addEventListener('blur', handleDobBlur);
         document.getElementById('rep-legal-dob').addEventListener('blur', handleDobBlur);
 
-        // 개통보고서 주민등록번호 6자리 자동 하이픈 (-)
         document.getElementById('rep-jumin').addEventListener('input', function(e) {
             let val = e.target.value.replace(/[^0-9]/g, '');
-            if (val.length > 6) {
-                e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14);
-            }
+            if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
         });
 
-        // 전화번호 입력 시 자동 하이픈(-) 적용 함수
         function applyPhoneFormat(e) {
             let val = e.target.value.replace(/[^0-9]/g, '');
-            if (val.length > 3 && val.length <= 7) {
-                e.target.value = val.replace(/(\d{3})(\d+)/, '$1-$2');
-            } else if (val.length > 7) {
-                e.target.value = val.replace(/(\d{3})(\d{3,4})(\d+)/, '$1-$2-$3').substring(0, 13);
-            }
+            if (val.length > 3 && val.length <= 7) { e.target.value = val.replace(/(\d{3})(\d+)/, '$1-$2'); } 
+            else if (val.length > 7) { e.target.value = val.replace(/(\d{3})(\d{3,4})(\d+)/, '$1-$2-$3').substring(0, 13); }
         }
         document.getElementById('val-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('val-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
 
-        // 테이블 렌더링용 전화번호 포맷 함수
         function formatPhone(phone) {
             if (!phone) return '-';
             let cleaned = phone.replace(/[^0-9]/g, '');
-            if (cleaned.length === 11) {
-                return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
-            } else if (cleaned.length === 10) {
-                return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-            }
+            if (cleaned.length === 11) return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+            else if (cleaned.length === 10) return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
             return phone;
         }
 
-        // 🌟 금액 필드 자동 콤마(,) 함수 🌟
         window.applyComma = function(val) {
             if (!val) return '';
             let str = String(val);
@@ -857,15 +848,12 @@
         function getWiredRemainingDays(dateStr) {
             const startDate = parseDateString(dateStr);
             if(!startDate) return "날짜를 입력하세요";
-            
             const endDate = new Date(startDate);
             endDate.setMonth(endDate.getMonth() + 36); 
-
             const today = new Date();
             today.setHours(0,0,0,0); endDate.setHours(0,0,0,0);
             const diffTime = endDate - today;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
             if (diffDays > 0) return `D-${diffDays}일 남음`;
             else if (diffDays === 0) return `오늘 만료!`;
             else return `만료됨 (D+${Math.abs(diffDays)})`;
@@ -876,25 +864,20 @@
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
             const actDate = parseDateString(activationDateStr);
             if (!actDate) return installmentStr;
-            
             const today = new Date();
             let monthsPassed = (today.getFullYear() - actDate.getFullYear()) * 12 + (today.getMonth() - actDate.getMonth());
             if (today.getDate() < actDate.getDate()) monthsPassed--;
             if (monthsPassed <= 0) return installmentStr; 
-
             const splitData = installmentStr.split('/');
             if (splitData.length >= 2) {
                 const monthStr = splitData[1].replace(/[^0-9]/g, ''); 
                 if (monthStr) {
                     const origMonths = parseInt(monthStr, 10);
                     if (origMonths <= 0) return installmentStr;
-                    
                     const remainMonths = origMonths - monthsPassed;
                     if (remainMonths <= 0) return '🎉 완납 (자동처리)';
-
                     let amountStr = splitData[0];
                     let amount = 0;
-                    
                     if (amountStr.includes('만')) {
                         let partsMan = amountStr.split('만');
                         let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
@@ -905,7 +888,6 @@
                     } else {
                         amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
                     }
-                    
                     if (amount > 0) {
                         let monthly = amount / origMonths;
                         let remainAmt = monthly * remainMonths;
@@ -920,16 +902,12 @@
         window.fillPromDate = function(targetId, addDays) {
             const actDateStr = document.getElementById('modalActivation').value;
             if (!actDateStr) return alert("먼저 '모바일 개통일'을 입력해주세요!");
-            
             const pDate = parseDateString(actDateStr);
             pDate.setDate(pDate.getDate() + addDays);
-            
             const yyyy = pDate.getFullYear();
             const mm = String(pDate.getMonth() + 1).padStart(2, '0');
             const dd = String(pDate.getDate()).padStart(2, '0');
-            
             document.getElementById(targetId).value = `${yyyy}-${mm}-${dd}`;
-            
             const chkId = targetId.replace('Date', 'Chk');
             if(document.getElementById(chkId)) document.getElementById(chkId).checked = false;
         };
@@ -960,9 +938,7 @@
             document.getElementById('zoomedImage').src = src;
             document.getElementById('imageZoomModal').style.display = 'flex';
         };
-        window.closeImageModal = function() {
-            document.getElementById('imageZoomModal').style.display = 'none';
-        };
+        window.closeImageModal = function() { document.getElementById('imageZoomModal').style.display = 'none'; };
 
         document.getElementById('apiSettingBtn').onclick = () => { document.getElementById('apiKeyInput').value = geminiApiKey; document.getElementById('apiModal').style.display = 'flex'; };
         document.getElementById('closeApiModal').onclick = () => { document.getElementById('apiModal').style.display = 'none'; };
@@ -1016,14 +992,16 @@
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
             
-            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-manager', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => document.getElementById(id).value = '');
+            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-manager', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
+                if(document.getElementById(id)) document.getElementById(id).value = '';
+            });
             document.getElementById('val-dday').textContent = 'D+0일';
             document.getElementById('val-wired-dday').textContent = '날짜입력';
             const radios = document.getElementsByName('discountType'); for (let r of radios) r.checked = false;
         };
 
         async function extractInformation(base64Data, mimeType) {
-            // 🚨 AI 스캔 버전 3.5 완전 잠금 🚨
+            // 🚨 3.5 버전 완벽 고정 (임의수정 금지) 🚨
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
@@ -1058,7 +1036,6 @@
                 document.getElementById('val-carrier').value = ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(data.carrier) ? data.carrier : '미정';
                 document.getElementById('val-device').value = data.device || '';
                 
-                // 🌟 스캔 후 데이터에도 콤마 적용 🌟
                 document.getElementById('val-installment').value = applyComma(data.installment || ''); 
                 document.getElementById('val-fee').value = applyComma(data.fee || '');
                 
@@ -1117,7 +1094,6 @@
             const finalLastDate = existingCustomer ? (existingCustomer.lastContactDate || '') : '';
             const finalContactManager = existingCustomer ? (existingCustomer.contactManager || '') : '';
             
-            // 기존 4분할 약속 데이터 보존
             const finalPromPlanDate = existingCustomer ? (existingCustomer.promPlanDate || '') : '';
             const finalPromPlanMemo = existingCustomer ? (existingCustomer.promPlanMemo || '') : '';
             const finalPromPlanChk = existingCustomer ? (existingCustomer.promPlanChk || false) : false;
@@ -1154,9 +1130,9 @@
                 wiredDate: document.getElementById('val-wireddate').value,
                 discountType: checkedDiscount ? checkedDiscount.value : '미정',
                 
-                legalName: document.getElementById('val-legal-name').value,
-                legalPhone: document.getElementById('val-legal-phone').value,
-                legalDob: document.getElementById('val-legal-dob').value,
+                legalName: document.getElementById('val-legal-name') ? document.getElementById('val-legal-name').value : '',
+                legalPhone: document.getElementById('val-legal-phone') ? document.getElementById('val-legal-phone').value : '',
+                legalDob: document.getElementById('val-legal-dob') ? document.getElementById('val-legal-dob').value : '',
 
                 memo: finalMemo, obMemo: finalObMemo,
                 prospectMemo: finalProspectMemo, prosCarrier: finalProsCarrier, prosDevice: finalProsDevice, prosWired: finalProsWired, prosPay: finalProsPay, prosPlan: finalProsPlan,
@@ -1175,7 +1151,7 @@
                 alert("저장 성공!"); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
                 switchTab('db');
-            } catch (error) { alert("저장 실패!"); }
+            } catch (error) { alert("저장 실패! " + error); }
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '') {
@@ -1217,11 +1193,8 @@
                 }
             }
             
-            // 🌟 전화를 걸 때 오류 방지를 위해 번호에서 기호를 완전히 제거하고 순수 숫자만 넘기도록 개선 🌟
             const cleanPhoneNum = phoneNum ? phoneNum.replace(/[^0-9]/g, '') : '';
-            if(cleanPhoneNum) {
-                window.location.href = `${actionType}:${cleanPhoneNum}`;
-            }
+            if(cleanPhoneNum) { window.location.href = `${actionType}:${cleanPhoneNum}`; }
         };
 
         window.deleteCustomer = async function(docId) {
@@ -1262,7 +1235,6 @@
             const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
             
             let filteredDB = customerDB.filter(c => {
-                // 🌟 검색 알고리즘 확장: 고객 본인 뿐만 아니라 법정대리인 이름과 연락처로도 검색이 가능하도록 개선 🌟
                 const matchSearch = 
                     (c.name || '').toLowerCase().includes(query) || 
                     (c.phone || '').replace(/-/g, '').includes(query.replace(/-/g, '')) ||
@@ -1282,7 +1254,7 @@
                 return true; 
             });
 
-            if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
+            if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
 
             if (currentFilter === 'promise') {
                 filteredDB.sort((a,b) => {
@@ -1309,7 +1281,6 @@
                 if(c.welfare && c.welfare !== '-' && c.welfare !== '해당없음') extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
                 if(c.wiredDate) extraBadges += `<span class="bg-teal-50 text-teal-600 px-1 rounded border border-teal-100 whitespace-nowrap">📺 유선: ${getWiredRemainingDays(c.wiredDate)}</span>`;
 
-                // 🌟 LG U+ 뱃지 축소 표기 🌟
                 let carrierBadge = '';
                 if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">SKT</span>`;
                 else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">KT</span>`;
@@ -1317,6 +1288,17 @@
                 else if(c.carrier === '알뜰폰') carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">알뜰폰</span>`;
 
                 let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate);
+
+                let discountBadge = '';
+                if (c.discountType === '선택약정') {
+                    discountBadge = `<span class="bg-green-50 text-green-700 border border-green-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">선택약정</span>`;
+                } else if (c.discountType === '공시지원금') {
+                    discountBadge = `<span class="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">공시지원금</span>`;
+                } else if ((c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료')) {
+                    discountBadge = `<span class="bg-gray-100 text-gray-500 border border-gray-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">해당없음</span>`;
+                } else {
+                    discountBadge = `<span class="text-[11px] text-gray-400 font-medium">-</span>`;
+                }
 
                 let promiseBadgeHtml = '';
                 const promises = [
@@ -1357,13 +1339,11 @@
                     promiseBadgeHtml = `<div class="flex flex-col gap-1">${badges.join('')}</div>`;
                 }
 
-                // 🌟 테이블 출력 시 생년월일 자동 렌더링 🌟
                 let displayDob = formatDob(c.dob);
                 let dobHtml = (displayDob && displayDob !== '-') 
                     ? `<div class="text-[10px] text-gray-500 font-medium mb-1.5 pl-0.5"><i class="fa-solid fa-cake-candles text-gray-300 mr-1"></i>${displayDob}</div>` 
                     : '<div class="mb-1.5"></div>';
 
-                // 법정대리인 액션 버튼 추가 렌더링
                 let legalActionHtml = '';
                 if (c.legalPhone) {
                     legalActionHtml = `
@@ -1394,6 +1374,9 @@
                         <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
                         ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
                         ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
+                    </td>
+                    <td class="px-3 py-3 text-center align-middle">
+                        ${discountBadge}
                     </td>
                     <td class="px-3 py-3 text-xs">
                         ${c.installment && c.installment !== '해당없음' && c.installment !== '완납' && c.installment !== '-' 
@@ -1428,14 +1411,12 @@
             if(!c) return;
             currentDetailId = id;
             
-            document.getElementById('modalName').textContent = c.name || '-';
-            // 모달창 이름 하단 전화번호도 자동 하이픈
+            document.getElementById('modalName').textContent = (c.name || '').trim() || '-';
             document.getElementById('modalPhone').textContent = formatPhone(c.phone || '-');
             
             document.getElementById('modalCallBtn').onclick = () => logActionAndCall(id, 'tel', c.phone);
             document.getElementById('modalSmsBtn').onclick = () => logActionAndCall(id, 'sms', c.phone);
 
-            // 법정대리인 전화걸기 버튼 활성화 유무
             const legalCallBtn = document.getElementById('modalLegalCallBtn');
             if (c.legalPhone) {
                 legalCallBtn.classList.remove('hidden');
@@ -1452,16 +1433,10 @@
             document.getElementById('modalDdayBadge').textContent = c.activationDate ? `(D+${calc.days})` : '';
             
             document.getElementById('modalCarrier').value = c.carrier && ['SKT', 'KT', 'LG U+', '알뜰폰'].includes(c.carrier) ? c.carrier : '미정';
-            
-            // 모달창 띄울 때 생년월일 자동 하이픈
             document.getElementById('modalDob').value = formatDob(c.dob || '');
-            
             document.getElementById('modalDevice').value = c.device || '';
-            // 로드 시 금액 콤마
             document.getElementById('modalInstallment').value = applyComma(c.installment || ''); 
-            
             document.getElementById('modalPlan').value = c.plan || '';
-            // 로드 시 요금 콤마
             document.getElementById('modalFee').value = applyComma(c.fee || '');
             document.getElementById('modalUsage').value = c.usage || '';
             
@@ -1585,6 +1560,113 @@
             } catch (e) { alert("업데이트 실패!"); }
         };
 
+        // 🖨️ 고객 상세 카드 PDF 출력 로직 🖨️
+        document.getElementById('printDetailBtn').addEventListener('click', () => {
+            if(!currentDetailId) return;
+            const c = customerDB.find(x => x.id === currentDetailId);
+            if(!c) return;
+
+            let printSection = document.getElementById('printSection');
+            if (!printSection) {
+                printSection = document.createElement('div');
+                printSection.id = 'printSection';
+                document.body.appendChild(printSection);
+            }
+
+            const today = new Date();
+            const timeStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일 ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`;
+
+            printSection.innerHTML = `
+                <div style="font-family: 'Pretendard', sans-serif; color: #111;">
+                    <h2 style="font-size: 24pt; font-weight: bold; text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px;">
+                        고객 상세 카드
+                    </h2>
+                    
+                    <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">기본 인적 사항</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">고객명</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%; font-weight: bold;">${c.name || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">연락처</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%; font-weight: bold;">${formatPhone(c.phone) || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">생년월일</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${formatDob(c.dob) || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">통신사</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.carrier || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">담당자</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.manager || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">방문/스캔일</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.visitDate || '-'}</td>
+                        </tr>
+                    </table>
+
+                    <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">단말기 및 개통 정보</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">사용 단말기</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.device || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">모바일 개통일</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.activationDate || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할부정보</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.installment || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할인유형</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.discountType || '-'}</td>
+                        </tr>
+                    </table>
+
+                    <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">요금 및 결합 정보</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">사용 요금제</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.plan || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">월 청구금액</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.fee || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">평균 사용량</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.usage || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">결합/복지</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${(c.combination && c.combination !== '-' && c.combination !== '해당없음' ? c.combination : '')} ${(c.welfare && c.welfare !== '-' && c.welfare !== '해당없음' ? c.welfare : '') || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">인터넷/TV</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.internetProd || ''} ${c.tvProd ? '+ ' + c.tvProd : ''}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">유선약정일</th>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.wiredDate || '-'}</td>
+                        </tr>
+                    </table>
+
+                    <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">미성년자 법정대리인</h3>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #fff0f5; width: 20%;">법대 이름</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.legalName || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #fff0f5; width: 20%;">법대 연락처</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${formatPhone(c.legalPhone) || '-'}</td>
+                        </tr>
+                        <tr>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #fff0f5;">법대 생년월일</th>
+                            <td colspan="3" style="border: 1px solid #ccc; padding: 10px;">${formatDob(c.legalDob) || '-'}</td>
+                        </tr>
+                    </table>
+                    
+                    <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">고객 메모 및 이력</h3>
+                    <div style="border: 1px solid #ccc; padding: 15px; background: #fff; min-height: 60px; margin-bottom: 10px; font-size: 10pt; white-space: pre-wrap;"><strong>[일반 메모]</strong>\n${c.memo || '-'}</div>
+                    <div style="border: 1px solid #ccc; padding: 15px; background: #f8f9fa; min-height: 60px; margin-bottom: 10px; font-size: 10pt; white-space: pre-wrap;"><strong>[OB/상담 메모]</strong>\n${c.obMemo || ''}\n${c.prospectMemo || ''}</div>
+                    <div style="border: 1px solid #ccc; padding: 15px; background: #f1f3f5; min-height: 60px; font-size: 10pt; white-space: pre-wrap;"><strong>[컨택 히스토리]</strong>\n${c.contactHistory || '-'}</div>
+                    
+                    <div style="margin-top: 30px; text-align: right; font-size: 10pt; color: #666;">출력일시: ${timeStr}</div>
+                </div>
+            `;
+            window.print();
+        });
+
         const reportModal = document.getElementById('reportModal');
         const reportInputs = ['rep-jumin', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob', 'rep-address', 'rep-device', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
         let reportCustomerData = null;
@@ -1678,7 +1760,6 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                     const newDevice = document.getElementById('rep-device').value; 
                     const newPrincipal = document.getElementById('rep-principal').value;
                     
-                    // 🌟 할인 유형 파싱 방어 로직 🌟
                     let parsedDiscount = '미정';
                     if (newDiscount) {
                         if (newDiscount.includes('선약') || newDiscount.includes('선택')) parsedDiscount = '선택약정';
@@ -1686,7 +1767,6 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                         else parsedDiscount = '해당없음';
                     }
 
-                    // 🌟 할부원금과 할부개월을 합쳐서 고객DB의 메인 installment 값으로 조합 🌟
                     let combinedInstallment = reportCustomerData.installment || '';
                     if (newPrincipal || newInstallment) {
                         let p = newPrincipal.trim();
@@ -1703,12 +1783,12 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                         }
                     }
 
-                    const todayStr = getTodayStr(); // 개통일을 오늘로 잡기 위함
+                    const currentActDate = reportCustomerData.activationDate;
+                    const finalActDate = currentActDate ? currentActDate : getTodayStr();
 
-                    // 기본 개통보고 폼 데이터 업데이트 객체
                     const updateData = {
                         salesStatus: '판매성공',
-                        activationDate: todayStr, // 🌟 새로 개통했으므로 개통일을 오늘 날짜로 무조건 자동 갱신 🌟
+                        activationDate: finalActDate, 
                         repJumin: document.getElementById('rep-jumin').value, 
                         
                         legalName: document.getElementById('rep-legal-name').value,
@@ -1743,10 +1823,11 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
 
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
-                    // 🌟 화면단(상세 모달)도 즉시 최신 데이터 및 개통일(오늘)로 변경 🌟
                     document.getElementById('modalSalesStatus').value = '판매성공';
-                    document.getElementById('modalActivation').value = todayStr;
-                    document.getElementById('modalDdayBadge').textContent = '(D+0)'; // 개통일이 오늘이므로 D+0
+                    
+                    document.getElementById('modalActivation').value = finalActDate;
+                    const calc = getDdayAndMonths(finalActDate);
+                    document.getElementById('modalDdayBadge').textContent = `(D+${calc.days})`;
 
                     if (newDevice) document.getElementById('modalDevice').value = newDevice;
                     if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
@@ -1755,12 +1836,11 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                         if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
                     }
 
-                    // 상세팝업창의 법정대리인 칸도 바로 업데이트
                     document.getElementById('modalLegalName').value = updateData.legalName;
                     document.getElementById('modalLegalPhone').value = updateData.legalPhone;
                     document.getElementById('modalLegalDob').value = updateData.legalDob;
                 }
-                alert('✅ 개통보고 양식이 복사되고 개통일/단말기 정보가 새로 반영되었습니다!');
+                alert('✅ 개통보고 양식이 복사되고 개통일/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
             } catch (err) { alert('복사 및 저장에 실패했습니다.'); console.error(err); }
             document.body.removeChild(textarea);
@@ -1826,7 +1906,6 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
             document.body.removeChild(textarea);
         });
 
-        // 🌟 금액 필드 이벤트 리스너 부착 (4자리 이상 콤마 자동 생성 방어 로직) 🌟
         const moneyFields = ['val-installment', 'val-fee', 'modalInstallment', 'modalFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'pros-pay', 'detailProsPay'];
         moneyFields.forEach(id => {
             const el = document.getElementById(id);
