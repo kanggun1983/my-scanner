@@ -176,8 +176,15 @@
                             <input type="text" id="val-manager" class="w-full bg-transparent font-bold text-gray-800 outline-none text-right" placeholder="본인 이름">
                         </div>
 
-                        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition">
-                            <p class="text-xs text-blue-600 font-semibold mb-1">고객명</p>
+                        <!-- 마케팅 동의 거부 체크 추가 -->
+                        <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition relative">
+                            <div class="flex justify-between items-center mb-1">
+                                <p class="text-xs text-blue-600 font-semibold">고객명</p>
+                                <label class="flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" id="val-marketing-deny" class="w-3.5 h-3.5 text-red-600 rounded focus:ring-red-500">
+                                    <span class="text-[10px] font-bold text-red-500">마케팅 거부</span>
+                                </label>
+                            </div>
                             <input type="text" id="val-name" class="w-full bg-transparent font-bold text-lg text-gray-800 outline-none" placeholder="이름 입력">
                         </div>
                         <div class="p-3 bg-blue-50/50 rounded-xl border border-blue-100 focus-within:border-blue-500 transition">
@@ -389,7 +396,11 @@
             <div class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
                     <div>
-                        <h2 class="text-2xl font-bold text-gray-900" id="modalName">-</h2>
+                        <!-- 이름 앞 마케팅거부 뱃지 추가됨 -->
+                        <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                            <span id="modalMarketingBadge" class="hidden bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm whitespace-nowrap">마케팅거부</span>
+                            <span id="modalName">-</span>
+                        </h2>
                         <p class="text-indigo-600 font-bold mt-1 text-lg" id="modalPhone">-</p>
                     </div>
                     <div class="flex gap-1.5 sm:gap-2 sm:flex-col justify-center items-stretch flex-wrap">
@@ -407,7 +418,8 @@
 
                 <div class="bg-white border-2 border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
                     <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2"><i class="fa-solid fa-chart-line text-blue-500"></i> 영업/컨택 기록</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <!-- 3열 구조로 변경되어 마케팅 수신동의 체크박스 추가 -->
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                             <p class="text-xs text-gray-500 font-semibold mb-1">현재 상태 (진행도)</p>
                             <select id="modalSalesStatus" class="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
@@ -417,6 +429,16 @@
                                 <option value="고객거부">🔴 고객거부 (취소)</option>
                             </select>
                         </div>
+                        <!-- 추가: 마케팅 거부 체크박스 -->
+                        <div>
+                            <p class="text-xs text-gray-500 font-semibold mb-1">마케팅 수신동의</p>
+                            <div class="flex items-center h-[38px] px-1">
+                                <label class="flex items-center gap-1.5 cursor-pointer">
+                                    <input type="checkbox" id="modalMarketingDeny" class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
+                                    <span class="text-sm font-bold text-red-500">수신 거부 고객</span>
+                                </label>
+                            </div>
+                        </div>
                         <div>
                             <p class="text-xs text-gray-500 font-semibold mb-1">최근 연락한 날짜</p>
                             <div class="flex items-center gap-2">
@@ -424,7 +446,7 @@
                                 <button id="btnTodayContact" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-gray-700 transition">오늘 연락</button>
                             </div>
                         </div>
-                        <div class="sm:col-span-2 mt-1 border-t pt-2">
+                        <div class="sm:col-span-3 mt-1 border-t pt-2">
                             <p class="text-xs text-indigo-600 font-semibold mb-1">최종 컨택 담당자</p>
                             <input type="text" id="modalContactManager" class="w-full p-2 border border-indigo-200 rounded-lg text-sm font-bold text-gray-800 outline-none bg-indigo-50/30" placeholder="연락하신 분 이름을 적어주세요">
                         </div>
@@ -1012,6 +1034,9 @@
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
             
+            // 마케팅 거부 체크 초기화 추가
+            if(document.getElementById('val-marketing-deny')) document.getElementById('val-marketing-deny').checked = false;
+
             ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-manager', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
                 if(document.getElementById(id)) document.getElementById(id).value = '';
             });
@@ -1154,6 +1179,9 @@
                 legalPhone: document.getElementById('val-legal-phone') ? document.getElementById('val-legal-phone').value : '',
                 legalDob: document.getElementById('val-legal-dob') ? document.getElementById('val-legal-dob').value : '',
 
+                // 마케팅 거부 저장
+                marketingDeny: document.getElementById('val-marketing-deny').checked,
+
                 memo: finalMemo, obMemo: finalObMemo,
                 prospectMemo: finalProspectMemo, prosCarrier: finalProsCarrier, prosDevice: finalProsDevice, prosWired: finalProsWired, prosPay: finalProsPay, prosPlan: finalProsPlan,
                 
@@ -1250,7 +1278,6 @@
             return `<span class="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-200">미정</span>`;
         }
 
-        // 전체선택 체크박스 이벤트 추가
         document.getElementById('selectAllChk').addEventListener('change', function(e) {
             const isChecked = e.target.checked;
             document.querySelectorAll('.row-chk').forEach(chk => {
@@ -1258,16 +1285,13 @@
             });
         });
 
-        // 엑셀 다운로드 이벤트 추가
         document.getElementById('exportExcelBtn').addEventListener('click', () => {
             const checkedBoxes = document.querySelectorAll('.row-chk:checked');
             if (checkedBoxes.length === 0) return alert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
-            // BOM 추가 (엑셀에서 한글 안 깨지게 처리)
             let csv = '\uFEFF';
             csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,유선약정일,영업상태,담당자,스캔/방문일\n";
 
-            // 따옴표 치환(이스케이프) 헬퍼 함수 - 데이터 내 콤마가 있어도 셀이 안 깨지도록
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
 
             checkedBoxes.forEach(chk => {
@@ -1304,7 +1328,6 @@
             document.body.removeChild(link);
         });
 
-        // 개별 체크박스 변경 시 전체선택 체크박스 상태 연동
         document.getElementById('dbTableBody').addEventListener('change', function(e) {
             if (e.target.classList.contains('row-chk')) {
                 const total = document.querySelectorAll('.row-chk').length;
@@ -1314,7 +1337,6 @@
         });
 
         function renderDB() {
-            // 필터/검색 시 전체 선택 박스 리셋
             const selectAll = document.getElementById('selectAllChk');
             if (selectAll) selectAll.checked = false;
 
@@ -1360,6 +1382,22 @@
             filteredDB.forEach((c) => {
                 const calc = getDdayAndMonths(c.activationDate);
                 
+                // 🚀 [추가된 기능]: 고객거부 취소선 및 3개월 이내 개통자 노란색 배경
+                let rowStyle = "border-b transition ";
+                let textStrike = "";
+
+                if (c.salesStatus === '고객거부') {
+                    rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
+                    textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
+                } else if (c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
+                    rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; // 3개월 이내 개통 (노란 하이라이트)
+                } else {
+                    rowStyle += "bg-white hover:bg-gray-50/80 ";
+                }
+                
+                // 🚀 [추가된 기능]: 마케팅 동의 거부 뱃지
+                let marketingBadge = c.marketingDeny ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mr-1 whitespace-nowrap shadow-sm align-middle">마케팅거부</span>` : '';
+
                 let targetBadges = '';
                 if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">18M+</span>`;
                 else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold">M+6</span>`;
@@ -1443,16 +1481,17 @@
                     </div>`;
                 }
 
-                tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
+                // 동적으로 적용된 클래스들을 본문에 주입합니다.
+                tbody.innerHTML += `<tr class="${rowStyle}">
                     <td class="px-3 py-3 text-center align-middle">
                         <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" onclick="event.stopPropagation()">
                     </td>
                     <td class="px-3 py-3">
-                        <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
+                        <div class="font-bold text-gray-900 text-sm ${textStrike}">${marketingBadge}${c.name || '-'}</div>
                         <div class="text-[10px] text-gray-500 mt-1">${c.visitDate || '-'}</div>
                     </td>
                     <td class="px-3 py-3">
-                        <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center">${formatPhone(c.phone)}${carrierBadge}</div>
+                        <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center ${textStrike}">${formatPhone(c.phone)}${carrierBadge}</div>
                         ${dobHtml}
                         <div class="flex items-center gap-1.5">
                             <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
@@ -1462,7 +1501,7 @@
                         ${legalActionHtml}
                     </td>
                     <td class="px-3 py-3 text-xs">
-                        <div class="font-bold text-gray-700 truncate max-w-[120px] mb-0.5">${c.device || '기종미상'}</div>
+                        <div class="font-bold text-gray-700 truncate max-w-[120px] mb-0.5 ${textStrike}">${c.device || '기종미상'}</div>
                         <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
                         ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
                         ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
@@ -1502,6 +1541,14 @@
             const c = customerDB.find(x => x.id === id);
             if(!c) return;
             currentDetailId = id;
+            
+            // 마케팅 거부 뱃지 및 체크박스 동기화 추가
+            document.getElementById('modalMarketingDeny').checked = c.marketingDeny || false;
+            if(c.marketingDeny) {
+                document.getElementById('modalMarketingBadge').classList.remove('hidden');
+            } else {
+                document.getElementById('modalMarketingBadge').classList.add('hidden');
+            }
             
             document.getElementById('modalName').textContent = (c.name || '').trim() || '-';
             document.getElementById('modalPhone').textContent = formatPhone(c.phone || '-');
@@ -1612,6 +1659,9 @@
                 legalPhone: document.getElementById('modalLegalPhone').value,
                 legalDob: document.getElementById('modalLegalDob').value,
                 
+                // 마케팅 거부 팝업창에서 저장
+                marketingDeny: document.getElementById('modalMarketingDeny').checked,
+
                 salesStatus: document.getElementById('modalSalesStatus').value,
                 lastContactDate: document.getElementById('modalContactDate').value,
                 contactManager: document.getElementById('modalContactManager').value,
@@ -1667,6 +1717,7 @@
 
             const today = new Date();
             const timeStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일 ${today.getHours()}:${String(today.getMinutes()).padStart(2, '0')}`;
+            const mktDenyStr = c.marketingDeny ? "거부" : "동의";
 
             printSection.innerHTML = `
                 <div style="font-family: 'Pretendard', sans-serif; color: #111;">
@@ -1678,7 +1729,7 @@
                     <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
                         <tr>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">고객명</th>
-                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%; font-weight: bold;">${c.name || '-'}</td>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%; font-weight: bold;">${c.name || '-'} <span style="font-size: 9pt; color: #d9534f;">(마케팅: ${mktDenyStr})</span></td>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">연락처</th>
                             <td style="border: 1px solid #ccc; padding: 10px; width: 30%; font-weight: bold;">${formatPhone(c.phone) || '-'}</td>
                         </tr>
