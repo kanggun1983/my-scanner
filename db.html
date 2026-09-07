@@ -91,7 +91,7 @@
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
                     <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V35: 최종 릴리즈</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">금액 콤마 / 약속분리 / 생년월일 표시 / 3.5 버전 완벽고정</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">금액 콤마 / 약속분리 / 생년월일 표시 / 3.5 버전 완벽고정 / 개통단말기 동기화</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -574,7 +574,7 @@
 
                     <div>
                         <p class="text-xs font-bold text-teal-700 mb-1"><i class="fa-solid fa-clock-rotate-left"></i> 자동 연락 타임라인 (수정불가)</p>
-                        <textarea id="modalHistory" readonly class="w-full min-h-[90px] p-2 bg-gray-100 border border-teal-200 rounded-xl outline-none text-[11px] text-gray-600 font-mono resize-none leading-relaxed" placeholder="위의 [전화/문자] 버튼을 클릭하면 내역이 자동으로 누적됩니다."></textarea>
+                        <textarea id="modalHistory" readonly class="w-full min-h-[90px] p-2 bg-gray-100 border border-teal-200 rounded-xl outline-none text-[11px] text-gray-600 font-mono resize-none leading-relaxed" placeholder="위의 [전화/문자 버튼을 클릭하면 내역이 자동으로 누적됩니다."></textarea>
                     </div>
                 </div>
             </div>
@@ -606,6 +606,8 @@
                 <div class="grid grid-cols-2 gap-2 text-xs">
                     <input type="text" id="rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
                     <input type="text" id="rep-address" placeholder="주소" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
+                    <!-- 개통단말기 입력칸 추가 -->
+                    <input type="text" id="rep-device" placeholder="개통단말기(모델명)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
                     <input type="text" id="rep-usim" placeholder="유심 일련" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-usim-pay" placeholder="유심 선납(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-type" placeholder="유형(신규/기변/번이)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
@@ -1497,7 +1499,8 @@
         };
 
         const reportModal = document.getElementById('reportModal');
-        const reportInputs = ['rep-jumin', 'rep-address', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
+        // 'rep-device' 가 배열에 추가되었습니다.
+        const reportInputs = ['rep-jumin', 'rep-address', 'rep-device', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
         let reportCustomerData = null;
 
         document.getElementById('openReportBtn').addEventListener('click', () => {
@@ -1507,6 +1510,8 @@
             
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
             document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
+            // 기존 단말기 또는 리포트 단말기를 초기값으로 세팅
+            document.getElementById('rep-device').value = reportCustomerData.repDevice || reportCustomerData.device || ''; 
             document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
             document.getElementById('rep-usim-pay').value = applyComma(reportCustomerData.repUsimPay || '');
             document.getElementById('rep-type').value = reportCustomerData.repType || '';
@@ -1537,7 +1542,7 @@
 `주민번호: ${document.getElementById('rep-jumin').value}\n` +
 `연락처 : ${reportCustomerData.phone || ''}\n` +
 `주소 : ${document.getElementById('rep-address').value}\n` +
-`모델/일련: ${reportCustomerData.device || ''}\n` +
+`모델/일련: ${document.getElementById('rep-device').value}\n` + // 개통단말기로 변경됨
 `유심 일련: ${document.getElementById('rep-usim').value}\n` +
 `유심 선납: ${document.getElementById('rep-usim-pay').value}\n` +
 `유형: ${document.getElementById('rep-type').value}\n` +
@@ -1571,16 +1576,33 @@
                 if (currentDetailId && db) {
                     const newDiscount = document.getElementById('rep-discount').value;
                     const newInstallment = document.getElementById('rep-installment').value;
+                    const newDevice = document.getElementById('rep-device').value; // 입력된 개통 단말기값
                     
                     await setDoc(doc(db, 'smart_customers', currentDetailId), {
                         salesStatus: '판매성공',
-                        repJumin: document.getElementById('rep-jumin').value, repAddress: document.getElementById('rep-address').value, repUsim: document.getElementById('rep-usim').value, repUsimPay: document.getElementById('rep-usim-pay').value, repType: document.getElementById('rep-type').value, repAddons: document.getElementById('rep-addons').value, repInsurance: document.getElementById('rep-insurance').value, repPrincipal: document.getElementById('rep-principal').value, repInstallment: newInstallment, repDiscount: newDiscount, repSubsidy: document.getElementById('rep-subsidy').value, repUsedPhone: document.getElementById('rep-usedphone').value, repBranch: document.getElementById('rep-branch').value,
+                        repJumin: document.getElementById('rep-jumin').value, 
+                        repAddress: document.getElementById('rep-address').value, 
+                        repDevice: newDevice,
+                        device: newDevice, // 🌟 이 코드가 DB의 기기명을 덮어씌워 3번 스샷(목록)을 최신화합니다 🌟
+                        repUsim: document.getElementById('rep-usim').value, 
+                        repUsimPay: document.getElementById('rep-usim-pay').value, 
+                        repType: document.getElementById('rep-type').value, 
+                        repAddons: document.getElementById('rep-addons').value, 
+                        repInsurance: document.getElementById('rep-insurance').value, 
+                        repPrincipal: document.getElementById('rep-principal').value, 
+                        repInstallment: newInstallment, 
+                        repDiscount: newDiscount, 
+                        repSubsidy: document.getElementById('rep-subsidy').value, 
+                        repUsedPhone: document.getElementById('rep-usedphone').value, 
+                        repBranch: document.getElementById('rep-branch').value,
                         discountType: newDiscount || '미정',
                         updatedAt: new Date().toISOString()
                     }, { merge: true });
                     
+                    // 🌟 2번 스샷(상세 모달)의 화면단도 즉시 최신 기기명으로 변경 🌟
                     document.getElementById('modalSalesStatus').value = '판매성공';
                     if (newDiscount) document.getElementById('modalDiscount').value = newDiscount;
+                    if (newDevice) document.getElementById('modalDevice').value = newDevice;
                 }
                 alert('✅ 개통보고 양식이 성공적으로 복사 및 DB에 반영되었습니다!');
                 reportModal.style.display = 'none'; 
