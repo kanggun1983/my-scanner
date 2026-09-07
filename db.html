@@ -322,10 +322,15 @@
                 <h2 class="text-xl font-bold flex items-center gap-2 text-gray-800">
                     <i class="fa-solid fa-users text-indigo-500"></i> 내 고객 목록
                 </h2>
-                <div class="relative w-full sm:w-64">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                    <!-- 담당자 검색 안내 추가 -->
-                    <input type="text" id="searchInput" placeholder="고객/법대/담당자 이름 또는 번호 검색" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
+                <!-- 검색창 및 엑셀 출력 버튼 추가 영역 -->
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <div class="relative flex-1 sm:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="searchInput" placeholder="고객/법대/담당자 이름 또는 번호 검색" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
+                    </div>
+                    <button id="exportExcelBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-md transition flex items-center gap-1 whitespace-nowrap">
+                        <i class="fa-solid fa-file-excel"></i> 엑셀출력
+                    </button>
                 </div>
             </div>
 
@@ -342,6 +347,10 @@
                 <table class="w-full text-sm text-left text-gray-600">
                     <thead class="text-xs text-gray-700 bg-gray-50 uppercase border-b border-gray-200">
                         <tr>
+                            <!-- 체크박스 열 추가 -->
+                            <th class="px-4 py-3 whitespace-nowrap text-center w-10">
+                                <input type="checkbox" id="selectAllChk" class="w-4 h-4 text-indigo-600 rounded cursor-pointer">
+                            </th>
                             <th class="px-4 py-3 whitespace-nowrap">고객명 / 스캔일</th>
                             <th class="px-4 py-3 whitespace-nowrap">연락처 및 액션</th>
                             <th class="px-4 py-3 whitespace-nowrap">단말기 / 개통일 / 결합</th>
@@ -353,7 +362,8 @@
                         </tr>
                     </thead>
                     <tbody id="dbTableBody">
-                        <tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 font-bold">데이터를 불러오는 중입니다...</td></tr>
+                        <!-- 열 개수 증가에 따라 colspan 9로 변경 -->
+                        <tr><td colspan="9" class="px-6 py-8 text-center text-gray-500 font-bold">데이터를 불러오는 중입니다...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1240,7 +1250,74 @@
             return `<span class="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded font-bold border border-gray-200">미정</span>`;
         }
 
+        // 전체선택 체크박스 이벤트 추가
+        document.getElementById('selectAllChk').addEventListener('change', function(e) {
+            const isChecked = e.target.checked;
+            document.querySelectorAll('.row-chk').forEach(chk => {
+                chk.checked = isChecked;
+            });
+        });
+
+        // 엑셀 다운로드 이벤트 추가
+        document.getElementById('exportExcelBtn').addEventListener('click', () => {
+            const checkedBoxes = document.querySelectorAll('.row-chk:checked');
+            if (checkedBoxes.length === 0) return alert("엑셀로 출력할 고객을 먼저 체크해주세요.");
+            
+            // BOM 추가 (엑셀에서 한글 안 깨지게 처리)
+            let csv = '\uFEFF';
+            csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,유선약정일,영업상태,담당자,스캔/방문일\n";
+
+            // 따옴표 치환(이스케이프) 헬퍼 함수 - 데이터 내 콤마가 있어도 셀이 안 깨지도록
+            const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+
+            checkedBoxes.forEach(chk => {
+                const c = customerDB.find(x => x.id === chk.value);
+                if (c) {
+                    const row = [
+                        escapeCSV(c.name),
+                        escapeCSV(formatPhone(c.phone)),
+                        escapeCSV(formatDob(c.dob)),
+                        escapeCSV(c.carrier),
+                        escapeCSV(c.device),
+                        escapeCSV(c.activationDate),
+                        escapeCSV(c.plan),
+                        escapeCSV(c.discountType),
+                        escapeCSV(c.installment),
+                        escapeCSV(c.fee),
+                        escapeCSV((c.combination || '') + (c.welfare && c.welfare !== '해당없음' ? ' / ' + c.welfare : '')),
+                        escapeCSV(c.wiredDate),
+                        escapeCSV(c.salesStatus),
+                        escapeCSV(c.manager || c.contactManager),
+                        escapeCSV(c.visitDate)
+                    ];
+                    csv += row.join(",") + "\n";
+                }
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `고객목록_${getTodayStr()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+
+        // 개별 체크박스 변경 시 전체선택 체크박스 상태 연동
+        document.getElementById('dbTableBody').addEventListener('change', function(e) {
+            if (e.target.classList.contains('row-chk')) {
+                const total = document.querySelectorAll('.row-chk').length;
+                const checked = document.querySelectorAll('.row-chk:checked').length;
+                document.getElementById('selectAllChk').checked = (total > 0 && total === checked);
+            }
+        });
+
         function renderDB() {
+            // 필터/검색 시 전체 선택 박스 리셋
+            const selectAll = document.getElementById('selectAllChk');
+            if (selectAll) selectAll.checked = false;
+
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
             const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
             
@@ -1266,7 +1343,7 @@
                 return true; 
             });
 
-            if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
+            if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
 
             if (currentFilter === 'promise') {
                 filteredDB.sort((a,b) => {
@@ -1367,6 +1444,9 @@
                 }
 
                 tbody.innerHTML += `<tr class="border-b hover:bg-gray-50/80 transition">
+                    <td class="px-3 py-3 text-center align-middle">
+                        <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" onclick="event.stopPropagation()">
+                    </td>
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-900 text-sm">${c.name || '-'}</div>
                         <div class="text-[10px] text-gray-500 mt-1">${c.visitDate || '-'}</div>
