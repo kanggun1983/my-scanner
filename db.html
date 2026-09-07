@@ -1382,15 +1382,24 @@
             filteredDB.forEach((c) => {
                 const calc = getDdayAndMonths(c.activationDate);
                 
-                // 🚀 [추가된 기능]: 고객거부 취소선 및 3개월 이내 개통자 노란색 배경
+                // 🚀 [추가된 기능]: 3개월 경과 시 '판매성공' -> '미정' 자동 변경
+                if (c.salesStatus === '판매성공' && calc.months >= 3) {
+                    c.salesStatus = '미정'; // 화면에 즉시 반영되도록 로컬 변수 변경
+                    // 백그라운드에서 DB 업데이트 (동기화)
+                    if (db) {
+                        setDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true }).catch(console.error);
+                    }
+                }
+
+                // 🚀 [수정된 기능]: 고객거부 취소선 및 '판매성공' + 3개월 이내 개통자 노란색 배경
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
                 if (c.salesStatus === '고객거부') {
                     rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
-                } else if (c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
-                    rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; // 3개월 이내 개통 (노란 하이라이트)
+                } else if (c.salesStatus === '판매성공' && c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
+                    rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; // 3개월 이내 + 판매성공 (노란 하이라이트)
                 } else {
                     rowStyle += "bg-white hover:bg-gray-50/80 ";
                 }
