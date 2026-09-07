@@ -610,6 +610,7 @@
                     <input type="text" id="rep-usim" placeholder="유심 일련" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-usim-pay" placeholder="유심 선납(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-type" placeholder="유형(신규/기변/번이)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    <input type="text" id="rep-plan" placeholder="요금제" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-addons" placeholder="부가서비스" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-insurance" placeholder="보험" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-principal" placeholder="할부원금(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
@@ -1498,7 +1499,7 @@
         };
 
         const reportModal = document.getElementById('reportModal');
-        const reportInputs = ['rep-jumin', 'rep-address', 'rep-device', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
+        const reportInputs = ['rep-jumin', 'rep-address', 'rep-device', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-plan', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch'];
         let reportCustomerData = null;
 
         document.getElementById('openReportBtn').addEventListener('click', () => {
@@ -1512,6 +1513,7 @@
             document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
             document.getElementById('rep-usim-pay').value = applyComma(reportCustomerData.repUsimPay || '');
             document.getElementById('rep-type').value = reportCustomerData.repType || '';
+            document.getElementById('rep-plan').value = reportCustomerData.repPlan || reportCustomerData.plan || '';
             document.getElementById('rep-addons').value = reportCustomerData.repAddons || '';
             document.getElementById('rep-insurance').value = reportCustomerData.repInsurance || '';
             document.getElementById('rep-principal').value = applyComma(reportCustomerData.repPrincipal || '');
@@ -1543,7 +1545,7 @@
 `유심 일련: ${document.getElementById('rep-usim').value}\n` +
 `유심 선납: ${document.getElementById('rep-usim-pay').value}\n` +
 `유형: ${document.getElementById('rep-type').value}\n` +
-`요금제 : ${reportCustomerData.plan || ''}\n` +
+`요금제 : ${document.getElementById('rep-plan').value}\n` +
 `부가 : ${document.getElementById('rep-addons').value}\n` +
 `보험 : ${document.getElementById('rep-insurance').value}\n` +
 `할부원금 : ${document.getElementById('rep-principal').value}\n` +
@@ -1575,6 +1577,7 @@
                     const newInstallment = document.getElementById('rep-installment').value;
                     const newDevice = document.getElementById('rep-device').value; 
                     const newPrincipal = document.getElementById('rep-principal').value;
+                    const newPlan = document.getElementById('rep-plan').value;
                     
                     // 🌟 할인 유형 파싱 방어 로직 🌟
                     let parsedDiscount = '미정';
@@ -1612,6 +1615,7 @@
                         repUsim: document.getElementById('rep-usim').value, 
                         repUsimPay: document.getElementById('rep-usim-pay').value, 
                         repType: document.getElementById('rep-type').value, 
+                        repPlan: newPlan,
                         repAddons: document.getElementById('rep-addons').value, 
                         repInsurance: document.getElementById('rep-insurance').value, 
                         repPrincipal: newPrincipal, 
@@ -1633,6 +1637,9 @@
                     if (parsedDiscount !== '미정') {
                         updateData.discountType = parsedDiscount;
                     }
+                    if (newPlan) {
+                        updateData.plan = newPlan;
+                    }
 
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
@@ -1643,12 +1650,13 @@
 
                     if (newDevice) document.getElementById('modalDevice').value = newDevice;
                     if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
+                    if (newPlan) document.getElementById('modalPlan').value = newPlan;
                     if (parsedDiscount !== '미정') {
                         const ds = document.getElementById('modalDiscount');
                         if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
                     }
                 }
-                alert('✅ 개통보고 양식이 복사되고 개통일/단말기 정보가 새로 반영되었습니다!');
+                alert('✅ 개통보고 양식이 복사되고 고객 데이터(요금제, 단말기 등)가 새로 반영되었습니다!');
                 reportModal.style.display = 'none'; 
             } catch (err) { alert('복사 및 저장에 실패했습니다.'); console.error(err); }
             document.body.removeChild(textarea);
