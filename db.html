@@ -1034,7 +1034,6 @@
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
             
-            // 마케팅 거부 체크 초기화 추가
             if(document.getElementById('val-marketing-deny')) document.getElementById('val-marketing-deny').checked = false;
 
             ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-manager', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
@@ -1046,7 +1045,6 @@
         };
 
         async function extractInformation(base64Data, mimeType) {
-            // 🚨 3.5 버전 완벽 고정 (임의수정 금지) 🚨
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
@@ -1179,7 +1177,6 @@
                 legalPhone: document.getElementById('val-legal-phone') ? document.getElementById('val-legal-phone').value : '',
                 legalDob: document.getElementById('val-legal-dob') ? document.getElementById('val-legal-dob').value : '',
 
-                // 마케팅 거부 저장
                 marketingDeny: document.getElementById('val-marketing-deny').checked,
 
                 memo: finalMemo, obMemo: finalObMemo,
@@ -1297,6 +1294,13 @@
             checkedBoxes.forEach(chk => {
                 const c = customerDB.find(x => x.id === chk.value);
                 if (c) {
+                    // 🚀 [추가]: 엑셀 출력 시에도 3개월 지난 '판매성공'은 '미정'으로 다운로드
+                    let exportStatus = c.salesStatus || '미정';
+                    if (exportStatus === '판매성공') {
+                        const exportCalc = getDdayAndMonths(c.activationDate);
+                        if (exportCalc.months >= 3) exportStatus = '미정';
+                    }
+
                     const row = [
                         escapeCSV(c.name),
                         escapeCSV(formatPhone(c.phone)),
@@ -1310,7 +1314,7 @@
                         escapeCSV(c.fee),
                         escapeCSV((c.combination || '') + (c.welfare && c.welfare !== '해당없음' ? ' / ' + c.welfare : '')),
                         escapeCSV(c.wiredDate),
-                        escapeCSV(c.salesStatus),
+                        escapeCSV(exportStatus),
                         escapeCSV(c.manager || c.contactManager),
                         escapeCSV(c.visitDate)
                     ];
@@ -1357,10 +1361,14 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
+                // 🚀 [추가]: 필터링 시에도 3개월 지난 '판매성공'은 '미정'으로 간주하여 필터링
+                let filterStatus = c.salesStatus || '미정';
+                if (filterStatus === '판매성공' && months >= 3) { filterStatus = '미정'; }
+
                 if (currentFilter === 'm6') return months >= 6 && months < 18; 
                 if (currentFilter === 'target18') return months >= 18; 
                 if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-                if (currentFilter === 'status_prospect') return c.salesStatus === '가망고객';
+                if (currentFilter === 'status_prospect') return filterStatus === '가망고객';
                 if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate); 
                 return true; 
             });
@@ -1382,29 +1390,25 @@
             filteredDB.forEach((c) => {
                 const calc = getDdayAndMonths(c.activationDate);
                 
-                // 🚀 [추가된 기능]: 3개월 경과 시 '판매성공' -> '미정' 자동 변경
-                if (c.salesStatus === '판매성공' && calc.months >= 3) {
-                    c.salesStatus = '미정'; // 화면에 즉시 반영되도록 로컬 변수 변경
-                    // 백그라운드에서 DB 업데이트 (동기화)
-                    if (db) {
-                        setDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true }).catch(console.error);
-                    }
+                // 🚀 [해결된 핵심 기능]: 3개월 경과 시 DB 덮어쓰기 무한 루프 삭제! 
+                // 대신 화면에 그려질 때만 똑똑하게 '미정'으로 취급합니다.
+                let displayStatus = c.salesStatus || '미정';
+                if (displayStatus === '판매성공' && calc.months >= 3) {
+                    displayStatus = '미정';
                 }
 
-                // 🚀 [수정된 기능]: 고객거부 취소선 및 '판매성공' + 3개월 이내 개통자 노란색 배경
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
-                if (c.salesStatus === '고객거부') {
+                if (displayStatus === '고객거부') {
                     rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
-                } else if (c.salesStatus === '판매성공' && c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
+                } else if (displayStatus === '판매성공' && c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
                     rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; // 3개월 이내 + 판매성공 (노란 하이라이트)
                 } else {
                     rowStyle += "bg-white hover:bg-gray-50/80 ";
                 }
                 
-                // 🚀 [추가된 기능]: 마케팅 동의 거부 뱃지
                 let marketingBadge = c.marketingDeny ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mr-1 whitespace-nowrap shadow-sm align-middle">마케팅거부</span>` : '';
 
                 let targetBadges = '';
@@ -1490,7 +1494,6 @@
                     </div>`;
                 }
 
-                // 동적으로 적용된 클래스들을 본문에 주입합니다.
                 tbody.innerHTML += `<tr class="${rowStyle}">
                     <td class="px-3 py-3 text-center align-middle">
                         <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" onclick="event.stopPropagation()">
@@ -1526,7 +1529,7 @@
                     <td class="px-3 py-3">
                         <div class="flex flex-col gap-1 items-start">
                             <div class="flex items-center gap-1">
-                                ${getStatusBadge(c.salesStatus)}
+                                ${getStatusBadge(displayStatus)}
                                 ${targetBadges ? `<div class="flex gap-1 flex-wrap">${targetBadges}</div>` : ''}
                             </div>
                         </div>
@@ -1551,7 +1554,6 @@
             if(!c) return;
             currentDetailId = id;
             
-            // 마케팅 거부 뱃지 및 체크박스 동기화 추가
             document.getElementById('modalMarketingDeny').checked = c.marketingDeny || false;
             if(c.marketingDeny) {
                 document.getElementById('modalMarketingBadge').classList.remove('hidden');
@@ -1604,7 +1606,14 @@
             document.getElementById('modalLegalPhone').value = c.legalPhone || '';
             document.getElementById('modalLegalDob').value = formatDob(c.legalDob || '');
             
-            document.getElementById('modalSalesStatus').value = c.salesStatus || '미정';
+            // 🚀 [추가]: 모달창 열 때, 원본 상태가 판매성공이어도 3개월 지났으면 미정으로 표시 (저장 시 자연스럽게 DB에 덮어씌워짐)
+            let modalStatus = c.salesStatus || '미정';
+            if (modalStatus === '판매성공') {
+                const calcStatus = getDdayAndMonths(c.activationDate);
+                if (calcStatus.months >= 3) modalStatus = '미정';
+            }
+            document.getElementById('modalSalesStatus').value = modalStatus;
+
             document.getElementById('modalContactDate').value = c.lastContactDate || '';
             document.getElementById('modalContactManager').value = c.contactManager || '';
             
@@ -1650,10 +1659,22 @@
 
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
+            
+            let saveActDate = document.getElementById('modalActivation').value;
+            const newStatus = document.getElementById('modalSalesStatus').value;
+
+            // 🚀 [핵심 해결책]: 판매성공 시, 3개월 넘은 옛날 날짜면 무조건 '오늘'로 갱신하여 튕기지 않게 만듦!
+            if (newStatus === '판매성공') {
+                const calcAct = getDdayAndMonths(saveActDate);
+                if (!saveActDate || calcAct.months >= 3) {
+                    saveActDate = getTodayStr(); // 방금 개통했다는 의미이므로 오늘로 변경
+                }
+            }
+
             const updatedData = {
                 visitDate: document.getElementById('modalVisitDate').value,
                 manager: document.getElementById('modalManager').value,
-                activationDate: document.getElementById('modalActivation').value,
+                activationDate: saveActDate, // 최신화된 날짜 저장
                 carrier: document.getElementById('modalCarrier').value,
                 dob: document.getElementById('modalDob').value,
                 device: document.getElementById('modalDevice').value,
@@ -1668,10 +1689,9 @@
                 legalPhone: document.getElementById('modalLegalPhone').value,
                 legalDob: document.getElementById('modalLegalDob').value,
                 
-                // 마케팅 거부 팝업창에서 저장
                 marketingDeny: document.getElementById('modalMarketingDeny').checked,
 
-                salesStatus: document.getElementById('modalSalesStatus').value,
+                salesStatus: newStatus,
                 lastContactDate: document.getElementById('modalContactDate').value,
                 contactManager: document.getElementById('modalContactManager').value,
                 
@@ -1937,7 +1957,13 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                     }
 
                     const currentActDate = reportCustomerData.activationDate;
-                    const finalActDate = currentActDate ? currentActDate : getTodayStr();
+                    let finalActDate = currentActDate ? currentActDate : getTodayStr();
+                    
+                    // 🚀 [추가]: 개통보고 폼에서도 개통일이 옛날이면 안전하게 오늘로 강제 갱신
+                    const calcRep = getDdayAndMonths(finalActDate);
+                    if (calcRep.months >= 3) {
+                        finalActDate = getTodayStr();
+                    }
 
                     const updateData = {
                         salesStatus: '판매성공',
