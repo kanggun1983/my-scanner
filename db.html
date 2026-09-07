@@ -102,6 +102,24 @@
 </head>
 <body class="min-h-screen p-2 md:p-8 text-gray-800">
 
+    <!-- 기본 시스템 alert/confirm을 대체하는 커스텀 모달 -->
+    <div id="customAlert" class="fixed inset-0 bg-black/60 z-[9999] hidden items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center">
+            <p id="customAlertMsg" class="text-gray-800 font-bold mb-6 whitespace-pre-wrap leading-relaxed text-sm"></p>
+            <button onclick="closeCustomAlert()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold w-full transition shadow-md">확인</button>
+        </div>
+    </div>
+
+    <div id="customConfirm" class="fixed inset-0 bg-black/60 z-[9999] hidden items-center justify-center p-4">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-sm w-full text-center">
+            <p id="customConfirmMsg" class="text-gray-800 font-bold mb-6 whitespace-pre-wrap leading-relaxed text-sm"></p>
+            <div class="flex gap-3">
+                <button id="customConfirmCancel" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200 px-6 py-2.5 rounded-xl font-bold flex-1 transition">취소</button>
+                <button id="customConfirmOk" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2.5 rounded-xl font-bold flex-1 transition shadow-md">확인</button>
+            </div>
+        </div>
+    </div>
+
     <div class="max-w-6xl mx-auto space-y-6">
         <header class="flex items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border-b-4 border-indigo-600">
             <div>
@@ -109,7 +127,7 @@
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
                     <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V41: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">UI 최적화 / PDF출력 / 법정대리인 완벽지원</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">UI 최적화 / PDF출력 / 법정대리인 완벽지원 / 문자메모</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -394,8 +412,9 @@
             </div>
             
             <div class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4">
+                <!-- 🚀 [신규 추가]: 문자 메모칸 및 버튼 디자인 🚀 -->
                 <div class="flex flex-col sm:flex-row justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                    <div>
+                    <div class="flex-shrink-0">
                         <!-- 이름 앞 마케팅거부 뱃지 추가됨 -->
                         <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
                             <span id="modalMarketingBadge" class="hidden bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm whitespace-nowrap">마케팅거부</span>
@@ -403,16 +422,25 @@
                         </h2>
                         <p class="text-indigo-600 font-bold mt-1 text-lg" id="modalPhone">-</p>
                     </div>
-                    <div class="flex gap-1.5 sm:gap-2 sm:flex-col justify-center items-stretch flex-wrap">
-                        <button id="modalCallBtn" class="bg-green-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-green-600 transition shadow-sm text-xs sm:text-sm flex-1">
-                            <i class="fa-solid fa-phone"></i> 본인
-                        </button>
-                        <button id="modalLegalCallBtn" class="hidden bg-orange-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-orange-600 transition shadow-sm text-xs sm:text-sm flex-1">
-                            <i class="fa-solid fa-phone"></i> 법대
-                        </button>
-                        <button id="modalSmsBtn" class="bg-blue-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-blue-600 transition shadow-sm text-xs sm:text-sm flex-1">
-                            <i class="fa-solid fa-envelope"></i> 문자
-                        </button>
+                    
+                    <div class="flex flex-col gap-2 w-full sm:max-w-[220px]">
+                        <div class="relative">
+                            <textarea id="modalSmsDraft" class="w-full h-[60px] p-2 pr-12 text-[11px] sm:text-xs text-gray-700 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-400 outline-none resize-none leading-relaxed shadow-sm" placeholder="고객에게 발송할 문자 내용 메모..."></textarea>
+                            <button id="copySmsDraftBtn" type="button" class="absolute bottom-1.5 right-1.5 bg-indigo-500 text-white hover:bg-indigo-600 px-2 py-1 rounded text-[10px] font-bold shadow-sm transition flex items-center gap-1">
+                                복사
+                            </button>
+                        </div>
+                        <div class="flex gap-1.5 sm:gap-2 justify-center items-stretch flex-wrap">
+                            <button id="modalCallBtn" class="bg-green-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-green-600 transition shadow-sm text-xs sm:text-sm flex-1">
+                                <i class="fa-solid fa-phone"></i> 본인
+                            </button>
+                            <button id="modalLegalCallBtn" class="hidden bg-orange-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-orange-600 transition shadow-sm text-xs sm:text-sm flex-1">
+                                <i class="fa-solid fa-phone"></i> 법대
+                            </button>
+                            <button id="modalSmsBtn" class="bg-blue-500 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-bold flex items-center justify-center gap-1.5 hover:bg-blue-600 transition shadow-sm text-xs sm:text-sm flex-1">
+                                <i class="fa-solid fa-envelope"></i> 문자
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -756,6 +784,29 @@
     </div>
 
     <script type="module">
+        // 🚀 [시스템 경고창 커스텀 설정]: 브라우저 기본 경고창 대신 깔끔한 모달을 사용합니다.
+        window.customAlert = function(msg) {
+            document.getElementById('customAlertMsg').textContent = msg;
+            document.getElementById('customAlert').style.display = 'flex';
+        };
+        window.closeCustomAlert = function() {
+            document.getElementById('customAlert').style.display = 'none';
+        };
+        window.customConfirm = function(msg) {
+            return new Promise(resolve => {
+                document.getElementById('customConfirmMsg').textContent = msg;
+                document.getElementById('customConfirm').style.display = 'flex';
+                document.getElementById('customConfirmOk').onclick = () => {
+                    document.getElementById('customConfirm').style.display = 'none';
+                    resolve(true);
+                };
+                document.getElementById('customConfirmCancel').onclick = () => {
+                    document.getElementById('customConfirm').style.display = 'none';
+                    resolve(false);
+                };
+            });
+        };
+
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -943,7 +994,7 @@
 
         window.fillPromDate = function(targetId, addDays) {
             const actDateStr = document.getElementById('modalActivation').value;
-            if (!actDateStr) return alert("먼저 '모바일 개통일'을 입력해주세요!");
+            if (!actDateStr) return customAlert("먼저 '모바일 개통일'을 입력해주세요!");
             const pDate = parseDateString(actDateStr);
             pDate.setDate(pDate.getDate() + addDays);
             const yyyy = pDate.getFullYear();
@@ -987,7 +1038,7 @@
         document.getElementById('saveApiKey').onclick = () => {
             geminiApiKey = document.getElementById('apiKeyInput').value.trim();
             geminiApiKey ? localStorage.setItem('geminiApiKey', geminiApiKey) : localStorage.removeItem('geminiApiKey');
-            document.getElementById('apiModal').style.display = 'none'; alert("저장 완료!");
+            document.getElementById('apiModal').style.display = 'none'; customAlert("저장 완료!");
         };
 
         function compressImage(file, callback) {
@@ -1009,7 +1060,7 @@
 
         async function handleFile(e) {
             if (!e.target.files[0]) return;
-            if (!geminiApiKey) return alert("우측 상단 [AI 키 설정]을 먼저 완료해주세요.");
+            if (!geminiApiKey) return customAlert("우측 상단 [AI 키 설정]을 먼저 완료해주세요.");
 
             document.getElementById('uploadPrompt').classList.add('hidden');
             document.getElementById('loadingOverlay').style.display = 'flex';
@@ -1111,13 +1162,13 @@
 
                 document.getElementById('saveDbBtn').classList.remove('hidden');
             } catch (error) { 
-                alert("🚨 AI 스캔 에러 🚨\n\n" + error.message);
+                customAlert("🚨 AI 스캔 에러 🚨\n\n" + error.message);
             } 
             finally { document.getElementById('loadingOverlay').style.display = 'none'; }
         }
 
         document.getElementById('saveDbBtn').addEventListener('click', async () => {
-            if (!db) return alert("DB 연결중입니다.");
+            if (!db) return customAlert("DB 연결중입니다.");
             const phoneVal = document.getElementById('val-phone').value;
             const docId = phoneVal ? phoneVal.replace(/[^0-9]/g, '') : Date.now().toString();
             const checkedDiscount = document.querySelector('input[name="discountType"]:checked');
@@ -1136,6 +1187,7 @@
             const finalStatus = existingCustomer ? (existingCustomer.salesStatus || '미정') : '미정';
             const finalLastDate = existingCustomer ? (existingCustomer.lastContactDate || '') : '';
             const finalContactManager = existingCustomer ? (existingCustomer.contactManager || '') : '';
+            const finalSmsDraft = existingCustomer ? (existingCustomer.smsDraft || '') : '';
             
             const finalPromPlanDate = existingCustomer ? (existingCustomer.promPlanDate || '') : '';
             const finalPromPlanMemo = existingCustomer ? (existingCustomer.promPlanMemo || '') : '';
@@ -1178,6 +1230,7 @@
                 legalDob: document.getElementById('val-legal-dob') ? document.getElementById('val-legal-dob').value : '',
 
                 marketingDeny: document.getElementById('val-marketing-deny').checked,
+                smsDraft: finalSmsDraft,
 
                 memo: finalMemo, obMemo: finalObMemo,
                 prospectMemo: finalProspectMemo, prosCarrier: finalProsCarrier, prosDevice: finalProsDevice, prosWired: finalProsWired, prosPay: finalProsPay, prosPlan: finalProsPlan,
@@ -1193,10 +1246,10 @@
 
             try {
                 await setDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
-                alert("저장 성공!"); 
+                customAlert("저장 성공!"); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
                 switchTab('db');
-            } catch (error) { alert("저장 실패! " + error); }
+            } catch (error) { customAlert("저장 실패! " + error); }
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '') {
@@ -1243,7 +1296,7 @@
         };
 
         window.deleteCustomer = async function(docId) {
-            if (confirm("이 고객을 영구 삭제할까요?")) {
+            if (await customConfirm("이 고객을 영구 삭제할까요?")) {
                 await deleteDoc(doc(db, 'smart_customers', docId));
                 document.getElementById('detailModal').style.display = 'none';
             }
@@ -1284,7 +1337,7 @@
 
         document.getElementById('exportExcelBtn').addEventListener('click', () => {
             const checkedBoxes = document.querySelectorAll('.row-chk:checked');
-            if (checkedBoxes.length === 0) return alert("엑셀로 출력할 고객을 먼저 체크해주세요.");
+            if (checkedBoxes.length === 0) return customAlert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
             let csv = '\uFEFF';
             csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,유선약정일,영업상태,담당자,스캔/방문일\n";
@@ -1294,13 +1347,6 @@
             checkedBoxes.forEach(chk => {
                 const c = customerDB.find(x => x.id === chk.value);
                 if (c) {
-                    // 🚀 [추가]: 엑셀 출력 시에도 3개월 지난 '판매성공'은 '미정'으로 다운로드
-                    let exportStatus = c.salesStatus || '미정';
-                    if (exportStatus === '판매성공') {
-                        const exportCalc = getDdayAndMonths(c.activationDate);
-                        if (exportCalc.months >= 3) exportStatus = '미정';
-                    }
-
                     const row = [
                         escapeCSV(c.name),
                         escapeCSV(formatPhone(c.phone)),
@@ -1314,7 +1360,7 @@
                         escapeCSV(c.fee),
                         escapeCSV((c.combination || '') + (c.welfare && c.welfare !== '해당없음' ? ' / ' + c.welfare : '')),
                         escapeCSV(c.wiredDate),
-                        escapeCSV(exportStatus),
+                        escapeCSV(c.salesStatus),
                         escapeCSV(c.manager || c.contactManager),
                         escapeCSV(c.visitDate)
                     ];
@@ -1361,14 +1407,10 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
-                // 🚀 [추가]: 필터링 시에도 3개월 지난 '판매성공'은 '미정'으로 간주하여 필터링
-                let filterStatus = c.salesStatus || '미정';
-                if (filterStatus === '판매성공' && months >= 3) { filterStatus = '미정'; }
-
                 if (currentFilter === 'm6') return months >= 6 && months < 18; 
                 if (currentFilter === 'target18') return months >= 18; 
                 if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-                if (currentFilter === 'status_prospect') return filterStatus === '가망고객';
+                if (currentFilter === 'status_prospect') return c.salesStatus === '가망고객';
                 if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate); 
                 return true; 
             });
@@ -1390,25 +1432,28 @@
             filteredDB.forEach((c) => {
                 const calc = getDdayAndMonths(c.activationDate);
                 
-                // 🚀 [해결된 핵심 기능]: 3개월 경과 시 DB 덮어쓰기 무한 루프 삭제! 
-                // 대신 화면에 그려질 때만 똑똑하게 '미정'으로 취급합니다.
-                let displayStatus = c.salesStatus || '미정';
-                if (displayStatus === '판매성공' && calc.months >= 3) {
-                    displayStatus = '미정';
+                // 🚀 [추가된 기능]: 3개월 경과 시 '판매성공' -> '미정' 자동 변경
+                if (c.salesStatus === '판매성공' && calc.months >= 3) {
+                    c.salesStatus = '미정'; // 화면에 즉시 반영
+                    if (db) {
+                        setDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true }).catch(console.error);
+                    }
                 }
 
+                // 🚀 [수정된 기능]: 고객거부 취소선 및 '판매성공' + 3개월 이내 개통자 노란색 배경
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
-                if (displayStatus === '고객거부') {
+                if (c.salesStatus === '고객거부') {
                     rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
-                } else if (displayStatus === '판매성공' && c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
-                    rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; // 3개월 이내 + 판매성공 (노란 하이라이트)
+                } else if (c.salesStatus === '판매성공' && c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0) {
+                    rowStyle += "bg-amber-50/70 hover:bg-amber-100/60 "; 
                 } else {
                     rowStyle += "bg-white hover:bg-gray-50/80 ";
                 }
                 
+                // 🚀 [추가된 기능]: 마케팅 동의 거부 뱃지
                 let marketingBadge = c.marketingDeny ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mr-1 whitespace-nowrap shadow-sm align-middle">마케팅거부</span>` : '';
 
                 let targetBadges = '';
@@ -1529,7 +1574,7 @@
                     <td class="px-3 py-3">
                         <div class="flex flex-col gap-1 items-start">
                             <div class="flex items-center gap-1">
-                                ${getStatusBadge(displayStatus)}
+                                ${getStatusBadge(c.salesStatus)}
                                 ${targetBadges ? `<div class="flex gap-1 flex-wrap">${targetBadges}</div>` : ''}
                             </div>
                         </div>
@@ -1564,6 +1609,9 @@
             document.getElementById('modalName').textContent = (c.name || '').trim() || '-';
             document.getElementById('modalPhone').textContent = formatPhone(c.phone || '-');
             
+            // 🚀 문자 메모칸 불러오기
+            document.getElementById('modalSmsDraft').value = c.smsDraft || '';
+
             document.getElementById('modalCallBtn').onclick = () => logActionAndCall(id, 'tel', c.phone);
             document.getElementById('modalSmsBtn').onclick = () => logActionAndCall(id, 'sms', c.phone);
 
@@ -1606,14 +1654,7 @@
             document.getElementById('modalLegalPhone').value = c.legalPhone || '';
             document.getElementById('modalLegalDob').value = formatDob(c.legalDob || '');
             
-            // 🚀 [추가]: 모달창 열 때, 원본 상태가 판매성공이어도 3개월 지났으면 미정으로 표시 (저장 시 자연스럽게 DB에 덮어씌워짐)
-            let modalStatus = c.salesStatus || '미정';
-            if (modalStatus === '판매성공') {
-                const calcStatus = getDdayAndMonths(c.activationDate);
-                if (calcStatus.months >= 3) modalStatus = '미정';
-            }
-            document.getElementById('modalSalesStatus').value = modalStatus;
-
+            document.getElementById('modalSalesStatus').value = c.salesStatus || '미정';
             document.getElementById('modalContactDate').value = c.lastContactDate || '';
             document.getElementById('modalContactManager').value = c.contactManager || '';
             
@@ -1654,27 +1695,48 @@
         document.getElementById('closeDetailModal').onclick = closeDetailModalFunc;
         document.getElementById('closeDetailBtn2').onclick = closeDetailModalFunc;
 
+        // 🚀 문자 메모 복사 기능 이벤트 등록
+        document.getElementById('copySmsDraftBtn').addEventListener('click', () => {
+            const text = document.getElementById('modalSmsDraft').value;
+            if (!text.trim()) return customAlert("복사할 문자 내용을 입력해주세요.");
+            
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                customAlert("✅ 문자 내용이 복사되었습니다!\n바로 아래의 [문자] 버튼을 누르고 붙여넣기 하세요.");
+            } catch (err) {
+                customAlert("복사 실패!");
+            }
+            document.body.removeChild(textarea);
+        });
+
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
 
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
             
-            let saveActDate = document.getElementById('modalActivation').value;
-            const newStatus = document.getElementById('modalSalesStatus').value;
+            let newSalesStatus = document.getElementById('modalSalesStatus').value;
+            let newActDate = document.getElementById('modalActivation').value;
 
-            // 🚀 [핵심 해결책]: 판매성공 시, 3개월 넘은 옛날 날짜면 무조건 '오늘'로 갱신하여 튕기지 않게 만듦!
-            if (newStatus === '판매성공') {
-                const calcAct = getDdayAndMonths(saveActDate);
-                if (!saveActDate || calcAct.months >= 3) {
-                    saveActDate = getTodayStr(); // 방금 개통했다는 의미이므로 오늘로 변경
+            // 🚀 [버그 픽스]: 판매성공으로 저장할 때, 개통일이 3개월이 지난 과거라면 자동으로 '오늘'로 변경시킵니다. (무한 튕김 방지)
+            if (newSalesStatus === '판매성공') {
+                const checkCalc = getDdayAndMonths(newActDate);
+                if (!newActDate || checkCalc.months >= 3) {
+                    newActDate = getTodayStr();
+                    document.getElementById('modalActivation').value = newActDate; // UI 최신화
+                    const calc2 = getDdayAndMonths(newActDate);
+                    document.getElementById('modalDdayBadge').textContent = `(D+${calc2.days})`;
                 }
             }
 
             const updatedData = {
                 visitDate: document.getElementById('modalVisitDate').value,
                 manager: document.getElementById('modalManager').value,
-                activationDate: saveActDate, // 최신화된 날짜 저장
+                activationDate: newActDate,
                 carrier: document.getElementById('modalCarrier').value,
                 dob: document.getElementById('modalDob').value,
                 device: document.getElementById('modalDevice').value,
@@ -1690,8 +1752,11 @@
                 legalDob: document.getElementById('modalLegalDob').value,
                 
                 marketingDeny: document.getElementById('modalMarketingDeny').checked,
+                
+                // 🚀 문자 메모 저장
+                smsDraft: document.getElementById('modalSmsDraft').value,
 
-                salesStatus: newStatus,
+                salesStatus: newSalesStatus,
                 lastContactDate: document.getElementById('modalContactDate').value,
                 contactManager: document.getElementById('modalContactManager').value,
                 
@@ -1726,9 +1791,9 @@
             };
             try {
                 await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
-                alert("상세 정보 및 약속이 저장되었습니다!");
+                customAlert("상세 정보 및 약속이 저장되었습니다!");
                 closeDetailModalFunc();
-            } catch (e) { alert("업데이트 실패!"); }
+            } catch (e) { customAlert("업데이트 실패!"); }
         };
 
         // 🖨️ 고객 상세 카드 PDF 출력 로직 🖨️
@@ -1957,13 +2022,7 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                     }
 
                     const currentActDate = reportCustomerData.activationDate;
-                    let finalActDate = currentActDate ? currentActDate : getTodayStr();
-                    
-                    // 🚀 [추가]: 개통보고 폼에서도 개통일이 옛날이면 안전하게 오늘로 강제 갱신
-                    const calcRep = getDdayAndMonths(finalActDate);
-                    if (calcRep.months >= 3) {
-                        finalActDate = getTodayStr();
-                    }
+                    const finalActDate = currentActDate ? currentActDate : getTodayStr();
 
                     const updateData = {
                         salesStatus: '판매성공',
@@ -2022,9 +2081,9 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                     document.getElementById('modalLegalPhone').value = updateData.legalPhone;
                     document.getElementById('modalLegalDob').value = updateData.legalDob;
                 }
-                alert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
+                customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
-            } catch (err) { alert('복사 및 저장에 실패했습니다.'); console.error(err); }
+            } catch (err) { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); }
             document.body.removeChild(textarea);
         });
 
@@ -2067,9 +2126,9 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                 document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
                 document.getElementById('detailProsPay').value = document.getElementById('pros-pay').value;
                 document.getElementById('detailProsPlan').value = document.getElementById('pros-plan').value;
-                alert('✅ 내역에 깔끔하게 적용되었습니다!\n(상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
+                customAlert('✅ 내역에 깔끔하게 적용되었습니다!\n(상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
                 prospectModal.style.display = 'none';
-            } catch (err) { alert('저장에 실패했습니다.'); }
+            } catch (err) { customAlert('저장에 실패했습니다.'); }
             document.body.removeChild(textarea);
         });
 
@@ -2083,8 +2142,8 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
             textarea.value = text;
             document.body.appendChild(textarea);
             textarea.select();
-            try { document.execCommand('copy'); alert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!'); } 
-            catch (err) { alert('복사에 실패했습니다.'); }
+            try { document.execCommand('copy'); customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!'); } 
+            catch (err) { customAlert('복사에 실패했습니다.'); }
             document.body.removeChild(textarea);
         });
 
