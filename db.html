@@ -1694,11 +1694,13 @@
             document.getElementById('modalFee').value = applyComma(c.fee || '');
             document.getElementById('modalUsage').value = c.usage || '';
             
-            document.getElementById('modalCombination').value = (c.combination && c.combination !== '해당없음' ? c.combination : '') + (c.welfare && c.welfare !== '해당없음' ? ` / ${c.welfare}` : '');
+            let comboStr = (c.combination && c.combination !== '해당없음' && c.combination !== '-' ? c.combination : '') + (c.welfare && c.welfare !== '해당없음' && c.welfare !== '-' ? ` / ${c.welfare}` : '');
+            document.getElementById('modalCombination').value = comboStr.replace(/^ \/ |\s*\/ $/g, ''); // 앞뒤 슬래시 정리
+            
             let intTvStr = '';
-            if(c.internetProd) intTvStr += c.internetProd;
-            if(c.tvProd) intTvStr += (intTvStr ? ' + ' : '') + c.tvProd;
-            document.getElementById('modalInternetTv').value = intTvStr;
+            if(c.internetProd && c.internetProd !== '-' && c.internetProd !== '해당없음') intTvStr += c.internetProd;
+            if(c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') intTvStr += (intTvStr ? ' + ' : '') + c.tvProd;
+            document.getElementById('modalInternetTv').value = intTvStr || '';
             
             document.getElementById('modalWiredDate').value = c.wiredDate || '';
             document.getElementById('modalWiredBadge').textContent = c.wiredDate ? getWiredRemainingDays(c.wiredDate) : '';
@@ -1807,6 +1809,22 @@
                 }
             }
 
+            let comboStr = document.getElementById('modalCombination').value || '';
+            let newCombination = comboStr; let newWelfare = '';
+            if (comboStr.includes('/')) {
+                let parts = comboStr.split('/');
+                newCombination = parts[0].trim();
+                newWelfare = parts.slice(1).join('/').trim();
+            }
+
+            let intTvStr = document.getElementById('modalInternetTv').value || '';
+            let newInternet = intTvStr; let newTv = '';
+            if (intTvStr.includes('+')) {
+                let parts = intTvStr.split('+');
+                newInternet = parts[0].trim();
+                newTv = parts.slice(1).join('+').trim();
+            }
+
             const updatedData = {
                 name: newName,
                 phone: newPhone,
@@ -1821,6 +1839,10 @@
                 plan: document.getElementById('modalPlan').value,
                 fee: document.getElementById('modalFee').value,
                 usage: document.getElementById('modalUsage').value,
+                combination: newCombination,
+                welfare: newWelfare,
+                internetProd: newInternet,
+                tvProd: newTv,
                 wiredDate: document.getElementById('modalWiredDate').value,
 
                 legalName: document.getElementById('modalLegalName').value,
