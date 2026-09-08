@@ -419,7 +419,13 @@
                             <span id="modalMarketingBadge" class="hidden bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm whitespace-nowrap">마케팅거부</span>
                             <input type="text" id="modalName" class="bg-transparent border-b border-dashed border-gray-400 focus:border-indigo-500 outline-none w-full max-w-[150px]" placeholder="고객명">
                         </h2>
-                        <input type="text" id="modalPhone" class="bg-transparent border-b border-dashed border-gray-400 focus:border-indigo-500 outline-none text-indigo-600 font-bold mt-1 text-lg w-full max-w-[180px]" placeholder="010-0000-0000">
+                        <!-- 연락처 및 수정 버튼 영역 -->
+                        <div class="flex items-center gap-2 mt-1">
+                            <input type="text" id="modalPhone" readonly class="bg-transparent border-b border-dashed border-transparent read-only:border-transparent focus:border-indigo-500 outline-none text-indigo-600 font-bold text-lg w-full max-w-[180px] transition-colors" placeholder="010-0000-0000">
+                            <button type="button" id="editPhoneBtn" class="text-gray-400 hover:text-indigo-600 transition p-1 rounded-full hover:bg-indigo-100" title="전화번호 수정">
+                                <i class="fa-solid fa-pen text-sm"></i>
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- 문자 발송용 메모칸 및 액션버튼 그룹 -->
@@ -860,7 +866,7 @@
             if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
         });
 
-        // 1. 전화번호 커서 튕김 방지 로직 적용
+        // 커서 튕김 방지 적용
         function applyPhoneFormat(e) {
             let cursor = e.target.selectionStart;
             let oldLength = e.target.value.length;
@@ -878,6 +884,15 @@
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalPhone').addEventListener('input', applyPhoneFormat);
+
+        // 연필 버튼 클릭 시 연락처 수정 활성화
+        document.getElementById('editPhoneBtn').addEventListener('click', () => {
+            const phoneInput = document.getElementById('modalPhone');
+            phoneInput.readOnly = false;
+            phoneInput.classList.remove('border-transparent');
+            phoneInput.classList.add('border-gray-400');
+            phoneInput.focus();
+        });
 
         function formatPhone(phone) {
             if (!phone) return '-';
@@ -1624,7 +1639,13 @@
             }
             
             document.getElementById('modalName').value = (c.name || '').trim();
-            document.getElementById('modalPhone').value = formatPhone(c.phone || '');
+            
+            // 모달창 열릴 때 전화번호는 다시 읽기 전용으로 잠금 설정
+            const phoneInput = document.getElementById('modalPhone');
+            phoneInput.value = formatPhone(c.phone || '');
+            phoneInput.readOnly = true;
+            phoneInput.classList.remove('border-gray-400');
+            phoneInput.classList.add('border-transparent');
             
             document.getElementById('modalSmsDraft').value = c.smsDraft || '';
 
@@ -2242,13 +2263,13 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
             }
         });
 
-        // 2. 마케팅 수신동의 실시간 뱃지 연동 로직
+        // 마케팅 수신동의 실시간 뱃지 연동 로직
         document.getElementById('modalMarketingDeny').addEventListener('change', function(e) {
             if(e.target.checked) document.getElementById('modalMarketingBadge').classList.remove('hidden');
             else document.getElementById('modalMarketingBadge').classList.add('hidden');
         });
 
-        // 3. 모달창 바깥(어두운 배경) 클릭 시 닫기 (사용자 편의성)
+        // 모달창 바깥(어두운 배경) 클릭 시 닫기
         window.addEventListener('click', function(e) {
             if (e.target.id === 'detailModal') closeDetailModalFunc();
             if (e.target.id === 'reportModal') document.getElementById('reportModal').style.display = 'none';
