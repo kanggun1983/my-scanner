@@ -413,12 +413,13 @@
             
             <div class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between gap-3 bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                    <div class="flex-shrink-0">
+                    
+                    <div class="flex-shrink-0 w-full sm:w-auto mb-2 sm:mb-0">
                         <h2 class="text-2xl font-bold text-gray-900 flex items-center gap-2">
                             <span id="modalMarketingBadge" class="hidden bg-red-500 text-white text-xs px-2 py-1 rounded shadow-sm whitespace-nowrap">마케팅거부</span>
-                            <span id="modalName">-</span>
+                            <input type="text" id="modalName" class="bg-transparent border-b border-dashed border-gray-400 focus:border-indigo-500 outline-none w-full max-w-[150px]" placeholder="고객명">
                         </h2>
-                        <p class="text-indigo-600 font-bold mt-1 text-lg" id="modalPhone">-</p>
+                        <input type="text" id="modalPhone" class="bg-transparent border-b border-dashed border-gray-400 focus:border-indigo-500 outline-none text-indigo-600 font-bold mt-1 text-lg w-full max-w-[180px]" placeholder="010-0000-0000">
                     </div>
                     
                     <!-- 문자 발송용 메모칸 및 액션버튼 그룹 -->
@@ -617,7 +618,7 @@
                         <input type="text" id="modalUsage" class="modal-input text-xs sm:text-sm" placeholder="데이터/통화">
                     </div>
                     
-                    <div class="bg-teal-50/30 p-2 sm:p-3 rounded-lg border border-teal-200 focus-within:border-teal-500 sm:col-span-2">
+                    <div class="bg-teal-50/30 p-2 sm:p-3 rounded-lg border border-teal-200 focus-within:border-teal-500 col-span-2">
                         <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">인터넷/TV 상품</span>
                         <input type="text" id="modalInternetTv" class="modal-input text-xs sm:text-sm" placeholder="인터넷 및 TV 상품명">
                         <div class="flex items-center gap-1 mt-2 pt-2 border-t border-teal-100">
@@ -627,7 +628,7 @@
                         </div>
                     </div>
 
-                    <div class="bg-pink-50/40 p-2 sm:p-3 rounded-lg border border-pink-200 focus-within:border-pink-500 sm:col-span-2">
+                    <div class="bg-pink-50/40 p-2 sm:p-3 rounded-lg border border-pink-200 focus-within:border-pink-500 col-span-2">
                         <span class="block text-[10px] sm:text-xs text-pink-700 font-bold mb-1"><i class="fa-solid fa-child"></i> 미성년자 법정대리인</span>
                         <div class="flex items-center gap-2">
                             <input type="text" id="modalLegalName" class="modal-input text-xs sm:text-sm w-1/4" placeholder="이름">
@@ -859,22 +860,39 @@
             if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
         });
 
+        // 1. 전화번호 커서 튕김 방지 로직 적용
         function applyPhoneFormat(e) {
+            let cursor = e.target.selectionStart;
+            let oldLength = e.target.value.length;
             let val = e.target.value.replace(/[^0-9]/g, '');
-            if (val.length > 3 && val.length <= 7) { e.target.value = val.replace(/(\d{3})(\d+)/, '$1-$2'); } 
-            else if (val.length > 7) { e.target.value = val.replace(/(\d{3})(\d{3,4})(\d+)/, '$1-$2-$3').substring(0, 13); }
+            let newVal = formatPhone(val);
+            if (e.target.value !== newVal) {
+                e.target.value = newVal;
+                let newLength = e.target.value.length;
+                cursor += (newLength - oldLength);
+                try { e.target.setSelectionRange(cursor, cursor); } catch(err){}
+            }
         }
         document.getElementById('val-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('val-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
+        document.getElementById('modalPhone').addEventListener('input', applyPhoneFormat);
 
         function formatPhone(phone) {
             if (!phone) return '-';
             let cleaned = phone.replace(/[^0-9]/g, '');
-            if (cleaned.length === 11) return cleaned.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
-            else if (cleaned.length === 10) return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-            return phone;
+            if (cleaned.startsWith('02')) {
+                if (cleaned.length <= 2) return cleaned;
+                if (cleaned.length <= 5) return cleaned.replace(/(\d{2})(\d{1,3})/, '$1-$2');
+                if (cleaned.length <= 9) return cleaned.replace(/(\d{2})(\d{3})(\d{1,4})/, '$1-$2-$3');
+                return cleaned.replace(/(\d{2})(\d{4})(\d{1,4})/, '$1-$2-$3').substring(0, 12);
+            } else {
+                if (cleaned.length <= 3) return cleaned;
+                if (cleaned.length <= 7) return cleaned.replace(/(\d{3})(\d{1,3})/, '$1-$2');
+                if (cleaned.length === 10) return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
+                return cleaned.replace(/(\d{3})(\d{4})(\d{1,4})/, '$1-$2-$3').substring(0, 13);
+            }
         }
 
         window.applyComma = function(val) {
@@ -1096,7 +1114,6 @@
         async function extractInformation(base64Data, mimeType) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
-            // 알뜰폰 세분화 프롬프트 반영
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
 규칙: 1. 마스킹(***) 무시. 2. 이름/번호는 진짜. 3. discountType은 "선택약정", "공시지원금", "해당없음" 택1.
 4. activationDate, wiredDate 는 반드시 "YYYY-MM-DD" 포맷 변환.
@@ -1339,7 +1356,7 @@
             if (checkedBoxes.length === 0) return customAlert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
             let csv = '\uFEFF';
-            csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,유선약정일,영업상태,담당자,스캔/방문일\n";
+            csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,인터넷/TV,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
 
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
 
@@ -1358,7 +1375,10 @@
                         escapeCSV(c.installment),
                         escapeCSV(c.fee),
                         escapeCSV((c.combination || '') + (c.welfare && c.welfare !== '해당없음' ? ' / ' + c.welfare : '')),
+                        escapeCSV((c.internetProd || '') + (c.tvProd ? ' + ' + c.tvProd : '')),
                         escapeCSV(c.wiredDate),
+                        escapeCSV(c.legalName),
+                        escapeCSV(formatPhone(c.legalPhone)),
                         escapeCSV(c.salesStatus),
                         escapeCSV(c.manager || c.contactManager),
                         escapeCSV(c.visitDate)
@@ -1603,8 +1623,8 @@
                 document.getElementById('modalMarketingBadge').classList.add('hidden');
             }
             
-            document.getElementById('modalName').textContent = (c.name || '').trim() || '-';
-            document.getElementById('modalPhone').textContent = formatPhone(c.phone || '-');
+            document.getElementById('modalName').value = (c.name || '').trim();
+            document.getElementById('modalPhone').value = formatPhone(c.phone || '');
             
             document.getElementById('modalSmsDraft').value = c.smsDraft || '';
 
@@ -1626,7 +1646,6 @@
             const calc = getDdayAndMonths(c.activationDate);
             document.getElementById('modalDdayBadge').textContent = c.activationDate ? `(D+${calc.days})` : '';
             
-            // 알뜰폰 세부 항목 대응 로직
             const validCarriers = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)', '알뜰폰'];
             document.getElementById('modalCarrier').value = c.carrier && validCarriers.includes(c.carrier) ? c.carrier : '미정';
             
@@ -1698,17 +1717,23 @@
             const text = document.getElementById('modalSmsDraft').value;
             if (!text.trim()) return customAlert("복사할 문자 내용을 입력해주세요.");
             
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                customAlert("✅ 문자 내용이 복사되었습니다!\n바로 아래의 [문자] 버튼을 누르고 붙여넣기 하세요.");
-            } catch (err) {
-                customAlert("복사 실패!");
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    customAlert("✅ 문자 내용이 복사되었습니다!\n바로 아래의 [문자] 버튼을 누르고 붙여넣기 하세요.");
+                }).catch(err => customAlert("복사 실패!"));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    customAlert("✅ 문자 내용이 복사되었습니다!\n바로 아래의 [문자] 버튼을 누르고 붙여넣기 하세요.");
+                } catch (err) {
+                    customAlert("복사 실패!");
+                }
+                document.body.removeChild(textarea);
             }
-            document.body.removeChild(textarea);
         });
 
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); };
@@ -1717,6 +1742,20 @@
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
             
+            let newName = document.getElementById('modalName').value.trim();
+            let newPhone = document.getElementById('modalPhone').value.trim();
+            let newId = newPhone.replace(/[^0-9]/g, '');
+
+            if (!newId) return customAlert("연락처는 필수입니다.");
+
+            if (newId !== currentDetailId) {
+                const exists = customerDB.find(x => x.id === newId);
+                if (exists) {
+                    const confirmOverwrite = await customConfirm("이미 등록된 다른 고객의 연락처입니다.\n이 번호로 덮어쓰시겠습니까?\n(기존 데이터는 삭제/통합됩니다)");
+                    if (!confirmOverwrite) return;
+                }
+            }
+
             let newSalesStatus = document.getElementById('modalSalesStatus').value;
             let newActDate = document.getElementById('modalActivation').value;
 
@@ -1731,6 +1770,8 @@
             }
 
             const updatedData = {
+                name: newName,
+                phone: newPhone,
                 visitDate: document.getElementById('modalVisitDate').value,
                 manager: document.getElementById('modalManager').value,
                 activationDate: newActDate,
@@ -1785,13 +1826,19 @@
                 updatedAt: new Date().toISOString()
             };
             try {
-                await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
+                if (newId !== currentDetailId) {
+                    const oldDoc = customerDB.find(x => x.id === currentDetailId) || {};
+                    const finalData = { ...oldDoc, ...updatedData };
+                    await setDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
+                    await deleteDoc(doc(db, 'smart_customers', currentDetailId));
+                } else {
+                    await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
+                }
                 customAlert("상세 정보 및 약속이 저장되었습니다!");
                 closeDetailModalFunc();
             } catch (e) { customAlert("업데이트 실패!"); }
         };
 
-        // 🖨️ 고객 상세 카드 PDF 출력 로직 🖨️
         document.getElementById('printDetailBtn').addEventListener('click', () => {
             if(!currentDetailId) return;
             const c = customerDB.find(x => x.id === currentDetailId);
@@ -1922,13 +1969,25 @@
             document.getElementById('rep-type').value = reportCustomerData.repType || '';
             document.getElementById('rep-addons').value = reportCustomerData.repAddons || '';
             document.getElementById('rep-insurance').value = reportCustomerData.repInsurance || '';
-            document.getElementById('rep-principal').value = applyComma(reportCustomerData.repPrincipal || '');
             document.getElementById('rep-subsidy').value = applyComma(reportCustomerData.repSubsidy || '');
             document.getElementById('rep-usedphone').value = reportCustomerData.repUsedPhone || '';
             document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
-            document.getElementById('rep-installment').value = reportCustomerData.repInstallment || reportCustomerData.installment || '';
             document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
+            let pVal = reportCustomerData.repPrincipal || '';
+            let iVal = reportCustomerData.repInstallment || '';
+            if (!pVal && !iVal && reportCustomerData.installment) {
+                let parts = reportCustomerData.installment.split('/');
+                if (parts.length >= 2) {
+                    pVal = parts[0].replace(/[^0-9]/g, '');
+                    iVal = parts[1].trim();
+                } else {
+                    iVal = reportCustomerData.installment;
+                }
+            }
+            document.getElementById('rep-principal').value = applyComma(pVal);
+            document.getElementById('rep-installment').value = iVal;
+
             updateReportPreview(); 
             reportModal.style.display = 'flex';
         });
@@ -1979,14 +2038,8 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
 
         document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
             
-            try {
-                document.execCommand('copy');
-                
+            const saveReportData = async () => {
                 if (currentDetailId && db) {
                     const newDiscount = document.getElementById('rep-discount').value;
                     const newInstallment = document.getElementById('rep-installment').value;
@@ -2078,8 +2131,23 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                 }
                 customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
-            } catch (err) { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); }
-            document.body.removeChild(textarea);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text)
+                    .then(() => saveReportData())
+                    .catch(err => { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); });
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    await saveReportData();
+                } catch (err) { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); }
+                document.body.removeChild(textarea);
+            }
         });
 
         const prospectModal = document.getElementById('prospectModal');
@@ -2110,12 +2178,8 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
 
         document.getElementById('copyProspectBtn').addEventListener('click', () => {
             const text = document.getElementById('prospectPreview').value;
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
+            
+            const saveProspectData = () => {
                 document.getElementById('detailProsCarrier').value = document.getElementById('pros-carrier').value;
                 document.getElementById('detailProsDevice').value = document.getElementById('pros-device').value;
                 document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
@@ -2123,8 +2187,21 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                 document.getElementById('detailProsPlan').value = document.getElementById('pros-plan').value;
                 customAlert('✅ 내역에 깔끔하게 적용되었습니다!\n(상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
                 prospectModal.style.display = 'none';
-            } catch (err) { customAlert('저장에 실패했습니다.'); }
-            document.body.removeChild(textarea);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => saveProspectData()).catch(err => customAlert('저장에 실패했습니다.'));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    saveProspectData();
+                } catch (err) { customAlert('저장에 실패했습니다.'); }
+                document.body.removeChild(textarea);
+            }
         });
 
         document.getElementById('detailCopyProspectBtn').addEventListener('click', () => {
@@ -2133,13 +2210,18 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
             let text = `-상담보고 ${dateStr}-\n\n원하는통신사: ${document.getElementById('detailProsCarrier').value}\n원하는단말: ${document.getElementById('detailProsDevice').value}\n유선동판유무: ${document.getElementById('detailProsWired').value}\n현금/할부: ${document.getElementById('detailProsPay').value}\n원하는요금제: ${document.getElementById('detailProsPlan').value}`;
             const addMemo = document.getElementById('modalProspectMemo').value;
             if(addMemo) { text += `\n\n[추가 수기메모]\n${addMemo}`; }
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            document.body.appendChild(textarea);
-            textarea.select();
-            try { document.execCommand('copy'); customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!'); } 
-            catch (err) { customAlert('복사에 실패했습니다.'); }
-            document.body.removeChild(textarea);
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!')).catch(err => customAlert('복사에 실패했습니다.'));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try { document.execCommand('copy'); customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!'); } 
+                catch (err) { customAlert('복사에 실패했습니다.'); }
+                document.body.removeChild(textarea);
+            }
         });
 
         const moneyFields = ['val-installment', 'val-fee', 'modalInstallment', 'modalFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'pros-pay', 'detailProsPay'];
@@ -2158,6 +2240,20 @@ text += `주소 : ${document.getElementById('rep-address').value}\n` +
                     }
                 });
             }
+        });
+
+        // 2. 마케팅 수신동의 실시간 뱃지 연동 로직
+        document.getElementById('modalMarketingDeny').addEventListener('change', function(e) {
+            if(e.target.checked) document.getElementById('modalMarketingBadge').classList.remove('hidden');
+            else document.getElementById('modalMarketingBadge').classList.add('hidden');
+        });
+
+        // 3. 모달창 바깥(어두운 배경) 클릭 시 닫기 (사용자 편의성)
+        window.addEventListener('click', function(e) {
+            if (e.target.id === 'detailModal') closeDetailModalFunc();
+            if (e.target.id === 'reportModal') document.getElementById('reportModal').style.display = 'none';
+            if (e.target.id === 'prospectModal') document.getElementById('prospectModal').style.display = 'none';
+            if (e.target.id === 'apiModal') document.getElementById('apiModal').style.display = 'none';
         });
 
     </script>
