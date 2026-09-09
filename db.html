@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V46</title>
+    <title>스마트 고객 정보 추출기 V47</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -125,9 +125,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V46: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V47: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">과거 데이터 완벽 호환 및 버그 제로</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">잔여 할부 추출 및 동적 차감 로직 완벽 보정</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -1201,11 +1201,12 @@
         async function extractInformation(base64Data, mimeType) {
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
+            // 💡 [핵심 보정] AI가 전체 개월수가 아니라 '잔여' 개월수를 명확히 추출하도록 프롬프트 수정
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
 규칙: 1. 마스킹(***) 무시. 2. 이름/번호는 진짜. 3. discountType은 "선택약정", "공시지원금", "해당없음" 택1.
 4. activationDate, wiredDate 는 반드시 "YYYY-MM-DD" 포맷 변환.
 5. fee(월청구금액), usage(3개월평균 데이터/통화량), combination(결합), welfare(복지할인), internetProd(인터넷상품), tvProd(TV상품).
-6. installment: 단말기의 남은 할부원금 및 할부 개월수 (예: 150,000원 / 5개월. 할부가 없으면 '해당없음' 또는 '완납')
+6. installment: 반드시 '잔여(남은)' 할부원금과 '잔여' 개월수만 추출. 괄호 안의 전체 개월수(24,30등)는 무시. (예: 332,220원 / 6개월. 할부가 없으면 '완납')
 7. carrier: 화면의 로고나 텍스트를 보고 "SKT", "KT", "LG U+", "알뜰폰(SK)", "알뜰폰(KT)", "알뜰폰(LG)" 중 하나로 정확히 추출. (알 수 없으면 "미정")
 항목: name, phone, dob, carrier, device, installment, activationDate, plan, fee, usage, combination, welfare, discountType, internetProd, tvProd, wiredDate`;
 
@@ -2098,7 +2099,6 @@
             document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
             document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
-            // 💡 [버그 픽스] 과거 고객 데이터를 열 때 인터넷과 TV 상품이 모두 누락 없이 합쳐지도록 수정
             let oldIntTvStr = '';
             if(reportCustomerData.internetProd && reportCustomerData.internetProd !== '-' && reportCustomerData.internetProd !== '해당없음') oldIntTvStr += reportCustomerData.internetProd;
             if(reportCustomerData.tvProd && reportCustomerData.tvProd !== '-' && reportCustomerData.tvProd !== '해당없음') oldIntTvStr += (oldIntTvStr ? ' + ' : '') + reportCustomerData.tvProd;
