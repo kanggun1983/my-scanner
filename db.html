@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V42</title>
+    <title>스마트 고객 정보 추출기 V43</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -125,9 +125,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V42: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V43: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">개통보고 개선 / UI 최적화 / 결합항목 분리</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">개통보고 결합칸 UI 직관성 개선</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -740,10 +740,22 @@
                     <input type="text" id="rep-subsidy" placeholder="지원금(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-usedphone" placeholder="중고폰" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     
-                    <!-- 추가/수정된 칸 -->
-                    <input type="text" id="rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded col-span-2 focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-internet-tv" placeholder="인터넷+TV" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-combination" placeholder="결합" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    <input type="text" id="rep-branch" placeholder="접수처(거래처)" class="border border-gray-300 p-2 rounded col-span-2 focus:ring-1 focus:ring-green-500 outline-none">
+                    
+                    <!-- 💡 시각적으로 명확하게 구분된 인터넷+TV 및 결합칸 -->
+                    <div class="relative col-span-2">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">인터넷+TV</span>
+                        </div>
+                        <input type="text" id="rep-internet-tv" class="w-full border border-gray-300 p-2 pl-20 rounded focus:ring-1 focus:ring-green-500 outline-none text-xs" placeholder="내용 입력">
+                    </div>
+                    
+                    <div class="relative col-span-2">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">결합/복지</span>
+                        </div>
+                        <input type="text" id="rep-combination" class="w-full border border-gray-300 p-2 pl-20 rounded focus:ring-1 focus:ring-green-500 outline-none text-xs" placeholder="내용 입력">
+                    </div>
                 </div>
 
                 <div class="col-span-2 mt-1 p-2 bg-pink-50/50 border border-pink-200 rounded-lg">
@@ -2052,8 +2064,16 @@
             document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
             document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
+            // 데이터가 비어있을 경우, 기존 상세카드에 있던 결합정보들을 싹싹 긁어서 넣어줍니다.
             document.getElementById('rep-internet-tv').value = reportCustomerData.repInternetTv || reportCustomerData.internetProd || '';
-            document.getElementById('rep-combination').value = reportCustomerData.repCombination || reportCustomerData.combination || '';
+            
+            let repCombo = reportCustomerData.repCombination;
+            if (!repCombo) {
+                let cStr = (reportCustomerData.combination && reportCustomerData.combination !== '해당없음' && reportCustomerData.combination !== '-' ? reportCustomerData.combination : '');
+                let wStr = (reportCustomerData.welfare && reportCustomerData.welfare !== '해당없음' && reportCustomerData.welfare !== '-' ? reportCustomerData.welfare : '');
+                repCombo = (cStr + (wStr ? (cStr ? ' / ' : '') + wStr : '')).trim();
+            }
+            document.getElementById('rep-combination').value = repCombo || '';
 
             let pVal = reportCustomerData.repPrincipal || '';
             let iVal = reportCustomerData.repInstallment || '';
@@ -2166,7 +2186,6 @@
                         newDob = `${century}${String(year).padStart(2,'0')}-${month}-${day}`;
                     }
 
-                    // 개통일자 로직 픽스 (- 인 경우에만 오늘로 대체)
                     const currentActDate = reportCustomerData.activationDate;
                     const finalActDate = (currentActDate && currentActDate.length === 10 && currentActDate !== '-') ? currentActDate : getTodayStr();
 
