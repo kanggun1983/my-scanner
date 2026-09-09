@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V43</title>
+    <title>스마트 고객 정보 추출기 V46</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -125,9 +125,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V43: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V46: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">개통보고 결합칸 UI 직관성 개선</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">과거 데이터 완벽 호환 및 버그 제로</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -626,7 +626,6 @@
                         <input type="text" id="modalUsage" class="modal-input text-xs sm:text-sm" placeholder="데이터/통화">
                     </div>
 
-                    <!-- 새로 추가된 결합/복지 전용 칸 -->
                     <div class="bg-blue-50/30 p-2 sm:p-3 rounded-lg border border-blue-200 focus-within:border-blue-500 col-span-2">
                         <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">가족결합 및 복지할인</span>
                         <input type="text" id="modalCombination" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="결합 및 복지 정보">
@@ -742,7 +741,6 @@
                     
                     <input type="text" id="rep-branch" placeholder="접수처(거래처)" class="border border-gray-300 p-2 rounded col-span-2 focus:ring-1 focus:ring-green-500 outline-none">
                     
-                    <!-- 💡 시각적으로 명확하게 구분된 인터넷+TV 및 결합칸 -->
                     <div class="relative col-span-2">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
                             <span class="text-[10px] font-bold text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded">인터넷+TV</span>
@@ -1022,23 +1020,57 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        function getDynamicInstallment(installmentStr, activationDateStr) {
+        // 💡 [핵심 보정] 수기입력(전체개월수) vs 스캔입력(잔여개월수) 자동 판별 로직 적용
+        function getDynamicInstallment(installmentStr, activationDateStr, visitDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
+            
             const actDate = parseDateString(activationDateStr);
-            if (!actDate) return installmentStr;
+            const visDate = parseDateString(visitDateStr);
             const today = new Date();
-            let monthsPassed = (today.getFullYear() - actDate.getFullYear()) * 12 + (today.getMonth() - actDate.getMonth());
-            if (today.getDate() < actDate.getDate()) monthsPassed--;
-            if (monthsPassed <= 0) return installmentStr; 
+            
+            let actMonthsPassed = 0;
+            if (actDate) {
+                actMonthsPassed = (today.getFullYear() - actDate.getFullYear()) * 12 + (today.getMonth() - actDate.getMonth());
+                if (today.getDate() < actDate.getDate()) actMonthsPassed--;
+            }
+
+            let visMonthsPassed = 0;
+            if (visDate) {
+                visMonthsPassed = (today.getFullYear() - visDate.getFullYear()) * 12 + (today.getMonth() - visDate.getMonth());
+                if (today.getDate() < visDate.getDate()) visMonthsPassed--;
+            }
+
             const splitData = installmentStr.split('/');
             if (splitData.length >= 2) {
                 const monthStr = splitData[1].replace(/[^0-9]/g, ''); 
                 if (monthStr) {
-                    const origMonths = parseInt(monthStr, 10);
-                    if (origMonths <= 0) return installmentStr;
-                    const remainMonths = origMonths - monthsPassed;
+                    const parsedMonths = parseInt(monthStr, 10);
+                    if (parsedMonths <= 0) return installmentStr;
+                    
+                    let monthsPassedToUse = 0;
+
+                    // 스마트 자동 판별 로직
+                    if (parsedMonths === 24 || parsedMonths === 30 || parsedMonths === 36 || parsedMonths === 48) {
+                        // 사용자가 수기로 많이 적는 전형적 전체 개월수라면 -> 개통일 기준
+                        monthsPassedToUse = actMonthsPassed; 
+                    } else if (actMonthsPassed > 0 && parsedMonths <= actMonthsPassed) {
+                        // 개월수보다 개통 이후 지난 시간이 더 많다?(마이너스 발생 위험) -> 스캔된 잔여 개월수로 판단, 방문일 기준
+                        monthsPassedToUse = visMonthsPassed; 
+                    } else {
+                        // 그 외의 경우 (기본값) -> 요청하신 대로 개통일 기준 적용
+                        monthsPassedToUse = actMonthsPassed; 
+                    }
+
+                    // 개통일이 아예 비어있다면 에러 방지를 위해 방문일 기준 사용
+                    if (!actDate) monthsPassedToUse = visMonthsPassed;
+
+                    // 아직 기준일로부터 시간이 안 지났다면 원본 그대로 출력
+                    if (monthsPassedToUse <= 0) return installmentStr;
+
+                    const remainMonths = parsedMonths - monthsPassedToUse;
                     if (remainMonths <= 0) return '🎉 완납 (자동처리)';
+                    
                     let amountStr = splitData[0];
                     let amount = 0;
                     if (amountStr.includes('만')) {
@@ -1051,12 +1083,13 @@
                     } else {
                         amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
                     }
+                    
                     if (amount > 0) {
-                        let monthly = amount / origMonths;
+                        let monthly = amount / parsedMonths;
                         let remainAmt = monthly * remainMonths;
-                        return `${Math.floor(remainAmt).toLocaleString()}원 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
+                        return `${Math.floor(remainAmt).toLocaleString()}원 / ${remainMonths}개월 (⬇${monthsPassedToUse}M)`;
                     }
-                    return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassed}M)`;
+                    return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassedToUse}M)`;
                 }
             }
             return installmentStr; 
@@ -1546,7 +1579,8 @@
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">LG</span>`;
                 else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${c.carrier}</span>`;
 
-                let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate);
+                // 💡 수정된 함수 호출: c.visitDate를 파라미터로 추가 전달
+                let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate, c.visitDate);
 
                 let discountBadge = '';
                 if (c.discountType === '선택약정') {
@@ -2064,8 +2098,11 @@
             document.getElementById('rep-branch').value = reportCustomerData.repBranch || '';
             document.getElementById('rep-discount').value = reportCustomerData.repDiscount || reportCustomerData.discountType || '';
             
-            // 데이터가 비어있을 경우, 기존 상세카드에 있던 결합정보들을 싹싹 긁어서 넣어줍니다.
-            document.getElementById('rep-internet-tv').value = reportCustomerData.repInternetTv || reportCustomerData.internetProd || '';
+            // 💡 [버그 픽스] 과거 고객 데이터를 열 때 인터넷과 TV 상품이 모두 누락 없이 합쳐지도록 수정
+            let oldIntTvStr = '';
+            if(reportCustomerData.internetProd && reportCustomerData.internetProd !== '-' && reportCustomerData.internetProd !== '해당없음') oldIntTvStr += reportCustomerData.internetProd;
+            if(reportCustomerData.tvProd && reportCustomerData.tvProd !== '-' && reportCustomerData.tvProd !== '해당없음') oldIntTvStr += (oldIntTvStr ? ' + ' : '') + reportCustomerData.tvProd;
+            document.getElementById('rep-internet-tv').value = reportCustomerData.repInternetTv || oldIntTvStr || '';
             
             let repCombo = reportCustomerData.repCombination;
             if (!repCombo) {
