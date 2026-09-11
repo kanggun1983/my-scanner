@@ -347,7 +347,7 @@
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
-                    <!-- 💡 모바일에서도 뱃지가 잘릴 걱정 없이 보이도록 클래스(flex-wrap) 수정 및 hidden 제거 -->
+                    <!-- flex-wrap을 적용하여 모바일에서도 뱃지가 잘리지 않게 조정 -->
                     <h2 class="text-xl font-bold flex flex-wrap items-center gap-2 text-gray-800">
                         <i class="fa-solid fa-users text-indigo-500"></i> 내 고객 목록
                         <span id="totalCustomerCount" class="text-[13px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold shadow-sm">총 0명</span>
@@ -363,6 +363,7 @@
                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
                         <input type="text" id="searchInput" placeholder="고객/법대/담당자 이름 또는 번호 검색" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
                     </div>
+                    <!-- 신규등록 버튼 -->
                     <button id="newReportBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-md transition flex items-center gap-1 whitespace-nowrap">
                         <i class="fa-solid fa-plus"></i> 신규등록
                     </button>
@@ -725,6 +726,7 @@
             <div class="p-4 overflow-y-auto flex-1 flex flex-col gap-3">
                 <p class="text-[11px] text-gray-500 mb-1">DB에 등록된 정보는 자동 입력됩니다. 나머지 빈칸을 채워주세요.</p>
                 <div class="grid grid-cols-2 gap-2 text-xs">
+                    <!-- 신규등록시 사용되는 고객명/연락처 입력란 -->
                     <input type="text" id="rep-name" placeholder="고객명 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
                     <input type="text" id="rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
 
@@ -829,7 +831,6 @@
     </div>
 
     <script type="module">
-        // 커스텀 알림창 함수 정의
         window.customAlert = function(msg) {
             document.getElementById('customAlertMsg').textContent = msg;
             document.getElementById('customAlert').style.display = 'flex';
@@ -870,6 +871,7 @@
         let currentDetailId = null;
         let globalStats = { dailyOB: 0, dailySMS: 0, monthlyOB: 0, monthlySMS: 0, date: '', month: '' };
 
+        // 💡 1. OB/문자 카운터를 Firebase DB 연동으로 변경 (다른 기기에서도 실시간 합산 공유)
         function renderGlobalStatsUI() {
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -899,7 +901,6 @@
                 renderGlobalStatsUI();
                 return;
             }
-
             if (actionType && db) {
                 const now = new Date();
                 const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -925,7 +926,6 @@
                         increments.dailySMS = increment(1);
                         increments.monthlySMS = increment(1);
                     }
-                    
                     try {
                         await updateDoc(statsRef, increments);
                     } catch (e) {
@@ -950,12 +950,14 @@
                 const app = initializeApp(myFirebaseConfig);
                 auth = getAuth(app); db = getFirestore(app);
                 signInAnonymously(auth).catch(e => console.log("인증 무시, DB 진행"));
+                
                 onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
                     customerDB = [];
                     snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
                     if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 });
                 
+                // 글로벌 통계(OB/문자) 리스너 추가
                 onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
                     if (docSnap.exists()) {
                         globalStats = docSnap.data();
@@ -1006,7 +1008,7 @@
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalPhone').addEventListener('input', applyPhoneFormat);
-        document.getElementById('rep-phone').addEventListener('input', applyPhoneFormat);
+        document.getElementById('rep-phone').addEventListener('input', applyPhoneFormat); // 신규등록용 연락처에도 적용
 
         document.getElementById('editPhoneBtn').addEventListener('click', () => {
             const phoneInput = document.getElementById('modalPhone');
@@ -1442,6 +1444,7 @@
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '') {
+            // 버튼 클릭 시 실시간 동기화 함수 호출
             updateAndRenderStats(actionType);
 
             if(db && docId) {
@@ -1612,6 +1615,7 @@
                 return true; 
             });
 
+            // 💡 2. 모바일 숨김 방지 및 통계 뱃지 출력 (flex-wrap)
             const totalCountEl = document.getElementById('totalCustomerCount');
             if (totalCountEl) {
                 if (customerDB.length === filteredDB.length) {
@@ -1621,7 +1625,6 @@
                 }
             }
 
-            // 💡 월간 개통건수 렌더링 로직 추가
             const monthlyActEl = document.getElementById('monthlyActivationCount');
             if (monthlyActEl) {
                 const t = new Date();
@@ -2173,14 +2176,30 @@
         });
 
         const reportModal = document.getElementById('reportModal');
-        const reportInputs = ['rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const reportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
+
+        // 💡 3. 신규등록 버튼 클릭 로직 추가 (기존 정보 없이 빈 모달 열기)
+        document.getElementById('newReportBtn').addEventListener('click', () => {
+            currentDetailId = null;
+            reportCustomerData = null;
+            reportInputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            updateReportPreview();
+            reportModal.style.display = 'flex';
+        });
 
         document.getElementById('openReportBtn').addEventListener('click', () => {
             if(!currentDetailId) return;
             reportCustomerData = customerDB.find(x => x.id === currentDetailId);
             if(!reportCustomerData) return;
             
+            // 기존 고객 데이터 세팅
+            document.getElementById('rep-name').value = reportCustomerData.name || '';
+            document.getElementById('rep-phone').value = reportCustomerData.phone || '';
+
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
 
             document.getElementById('rep-legal-name').value = reportCustomerData.legalName || '';
@@ -2234,14 +2253,18 @@
         document.getElementById('closeReportModal').addEventListener('click', () => { reportModal.style.display = 'none'; });
 
         function updateReportPreview() {
-            if(!reportCustomerData) return;
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
             
+            // 신규 작성 시 input에 입력한 값을 우선으로 가져옴
+            const cName = reportCustomerData ? (reportCustomerData.name || document.getElementById('rep-name').value) : (document.getElementById('rep-name') ? document.getElementById('rep-name').value : '');
+            const cPhone = reportCustomerData ? (reportCustomerData.phone || document.getElementById('rep-phone').value) : (document.getElementById('rep-phone') ? document.getElementById('rep-phone').value : '');
+            const cManager = reportCustomerData ? (reportCustomerData.contactManager || reportCustomerData.manager || '') : (document.getElementById('val-manager').value || '');
+
             let text = `-개통보고 ${dateStr}-\n\n` +
-`이름: ${reportCustomerData.name || ''}\n` +
+`이름: ${cName}\n` +
 `주민번호: ${document.getElementById('rep-jumin').value}\n` +
-`연락처 : ${reportCustomerData.phone || ''}\n` +
+`연락처 : ${cPhone}\n` +
 `주소 : ${document.getElementById('rep-address').value}\n` +
 `모델/일련: ${document.getElementById('rep-device').value}\n` +
 `요금제 : ${document.getElementById('rep-plan').value}\n` +
@@ -2267,18 +2290,43 @@
                 text += `\n법정대리인 : ${legalName} / ${legalPhone} / ${legalDob}\n`;
             }
 
-            text += `\n개통자 : ${reportCustomerData.contactManager || reportCustomerData.manager || ''}`;
+            text += `\n개통자 : ${cManager}`;
 
             document.getElementById('reportPreview').value = text;
         }
 
-        reportInputs.forEach(id => { document.getElementById(id).addEventListener('input', updateReportPreview); });
+        reportInputs.forEach(id => { 
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('input', updateReportPreview); 
+        });
 
         document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
             
             const saveReportData = async () => {
-                if (currentDetailId && db) {
+                let targetId = currentDetailId;
+                let isNewCustomer = false;
+                let baseData = {};
+
+                // 💡 신규 고객 추가 로직 적용
+                if (!targetId) {
+                    const inputPhone = document.getElementById('rep-phone').value.trim();
+                    const inputName = document.getElementById('rep-name').value.trim();
+                    if (!inputPhone || !inputName) {
+                        customAlert("신규 등록 시 이름과 연락처는 필수 입력 사항입니다!");
+                        return false;
+                    }
+                    targetId = inputPhone.replace(/[^0-9]/g, '');
+                    isNewCustomer = true;
+                    baseData = {
+                        id: targetId,
+                        visitDate: getTodayStr(),
+                        manager: document.getElementById('val-manager').value || '',
+                        carrier: '미정'
+                    };
+                }
+
+                if (targetId && db) {
                     const newDiscount = document.getElementById('rep-discount').value;
                     const newInstallment = document.getElementById('rep-installment').value;
                     const newDevice = document.getElementById('rep-device').value; 
@@ -2291,7 +2339,7 @@
                         else parsedDiscount = '해당없음';
                     }
 
-                    let combinedInstallment = reportCustomerData.installment || '';
+                    let combinedInstallment = reportCustomerData ? (reportCustomerData.installment || '') : '';
                     if (newPrincipal || newInstallment) {
                         let p = newPrincipal.trim();
                         let i = newInstallment.trim();
@@ -2307,7 +2355,7 @@
                         }
                     }
 
-                    let newDob = reportCustomerData.dob;
+                    let newDob = reportCustomerData ? reportCustomerData.dob : '';
                     const juminVal = document.getElementById('rep-jumin').value.replace(/[^0-9]/g, '');
                     if (juminVal.length >= 6) {
                         let year = parseInt(juminVal.substring(0, 2), 10);
@@ -2323,10 +2371,11 @@
                         newDob = `${century}${String(year).padStart(2,'0')}-${month}-${day}`;
                     }
 
-                    const currentActDate = reportCustomerData.activationDate;
+                    const currentActDate = reportCustomerData ? reportCustomerData.activationDate : '';
                     const finalActDate = (currentActDate && currentActDate.length === 10 && currentActDate !== '-') ? currentActDate : getTodayStr();
 
                     const updateData = {
+                        ...baseData,
                         salesStatus: '판매성공',
                         activationDate: finalActDate, 
                         dob: newDob,
@@ -2358,6 +2407,9 @@
                         updatedAt: new Date().toISOString()
                     };
 
+                    updateData.name = document.getElementById('rep-name').value.trim();
+                    updateData.phone = formatPhone(document.getElementById('rep-phone').value.trim());
+
                     if (newDevice) {
                         updateData.repDevice = newDevice;
                         updateData.device = newDevice;
@@ -2369,38 +2421,40 @@
                         updateData.discountType = parsedDiscount;
                     }
 
-                    await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
+                    await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
-                    document.getElementById('modalSalesStatus').value = '판매성공';
-                    
-                    document.getElementById('modalActivation').value = finalActDate;
-                    const calc = getDdayAndMonths(finalActDate);
-                    document.getElementById('modalDdayBadge').textContent = `(D+${calc.days})`;
+                    if (!isNewCustomer) {
+                        document.getElementById('modalSalesStatus').value = '판매성공';
+                        document.getElementById('modalActivation').value = finalActDate;
+                        const calc = getDdayAndMonths(finalActDate);
+                        document.getElementById('modalDdayBadge').textContent = `(D+${calc.days})`;
+                        document.getElementById('modalDob').value = formatDob(newDob);
+                        
+                        if (newDevice) document.getElementById('modalDevice').value = newDevice;
+                        if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
+                        if (parsedDiscount !== '미정') {
+                            const ds = document.getElementById('modalDiscount');
+                            if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
+                        }
+                        
+                        document.getElementById('modalPlan').value = document.getElementById('rep-plan').value;
+                        document.getElementById('modalInternetTv').value = document.getElementById('rep-internet-tv').value;
+                        document.getElementById('modalCombination').value = document.getElementById('rep-combination').value;
 
-                    document.getElementById('modalDob').value = formatDob(newDob);
-                    
-                    if (newDevice) document.getElementById('modalDevice').value = newDevice;
-                    if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
-                    if (parsedDiscount !== '미정') {
-                        const ds = document.getElementById('modalDiscount');
-                        if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
+                        document.getElementById('modalLegalName').value = updateData.legalName;
+                        document.getElementById('modalLegalPhone').value = updateData.legalPhone;
+                        document.getElementById('modalLegalDob').value = updateData.legalDob;
                     }
-                    
-                    document.getElementById('modalPlan').value = document.getElementById('rep-plan').value;
-                    document.getElementById('modalInternetTv').value = document.getElementById('rep-internet-tv').value;
-                    document.getElementById('modalCombination').value = document.getElementById('rep-combination').value;
-
-                    document.getElementById('modalLegalName').value = updateData.legalName;
-                    document.getElementById('modalLegalPhone').value = updateData.legalPhone;
-                    document.getElementById('modalLegalDob').value = updateData.legalDob;
                 }
                 customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
+                if (isNewCustomer) switchTab('db'); // 신규 고객 등록 시 목록 새로고침
+                return true;
             };
 
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(text)
-                    .then(() => saveReportData())
+                    .then(async () => await saveReportData())
                     .catch(err => { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); });
             } else {
                 const textarea = document.createElement('textarea');
