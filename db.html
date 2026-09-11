@@ -240,7 +240,7 @@
                         
                         <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-200 focus-within:border-pink-500 transition">
                             <p class="text-xs text-pink-600 font-semibold mb-1">할부원금 / 개월수 (개통기준)</p>
-                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 150만 / 24개월">
+                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="숫자만 입력해도 자동 완성 (예: 1500000/24)">
                         </div>
                         <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
                             <p class="text-xs text-purple-600 font-semibold mb-1">현재 요금제</p>
@@ -413,7 +413,6 @@
         <img id="zoomedImage" class="max-w-full max-h-full object-contain" />
     </div>
 
-    <!-- 고객 상세 모달창 -->
     <div id="detailModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-50 p-2 sm:p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col overflow-hidden">
             <div class="p-3 sm:p-4 border-b bg-gray-50 flex justify-between items-center">
@@ -619,7 +618,7 @@
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할부원금/개월수 (기록값)</span>
-                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보 원본">
+                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="숫자만 입력해도 자동 완성 (예: 1500000/24)">
                     </div>
                     
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
@@ -871,7 +870,6 @@
         let currentDetailId = null;
         let globalStats = { dailyOB: 0, dailySMS: 0, monthlyOB: 0, monthlySMS: 0, date: '', month: '' };
 
-        // 💡 1. OB/문자 카운터를 Firebase DB 연동으로 변경 (다른 기기에서도 실시간 합산 공유)
         function renderGlobalStatsUI() {
             const now = new Date();
             const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -957,7 +955,6 @@
                     if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 });
                 
-                // 글로벌 통계(OB/문자) 리스너 추가
                 onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
                     if (docSnap.exists()) {
                         globalStats = docSnap.data();
@@ -1008,7 +1005,7 @@
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalPhone').addEventListener('input', applyPhoneFormat);
-        document.getElementById('rep-phone').addEventListener('input', applyPhoneFormat); // 신규등록용 연락처에도 적용
+        document.getElementById('rep-phone').addEventListener('input', applyPhoneFormat);
 
         document.getElementById('editPhoneBtn').addEventListener('click', () => {
             const phoneInput = document.getElementById('modalPhone');
@@ -1444,7 +1441,6 @@
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '') {
-            // 버튼 클릭 시 실시간 동기화 함수 호출
             updateAndRenderStats(actionType);
 
             if(db && docId) {
@@ -1615,7 +1611,6 @@
                 return true; 
             });
 
-            // 💡 2. 모바일 숨김 방지 및 통계 뱃지 출력 (flex-wrap)
             const totalCountEl = document.getElementById('totalCustomerCount');
             if (totalCountEl) {
                 if (customerDB.length === filteredDB.length) {
@@ -2179,7 +2174,6 @@
         const reportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
 
-        // 💡 3. 신규등록 버튼 클릭 로직 추가 (기존 정보 없이 빈 모달 열기)
         document.getElementById('newReportBtn').addEventListener('click', () => {
             currentDetailId = null;
             reportCustomerData = null;
@@ -2196,7 +2190,6 @@
             reportCustomerData = customerDB.find(x => x.id === currentDetailId);
             if(!reportCustomerData) return;
             
-            // 기존 고객 데이터 세팅
             document.getElementById('rep-name').value = reportCustomerData.name || '';
             document.getElementById('rep-phone').value = reportCustomerData.phone || '';
 
@@ -2256,7 +2249,6 @@
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
             
-            // 신규 작성 시 input에 입력한 값을 우선으로 가져옴
             const cName = reportCustomerData ? (reportCustomerData.name || document.getElementById('rep-name').value) : (document.getElementById('rep-name') ? document.getElementById('rep-name').value : '');
             const cPhone = reportCustomerData ? (reportCustomerData.phone || document.getElementById('rep-phone').value) : (document.getElementById('rep-phone') ? document.getElementById('rep-phone').value : '');
             const cManager = reportCustomerData ? (reportCustomerData.contactManager || reportCustomerData.manager || '') : (document.getElementById('val-manager').value || '');
@@ -2308,7 +2300,6 @@
                 let isNewCustomer = false;
                 let baseData = {};
 
-                // 💡 신규 고객 추가 로직 적용
                 if (!targetId) {
                     const inputPhone = document.getElementById('rep-phone').value.trim();
                     const inputName = document.getElementById('rep-name').value.trim();
@@ -2448,7 +2439,7 @@
                 }
                 customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
-                if (isNewCustomer) switchTab('db'); // 신규 고객 등록 시 목록 새로고침
+                if (isNewCustomer) switchTab('db'); 
                 return true;
             };
 
@@ -2556,6 +2547,53 @@
                         let newLength = this.value.length;
                         cursor += (newLength - oldLength);
                         try { this.setSelectionRange(cursor, cursor); } catch(err){}
+                    }
+                });
+            }
+        });
+
+        // 💡 할부 원금/개월수 필드용 자동 포맷팅 로직 (blur 이벤트)
+        const installmentFields = ['val-installment', 'modalInstallment'];
+        installmentFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('blur', function() {
+                    let val = this.value.trim();
+                    
+                    // 빈 값이거나, 수동으로 기재한 예외 단어가 포함된 경우 무시
+                    if (!val || val === '-' || val.includes('해당없음') || val.includes('완납') || val.includes('만') || val.includes('x')) return;
+                    
+                    // 이미 '원'과 '개월'이 모두 완벽하게 포함되어 있다면 무시
+                    if (val.includes('원') && val.includes('개월')) return;
+
+                    // 숫자 추출을 위해 슬래시(/), 띄어쓰기, 하이픈(-)으로 분리
+                    let parts = val.split(/[\/\s\-]+/).filter(p => p.replace(/[^0-9]/g, '') !== '');
+                    
+                    if (parts.length >= 2) {
+                        // 1500000 24 -> 1,500,000원 / 24개월
+                        let amt = parts[0].replace(/[^0-9]/g, '');
+                        let mon = parts[1].replace(/[^0-9]/g, '');
+                        if (amt && mon) {
+                            this.value = `${parseInt(amt, 10).toLocaleString('ko-KR')}원 / ${parseInt(mon, 10)}개월`;
+                            this.dispatchEvent(new Event('input', { bubbles: true })); // 수정 사항이 저장 버튼에 인식되도록 트리거
+                        }
+                    } else if (parts.length === 1) {
+                        // 숫자 하나만 입력했을 경우 (금액 또는 개월 하나만)
+                        let p1 = parts[0].replace(/[^0-9]/g, '');
+                        if (p1) {
+                            let num = parseInt(p1, 10);
+                            if (val.includes('개월') && !val.includes('원')) {
+                                this.value = `${num}개월`;
+                            } else if (!val.includes('원')) {
+                                // 💡 스마트 방어: 60 이하의 숫자만 달랑 입력하면 원금 대신 '개월수'로 자동 추정
+                                if (num > 0 && num <= 60 && !val.includes(',')) {
+                                    this.value = `${num}개월`;
+                                } else {
+                                    this.value = `${num.toLocaleString('ko-KR')}원`;
+                                }
+                            }
+                            this.dispatchEvent(new Event('input', { bubbles: true }));
+                        }
                     }
                 });
             }
