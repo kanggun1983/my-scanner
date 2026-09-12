@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V49</title>
+    <title>스마트 고객 정보 추출기 V50</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -125,9 +125,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V49: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V50: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">유선 상품명 연동 및 모바일/유선 통합 개통보고 폼 지원</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">유선 상품명 연동 및 모바일/유선 통합 개통보고 폼 안정화</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -1792,6 +1792,7 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
+                // 💡 모바일/유선 필터 로직
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
                 if (currentFilter === 'wired') return c.internetProd || c.tvProd || c.wiredDate || c.wiredFee;
 
@@ -1942,12 +1943,12 @@
                     </div>`;
                 }
 
-                // 💡 유선인 경우 단말기 자리에 유선상품명(인터넷+TV)이 표시되도록 처리
-                let displayDeviceOrWired = c.device || '';
-                if (!displayDeviceOrWired && (c.internetProd || c.tvProd)) {
-                    displayDeviceOrWired = [c.internetProd, c.tvProd].filter(Boolean).join(' + ');
-                } else if (!displayDeviceOrWired) {
-                    displayDeviceOrWired = '기종미상';
+                // 💡 버그 픽스: 유선 필터일 경우 단말기보다 [유선상품명] 우선 표출
+                let displayDeviceOrWired = '';
+                if (currentFilter === 'wired') {
+                    displayDeviceOrWired = [c.internetProd, c.tvProd].filter(Boolean).join(' + ') || c.device || '상품미상';
+                } else {
+                    displayDeviceOrWired = c.device || [c.internetProd, c.tvProd].filter(Boolean).join(' + ') || '기종미상';
                 }
 
                 tbody.innerHTML += `<tr class="${rowStyle}">
@@ -2487,9 +2488,13 @@
                     };
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
-                    document.getElementById('modalInternetTv').value = (updateData.internetProd + (updateData.tvProd ? ' + ' + updateData.tvProd : '')).trim();
-                    document.getElementById('modalCombination').value = updateData.combination;
-                    document.getElementById('modalWiredFee').value = updateData.wiredFee;
+                    // 💡 버그 픽스: 유선보고 저장 시 실시간 UI 동기화
+                    const idx = customerDB.findIndex(x => x.id === currentDetailId);
+                    if(idx > -1) {
+                        customerDB[idx] = { ...customerDB[idx], ...updateData };
+                        openDetailModal(currentDetailId);
+                        renderDB();
+                    }
                 }
                 customAlert('✅ 유선 개통보고 폼이 복사되고 데이터가 저장되었습니다!');
                 wiredReportModal.style.display = 'none';
@@ -2792,6 +2797,7 @@
                         updateData = {
                             ...updateData,
                             salesStatus: '판매성공',
+                            wiredDate: getTodayStr(), // 유선 개통 시 오늘 날짜로 약정일 자동 갱신
                             repJumin: document.getElementById('rep-jumin').value,
                             repAddress: document.getElementById('rep-address').value,
                             internetProd: document.getElementById('rep-wired-internet').value,
@@ -2829,18 +2835,20 @@
 
                     await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
-                    if (!isNewCustomer && currentReportType === 'mobile') {
-                        document.getElementById('modalSalesStatus').value = '판매성공';
-                        document.getElementById('modalDob').value = formatDob(newDob);
-                        document.getElementById('modalPlan').value = document.getElementById('rep-plan').value;
-                        document.getElementById('modalInternetTv').value = document.getElementById('rep-internet-tv').value;
-                        document.getElementById('modalCombination').value = document.getElementById('rep-combination').value;
-                        document.getElementById('modalLegalName').value = updateData.legalName;
-                        document.getElementById('modalLegalPhone').value = updateData.legalPhone;
-                        document.getElementById('modalLegalDob').value = updateData.legalDob;
+                    // 💡 버그 픽스: 개통보고 저장 후 실시간 UI 동기화 강제 트리거
+                    const idx = customerDB.findIndex(x => x.id === targetId);
+                    if(idx > -1) {
+                        customerDB[idx] = { ...customerDB[idx], ...updateData };
+                    } else if (isNewCustomer) {
+                        customerDB.push(updateData);
                     }
+
+                    if (!isNewCustomer) {
+                        openDetailModal(targetId); // 상세 창 새로고침
+                    }
+                    renderDB(); // 뒤쪽 고객 리스트 새로고침
                 }
-                customAlert('✅ 개통보고 양식이 복사되고 고객 데이터가 안전하게 반영되었습니다!');
+                customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
                 if (isNewCustomer) switchTab('db'); 
                 return true;
