@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V48</title>
+    <title>스마트 고객 정보 추출기 V49</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -125,9 +125,9 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V48: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V49: 마스터</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">자동 OB/문자 발송 통계 카운터 추가</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">유선 상품명 연동 및 모바일/유선 통합 개통보고 폼 지원</p>
             </div>
             <div class="flex items-center gap-2">
                 <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
@@ -412,7 +412,7 @@
                             </th>
                             <th class="px-4 py-3 whitespace-nowrap">고객명 / 스캔일</th>
                             <th class="px-4 py-3 whitespace-nowrap">연락처 및 액션</th>
-                            <th class="px-4 py-3 whitespace-nowrap">단말기 / 개통일 / 결합</th>
+                            <th class="px-4 py-3 whitespace-nowrap">단말기(상품) / 개통일 / 결합</th>
                             <th class="px-4 py-3 whitespace-nowrap text-center">할인유형</th>
                             <th class="px-4 py-3 whitespace-nowrap">할부 / 남은개월수</th>
                             <th class="px-4 py-3 whitespace-nowrap">영업상태 및 타겟</th>
@@ -792,7 +792,7 @@
         </div>
     </div>
 
-    <!-- 개통보고 모달 -->
+    <!-- 개통보고 모달 (모바일/유선 토글 지원) -->
     <div id="reportModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center z-[60] p-2 sm:p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col overflow-hidden">
             <div class="p-3 border-b bg-gray-50 flex justify-between items-center">
@@ -802,15 +802,28 @@
                 <button id="closeReportModal" class="text-gray-400 hover:text-gray-700 text-xl px-2">&times;</button>
             </div>
             <div class="p-4 overflow-y-auto flex-1 flex flex-col gap-3">
+                <!-- 💡 모바일 / 유선 토글 버튼 -->
+                <div class="flex bg-gray-100 p-1 rounded-xl">
+                    <button type="button" id="repTabMobileBtn" onclick="switchReportTab('mobile')" class="flex-1 py-2 text-xs font-bold rounded-lg bg-white text-indigo-600 shadow-sm transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-mobile-screen"></i> 모바일 개통보고
+                    </button>
+                    <button type="button" id="repTabWiredBtn" onclick="switchReportTab('wired')" class="flex-1 py-2 text-xs font-bold rounded-lg text-gray-500 hover:text-gray-800 transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-network-wired"></i> 유선 개통보고
+                    </button>
+                </div>
+
                 <p class="text-[11px] text-gray-500 mb-1">DB에 등록된 정보는 자동 입력됩니다. 나머지 빈칸을 채워주세요.</p>
+                
+                <!-- 공통 필수 입력 -->
                 <div class="grid grid-cols-2 gap-2 text-xs">
-                    <!-- 신규등록시 사용되는 고객명/연락처 입력란 -->
                     <input type="text" id="rep-name" placeholder="고객명 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
                     <input type="text" id="rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
-
                     <input type="text" id="rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2 mt-1">
-                    
                     <input type="text" id="rep-address" placeholder="주소" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
+                </div>
+
+                <!-- 모바일 전용 입력 필드 그룹 -->
+                <div id="mobileReportFields" class="grid grid-cols-2 gap-2 text-xs">
                     <input type="text" id="rep-device" placeholder="개통단말기(모델명)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
                     
                     <div class="relative col-span-2">
@@ -846,6 +859,29 @@
                         </div>
                         <input type="text" id="rep-combination" class="w-full border border-gray-300 p-2 pl-20 rounded focus:ring-1 focus:ring-green-500 outline-none text-xs" placeholder="내용 입력">
                     </div>
+                </div>
+
+                <!-- 유선 전용 입력 필드 그룹 (모바일에서 토글 시 표시) -->
+                <div id="wiredReportFields" class="hidden grid grid-cols-2 gap-2 text-xs">
+                    <div class="col-span-2 p-2 bg-teal-50 border border-teal-200 rounded grid grid-cols-3 gap-1">
+                        <span class="col-span-3 text-[10px] font-bold text-teal-700 mb-0.5">유형 (인터넷 / TV / 추가TV)</span>
+                        <input type="text" id="rep-wired-internet" placeholder="인터넷" class="border border-teal-300 p-1.5 rounded focus:ring-1 focus:ring-teal-500 outline-none text-xs">
+                        <input type="text" id="rep-wired-tv" placeholder="TV" class="border border-teal-300 p-1.5 rounded focus:ring-1 focus:ring-teal-500 outline-none text-xs">
+                        <input type="text" id="rep-wired-extratv" placeholder="추가TV" class="border border-teal-300 p-1.5 rounded focus:ring-1 focus:ring-teal-500 outline-none text-xs">
+                    </div>
+
+                    <input type="text" id="rep-wired-subsidy" placeholder="지원금(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    
+                    <div class="col-span-2 p-2 bg-yellow-50 border border-yellow-200 rounded grid grid-cols-3 gap-1">
+                        <span class="col-span-3 text-[10px] font-bold text-yellow-700 mb-0.5">고객계좌 (은행 / 계좌번호 / 예금주)</span>
+                        <input type="text" id="rep-wired-bank" placeholder="은행명" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs">
+                        <input type="text" id="rep-wired-account" placeholder="계좌번호" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-2">
+                        <input type="text" id="rep-wired-owner" placeholder="예금주" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-3 mt-1">
+                    </div>
+
+                    <input type="text" id="rep-wired-combo" placeholder="결합" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    <input type="text" id="rep-wired-fee" placeholder="월요금" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    <input type="text" id="rep-wired-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                 </div>
 
                 <div class="col-span-2 mt-1 p-2 bg-pink-50/50 border border-pink-200 rounded-lg">
@@ -948,6 +984,7 @@
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
         let currentDetailId = null;
         let globalStats = { dailyOB: 0, dailySMS: 0, monthlyOB: 0, monthlySMS: 0, date: '', month: '' };
+        let currentReportType = 'mobile'; // 'mobile' or 'wired'
 
         function renderGlobalStatsUI() {
             const now = new Date();
@@ -1142,7 +1179,6 @@
             radio.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
         });
 
-        // 💡 선택약정 옵션 토글
         window.toggleSelectContractOptions = function(show) {
             const el = document.getElementById('selectContractOptions');
             if (show) {
@@ -1153,7 +1189,6 @@
             }
         };
 
-        // 💡 할부원금/개월수 포커스 아웃 시 자동 변환
         function formatInstallmentInput(e) {
             let val = e.target.value.trim();
             if (!val || val.includes('원') || val.includes('개월') || val === '-' || val === '해당없음' || val === '완납') return;
@@ -1179,7 +1214,6 @@
         document.getElementById('val-installment').addEventListener('blur', formatInstallmentInput);
         document.getElementById('modalInstallment').addEventListener('blur', formatInstallmentInput);
 
-        // 💡 월 청구금액(모바일 및 유선) 포커스 아웃 시 자동 변환
         function formatFeeInput(e) {
             let val = e.target.value.trim();
             if (!val || val.includes('원') || val === '-' || val === '무료') return;
@@ -1687,7 +1721,7 @@
             if (checkedBoxes.length === 0) return customAlert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
             let csv = '\uFEFF';
-            csv += "고객명,연락처,생년월일,통신사,단말기,모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
+            csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
 
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
 
@@ -1699,7 +1733,7 @@
                         escapeCSV(formatPhone(c.phone)),
                         escapeCSV(formatDob(c.dob)),
                         escapeCSV(c.carrier),
-                        escapeCSV(c.device),
+                        escapeCSV(c.device || [c.internetProd, c.tvProd].filter(Boolean).join(' + ')),
                         escapeCSV(c.activationDate),
                         escapeCSV(c.plan),
                         escapeCSV(c.discountType),
@@ -1758,7 +1792,6 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
-                // 💡 모바일/유선 필터 로직 추가
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
                 if (currentFilter === 'wired') return c.internetProd || c.tvProd || c.wiredDate || c.wiredFee;
 
@@ -1909,6 +1942,14 @@
                     </div>`;
                 }
 
+                // 💡 유선인 경우 단말기 자리에 유선상품명(인터넷+TV)이 표시되도록 처리
+                let displayDeviceOrWired = c.device || '';
+                if (!displayDeviceOrWired && (c.internetProd || c.tvProd)) {
+                    displayDeviceOrWired = [c.internetProd, c.tvProd].filter(Boolean).join(' + ');
+                } else if (!displayDeviceOrWired) {
+                    displayDeviceOrWired = '기종미상';
+                }
+
                 tbody.innerHTML += `<tr class="${rowStyle}">
                     <td class="px-3 py-3 text-center align-middle">
                         <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" onclick="event.stopPropagation()">
@@ -1928,7 +1969,7 @@
                         ${legalActionHtml}
                     </td>
                     <td class="px-3 py-3 text-xs">
-                        <div class="font-bold text-gray-700 truncate max-w-[120px] mb-0.5 ${textStrike}">${c.device || '기종미상'}</div>
+                        <div class="font-bold text-teal-800 truncate max-w-[140px] mb-0.5 ${textStrike}">${displayDeviceOrWired}</div>
                         <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
                         ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
                         ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
@@ -2279,8 +2320,8 @@
                     <h3 style="font-size: 14pt; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">단말기 및 개통 정보</h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 20px; text-align: left;">
                         <tr>
-                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">사용 단말기</th>
-                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.device || '-'}</td>
+                            <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">사용 단말기(상품)</th>
+                            <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.device || [c.internetProd, c.tvProd].filter(Boolean).join(' + ') || '-'}</td>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9; width: 20%;">모바일 개통일</th>
                             <td style="border: 1px solid #ccc; padding: 10px; width: 30%;">${c.activationDate || '-'}</td>
                         </tr>
@@ -2470,19 +2511,41 @@
         });
 
 
-        // 💡 개통보고 모달 로직
+        // 💡 개통보고 모달 (모바일/유선 토글 지원) 로직
         const reportModal = document.getElementById('reportModal');
-        const reportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const mobileReportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
+
+        window.switchReportTab = function(type) {
+            currentReportType = type;
+            const mobileFields = document.getElementById('mobileReportFields');
+            const wiredFields = document.getElementById('wiredReportFields');
+            const btnMobile = document.getElementById('repTabMobileBtn');
+            const btnWired = document.getElementById('repTabWiredBtn');
+
+            if (type === 'mobile') {
+                mobileFields.classList.remove('hidden');
+                wiredFields.classList.add('hidden');
+                btnMobile.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-indigo-600 shadow-sm transition flex items-center justify-center gap-1";
+                btnWired.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-500 hover:text-gray-800 transition flex items-center justify-center gap-1";
+            } else {
+                mobileFields.classList.add('hidden');
+                wiredFields.classList.remove('hidden');
+                btnWired.className = "flex-1 py-2 text-xs font-bold rounded-lg bg-white text-teal-600 shadow-sm transition flex items-center justify-center gap-1";
+                btnMobile.className = "flex-1 py-2 text-xs font-bold rounded-lg text-gray-500 hover:text-gray-800 transition flex items-center justify-center gap-1";
+            }
+            updateReportPreview();
+        };
 
         document.getElementById('newReportBtn').addEventListener('click', () => {
             currentDetailId = null;
             reportCustomerData = null;
-            reportInputs.forEach(id => {
+            [...mobileReportInputs, ...wiredReportModalInputs].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
-            updateReportPreview();
+            switchReportTab('mobile');
             reportModal.style.display = 'flex';
         });
 
@@ -2493,14 +2556,14 @@
             
             document.getElementById('rep-name').value = reportCustomerData.name || '';
             document.getElementById('rep-phone').value = reportCustomerData.phone || '';
-
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
+            document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
 
             document.getElementById('rep-legal-name').value = reportCustomerData.legalName || '';
             document.getElementById('rep-legal-phone').value = reportCustomerData.legalPhone || '';
             document.getElementById('rep-legal-dob').value = formatDob(reportCustomerData.legalDob || '');
 
-            document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
+            // 모바일 필드 세팅
             document.getElementById('rep-device').value = reportCustomerData.repDevice || reportCustomerData.device || ''; 
             document.getElementById('rep-plan').value = reportCustomerData.plan || '';
             document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
@@ -2526,6 +2589,13 @@
             }
             document.getElementById('rep-combination').value = repCombo || '';
 
+            // 유선 필드 세팅
+            document.getElementById('rep-wired-internet').value = reportCustomerData.internetProd || '';
+            document.getElementById('rep-wired-tv').value = reportCustomerData.tvProd || '';
+            document.getElementById('rep-wired-combo').value = repCombo || '';
+            document.getElementById('rep-wired-fee').value = reportCustomerData.wiredFee || '';
+            document.getElementById('rep-wired-branch').value = reportCustomerData.repBranch || '';
+
             let pVal = reportCustomerData.repPrincipal || '';
             let iVal = reportCustomerData.repInstallment || '';
             if (!pVal && !iVal && reportCustomerData.installment) {
@@ -2540,7 +2610,7 @@
             document.getElementById('rep-principal').value = applyComma(pVal);
             document.getElementById('rep-installment').value = iVal;
 
-            updateReportPreview(); 
+            switchReportTab('mobile');
             reportModal.style.display = 'flex';
         });
 
@@ -2554,26 +2624,56 @@
             const cPhone = reportCustomerData ? (reportCustomerData.phone || document.getElementById('rep-phone').value) : (document.getElementById('rep-phone') ? document.getElementById('rep-phone').value : '');
             const cManager = reportCustomerData ? (reportCustomerData.contactManager || reportCustomerData.manager || '') : (document.getElementById('val-manager').value || '');
 
-            let text = `-개통보고 ${dateStr}-\n\n` +
-`이름: ${cName}\n` +
-`주민번호: ${document.getElementById('rep-jumin').value}\n` +
-`연락처 : ${cPhone}\n` +
-`주소 : ${document.getElementById('rep-address').value}\n` +
-`모델/일련: ${document.getElementById('rep-device').value}\n` +
-`요금제 : ${document.getElementById('rep-plan').value}\n` +
-`유심 일련: ${document.getElementById('rep-usim').value}\n` +
-`유심 선납: ${document.getElementById('rep-usim-pay').value}\n` +
-`유형: ${document.getElementById('rep-type').value}\n` +
-`부가 : ${document.getElementById('rep-addons').value}\n` +
-`보험 : ${document.getElementById('rep-insurance').value}\n` +
-`할부원금 : ${document.getElementById('rep-principal').value}\n` +
-`할부개월수 : ${document.getElementById('rep-installment').value}\n` +
-`공시/선약 : ${document.getElementById('rep-discount').value}\n` +
-`지원금 : ${document.getElementById('rep-subsidy').value}\n` +
-`중고폰 : ${document.getElementById('rep-usedphone').value}\n` +
-`접수처 : ${document.getElementById('rep-branch').value}\n` +
-`인터넷+TV : ${document.getElementById('rep-internet-tv').value}\n` +
-`결합 : ${document.getElementById('rep-combination').value}\n`;
+            let text = '';
+
+            if (currentReportType === 'mobile') {
+                text = `-모바일 개통보고 ${dateStr}-\n\n` +
+                `이름: ${cName}\n` +
+                `주민번호: ${document.getElementById('rep-jumin').value}\n` +
+                `연락처 : ${cPhone}\n` +
+                `주소 : ${document.getElementById('rep-address').value}\n` +
+                `모델/일련: ${document.getElementById('rep-device').value}\n` +
+                `요금제 : ${document.getElementById('rep-plan').value}\n` +
+                `유심 일련: ${document.getElementById('rep-usim').value}\n` +
+                `유심 선납: ${document.getElementById('rep-usim-pay').value}\n` +
+                `유형: ${document.getElementById('rep-type').value}\n` +
+                `부가 : ${document.getElementById('rep-addons').value}\n` +
+                `보험 : ${document.getElementById('rep-insurance').value}\n` +
+                `할부원금 : ${document.getElementById('rep-principal').value}\n` +
+                `할부개월수 : ${document.getElementById('rep-installment').value}\n` +
+                `공시/선약 : ${document.getElementById('rep-discount').value}\n` +
+                `지원금 : ${document.getElementById('rep-subsidy').value}\n` +
+                `중고폰 : ${document.getElementById('rep-usedphone').value}\n` +
+                `접수처 : ${document.getElementById('rep-branch').value}\n` +
+                `인터넷+TV : ${document.getElementById('rep-internet-tv').value}\n` +
+                `결합 : ${document.getElementById('rep-combination').value}\n`;
+            } else {
+                const iNet = document.getElementById('rep-wired-internet').value;
+                const iTv = document.getElementById('rep-wired-tv').value;
+                const iExTv = document.getElementById('rep-wired-extratv').value;
+                let typeStrArr = [];
+                if(iNet) typeStrArr.push(iNet);
+                if(iTv) typeStrArr.push(iTv);
+                if(iExTv) typeStrArr.push(iExTv);
+                const typeStr = typeStrArr.join(' / ');
+
+                const bank = document.getElementById('rep-wired-bank').value;
+                const account = document.getElementById('rep-wired-account').value;
+                const owner = document.getElementById('rep-wired-owner').value;
+                let accountStr = [bank, account, owner].filter(Boolean).join(' ');
+
+                text = `-유선 개통보고 ${dateStr}-\n\n` +
+                `이름: ${cName}\n` +
+                `주민번호: ${document.getElementById('rep-jumin').value}\n` +
+                `연락처: ${cPhone}\n` +
+                `주소 : ${document.getElementById('rep-address').value}\n` +
+                `유형: ${typeStr}\n` +
+                `지원금 : ${document.getElementById('rep-wired-subsidy').value}\n` +
+                `고객계좌: ${accountStr}\n` +
+                `결합: ${document.getElementById('rep-wired-combo').value}\n` +
+                `월요금: ${document.getElementById('rep-wired-fee').value}\n` +
+                `접수처: ${document.getElementById('rep-wired-branch').value}\n`;
+            }
 
             const legalName = document.getElementById('rep-legal-name').value;
             const legalPhone = document.getElementById('rep-legal-phone').value;
@@ -2588,7 +2688,7 @@
             document.getElementById('reportPreview').value = text;
         }
 
-        reportInputs.forEach(id => { 
+        [...mobileReportInputs, ...wiredReportModalInputs].forEach(id => { 
             const el = document.getElementById(id);
             if(el) el.addEventListener('input', updateReportPreview); 
         });
@@ -2619,32 +2719,88 @@
                 }
 
                 if (targetId && db) {
-                    const newDiscount = document.getElementById('rep-discount').value;
-                    const newInstallment = document.getElementById('rep-installment').value;
-                    const newDevice = document.getElementById('rep-device').value; 
-                    const newPrincipal = document.getElementById('rep-principal').value;
-                    
-                    let parsedDiscount = '미정';
-                    if (newDiscount) {
-                        if (newDiscount.includes('선약') || newDiscount.includes('선택')) parsedDiscount = '선택약정';
-                        else if (newDiscount.includes('공시') || newDiscount.includes('지원')) parsedDiscount = '공시지원금';
-                        else parsedDiscount = '해당없음';
-                    }
+                    let updateData = { ...baseData };
 
-                    let combinedInstallment = reportCustomerData ? (reportCustomerData.installment || '') : '';
-                    if (newPrincipal || newInstallment) {
-                        let p = newPrincipal.trim();
-                        let i = newInstallment.trim();
+                    if (currentReportType === 'mobile') {
+                        const newDiscount = document.getElementById('rep-discount').value;
+                        const newInstallment = document.getElementById('rep-installment').value;
+                        const newDevice = document.getElementById('rep-device').value; 
+                        const newPrincipal = document.getElementById('rep-principal').value;
                         
-                        if (p && !p.endsWith('원')) p += '원';
-                        if (i && i !== '완납' && i !== '0' && !i.endsWith('개월')) i += '개월';
-
-                        if (i === '완납' || i === '0개월' || p === '0원' || p === '') {
-                            if (p === '0원' || p === '') combinedInstallment = '완납';
-                            else combinedInstallment = `${p} / 완납`;
-                        } else {
-                            combinedInstallment = `${p ? p : '0원'} / ${i ? i : '0개월'}`;
+                        let parsedDiscount = '미정';
+                        if (newDiscount) {
+                            if (newDiscount.includes('선약') || newDiscount.includes('선택')) parsedDiscount = '선택약정';
+                            else if (newDiscount.includes('공시') || newDiscount.includes('지원')) parsedDiscount = '공시지원금';
+                            else parsedDiscount = '해당없음';
                         }
+
+                        let combinedInstallment = reportCustomerData ? (reportCustomerData.installment || '') : '';
+                        if (newPrincipal || newInstallment) {
+                            let p = newPrincipal.trim();
+                            let i = newInstallment.trim();
+                            
+                            if (p && !p.endsWith('원')) p += '원';
+                            if (i && i !== '완납' && i !== '0' && !i.endsWith('개월')) i += '개월';
+
+                            if (i === '완납' || i === '0개월' || p === '0원' || p === '') {
+                                if (p === '0원' || p === '') combinedInstallment = '완납';
+                                else combinedInstallment = `${p} / 완납`;
+                            } else {
+                                combinedInstallment = `${p ? p : '0원'} / ${i ? i : '0개월'}`;
+                            }
+                        }
+
+                        const currentActDate = reportCustomerData ? reportCustomerData.activationDate : '';
+                        const finalActDate = (currentActDate && currentActDate.length === 10 && currentActDate !== '-') ? currentActDate : getTodayStr();
+
+                        updateData = {
+                            ...updateData,
+                            salesStatus: '판매성공',
+                            activationDate: finalActDate, 
+                            repJumin: document.getElementById('rep-jumin').value, 
+                            repInternetTv: document.getElementById('rep-internet-tv').value,
+                            internetProd: document.getElementById('rep-internet-tv').value,
+                            repCombination: document.getElementById('rep-combination').value,
+                            combination: document.getElementById('rep-combination').value,
+                            repAddress: document.getElementById('rep-address').value, 
+                            plan: document.getElementById('rep-plan').value,
+                            repUsim: document.getElementById('rep-usim').value, 
+                            repUsimPay: document.getElementById('rep-usim-pay').value, 
+                            repType: document.getElementById('rep-type').value, 
+                            repAddons: document.getElementById('rep-addons').value, 
+                            repInsurance: document.getElementById('rep-insurance').value, 
+                            repPrincipal: newPrincipal, 
+                            repInstallment: newInstallment, 
+                            repDiscount: newDiscount, 
+                            repSubsidy: document.getElementById('rep-subsidy').value, 
+                            repUsedPhone: document.getElementById('rep-usedphone').value, 
+                            repBranch: document.getElementById('rep-branch').value,
+                        };
+
+                        if (newDevice) {
+                            updateData.repDevice = newDevice;
+                            updateData.device = newDevice;
+                        }
+                        if (combinedInstallment) {
+                            updateData.installment = combinedInstallment;
+                        }
+                        if (parsedDiscount !== '미정') {
+                            updateData.discountType = parsedDiscount;
+                        }
+                    } else {
+                        // 유선 개통보고 저장 반영
+                        updateData = {
+                            ...updateData,
+                            salesStatus: '판매성공',
+                            repJumin: document.getElementById('rep-jumin').value,
+                            repAddress: document.getElementById('rep-address').value,
+                            internetProd: document.getElementById('rep-wired-internet').value,
+                            tvProd: document.getElementById('rep-wired-tv').value,
+                            repCombination: document.getElementById('rep-wired-combo').value,
+                            combination: document.getElementById('rep-wired-combo').value,
+                            wiredFee: document.getElementById('rep-wired-fee').value,
+                            repBranch: document.getElementById('rep-wired-branch').value,
+                        };
                     }
 
                     let newDob = reportCustomerData ? reportCustomerData.dob : '';
@@ -2663,82 +2819,28 @@
                         newDob = `${century}${String(year).padStart(2,'0')}-${month}-${day}`;
                     }
 
-                    const currentActDate = reportCustomerData ? reportCustomerData.activationDate : '';
-                    const finalActDate = (currentActDate && currentActDate.length === 10 && currentActDate !== '-') ? currentActDate : getTodayStr();
-
-                    const updateData = {
-                        ...baseData,
-                        salesStatus: '판매성공',
-                        activationDate: finalActDate, 
-                        dob: newDob,
-                        repJumin: document.getElementById('rep-jumin').value, 
-                        
-                        repInternetTv: document.getElementById('rep-internet-tv').value,
-                        internetProd: document.getElementById('rep-internet-tv').value,
-
-                        repCombination: document.getElementById('rep-combination').value,
-                        combination: document.getElementById('rep-combination').value,
-
-                        legalName: document.getElementById('rep-legal-name').value,
-                        legalPhone: document.getElementById('rep-legal-phone').value,
-                        legalDob: document.getElementById('rep-legal-dob').value,
-
-                        repAddress: document.getElementById('rep-address').value, 
-                        plan: document.getElementById('rep-plan').value,
-                        repUsim: document.getElementById('rep-usim').value, 
-                        repUsimPay: document.getElementById('rep-usim-pay').value, 
-                        repType: document.getElementById('rep-type').value, 
-                        repAddons: document.getElementById('rep-addons').value, 
-                        repInsurance: document.getElementById('rep-insurance').value, 
-                        repPrincipal: newPrincipal, 
-                        repInstallment: newInstallment, 
-                        repDiscount: newDiscount, 
-                        repSubsidy: document.getElementById('rep-subsidy').value, 
-                        repUsedPhone: document.getElementById('rep-usedphone').value, 
-                        repBranch: document.getElementById('rep-branch').value,
-                        updatedAt: new Date().toISOString()
-                    };
-
+                    updateData.dob = newDob;
+                    updateData.legalName = document.getElementById('rep-legal-name').value;
+                    updateData.legalPhone = document.getElementById('rep-legal-phone').value;
+                    updateData.legalDob = document.getElementById('rep-legal-dob').value;
                     updateData.name = document.getElementById('rep-name').value.trim();
                     updateData.phone = formatPhone(document.getElementById('rep-phone').value.trim());
-
-                    if (newDevice) {
-                        updateData.repDevice = newDevice;
-                        updateData.device = newDevice;
-                    }
-                    if (combinedInstallment) {
-                        updateData.installment = combinedInstallment;
-                    }
-                    if (parsedDiscount !== '미정') {
-                        updateData.discountType = parsedDiscount;
-                    }
+                    updateData.updatedAt = new Date().toISOString();
 
                     await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
-                    if (!isNewCustomer) {
+                    if (!isNewCustomer && currentReportType === 'mobile') {
                         document.getElementById('modalSalesStatus').value = '판매성공';
-                        document.getElementById('modalActivation').value = finalActDate;
-                        const calc = getDdayAndMonths(finalActDate);
-                        document.getElementById('modalDdayBadge').textContent = `(D+${calc.days})`;
                         document.getElementById('modalDob').value = formatDob(newDob);
-                        
-                        if (newDevice) document.getElementById('modalDevice').value = newDevice;
-                        if (combinedInstallment) document.getElementById('modalInstallment').value = combinedInstallment;
-                        if (parsedDiscount !== '미정') {
-                            const ds = document.getElementById('modalDiscount');
-                            if(Array.from(ds.options).some(opt => opt.value === parsedDiscount)) ds.value = parsedDiscount;
-                        }
-                        
                         document.getElementById('modalPlan').value = document.getElementById('rep-plan').value;
                         document.getElementById('modalInternetTv').value = document.getElementById('rep-internet-tv').value;
                         document.getElementById('modalCombination').value = document.getElementById('rep-combination').value;
-
                         document.getElementById('modalLegalName').value = updateData.legalName;
                         document.getElementById('modalLegalPhone').value = updateData.legalPhone;
                         document.getElementById('modalLegalDob').value = updateData.legalDob;
                     }
                 }
-                customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기 정보가 안전하게 반영되었습니다!');
+                customAlert('✅ 개통보고 양식이 복사되고 고객 데이터가 안전하게 반영되었습니다!');
                 reportModal.style.display = 'none'; 
                 if (isNewCustomer) switchTab('db'); 
                 return true;
@@ -2835,7 +2937,7 @@
             }
         });
 
-        const moneyFields = ['val-installment', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'pros-pay', 'detailProsPay'];
+        const moneyFields = ['val-installment', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'pros-pay', 'detailProsPay'];
         moneyFields.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
