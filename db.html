@@ -409,7 +409,7 @@
 
             <div class="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
                 <button class="filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-gray-800 text-white transition whitespace-nowrap" data-filter="all">전체고객 보기</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="mobile">📱 모바일</button>
+                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="mobile">📱 무선</button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="wired">📺 유선</button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="m6">⚡ M+6 (6개월↑)</button>
                 <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="target18">📱 기변타겟 (18개월↑)</button>
@@ -1931,8 +1931,7 @@
                 const isRecentMobile = c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0;
                 const isRecentWired = c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0;
 
-                const hasWiredProd = c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음');
-                const isSameDayActive = isRecentMobile && isRecentWired && (c.activationDate === c.wiredDate);
+                const hasWiredProd = (c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음')) || (c.tvProd && c.tvProd !== '-' && !c.tvProd.includes('해당없음'));
 
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
@@ -1941,12 +1940,18 @@
                     rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
                 } else if (c.salesStatus === '판매성공') {
-                    if (isSameDayActive) {
-                        rowStyle += "bg-purple-100/90 border-l-4 border-l-purple-600 hover:bg-purple-200/80 ";
-                    } else if (isRecentMobile && !isRecentWired) {
-                        rowStyle += "bg-green-100/90 border-l-4 border-l-green-600 hover:bg-green-200/80 "; 
-                    } else if (isRecentWired && !isRecentMobile) {
-                        rowStyle += "bg-blue-100/90 border-l-4 border-l-blue-600 hover:bg-blue-200/80 "; 
+                    if (isRecentMobile && isRecentWired && (c.activationDate === c.wiredDate)) {
+                        // 무선유선 동시개통 -> 연보라색
+                        rowStyle += "bg-purple-100/70 hover:bg-purple-200/60 ";
+                    } else if (isRecentMobile && !isRecentWired && !hasWiredProd) {
+                        // 무선 개통만 -> 연한 노란색
+                        rowStyle += "bg-amber-100/70 hover:bg-amber-200/60 "; 
+                    } else if (isRecentWired || (hasWiredProd && !isRecentMobile)) {
+                        // 유선 개통만 -> 연한 파란색
+                        rowStyle += "bg-sky-100/70 hover:bg-sky-200/60 "; 
+                    } else if (isRecentMobile && (isRecentWired || hasWiredProd)) {
+                        // 둘 다 있으나 날짜가 다를 경우 동시개통(연보라색) 처리
+                        rowStyle += "bg-purple-100/70 hover:bg-purple-200/60 ";
                     } else {
                         rowStyle += "bg-white hover:bg-gray-50/80 ";
                     }
