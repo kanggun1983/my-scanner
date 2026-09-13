@@ -385,7 +385,7 @@
                     <h2 class="text-xl font-bold flex flex-wrap items-center gap-2 text-gray-800">
                         <i class="fa-solid fa-users text-indigo-500"></i> 내 고객 목록
                         <span id="totalCustomerCount" class="text-[13px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold shadow-sm">총 0명</span>
-                        <span id="monthlyActivationCount" class="text-[13px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold shadow-sm"><i class="fa-solid fa-medal text-emerald-500 mr-0.5"></i>이달 개통 0건</span>
+                        <span id="monthlyActivationCount" class="text-[12px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold shadow-sm flex items-center gap-1"><i class="fa-solid fa-medal text-emerald-500"></i>이달 개통 <span id="monthlyActTotal" class="text-red-500 font-extrabold">0건</span> (<span class="text-green-700">무선 <span id="monthlyActWireless">0</span></span>, <span class="text-blue-700">유선 <span id="monthlyActWired">0</span></span>, <span class="text-purple-700">동시 <span id="monthlyActBoth">0</span></span>)</span>
                     </h2>
                     <div id="statsContainer" class="text-[11px] sm:text-xs font-bold text-gray-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full flex flex-wrap items-center gap-1 shadow-sm w-fit transition-all">
                         <!-- JS에서 실시간 연동되어 렌더링됩니다 -->
@@ -1902,13 +1902,39 @@
                 }
             }
 
-            const monthlyActEl = document.getElementById('monthlyActivationCount');
-            if (monthlyActEl) {
-                const t = new Date();
-                const curMonth = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
-                const count = customerDB.filter(c => c.salesStatus === '판매성공' && c.activationDate && c.activationDate.startsWith(curMonth)).length;
-                monthlyActEl.innerHTML = `<i class="fa-solid fa-medal text-emerald-500 mr-0.5"></i>이달 개통 <span class="text-red-500 font-extrabold">${count}</span>건`;
-            }
+            const t = new Date();
+            const curMonth = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+            
+            let wirelessCount = 0;
+            let wiredCount = 0;
+            let bothCount = 0;
+
+            customerDB.forEach(c => {
+                if (c.salesStatus === '판매성공') {
+                    const actD = c.activationDate || '';
+                    const wireD = c.wiredDate || '';
+                    const isM = actD.startsWith(curMonth);
+                    const isW = wireD.startsWith(curMonth);
+
+                    if (isM && isW && actD === wireD) {
+                        bothCount++;
+                    } else {
+                        if (isM) wirelessCount++;
+                        if (isW) wiredCount++;
+                    }
+                }
+            });
+            const totalMonthlyAct = wirelessCount + wiredCount + bothCount;
+
+            const monthlyActTotal = document.getElementById('monthlyActTotal');
+            const monthlyActWireless = document.getElementById('monthlyActWireless');
+            const monthlyActWired = document.getElementById('monthlyActWired');
+            const monthlyActBoth = document.getElementById('monthlyActBoth');
+
+            if (monthlyActTotal) monthlyActTotal.textContent = `${totalMonthlyAct}건`;
+            if (monthlyActWireless) monthlyActWireless.textContent = wirelessCount;
+            if (monthlyActWired) monthlyActWired.textContent = wiredCount;
+            if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
 
             if (filteredDB.length === 0) return tbody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
 
@@ -1931,8 +1957,6 @@
                 const isRecentMobile = c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0;
                 const isRecentWired = c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0;
 
-                const hasWiredProd = (c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음')) || (c.tvProd && c.tvProd !== '-' && !c.tvProd.includes('해당없음'));
-
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
@@ -1941,17 +1965,13 @@
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
                 } else if (c.salesStatus === '판매성공') {
                     if (isRecentMobile && isRecentWired && (c.activationDate === c.wiredDate)) {
-                        // 무선유선 동시개통 -> 연보라색
-                        rowStyle += "bg-purple-100/70 hover:bg-purple-200/60 ";
-                    } else if (isRecentMobile && !isRecentWired && !hasWiredProd) {
-                        // 무선 개통만 -> 연한 노란색
-                        rowStyle += "bg-amber-100/70 hover:bg-amber-200/60 "; 
-                    } else if (isRecentWired || (hasWiredProd && !isRecentMobile)) {
-                        // 유선 개통만 -> 연한 파란색
-                        rowStyle += "bg-sky-100/70 hover:bg-sky-200/60 "; 
-                    } else if (isRecentMobile && (isRecentWired || hasWiredProd)) {
-                        // 둘 다 있으나 날짜가 다를 경우 동시개통(연보라색) 처리
-                        rowStyle += "bg-purple-100/70 hover:bg-purple-200/60 ";
+                        rowStyle += "bg-purple-100/90 hover:bg-purple-200/80 ";
+                    } else if (isRecentMobile && !isRecentWired) {
+                        rowStyle += "bg-amber-100/90 hover:bg-amber-200/80 "; 
+                    } else if (isRecentWired && !isRecentMobile) {
+                        rowStyle += "bg-sky-100/90 hover:bg-sky-200/80 "; 
+                    } else if (isRecentMobile && isRecentWired) {
+                        rowStyle += "bg-purple-100/90 hover:bg-purple-200/80 ";
                     } else {
                         rowStyle += "bg-white hover:bg-gray-50/80 ";
                     }
@@ -2994,6 +3014,11 @@ familyStr + `\n` +
                             repUsedPhone: document.getElementById('rep-usedphone').value, 
                             repBranch: document.getElementById('rep-branch').value,
                         };
+
+                        const intTvInputVal = document.getElementById('rep-internet-tv').value.trim();
+                        if (intTvInputVal && intTvInputVal !== '-' && !updateData.wiredDate) {
+                            updateData.wiredDate = finalActDate;
+                        }
 
                         if (newDevice) {
                             updateData.repDevice = newDevice;
