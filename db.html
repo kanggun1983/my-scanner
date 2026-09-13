@@ -364,6 +364,29 @@
         </div>
 
         <div id="dbView" class="hidden glass-panel p-4 sm:p-6 rounded-b-2xl bg-white shadow-sm min-h-[600px] flex flex-col">
+            <!-- 💡 [추가] 미리 알림 대시보드 영역 -->
+            <div id="reminderDashboard" class="mb-4 bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex flex-wrap gap-4 items-center shadow-sm">
+                <div class="flex items-center gap-2">
+                    <div class="bg-indigo-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md">
+                        <i class="fa-solid fa-bell animate-bounce"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] sm:text-xs text-indigo-600 font-bold">오늘 연락할 약속 고객</p>
+                        <p class="text-sm font-extrabold text-gray-800"><span id="dashTodayPromise" class="text-red-500 text-base">0</span>명</p>
+                    </div>
+                </div>
+                <div class="w-px h-8 bg-indigo-200 hidden sm:block"></div>
+                <div class="flex items-center gap-2">
+                    <div class="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md">
+                        <i class="fa-solid fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <p class="text-[11px] sm:text-xs text-orange-600 font-bold">이번 달 약정 만료/타겟 (18M+)</p>
+                        <p class="text-sm font-extrabold text-gray-800"><span id="dashTarget" class="text-orange-500 text-base">0</span>명</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
@@ -789,6 +812,14 @@
                     </div>
 
                     <input type="text" id="wired-rep-combination" placeholder="결합" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    
+                    <div class="relative col-span-2">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">👨‍👩‍👧‍👦 가족정보</span>
+                        </div>
+                        <input type="text" id="wired-rep-family" class="w-full border border-indigo-200 bg-indigo-50/30 p-2 pl-20 rounded focus:ring-1 focus:ring-indigo-500 outline-none text-xs" placeholder="관계 / 이름 / 연락처 / 통신사 등 기재">
+                    </div>
+
                     <input type="text" id="wired-rep-fee" placeholder="월요금" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                     
                     <input type="text" id="wired-rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
@@ -888,6 +919,14 @@
                     </div>
 
                     <input type="text" id="rep-wired-combo" placeholder="결합" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    
+                    <div class="relative col-span-2">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">👨‍👩‍👧‍👦 가족정보</span>
+                        </div>
+                        <input type="text" id="rep-wired-family" class="w-full border border-indigo-200 bg-indigo-50/30 p-2 pl-20 rounded focus:ring-1 focus:ring-indigo-500 outline-none text-xs" placeholder="관계 / 이름 / 연락처 / 통신사 등 기재">
+                    </div>
+
                     <input type="text" id="rep-wired-fee" placeholder="월요금" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                     <input type="text" id="rep-wired-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                 </div>
@@ -1730,6 +1769,7 @@
             if (checkedBoxes.length === 0) return customAlert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
             let csv = '\uFEFF';
+            // 💡 [기능 3] 엑셀 출력 클린화: 민감한 상담/고객 메모(memo, obMemo, prospectMemo) 제외 및 영업 데이터 최적화 유지
             csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
 
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
@@ -1787,6 +1827,36 @@
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
             const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
             
+            // 💡 [추가] 대시보드 통계 계산 로직 시작
+            let todayPromiseCount = 0;
+            let targetCount = 0;
+            const todayDateStr = getTodayStr();
+
+            customerDB.forEach(c => {
+                // 1. 오늘 연락할 약속 고객 계산 (완료되지 않은 오늘 날짜의 약속)
+                const promises = [
+                    { date: c.promPlanDate, chk: c.promPlanChk },
+                    { date: c.promAddonDate, chk: c.promAddonChk },
+                    { date: c.promInsDate, chk: c.promInsChk },
+                    { date: c.promOtherDate, chk: c.promOtherChk }
+                ];
+                const hasTodayPromise = promises.some(p => p.date === todayDateStr && !p.chk);
+                if (hasTodayPromise) todayPromiseCount++;
+
+                // 2. 이번 달 기변 타겟 계산 (약정 18개월 이상 또는 만료 && 이미 판매성공/고객거부가 아닌 고객)
+                const calc = getDdayAndMonths(c.activationDate);
+                const isTarget = calc.months >= 18 || (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
+                if (isTarget && c.salesStatus !== '판매성공' && c.salesStatus !== '고객거부') {
+                    targetCount++;
+                }
+            });
+
+            const elDashToday = document.getElementById('dashTodayPromise');
+            const elDashTarget = document.getElementById('dashTarget');
+            if (elDashToday) elDashToday.textContent = todayPromiseCount;
+            if (elDashTarget) elDashTarget.textContent = targetCount;
+            // 대시보드 통계 계산 로직 끝
+
             let filteredDB = customerDB.filter(c => {
                 const matchSearch = 
                     (c.name || '').toLowerCase().includes(query) || 
@@ -1850,23 +1920,11 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const wiredCalc = getDdayAndMonths(c.wiredDate);
                 
-                // 유선 상품(인터넷/TV) 기재 여부 확인
-                const hasWiredProd = Boolean(
-                    (c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음') && !c.internetProd.includes('미적용')) || 
-                    (c.tvProd && c.tvProd !== '-' && !c.tvProd.includes('해당없음') && !c.tvProd.includes('미적용')) || 
-                    (c.repInternetTv && c.repInternetTv !== '-' && !c.repInternetTv.includes('해당없음'))
-                );
+                const isRecentMobile = c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0;
+                const isRecentWired = c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0;
+                const isSameDateActivation = c.activationDate && c.wiredDate && c.activationDate === c.wiredDate;
 
-                // 무선 개통 여부 (최근 3개월 이내 개통)
-                const isRecentMobile = Boolean(c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0);
-                
-                // 유선 개통 여부 (최근 3개월 이내 유선등록/약정일이 있거나, 유선 상품 및 요금이 등록된 경우)
-                const isRecentWired = Boolean(
-                    (c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0) || 
-                    (hasWiredProd && (c.wiredFee || isRecentMobile))
-                );
-
-                if (c.salesStatus === '판매성공' && !isRecentMobile && !isRecentWired && !hasWiredProd) {
+                if (c.salesStatus === '판매성공' && !isRecentMobile && !isRecentWired) {
                     c.salesStatus = '미정'; 
                     if (db) {
                         setDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true }).catch(console.error);
@@ -1876,16 +1934,16 @@
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
-                // [배경색 정밀 구분] 무선: 연초록 / 유선: 연파랑 / 동시개통: 연보라
+                // 배경색 구분 로직 업데이트
                 if (c.salesStatus === '고객거부') {
-                    rowStyle += "bg-gray-100/90 opacity-75 hover:bg-gray-200/80 "; 
+                    rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
                 } else if (c.salesStatus === '판매성공') {
-                    if (isRecentMobile && (isRecentWired || hasWiredProd)) {
-                        // 1. 동시 개통 (무선 + 유선) -> 확실한 보라색
-                        rowStyle += "bg-purple-100/90 hover:bg-purple-200/80 border-purple-200 ";
+                    if (isRecentMobile && isRecentWired && isSameDateActivation) {
+                        // 동시 개통 (무선 + 유선 개통일 동일)
+                        rowStyle += "bg-purple-50/80 hover:bg-purple-100/70 ";
                     } else if (isRecentMobile) {
-                        // 2. 무선 개통 -> 확실한 초록색
+                        // 무선 개통
                         rowStyle += "bg-green-100/90 hover:bg-green-200/80 border-green-200 "; 
                     } else if (isRecentWired || hasWiredProd) {
                         // 3. 유선 개통 -> 확실한 파란색
@@ -1900,13 +1958,19 @@
                 
                 let marketingBadge = c.marketingDeny ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mr-1 whitespace-nowrap shadow-sm align-middle">마케팅거부</span>` : '';
 
+                const isInvalid = (val) => !val || val === '-' || String(val).includes('해당없음') || String(val).includes('미적용') || String(val).includes('없음');
+
                 let targetBadges = '';
-                if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">18M+</span>`;
-                else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold">M+6</span>`;
-                if((c.discountType || '').includes('해당없음')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold">약정만료</span>`;
+                if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">18M+</span>`;
+                else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">M+6</span>`;
+                if((c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">약정만료</span>`;
+
+                // 💡 [기능 2] 가족 동시기변 타겟! (약정 18개월 이상 + 결합 유무)
+                if (calc.months >= 18 && !isInvalid(c.combination)) {
+                    targetBadges += `<span class="bg-[#4f46e5] text-white px-1.5 py-0.5 rounded font-bold text-[10px] animate-pulse shadow-md whitespace-nowrap border border-indigo-700">👨‍👩‍👧‍👦가족 동시기변 타겟!</span>`;
+                }
 
                 let extraBadges = '';
-                const isInvalid = (val) => !val || val === '-' || String(val).includes('해당없음') || String(val).includes('미적용') || String(val).includes('없음');
                 
                 if(!isInvalid(c.combination)) extraBadges += `<span class="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 whitespace-nowrap">👪 ${c.combination}</span>`;
                 if(!isInvalid(c.welfare)) extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
@@ -2511,7 +2575,7 @@ ${typeInstruction}
         });
 
         const wiredReportModal = document.getElementById('wiredReportModal');
-        const wiredReportInputs = ['wired-rep-name', 'wired-rep-phone', 'wired-rep-jumin', 'wired-rep-address', 'wired-rep-internet', 'wired-rep-tv', 'wired-rep-extratv', 'wired-rep-subsidy', 'wired-rep-bank', 'wired-rep-account', 'wired-rep-owner', 'wired-rep-combination', 'wired-rep-fee', 'wired-rep-branch', 'wired-rep-memo'];
+        const wiredReportInputs = ['wired-rep-name', 'wired-rep-phone', 'wired-rep-jumin', 'wired-rep-address', 'wired-rep-internet', 'wired-rep-tv', 'wired-rep-extratv', 'wired-rep-subsidy', 'wired-rep-bank', 'wired-rep-account', 'wired-rep-owner', 'wired-rep-combination', 'wired-rep-family', 'wired-rep-fee', 'wired-rep-branch', 'wired-rep-memo'];
         
         document.getElementById('openWiredReportBtn').addEventListener('click', () => {
             if(!currentDetailId) return;
@@ -2540,6 +2604,7 @@ ${typeInstruction}
                 repCombo = (cStr + (wStr ? (cStr ? ' / ' : '') + wStr : '')).trim();
             }
             document.getElementById('wired-rep-combination').value = repCombo;
+            document.getElementById('wired-rep-family').value = c.repFamily || '';
             document.getElementById('wired-rep-fee').value = c.wiredFee || '';
             document.getElementById('wired-rep-branch').value = c.repBranch || '';
             document.getElementById('wired-rep-memo').value = '';
@@ -2579,6 +2644,7 @@ ${typeInstruction}
 `지원금 : ${document.getElementById('wired-rep-subsidy').value}\n` +
 `고객계좌: ${accountStr}\n` +
 `결합: ${document.getElementById('wired-rep-combination').value}\n` +
+`가족정보: ${document.getElementById('wired-rep-family').value}\n` +
 `월요금: ${document.getElementById('wired-rep-fee').value}\n` +
 `개통자: ${cManager}\n` +
 `접수처: ${document.getElementById('wired-rep-branch').value}\n` +
@@ -2610,6 +2676,7 @@ ${typeInstruction}
                         tvProd: document.getElementById('wired-rep-tv').value,
                         repCombination: document.getElementById('wired-rep-combination').value,
                         combination: document.getElementById('wired-rep-combination').value,
+                        repFamily: document.getElementById('wired-rep-family').value,
                         wiredFee: document.getElementById('wired-rep-fee').value,
                         repBranch: document.getElementById('wired-rep-branch').value,
                         updatedAt: new Date().toISOString()
@@ -2644,7 +2711,7 @@ ${typeInstruction}
 
         const reportModal = document.getElementById('reportModal');
         const mobileReportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
-        const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-family', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
 
         window.switchReportTab = function(type) {
@@ -2723,6 +2790,7 @@ ${typeInstruction}
             document.getElementById('rep-wired-internet').value = reportCustomerData.internetProd || '';
             document.getElementById('rep-wired-tv').value = reportCustomerData.tvProd || '';
             document.getElementById('rep-wired-combo').value = repCombo || '';
+            document.getElementById('rep-wired-family').value = reportCustomerData.repFamily || '';
             document.getElementById('rep-wired-fee').value = reportCustomerData.wiredFee || '';
             document.getElementById('rep-wired-branch').value = reportCustomerData.repBranch || '';
 
@@ -2801,6 +2869,7 @@ ${typeInstruction}
                 `지원금 : ${document.getElementById('rep-wired-subsidy').value}\n` +
                 `고객계좌: ${accountStr}\n` +
                 `결합: ${document.getElementById('rep-wired-combo').value}\n` +
+                `가족정보: ${document.getElementById('rep-wired-family').value}\n` +
                 `월요금: ${document.getElementById('rep-wired-fee').value}\n` +
                 `접수처: ${document.getElementById('rep-wired-branch').value}\n`;
             }
@@ -2935,6 +3004,7 @@ ${typeInstruction}
                             tvProd: document.getElementById('rep-wired-tv').value,
                             repCombination: document.getElementById('rep-wired-combo').value,
                             combination: document.getElementById('rep-wired-combo').value,
+                            repFamily: document.getElementById('rep-wired-family').value,
                             wiredFee: document.getElementById('rep-wired-fee').value,
                             repBranch: document.getElementById('rep-wired-branch').value,
                         };
