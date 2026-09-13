@@ -364,29 +364,6 @@
         </div>
 
         <div id="dbView" class="hidden glass-panel p-4 sm:p-6 rounded-b-2xl bg-white shadow-sm min-h-[600px] flex flex-col">
-            <!-- 💡 [추가] 미리 알림 대시보드 영역 -->
-            <div id="reminderDashboard" class="mb-4 bg-indigo-50 border border-indigo-100 rounded-xl p-3 flex flex-wrap gap-4 items-center shadow-sm">
-                <div class="flex items-center gap-2">
-                    <div class="bg-indigo-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md">
-                        <i class="fa-solid fa-bell animate-bounce"></i>
-                    </div>
-                    <div>
-                        <p class="text-[11px] sm:text-xs text-indigo-600 font-bold">오늘 연락할 약속 고객</p>
-                        <p class="text-sm font-extrabold text-gray-800"><span id="dashTodayPromise" class="text-red-500 text-base">0</span>명</p>
-                    </div>
-                </div>
-                <div class="w-px h-8 bg-indigo-200 hidden sm:block"></div>
-                <div class="flex items-center gap-2">
-                    <div class="bg-orange-500 text-white rounded-full w-8 h-8 flex items-center justify-center shadow-md">
-                        <i class="fa-solid fa-bullseye"></i>
-                    </div>
-                    <div>
-                        <p class="text-[11px] sm:text-xs text-orange-600 font-bold">이번 달 약정 만료/타겟 (18M+)</p>
-                        <p class="text-sm font-extrabold text-gray-800"><span id="dashTarget" class="text-orange-500 text-base">0</span>명</p>
-                    </div>
-                </div>
-            </div>
-
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
@@ -821,9 +798,8 @@
                     </div>
 
                     <input type="text" id="wired-rep-fee" placeholder="월요금" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
-                    
-                    <input type="text" id="wired-rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
-                    <input type="text" id="wired-rep-memo" placeholder="기타(메모)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
+                    <input type="text" id="wired-rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
+                    <input type="text" id="wired-rep-memo" placeholder="기타(메모)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                 </div>
                 <textarea id="wiredReportPreview" readonly class="w-full h-[230px] p-3 mt-1 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
             </div>
@@ -1186,7 +1162,6 @@
             nameInput.focus();
         });
 
-        // 💡 오타 및 에러 수정 (콜 -> phone)
         function formatPhone(phone) {
             if (!phone) return '-';
             let cleaned = phone.replace(/[^0-9]/g, '');
@@ -1769,7 +1744,6 @@
             if (checkedBoxes.length === 0) return customAlert("엑셀로 출력할 고객을 먼저 체크해주세요.");
             
             let csv = '\uFEFF';
-            // 💡 [기능 3] 엑셀 출력 클린화: 민감한 상담/고객 메모(memo, obMemo, prospectMemo) 제외 및 영업 데이터 최적화 유지
             csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
 
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
@@ -1827,36 +1801,6 @@
             const query = document.getElementById('searchInput').value.trim().toLowerCase();
             const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
             
-            // 💡 [추가] 대시보드 통계 계산 로직 시작
-            let todayPromiseCount = 0;
-            let targetCount = 0;
-            const todayDateStr = getTodayStr();
-
-            customerDB.forEach(c => {
-                // 1. 오늘 연락할 약속 고객 계산 (완료되지 않은 오늘 날짜의 약속)
-                const promises = [
-                    { date: c.promPlanDate, chk: c.promPlanChk },
-                    { date: c.promAddonDate, chk: c.promAddonChk },
-                    { date: c.promInsDate, chk: c.promInsChk },
-                    { date: c.promOtherDate, chk: c.promOtherChk }
-                ];
-                const hasTodayPromise = promises.some(p => p.date === todayDateStr && !p.chk);
-                if (hasTodayPromise) todayPromiseCount++;
-
-                // 2. 이번 달 기변 타겟 계산 (약정 18개월 이상 또는 만료 && 이미 판매성공/고객거부가 아닌 고객)
-                const calc = getDdayAndMonths(c.activationDate);
-                const isTarget = calc.months >= 18 || (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-                if (isTarget && c.salesStatus !== '판매성공' && c.salesStatus !== '고객거부') {
-                    targetCount++;
-                }
-            });
-
-            const elDashToday = document.getElementById('dashTodayPromise');
-            const elDashTarget = document.getElementById('dashTarget');
-            if (elDashToday) elDashToday.textContent = todayPromiseCount;
-            if (elDashTarget) elDashTarget.textContent = targetCount;
-            // 대시보드 통계 계산 로직 끝
-
             let filteredDB = customerDB.filter(c => {
                 const matchSearch = 
                     (c.name || '').toLowerCase().includes(query) || 
@@ -1933,6 +1877,10 @@
 
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
+                
+                // 💡 [치명적 버그 수정 완료] 유선 상품 존재 여부를 안전하게 확인하는 변수 추가
+                const hasWiredProd = (c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음')) || 
+                                     (c.tvProd && c.tvProd !== '-' && !c.tvProd.includes('해당없음'));
 
                 // 배경색 구분 로직 업데이트
                 if (c.salesStatus === '고객거부') {
@@ -1941,16 +1889,15 @@
                 } else if (c.salesStatus === '판매성공') {
                     if (isRecentMobile && isRecentWired && isSameDateActivation) {
                         // 동시 개통 (무선 + 유선 개통일 동일)
-                        rowStyle += "bg-purple-50/80 hover:bg-purple-100/70 ";
+                        rowStyle += "bg-purple-100/90 hover:bg-purple-200/80 border-purple-200 ";
                     } else if (isRecentMobile) {
                         // 무선 개통
                         rowStyle += "bg-green-100/90 hover:bg-green-200/80 border-green-200 "; 
                     } else if (isRecentWired || hasWiredProd) {
-                        // 3. 유선 개통 -> 확실한 파란색
+                        // 유선 개통 (이제 에러 발생 안함)
                         rowStyle += "bg-blue-100/90 hover:bg-blue-200/80 border-blue-200 "; 
                     } else {
-                        // 4. 기타 판매성공 -> 밝은 에메랄드
-                        rowStyle += "bg-emerald-50 hover:bg-emerald-100/70 ";
+                        rowStyle += "bg-white hover:bg-gray-50/80 ";
                     }
                 } else {
                     rowStyle += "bg-white hover:bg-gray-50/80 ";
@@ -1958,20 +1905,18 @@
                 
                 let marketingBadge = c.marketingDeny ? `<span class="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded font-bold mr-1 whitespace-nowrap shadow-sm align-middle">마케팅거부</span>` : '';
 
-                const isInvalid = (val) => !val || val === '-' || String(val).includes('해당없음') || String(val).includes('미적용') || String(val).includes('없음');
-
                 let targetBadges = '';
-                if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">18M+</span>`;
-                else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">M+6</span>`;
-                if((c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">약정만료</span>`;
+                if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">18M+</span>`;
+                else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold">M+6</span>`;
+                if((c.discountType || '').includes('해당없음')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold">약정만료</span>`;
 
-                // 💡 [기능 2] 가족 동시기변 타겟! (약정 18개월 이상 + 결합 유무)
+                let extraBadges = '';
+                const isInvalid = (val) => !val || val === '-' || String(val).includes('해당없음') || String(val).includes('미적용') || String(val).includes('없음');
+                
                 if (calc.months >= 18 && !isInvalid(c.combination)) {
                     targetBadges += `<span class="bg-[#4f46e5] text-white px-1.5 py-0.5 rounded font-bold text-[10px] animate-pulse shadow-md whitespace-nowrap border border-indigo-700">👨‍👩‍👧‍👦가족 동시기변 타겟!</span>`;
                 }
 
-                let extraBadges = '';
-                
                 if(!isInvalid(c.combination)) extraBadges += `<span class="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 whitespace-nowrap">👪 ${c.combination}</span>`;
                 if(!isInvalid(c.welfare)) extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
                 if(!isInvalid(c.wiredDate)) extraBadges += `<span class="bg-teal-50 text-teal-600 px-1 rounded border border-teal-100 whitespace-nowrap">📺 유선약정: ${getWiredRemainingDays(c.wiredDate)}</span>`;
@@ -2089,7 +2034,7 @@
                     <td class="px-3 py-3 text-xs">
                         <div class="font-bold ${deviceColorClass} truncate max-w-[140px] mb-0.5 ${textStrike}">${displayDeviceOrWired}</div>
                         <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
-                        ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
+                        ${c.activationDate && c.activationDate !== '-' ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
                         ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
                     </td>
                     <td class="px-3 py-3 text-center align-middle">
@@ -2165,7 +2110,7 @@
             document.getElementById('modalActivation').value = c.activationDate || '';
             
             const calc = getDdayAndMonths(c.activationDate);
-            document.getElementById('modalDdayBadge').textContent = c.activationDate ? `(D+${calc.days})` : '';
+            document.getElementById('modalDdayBadge').textContent = c.activationDate && c.activationDate !== '-' ? `(D+${calc.days})` : '';
             
             const validCarriers = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)', '알뜰폰'];
             document.getElementById('modalCarrier').value = c.carrier && validCarriers.includes(c.carrier) ? c.carrier : '미정';
