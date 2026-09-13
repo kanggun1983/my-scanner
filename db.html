@@ -1850,10 +1850,23 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const wiredCalc = getDdayAndMonths(c.wiredDate);
                 
-                const isRecentMobile = c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0;
-                const isRecentWired = c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0;
+                // 유선 상품(인터넷/TV) 기재 여부 확인
+                const hasWiredProd = Boolean(
+                    (c.internetProd && c.internetProd !== '-' && !c.internetProd.includes('해당없음') && !c.internetProd.includes('미적용')) || 
+                    (c.tvProd && c.tvProd !== '-' && !c.tvProd.includes('해당없음') && !c.tvProd.includes('미적용')) || 
+                    (c.repInternetTv && c.repInternetTv !== '-' && !c.repInternetTv.includes('해당없음'))
+                );
 
-                if (c.salesStatus === '판매성공' && !isRecentMobile && !isRecentWired) {
+                // 무선 개통 여부 (최근 3개월 이내 개통)
+                const isRecentMobile = Boolean(c.activationDate && c.activationDate !== '-' && calc.months < 3 && calc.days >= 0);
+                
+                // 유선 개통 여부 (최근 3개월 이내 유선등록/약정일이 있거나, 유선 상품 및 요금이 등록된 경우)
+                const isRecentWired = Boolean(
+                    (c.wiredDate && c.wiredDate !== '-' && wiredCalc.months < 3 && wiredCalc.days >= 0) || 
+                    (hasWiredProd && (c.wiredFee || isRecentMobile))
+                );
+
+                if (c.salesStatus === '판매성공' && !isRecentMobile && !isRecentWired && !hasWiredProd) {
                     c.salesStatus = '미정'; 
                     if (db) {
                         setDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true }).catch(console.error);
@@ -1863,22 +1876,23 @@
                 let rowStyle = "border-b transition ";
                 let textStrike = "";
 
-                // 배경색 구분 로직 업데이트
+                // [배경색 정밀 구분] 무선: 연초록 / 유선: 연파랑 / 동시개통: 연보라
                 if (c.salesStatus === '고객거부') {
-                    rowStyle += "bg-gray-50 opacity-80 hover:bg-gray-100 "; 
+                    rowStyle += "bg-gray-100/90 opacity-75 hover:bg-gray-200/80 "; 
                     textStrike = "line-through decoration-red-500 decoration-[3px] text-gray-400 "; 
                 } else if (c.salesStatus === '판매성공') {
-                    if (isRecentMobile && isRecentWired) {
-                        // 동시 개통 (무선 + 유선)
-                        rowStyle += "bg-purple-50/80 hover:bg-purple-100/70 ";
+                    if (isRecentMobile && (isRecentWired || hasWiredProd)) {
+                        // 1. 동시 개통 (무선 + 유선) -> 확실한 보라색
+                        rowStyle += "bg-purple-100/90 hover:bg-purple-200/80 border-purple-200 ";
                     } else if (isRecentMobile) {
-                        // 무선 개통
-                        rowStyle += "bg-green-50/80 hover:bg-green-100/70 "; 
-                    } else if (isRecentWired) {
-                        // 유선 개통
-                        rowStyle += "bg-blue-50/80 hover:bg-blue-100/70 "; 
+                        // 2. 무선 개통 -> 확실한 초록색
+                        rowStyle += "bg-green-100/90 hover:bg-green-200/80 border-green-200 "; 
+                    } else if (isRecentWired || hasWiredProd) {
+                        // 3. 유선 개통 -> 확실한 파란색
+                        rowStyle += "bg-blue-100/90 hover:bg-blue-200/80 border-blue-200 "; 
                     } else {
-                        rowStyle += "bg-white hover:bg-gray-50/80 ";
+                        // 4. 기타 판매성공 -> 밝은 에메랄드
+                        rowStyle += "bg-emerald-50 hover:bg-emerald-100/70 ";
                     }
                 } else {
                     rowStyle += "bg-white hover:bg-gray-50/80 ";
@@ -2892,6 +2906,12 @@ ${typeInstruction}
                             repUsedPhone: document.getElementById('rep-usedphone').value, 
                             repBranch: document.getElementById('rep-branch').value,
                         };
+
+                        // 모바일 개통보고에서 인터넷+TV(유선)를 함께 작성한 경우 동시개통으로 즉시 연동되도록 유선일자 자동 등록
+                        const repInternetTvVal = document.getElementById('rep-internet-tv').value;
+                        if (repInternetTvVal && repInternetTvVal.trim() !== '') {
+                            updateData.wiredDate = getTodayStr();
+                        }
 
                         if (newDevice) {
                             updateData.repDevice = newDevice;
