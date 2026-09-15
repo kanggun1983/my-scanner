@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V50</title>
+    <title>스마트 고객 정보 추출기 V51</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -81,7 +81,7 @@
             border-bottom: 2px solid #6366f1;
         }
 
-        /* 🖨️ PDF 인쇄를 위한 전용 스타일 및 숨김 처리 */
+        /* 🖨️ PDF 인쇄 전용 스타일 */
         #printSection { display: none; } 
         
         @media print {
@@ -100,7 +100,21 @@
         }
     </style>
 </head>
-<body class="min-h-screen p-2 md:p-8 text-gray-800">
+<body class="min-h-screen text-gray-800">
+
+    <!-- 🔒 구글 로그인 오버레이 (인증 전 표시) -->
+    <div id="loginOverlay" class="fixed inset-0 bg-gray-900 z-[99999] flex flex-col items-center justify-center text-white px-4">
+        <div class="bg-gray-800 p-8 rounded-2xl shadow-2xl flex flex-col items-center text-center max-w-sm w-full border border-gray-700">
+            <i class="fa-solid fa-shield-halved text-6xl text-indigo-500 mb-6"></i>
+            <h2 class="text-2xl font-bold mb-2 text-gray-100">스마트 고객 스캐너</h2>
+            <p class="text-gray-400 mb-8 text-sm font-medium">안전한 데이터 관리를 위해<br>구글 계정으로 로그인해주세요.</p>
+            <button id="googleLoginBtn" class="w-full bg-white text-gray-900 font-bold py-3.5 px-6 rounded-xl flex items-center justify-center gap-3 hover:bg-gray-100 transition shadow-lg">
+                <img src="https://www.google.com/favicon.ico" class="w-5 h-5" alt="Google">
+                <span id="loginBtnText">Google 계정으로 로그인</span>
+            </button>
+            <p id="loginErrorMsg" class="text-red-400 text-xs mt-4 hidden font-bold"></p>
+        </div>
+    </div>
 
     <!-- 커스텀 알림창 UI -->
     <div id="customAlert" class="fixed inset-0 bg-black/60 z-[9999] hidden items-center justify-center p-4">
@@ -120,18 +134,24 @@
         </div>
     </div>
 
-    <div class="max-w-6xl mx-auto space-y-6">
+    <!-- 📱 실제 앱 콘텐츠 영역 (로그인 후 표시) -->
+    <div id="appContent" class="max-w-6xl mx-auto space-y-6 p-2 md:p-8 hidden">
         <header class="flex items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border-b-4 border-indigo-600">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V50: 마스터</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V51: 보안강화</span>
                 </h1>
-                <p class="text-xs sm:text-sm text-gray-500 mt-1 hidden sm:block">유선 상품명 연동 및 모바일/유선 통합 개통보고 폼 안정화</p>
+                <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
+                    <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
+                </p>
             </div>
-            <div class="flex items-center gap-2">
-                <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs sm:text-sm font-semibold px-3 py-2 rounded-lg transition shadow-sm border border-gray-200">
+            <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                <button id="apiSettingBtn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-[10px] sm:text-sm font-semibold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition shadow-sm border border-gray-200">
                     <i class="fa-solid fa-key text-yellow-500"></i> <span class="hidden sm:inline ml-1">AI 키 설정</span>
+                </button>
+                <button id="logoutBtn" class="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] sm:text-sm font-bold px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg transition shadow-sm border border-red-200">
+                    <i class="fa-solid fa-right-from-bracket"></i> 로그아웃
                 </button>
             </div>
         </header>
@@ -480,7 +500,6 @@
                     
                     <div class="flex flex-col gap-2 w-full sm:max-w-[220px]">
                         <div class="relative">
-                            <!-- [5번] 원클릭 문자 템플릿 8종 -->
                             <div class="grid grid-cols-4 gap-1 mb-1.5">
                                 <button type="button" onclick="insertSmsTemplate('birthday')" class="text-[9px] bg-pink-50 text-pink-600 hover:bg-pink-100 py-1 rounded border border-pink-100 transition whitespace-nowrap">🎂 생일</button>
                                 <button type="button" onclick="insertSmsTemplate('contract')" class="text-[9px] bg-yellow-50 text-yellow-600 hover:bg-yellow-100 py-1 rounded border border-yellow-100 transition whitespace-nowrap">📅 만료</button>
@@ -784,7 +803,14 @@
                     <input type="text" id="wired-rep-name" placeholder="고객명 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
                     <input type="text" id="wired-rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
 
-                    <input type="text" id="wired-rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2 mt-1">
+                    <!-- 👁️ 마스킹 적용 (유선보고 주민번호) -->
+                    <div class="relative col-span-2 mt-1">
+                        <input type="password" id="wired-rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="w-full border border-gray-300 p-2 pr-10 rounded focus:ring-1 focus:ring-teal-500 outline-none">
+                        <button type="button" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-teal-600 toggle-mask" tabindex="-1">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
+                    </div>
+
                     <input type="text" id="wired-rep-address" placeholder="주소" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                     
                     <div class="col-span-2 p-2 bg-teal-50 border border-teal-200 rounded grid grid-cols-3 gap-1">
@@ -799,13 +825,20 @@
                     <div class="col-span-2 p-2 bg-yellow-50 border border-yellow-200 rounded grid grid-cols-3 gap-1">
                         <span class="col-span-3 text-[10px] font-bold text-yellow-700 mb-0.5">고객계좌 (은행 / 계좌번호 / 예금주)</span>
                         <input type="text" id="wired-rep-bank" placeholder="은행명" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs">
-                        <input type="text" id="wired-rep-account" placeholder="계좌번호" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-2">
+                        
+                        <!-- 👁️ 마스킹 적용 (유선보고 계좌번호) -->
+                        <div class="relative col-span-2">
+                            <input type="password" id="wired-rep-account" placeholder="계좌번호" class="w-full border border-yellow-300 p-1.5 pr-8 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs">
+                            <button type="button" class="absolute inset-y-0 right-0 px-2 flex items-center text-gray-400 hover:text-yellow-600 toggle-mask" tabindex="-1">
+                                <i class="fa-solid fa-eye-slash text-[10px]"></i>
+                            </button>
+                        </div>
+                        
                         <input type="text" id="wired-rep-owner" placeholder="예금주" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-3 mt-1">
                     </div>
 
                     <input type="text" id="wired-rep-combination" placeholder="결합" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none col-span-2">
                     
-                    <!-- 가족정보 4줄 입력칸 -->
                     <div class="relative col-span-2">
                         <div class="absolute inset-y-0 left-0 flex items-start pt-2 pl-2 pointer-events-none">
                             <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">👨‍👩‍👧‍👦 가족정보</span>
@@ -818,6 +851,7 @@
                     <input type="text" id="wired-rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
                     <input type="text" id="wired-rep-memo" placeholder="기타(메모)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
                 </div>
+                <!-- 👁️ 프리뷰(미리보기) 영역에서는 실제 복사될 내용이 표시됩니다 -->
                 <textarea id="wiredReportPreview" readonly class="w-full h-[230px] p-3 mt-1 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
             </div>
             <div class="p-3 border-t bg-gray-50 flex gap-2">
@@ -852,7 +886,15 @@
                 <div class="grid grid-cols-2 gap-2 text-xs">
                     <input type="text" id="rep-name" placeholder="고객명 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
                     <input type="text" id="rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
-                    <input type="text" id="rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2 mt-1">
+                    
+                    <!-- 👁️ 마스킹 적용 (개통보고 주민번호) -->
+                    <div class="relative col-span-2 mt-1">
+                        <input type="password" id="rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="w-full border border-gray-300 p-2 pr-10 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                        <button type="button" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-green-600 toggle-mask" tabindex="-1">
+                            <i class="fa-solid fa-eye-slash"></i>
+                        </button>
+                    </div>
+
                     <input type="text" id="rep-address" placeholder="주소" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
                 </div>
 
@@ -893,7 +935,6 @@
                         <input type="text" id="rep-combination" class="w-full border border-gray-300 p-2 pl-20 rounded focus:ring-1 focus:ring-green-500 outline-none text-xs" placeholder="내용 입력">
                     </div>
 
-                    <!-- 가족정보 4줄 입력칸 -->
                     <div class="relative col-span-2 mt-1">
                         <div class="absolute inset-y-0 left-0 flex items-start pt-2 pl-2 pointer-events-none">
                             <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">👨‍👩‍👧‍👦 가족정보</span>
@@ -915,7 +956,15 @@
                     <div class="col-span-2 p-2 bg-yellow-50 border border-yellow-200 rounded grid grid-cols-3 gap-1">
                         <span class="col-span-3 text-[10px] font-bold text-yellow-700 mb-0.5">고객계좌 (은행 / 계좌번호 / 예금주)</span>
                         <input type="text" id="rep-wired-bank" placeholder="은행명" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs">
-                        <input type="text" id="rep-wired-account" placeholder="계좌번호" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-2">
+                        
+                        <!-- 👁️ 마스킹 적용 (개통보고 내 유선계좌) -->
+                        <div class="relative col-span-2">
+                            <input type="password" id="rep-wired-account" placeholder="계좌번호" class="w-full border border-yellow-300 p-1.5 pr-8 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs">
+                            <button type="button" class="absolute inset-y-0 right-0 px-2 flex items-center text-gray-400 hover:text-yellow-600 toggle-mask" tabindex="-1">
+                                <i class="fa-solid fa-eye-slash text-[10px]"></i>
+                            </button>
+                        </div>
+
                         <input type="text" id="rep-wired-owner" placeholder="예금주" class="border border-yellow-300 p-1.5 rounded focus:ring-1 focus:ring-yellow-500 outline-none text-xs col-span-3 mt-1">
                     </div>
 
@@ -983,6 +1032,7 @@
             </div>
         </div>
     </div>
+    </div>
 
     <script type="module">
         window.customAlert = function(msg) {
@@ -1007,8 +1057,28 @@
             });
         };
 
+        // 👁️ 마스킹 토글 로직 추가
+        document.querySelectorAll('.toggle-mask').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const input = this.previousElementSibling;
+                const icon = this.querySelector('i');
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                    this.classList.add('text-indigo-600');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                    this.classList.remove('text-indigo-600');
+                }
+            });
+        });
+
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
@@ -1025,6 +1095,73 @@
         let currentDetailId = null;
         let globalStats = { dailyOB: 0, dailySMS: 0, monthlyOB: 0, monthlySMS: 0, date: '', month: '' };
         let currentReportType = 'mobile';
+        let dbUnsubscribe = null;
+        let statsUnsubscribe = null;
+
+        // 🔒 Firebase 초기화 및 로그인 관리
+        async function initFirebase() {
+            try {
+                const app = initializeApp(myFirebaseConfig);
+                auth = getAuth(app); 
+                db = getFirestore(app);
+                const provider = new GoogleAuthProvider();
+
+                // 인증 상태 감지
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        // 로그인 성공 시 UI 전환
+                        document.getElementById('loginOverlay').style.display = 'none';
+                        document.getElementById('appContent').style.display = 'block';
+                        document.getElementById('userEmailDisplay').textContent = user.email;
+                        
+                        attachDBListeners(); // DB 실시간 연동 시작
+                    } else {
+                        // 로그아웃 상태 시 UI 전환
+                        document.getElementById('loginOverlay').style.display = 'flex';
+                        document.getElementById('appContent').style.display = 'none';
+                        
+                        // 기존 DB 연결 해제
+                        if(dbUnsubscribe) dbUnsubscribe();
+                        if(statsUnsubscribe) statsUnsubscribe();
+                        customerDB = [];
+                    }
+                });
+
+                document.getElementById('googleLoginBtn').onclick = () => {
+                    document.getElementById('loginBtnText').textContent = "로그인 처리 중...";
+                    signInWithPopup(auth, provider).catch((error) => {
+                        const errMsg = document.getElementById('loginErrorMsg');
+                        errMsg.textContent = "로그인 실패: " + error.message;
+                        errMsg.classList.remove('hidden');
+                        document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
+                    });
+                };
+
+                document.getElementById('logoutBtn').onclick = () => {
+                    signOut(auth).then(() => {
+                        window.location.reload();
+                    });
+                };
+
+            } catch (error) { console.error("Firebase 에러:", error); }
+        }
+
+        function attachDBListeners() {
+            dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
+                customerDB = [];
+                snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
+                if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
+            });
+            
+            statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
+                if (docSnap.exists()) {
+                    globalStats = docSnap.data();
+                }
+                renderGlobalStatsUI();
+            });
+        }
+
+        initFirebase();
 
         function renderGlobalStatsUI() {
             const now = new Date();
@@ -1099,28 +1236,6 @@
 
         updateAndRenderStats();
 
-        async function initFirebase() {
-            try {
-                const app = initializeApp(myFirebaseConfig);
-                auth = getAuth(app); db = getFirestore(app);
-                signInAnonymously(auth).catch(e => console.log("인증 무시, DB 진행"));
-                
-                onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
-                    customerDB = [];
-                    snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
-                    if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
-                });
-                
-                onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
-                    if (docSnap.exists()) {
-                        globalStats = docSnap.data();
-                    }
-                    renderGlobalStatsUI();
-                });
-            } catch (error) { console.error("Firebase 에러:", error); }
-        }
-        initFirebase();
-
         function formatDob(dob) {
             if (!dob || dob === '-') return '-';
             let cleaned = dob.replace(/[^0-9]/g, '');
@@ -1143,6 +1258,10 @@
             let val = e.target.value.replace(/[^0-9]/g, '');
             if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
         });
+        document.getElementById('wired-rep-jumin').addEventListener('input', function(e) {
+            let val = e.target.value.replace(/[^0-9]/g, '');
+            if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
+        });
 
         function applyPhoneFormat(e) {
             let cursor = e.target.selectionStart;
@@ -1162,6 +1281,7 @@
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-phone').addEventListener('input', applyPhoneFormat); 
+        document.getElementById('wired-rep-phone').addEventListener('input', applyPhoneFormat);
 
         document.getElementById('editPhoneBtn').addEventListener('click', () => {
             const phoneInput = document.getElementById('modalPhone');
@@ -2693,12 +2813,6 @@ familyStr + `\n` +
             if(el) el.addEventListener('input', updateWiredReportPreview); 
         });
 
-        document.getElementById('wired-rep-jumin').addEventListener('input', function(e) {
-            let val = e.target.value.replace(/[^0-9]/g, '');
-            if (val.length > 6) { e.target.value = val.replace(/(\d{6})(\d+)/, '$1-$2').substring(0, 14); }
-        });
-        document.getElementById('wired-rep-phone').addEventListener('input', applyPhoneFormat);
-
         document.getElementById('copyWiredReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('wiredReportPreview').value;
             
@@ -3215,3 +3329,23 @@ familyStr + `\n` +
     </script>
 </body>
 </html>
+```eof
+
+### ⚠️ [중요] DB 자물쇠 채우는 방법 (Firebase 보안 규칙)
+
+코드를 업데이트하셨다면, 앱을 켜셨을 때 **'Google 계정으로 로그인'** 화면이 보이실 겁니다.
+마지막으로, 아까 접속하셨던 파이어베이스 콘솔 화면(보내주신 사진)에서 아래 작업만 해주시면 **완벽하게 안전해집니다.**
+
+1. 왼쪽 메뉴에서 **[Firestore]** (또는 Firestore Database) 클릭
+2. 상단의 **[규칙 (Rules)]** 탭 클릭
+3. 적혀있는 영어 코드를 싹 다 지우시고, **아래 코드로 바꿔서 복사/붙여넣기** 해주세요.
+
+```text
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
