@@ -269,8 +269,8 @@
                         </div>
                         
                         <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-200 focus-within:border-pink-500 transition">
-                            <p class="text-xs text-pink-600 font-semibold mb-1">할부원금 / 개월수 (개통기준)</p>
-                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 150만 / 24개월">
+                            <p class="text-xs text-pink-600 font-semibold mb-1">잔여 할부금 / 잔여 개월 (스캔일 기준)</p>
+                            <input type="text" id="val-installment" class="w-full bg-transparent font-bold text-gray-800 outline-none" placeholder="예: 332,220원 / 6개월">
                         </div>
                         <div class="p-3 bg-purple-50/50 rounded-xl border border-purple-100 focus-within:border-purple-500 transition">
                             <p class="text-xs text-purple-600 font-semibold mb-1">현재 요금제</p>
@@ -745,8 +745,13 @@
                         <input type="text" id="modalDevice" class="modal-input text-xs sm:text-sm" placeholder="단말기명">
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
-                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">할부원금/개월수 (기록값)</span>
-                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="할부정보 원본">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">잔여 할부금/개월 (기준일 값)</span>
+                        <input type="text" id="modalInstallment" class="modal-input text-xs sm:text-sm" placeholder="예: 332,220원 / 6개월">
+                        <div class="flex items-center gap-1 mt-1">
+                            <span class="text-[10px] text-gray-400 whitespace-nowrap">기준일</span>
+                            <input type="date" id="modalInstallmentBase" class="bg-transparent text-[11px] font-bold text-gray-600 outline-none min-w-0 flex-1">
+                        </div>
+                        <p id="modalInstallmentHint" class="hidden text-[10px] text-amber-600 font-bold mt-0.5 leading-snug"></p>
                     </div>
                     
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
@@ -974,9 +979,12 @@
                     <input type="text" id="rep-type" placeholder="유형(신규/기변/번이)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-addons" placeholder="부가서비스" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-insurance" placeholder="보험" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-principal" placeholder="할부원금(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-installment" placeholder="할부개월수" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-discount" placeholder="공시/선약" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    <div class="col-span-2 grid grid-cols-2 gap-2">
+                        <input type="text" id="rep-principal" placeholder="새 폰 할부원금(금액)" class="border border-pink-300 p-2 rounded focus:ring-1 focus:ring-pink-500 outline-none">
+                        <input type="text" id="rep-installment" placeholder="할부개월수 (예: 24)" class="border border-pink-300 p-2 rounded focus:ring-1 focus:ring-pink-500 outline-none">
+                        <p id="rep-installment-hint" class="hidden col-span-2 text-[10px] font-bold text-pink-700 bg-pink-50 border border-pink-100 rounded px-2 py-1 leading-snug"></p>
+                    </div>
                     <input type="text" id="rep-subsidy" placeholder="지원금(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-usedphone" placeholder="중고폰" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     
@@ -1477,30 +1485,128 @@
             }
         }
 
-        function formatInstallmentInput(e) {
-            let val = e.target.value.trim();
-            if (!val || val.includes('원') || val.includes('개월') || val === '-' || val === '해당없음' || val === '완납') return;
-            
-            let parts = val.split(/[\/\s,]+/);
-            if (parts.length >= 2) {
-                let p = parts[0].replace(/[^0-9]/g, '');
-                let m = parts[1].replace(/[^0-9]/g, '');
-                if (p && m) {
-                    e.target.value = `${parseInt(p, 10).toLocaleString('ko-KR')}원 / ${m}개월`;
-                    const saveBtn = document.getElementById('saveDbBtn');
-                    if(saveBtn) saveBtn.classList.remove('hidden');
-                }
-            } else if (parts.length === 1) {
-                let p = parts[0].replace(/[^0-9]/g, '');
-                if(p) {
-                    e.target.value = `${parseInt(p, 10).toLocaleString('ko-KR')}원`;
-                    const saveBtn = document.getElementById('saveDbBtn');
-                    if(saveBtn) saveBtn.classList.remove('hidden');
-                }
+        // ─────────────────────────────────────────────
+        // 💳 할부 공용 함수 (스캐너 / 상세카드 / 개통보고 / 목록 / 프로필카드 / 엑셀 모두 같은 규칙 사용)
+        //   · 할부값은 항상 "기준일 시점의 잔여 할부금 / 잔여 개월" 로 저장
+        //   · 기준일: 스캔이면 스캔일, 개통보고면 개통일, 상세카드에서 고치면 고친 날(직접 변경 가능)
+        // ─────────────────────────────────────────────
+
+        // "1,500,000원" / "150만" / "150만5천" / "1.5만" / "332,220원(잔여)" → 숫자 (해석 불가면 null)
+        function parseKoreanAmount(str) {
+            if (str === undefined || str === null) return null;
+            const s = String(str).replace(/\s+/g, '');
+            if (!/\d/.test(s)) return null;
+            const man = s.match(/([\d,.]+)만(?:([\d,]+)천|([\d,]+))?/);
+            if (man) {
+                let amount = Math.round(parseFloat(man[1].replace(/,/g, '')) * 10000);
+                if (man[2]) amount += parseInt(man[2].replace(/,/g, ''), 10) * 1000;
+                else if (man[3]) amount += parseInt(man[3].replace(/,/g, ''), 10);
+                return isNaN(amount) ? null : amount;
             }
+            const first = s.match(/\d[\d,]*/);  // 첫 번째 숫자 덩어리만 (괄호 안 숫자까지 이어붙이지 않음)
+            if (!first) return null;
+            const n = parseInt(first[0].replace(/,/g, ''), 10);
+            return isNaN(n) ? null : n;
+        }
+
+        // "6개월" / "6개월(24개월)" / "24" → 첫 번째 숫자 (완납/일시불 → 0, 없으면 null)
+        function parseInstallmentMonths(str) {
+            const s = String(str ?? '');
+            if (/완납|일시불/.test(s)) return 0;
+            const m = s.match(/\d+/);
+            return m ? parseInt(m[0], 10) : null;
+        }
+
+        // 직접 입력한 할부 문자열을 "1,500,000원 / 24개월" 형태로 정리 (해석 못 하면 입력 그대로 둠)
+        function normalizeInstallmentText(val) {
+            const s = String(val || '').trim();
+            if (!s || s === '-' || s.includes('해당없음') || s.includes('완납')) return s;
+            let amountPart, monthPart = '';
+            if (s.includes('/')) {
+                const idx = s.indexOf('/');
+                amountPart = s.slice(0, idx);
+                monthPart = s.slice(idx + 1);
+            } else {
+                const tokens = s.split(/\s+/);
+                if (tokens.length === 1 && tokens[0].includes('개월')) return s; // 개월만 적은 경우는 손대지 않음
+                if (tokens.length >= 2) { monthPart = tokens.pop(); amountPart = tokens.join(' '); }
+                else amountPart = s;
+            }
+            const amount = parseKoreanAmount(amountPart);
+            if (amount === null) return s;
+            if (!monthPart.trim()) return `${amount.toLocaleString('ko-KR')}원`;
+            const months = parseInstallmentMonths(monthPart);
+            if (months === null) return s;
+            if (months === 0) return '완납';
+            return `${amount.toLocaleString('ko-KR')}원 / ${months}개월`;
+        }
+
+        // 개통보고의 [할부원금] + [할부개월수] → 저장용 할부 문자열 (둘 다 비었으면 null = 기존 값 유지)
+        function buildInstallmentFromReport(principalText, monthsText) {
+            const p = String(principalText || '').trim();
+            const m = String(monthsText || '').trim();
+            if (!p && !m) return null;
+            const amount = p ? parseKoreanAmount(p) : null;
+            const months = m ? parseInstallmentMonths(m) : null;
+            if (months === 0 || amount === 0) return '완납';
+            if (amount !== null && months !== null) return `${amount.toLocaleString('ko-KR')}원 / ${months}개월`;
+            if (months !== null) return `금액미입력 / ${months}개월`;
+            if (amount !== null) return `${amount.toLocaleString('ko-KR')}원`;
+            return [p, m].filter(Boolean).join(' / ');
+        }
+
+        // 기준일부터 오늘까지 지난 개월 수 (기준일이 없거나 미래면 0)
+        function getMonthsPassedSince(dateStr) {
+            const base = parseDateString(dateStr);
+            if (!base || isNaN(base.getTime())) return 0;
+            const today = new Date();
+            let passed = (today.getFullYear() - base.getFullYear()) * 12 + (today.getMonth() - base.getMonth());
+            if (today.getDate() < base.getDate()) passed--;
+            return Math.max(0, passed);
+        }
+
+        // 지금 저장된 할부값이 예전 개통보고에서 온 값인지 (기준일 필드가 생기기 전 데이터 판별용)
+        function isReportDerivedInstallment(c) {
+            if (!c.installment || !(c.repPrincipal || c.repInstallment) || c.installment.includes('완납')) return false;
+            const slash = c.installment.indexOf('/');
+            const instAmount = parseKoreanAmount(slash >= 0 ? c.installment.slice(0, slash) : c.installment);
+            const instMonths = slash >= 0 ? parseInstallmentMonths(c.installment.slice(slash + 1)) : null;
+            return instAmount === parseKoreanAmount(c.repPrincipal) && instMonths === parseInstallmentMonths(c.repInstallment);
+        }
+
+        // 할부 기준일 { date, uncertain } — uncertain: 예전 개통보고 데이터라 정확한 개통일을 알 수 없어 확인이 필요한 경우
+        function getInstallmentBaseInfo(c) {
+            if (c.installmentBaseDate) return { date: c.installmentBaseDate, uncertain: false };
+            if (isReportDerivedInstallment(c) && c.visitDate !== c.activationDate) {
+                if (c.activationDate && c.activationDate > (c.visitDate || '')) return { date: c.activationDate, uncertain: false };
+                return { date: c.visitDate || '', uncertain: true };
+            }
+            return { date: c.visitDate || '', uncertain: false };
+        }
+        function getInstallmentBaseDate(c) { return getInstallmentBaseInfo(c).date; }
+
+        function formatInstallmentInput(e) {
+            const val = e.target.value.trim();
+            const formatted = normalizeInstallmentText(val);
+            if (formatted !== val) e.target.value = formatted;
+            if (e.target.id === 'val-installment' && val) {
+                document.getElementById('saveDbBtn').classList.remove('hidden');
+            }
+            if (e.target.id === 'modalInstallment') syncModalInstallmentBase();
         }
         document.getElementById('val-installment').addEventListener('blur', formatInstallmentInput);
         document.getElementById('modalInstallment').addEventListener('blur', formatInstallmentInput);
+
+        // 상세카드에서 할부값을 새로 고쳐 적으면 → 기준일을 오늘로 자동 변경 (원래 값으로 되돌리면 원래 기준일로 복귀)
+        let modalInstallmentOriginal = '';
+        let modalInstallmentBaseOriginal = '';
+        function syncModalInstallmentBase() {
+            const cur = document.getElementById('modalInstallment').value.trim();
+            const baseEl = document.getElementById('modalInstallmentBase');
+            if (cur === modalInstallmentOriginal.trim()) baseEl.value = modalInstallmentBaseOriginal;
+            else if (cur) baseEl.value = getTodayStr();
+        }
+        document.getElementById('modalInstallment').addEventListener('input', syncModalInstallmentBase);
 
         function formatFeeInput(e) {
             let val = e.target.value.trim();
@@ -1572,55 +1678,29 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        function getDynamicInstallment(installmentStr, activationDateStr, visitDateStr) {
+        // 기준일 시점의 잔여 할부값에서 지난 개월만큼 빼서 "오늘 기준" 잔여 할부를 추정
+        // (원금을 남은 개월로 똑같이 나눠 줄이는 방식이라 할부수수료 때문에 실제와 몇 % 차이 날 수 있어 '약'으로 표시)
+        function getDynamicInstallment(installmentStr, baseDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
-            if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
-            
-            const visDate = parseDateString(visitDateStr);
-            const today = new Date();
-            
-            let visMonthsPassed = 0;
-            if (visDate) {
-                visMonthsPassed = (today.getFullYear() - visDate.getFullYear()) * 12 + (today.getMonth() - visDate.getMonth());
-                if (today.getDate() < visDate.getDate()) visMonthsPassed--;
+            if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr.trim() === '-') return installmentStr;
+
+            const slash = installmentStr.indexOf('/');
+            if (slash === -1) return installmentStr;
+            const months = parseInstallmentMonths(installmentStr.slice(slash + 1));
+            if (!months || months <= 0) return installmentStr;
+
+            const passed = getMonthsPassedSince(baseDateStr);
+            if (passed <= 0) return installmentStr;
+
+            const remainMonths = months - passed;
+            if (remainMonths <= 0) return '🎉 완납 (자동처리)';
+
+            const amount = parseKoreanAmount(installmentStr.slice(0, slash));
+            if (amount && amount > 0) {
+                const remainAmt = Math.floor(amount / months * remainMonths);
+                return `약 ${remainAmt.toLocaleString('ko-KR')}원 / ${remainMonths}개월 (⬇${passed}M)`;
             }
-
-            const splitData = installmentStr.split('/');
-            if (splitData.length >= 2) {
-                const monthStr = splitData[1].replace(/[^0-9]/g, ''); 
-                if (monthStr) {
-                    const parsedMonths = parseInt(monthStr, 10);
-                    if (parsedMonths <= 0) return installmentStr;
-                    
-                    let monthsPassedToUse = Math.max(0, visMonthsPassed);
-
-                    if (monthsPassedToUse <= 0) return installmentStr;
-
-                    const remainMonths = parsedMonths - monthsPassedToUse;
-                    if (remainMonths <= 0) return '🎉 완납 (자동처리)';
-                    
-                    let amountStr = splitData[0];
-                    let amount = 0;
-                    if (amountStr.includes('만')) {
-                        let partsMan = amountStr.split('만');
-                        let man = parseInt(partsMan[0].replace(/[^0-9]/g, '') || '0', 10);
-                        let remainderStr = partsMan[1].replace(/[^0-9]/g, '');
-                        let remainder = parseInt(remainderStr || '0', 10);
-                        if (partsMan[1].includes('천') && remainder < 100) remainder *= 1000;
-                        amount = (man * 10000) + remainder;
-                    } else {
-                        amount = parseInt(amountStr.replace(/[^0-9]/g, '') || '0', 10);
-                    }
-                    
-                    if (amount > 0) {
-                        let monthly = amount / parsedMonths;
-                        let remainAmt = monthly * remainMonths;
-                        return `${Math.floor(remainAmt).toLocaleString()}원 / ${remainMonths}개월 (⬇${monthsPassedToUse}M)`;
-                    }
-                    return `금액확인필요 / ${remainMonths}개월 (⬇${monthsPassedToUse}M)`;
-                }
-            }
-            return installmentStr; 
+            return `금액확인필요 / ${remainMonths}개월 (⬇${passed}M)`;
         }
 
         // ─────────────────────────────────────────────
@@ -1907,6 +1987,15 @@
             const finalLegalDob = document.getElementById('val-legal-dob') ? (document.getElementById('val-legal-dob').value || (existingCustomer ? existingCustomer.legalDob : '')) : '';
             const finalMarketingDeny = document.getElementById('val-marketing-deny').checked || (existingCustomer ? existingCustomer.marketingDeny : false);
 
+            // 💳 할부: 스캔값은 '스캔일 기준 잔여값' → 기준일 = 스캔(방문)일
+            //    재스캔 사진에 할부가 안 찍혀 빈칸이면 기존 할부값과 기준일을 그대로 유지
+            let finalInstallment = document.getElementById('val-installment').value.trim();
+            let finalInstallmentBase = document.getElementById('val-date').value || getTodayStr();
+            if (!finalInstallment && existingCustomer && existingCustomer.installment) {
+                finalInstallment = existingCustomer.installment;
+                finalInstallmentBase = getInstallmentBaseDate(existingCustomer);
+            }
+
             const finalMemo = document.getElementById('memoPad').value || (existingCustomer ? (existingCustomer.memo || '') : '');
             const finalObMemo = document.getElementById('obMemoPad').value || (existingCustomer ? (existingCustomer.obMemo || '') : '');
             const finalProspectMemo = existingCustomer ? (existingCustomer.prospectMemo || '') : '';
@@ -1944,7 +2033,8 @@
                 phone: document.getElementById('val-phone').value,
                 carrier: finalCarrier,
                 device: document.getElementById('val-device').value,
-                installment: document.getElementById('val-installment').value, 
+                installment: finalInstallment,
+                installmentBaseDate: finalInstallmentBase,
                 activationDate: document.getElementById('val-activation').value, 
                 dob: document.getElementById('val-dob').value,
                 plan: document.getElementById('val-plan').value,
@@ -2094,7 +2184,7 @@
             }
 
             let csv = '\uFEFF';
-            csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
+            csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일,할부기준일,잔여할부(오늘기준)\n";
 
             const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
 
@@ -2119,7 +2209,9 @@
                     escapeCSV(formatPhone(c.legalPhone)),
                     escapeCSV(c.salesStatus),
                     escapeCSV(c.manager || c.contactManager),
-                    escapeCSV(c.visitDate)
+                    escapeCSV(c.visitDate),
+                    escapeCSV(c.installment ? getInstallmentBaseDate(c) : ''),
+                    escapeCSV(getDynamicInstallment(c.installment, getInstallmentBaseDate(c)))
                 ];
                 csv += row.join(",") + "\n";
             });
@@ -2458,7 +2550,8 @@
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">LG</span>`;
                 else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${c.carrier}</span>`;
 
-                let dynamicInstallment = getDynamicInstallment(c.installment, c.activationDate, c.visitDate);
+                const instBase = getInstallmentBaseInfo(c);
+                let dynamicInstallment = getDynamicInstallment(c.installment, instBase.date);
 
                 let discountBadge = '';
                 if ((c.discountType || '').includes('선택약정')) {
@@ -2575,7 +2668,7 @@
                     </td>
                     <td class="px-3 py-3 text-xs">
                         ${c.installment && c.installment !== '해당없음' && c.installment !== '완납' && c.installment !== '-' 
-                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="최초 스캔/등록된 원본 데이터: ${c.installment}">💳 ${dynamicInstallment}</div>` 
+                            ? `<div class="text-[11px] text-pink-600 font-bold bg-pink-50 px-2 py-1 rounded inline-block border border-pink-100 whitespace-nowrap cursor-help" title="기준일 ${escapeHtml(instBase.date || '미상')} 값: ${escapeHtml(c.installment)}">💳 ${escapeHtml(dynamicInstallment)}</div>${instBase.uncertain ? '<div class="text-[9px] text-amber-600 font-bold mt-1">⚠️ 할부 기준일 확인 필요</div>' : ''}` 
                             : '<span class="text-[11px] text-gray-400 font-medium">해당없음/완납</span>'}
                     </td>
                     <td class="px-3 py-3">
@@ -2653,6 +2746,17 @@
             document.getElementById('modalDob').value = formatDob(c.dob || '');
             document.getElementById('modalDevice').value = c.device || '';
             document.getElementById('modalInstallment').value = applyComma(c.installment || ''); 
+            const instBaseInfo = getInstallmentBaseInfo(c);
+            document.getElementById('modalInstallmentBase').value = instBaseInfo.date || '';
+            modalInstallmentOriginal = document.getElementById('modalInstallment').value;
+            modalInstallmentBaseOriginal = instBaseInfo.date || '';
+            const instHintEl = document.getElementById('modalInstallmentHint');
+            if (instBaseInfo.uncertain) {
+                instHintEl.textContent = '⚠️ 예전 개통보고 값이에요. 기준일을 실제 개통일로 맞춰주세요.';
+                instHintEl.classList.remove('hidden');
+            } else {
+                instHintEl.classList.add('hidden');
+            }
             document.getElementById('modalPlan').value = c.plan || '';
             document.getElementById('modalFee').value = applyComma(c.fee || '');
             document.getElementById('modalUsage').value = c.usage || '';
@@ -2936,9 +3040,11 @@
             const actHtml = c.activationDate ? `${escapeHtml(c.activationDate)} <span class="text-[11px] text-red-400 ml-1">D+${act.days}</span>` : PROFILE_DASH;
             let instHtml = PROFILE_DASH;
             if (filled(c.installment)) {
-                const dyn = getDynamicInstallment(c.installment, c.activationDate, c.visitDate);
+                const base = getInstallmentBaseInfo(c);
+                const dyn = getDynamicInstallment(c.installment, base.date);
                 instHtml = `<span class="text-pink-600">${escapeHtml(dyn)}</span>`;
-                if (dyn !== c.installment) instHtml += `<br><span class="text-[11px] text-gray-400 font-medium">스캔 당시: ${escapeHtml(c.installment)}</span>`;
+                if (dyn !== c.installment) instHtml += `<br><span class="text-[11px] text-gray-400 font-medium">${escapeHtml(base.date || '기준일 미상')} 기준: ${escapeHtml(c.installment)}</span>`;
+                if (base.uncertain) instHtml += `<br><span class="text-[11px] text-amber-600 font-bold">⚠️ 예전 개통보고 값이라 기준일 확인이 필요해요. [수정]에서 기준일을 실제 개통일로 맞춰주세요.</span>`;
             }
             return [
                 profileKV('단말기', profileValue(c.device)),
@@ -3242,7 +3348,8 @@ ${typeInstruction}
                 carrier: document.getElementById('modalCarrier').value,
                 dob: document.getElementById('modalDob').value,
                 device: document.getElementById('modalDevice').value,
-                installment: document.getElementById('modalInstallment').value, 
+                installment: document.getElementById('modalInstallment').value.trim(),
+                installmentBaseDate: document.getElementById('modalInstallmentBase').value || (document.getElementById('modalInstallment').value.trim() ? getTodayStr() : ''),
                 discountType: document.getElementById('modalDiscount').value,
                 plan: document.getElementById('modalPlan').value,
                 fee: document.getElementById('modalFee').value,
@@ -3365,7 +3472,7 @@ ${typeInstruction}
                         </tr>
                         <tr>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할부정보</th>
-                            <td style="border: 1px solid #ccc; padding: 10px;">${c.installment || '-'}</td>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${c.installment ? `${escapeHtml(getDynamicInstallment(c.installment, getInstallmentBaseDate(c)))}<br><span style="font-size: 9pt; color: #888;">(${escapeHtml(getInstallmentBaseDate(c) || '기준일 미상')} 기준: ${escapeHtml(c.installment)})</span>` : '-'}</td>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할인유형</th>
                             <td style="border: 1px solid #ccc; padding: 10px;">${c.discountType || '-'}</td>
                         </tr>
@@ -3423,6 +3530,7 @@ ${typeInstruction}
         });
 
         const wiredReportModal = document.getElementById('wiredReportModal');
+        let wiredReportPrefillCombo = '';
         const wiredReportInputs = ['wired-rep-name', 'wired-rep-phone', 'wired-rep-jumin', 'wired-rep-address', 'wired-rep-internet', 'wired-rep-tv', 'wired-rep-extratv', 'wired-rep-subsidy', 'wired-rep-bank', 'wired-rep-account', 'wired-rep-owner', 'wired-rep-combination', 'wired-rep-family', 'wired-rep-fee', 'wired-rep-branch', 'wired-rep-memo'];
         
         document.getElementById('openWiredReportBtn').addEventListener('click', () => {
@@ -3452,6 +3560,7 @@ ${typeInstruction}
                 repCombo = (cStr + (wStr ? (cStr ? ' / ' : '') + wStr : '')).trim();
             }
             document.getElementById('wired-rep-combination').value = repCombo;
+            wiredReportPrefillCombo = (repCombo || '').trim(); // 안 바꾸고 저장하면 기존 결합·복지 정보 유지
             document.getElementById('wired-rep-family').value = c.repFamily || '';
             document.getElementById('wired-rep-fee').value = c.wiredFee || '';
             document.getElementById('wired-rep-branch').value = c.repBranch || '';
@@ -3520,12 +3629,16 @@ familyStr + `\n` +
                         internetProd: document.getElementById('wired-rep-internet').value,
                         tvProd: document.getElementById('wired-rep-tv').value,
                         repCombination: document.getElementById('wired-rep-combination').value,
-                        combination: document.getElementById('wired-rep-combination').value,
                         repFamily: document.getElementById('wired-rep-family').value,
                         wiredFee: document.getElementById('wired-rep-fee').value,
                         repBranch: document.getElementById('wired-rep-branch').value,
                         updatedAt: new Date().toISOString()
                     };
+                    const wiredComboVal = document.getElementById('wired-rep-combination').value.trim();
+                    if (wiredComboVal && wiredComboVal !== wiredReportPrefillCombo) {
+                        updateData.combination = wiredComboVal;
+                        updateData.welfare = '';
+                    }
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
                     const idx = customerDB.findIndex(x => x.id === currentDetailId);
@@ -3558,6 +3671,7 @@ familyStr + `\n` +
         const mobileReportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-family', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
+        let reportPrefill = { intTv: '', combo: '' }; // 개통보고를 열 때 미리 채워진 인터넷/결합 문구
 
         window.switchReportTab = function(type) {
             currentReportType = type;
@@ -3583,6 +3697,8 @@ familyStr + `\n` +
         document.getElementById('newReportBtn').addEventListener('click', () => {
             currentDetailId = null;
             reportCustomerData = null;
+            reportPrefill = { intTv: '', combo: '' };
+            document.getElementById('rep-installment-hint').classList.add('hidden');
             [...mobileReportInputs, ...wiredReportModalInputs].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
@@ -3639,19 +3755,41 @@ familyStr + `\n` +
             document.getElementById('rep-wired-fee').value = reportCustomerData.wiredFee || '';
             document.getElementById('rep-wired-branch').value = reportCustomerData.repBranch || '';
 
+            // 💳 할부 미리채움
+            //   · 예전에 이 고객으로 쓴 개통보고 값이 있으면 그 값
+            //   · 없으면: 스캔한 폰이 최근 1개월 안에 개통된 폰(=새 폰을 스캔한 경우)일 때만 스캔 할부값을 채움
+            //   · 그 외엔 스캔값이 '지금 쓰는 폰'의 잔여할부라 새 폰 칸에 넣지 않고 참고 안내로만 보여줌
             let pVal = reportCustomerData.repPrincipal || '';
             let iVal = reportCustomerData.repInstallment || '';
-            if (!pVal && !iVal && reportCustomerData.installment) {
-                let parts = reportCustomerData.installment.split('/');
-                if (parts.length >= 2) {
-                    pVal = parts[0].replace(/[^0-9]/g, '');
-                    iVal = parts[1].trim();
+            const instHint = document.getElementById('rep-installment-hint');
+            instHint.classList.add('hidden');
+            const curInst = (reportCustomerData.installment || '').trim();
+            if (!pVal && !iVal && curInst && curInst !== '-') {
+                const act = reportCustomerData.activationDate;
+                const scannedNewPhone = !!(act && act.length === 10 && getDdayAndMonths(act).days <= 31);
+                if (scannedNewPhone) {
+                    if (curInst.includes('완납')) {
+                        iVal = '완납';
+                    } else {
+                        const slash = curInst.indexOf('/');
+                        const amt = parseKoreanAmount(slash >= 0 ? curInst.slice(0, slash) : curInst);
+                        const mon = slash >= 0 ? parseInstallmentMonths(curInst.slice(slash + 1)) : null;
+                        pVal = amt !== null ? String(amt) : '';
+                        iVal = mon !== null ? `${mon}개월` : '';
+                    }
                 } else {
-                    iVal = reportCustomerData.installment;
+                    instHint.textContent = `📌 지금 쓰는 폰 잔여할부: ${getDynamicInstallment(curInst, getInstallmentBaseDate(reportCustomerData))} (참고용 — 위 칸엔 새 폰 할부를 입력하세요)`;
+                    instHint.classList.remove('hidden');
                 }
             }
             document.getElementById('rep-principal').value = applyComma(pVal);
             document.getElementById('rep-installment').value = iVal;
+
+            // 미리 채운 인터넷/결합 문구 기억 → 저장할 때 안 바꿨으면 기존 유선·결합 정보를 건드리지 않음
+            reportPrefill = {
+                intTv: document.getElementById('rep-internet-tv').value.trim(),
+                combo: (repCombo || '').trim()
+            };
 
             switchReportTab('mobile');
             reportModal.style.display = 'flex';
@@ -3781,24 +3919,14 @@ familyStr + `\n` +
                             else parsedDiscount = '해당없음';
                         }
 
-                        let combinedInstallment = reportCustomerData ? (reportCustomerData.installment || '') : '';
-                        if (newPrincipal || newInstallment) {
-                            let p = newPrincipal.trim();
-                            let i = newInstallment.trim();
-                            
-                            if (p && !p.endsWith('원')) p += '원';
-                            if (i && i !== '완납' && i !== '0' && !i.endsWith('개월')) i += '개월';
+                        // 💳 새 폰 할부: 원금만 비었을 때 '완납'으로 저장되던 문제, 개월에 0 입력 시 "0" 으로 저장되던 문제 수정
+                        const builtInstallment = buildInstallmentFromReport(newPrincipal, newInstallment);
 
-                            if (i === '완납' || i === '0개월' || p === '0원' || p === '') {
-                                if (p === '0원' || p === '') combinedInstallment = '완납';
-                                else combinedInstallment = `${p} / 완납`;
-                            } else {
-                                combinedInstallment = `${p ? p : '0원'} / ${i ? i : '0개월'}`;
-                            }
-                        }
-
+                        // 📅 개통일: 기존 개통일이 없거나 3개월 이상 지난 값(=지금 쓰던 폰 개통일)이면 오늘로 새로 설정
+                        //    (상세카드에서 '판매성공' 저장할 때와 같은 규칙. 예전엔 옛 폰 개통일이 그대로 남아 사용기간/기변타겟이 틀어졌음)
                         const currentActDate = reportCustomerData ? reportCustomerData.activationDate : '';
-                        const finalActDate = (currentActDate && currentActDate.length === 10 && currentActDate !== '-') ? currentActDate : getTodayStr();
+                        const keepActDate = !!(currentActDate && currentActDate.length === 10 && currentActDate !== '-' && getDdayAndMonths(currentActDate).months < 3);
+                        const finalActDate = keepActDate ? currentActDate : getTodayStr();
 
                         updateData = {
                             ...updateData,
@@ -3806,9 +3934,7 @@ familyStr + `\n` +
                             activationDate: finalActDate, 
                             repJumin: document.getElementById('rep-jumin').value, 
                             repInternetTv: document.getElementById('rep-internet-tv').value,
-                            internetProd: document.getElementById('rep-internet-tv').value,
                             repCombination: document.getElementById('rep-combination').value,
-                            combination: document.getElementById('rep-combination').value,
                             repFamily: document.getElementById('rep-family').value, // 모바일보고 가족정보
                             repAddress: document.getElementById('rep-address').value, 
                             plan: document.getElementById('rep-plan').value,
@@ -3825,17 +3951,29 @@ familyStr + `\n` +
                             repBranch: document.getElementById('rep-branch').value,
                         };
 
+                        // 📺 인터넷+TV: 미리 채워진 문구 그대로면 기존 유선 정보(상품·약정일)를 건드리지 않음
+                        //    (예전엔 모바일 개통보고만 해도 유선 약정일이 모바일 개통일로 덮어써지고 인터넷/TV가 중복 저장됐음)
                         const intTvInputVal = document.getElementById('rep-internet-tv').value.trim();
-                        if (intTvInputVal && intTvInputVal !== '-' && !updateData.wiredDate) {
+                        if (intTvInputVal && intTvInputVal !== '-' && intTvInputVal !== reportPrefill.intTv) {
+                            updateData.internetProd = intTvInputVal;
+                            updateData.tvProd = '';
                             updateData.wiredDate = finalActDate;
+                        }
+
+                        // 👪 결합/복지: 미리 채워진 문구 그대로면 기존 결합·복지 정보를 건드리지 않음 (중복 표시 방지)
+                        const comboInputVal = document.getElementById('rep-combination').value.trim();
+                        if (comboInputVal && comboInputVal !== reportPrefill.combo) {
+                            updateData.combination = comboInputVal;
+                            updateData.welfare = '';
                         }
 
                         if (newDevice) {
                             updateData.repDevice = newDevice;
                             updateData.device = newDevice;
                         }
-                        if (combinedInstallment) {
-                            updateData.installment = combinedInstallment;
+                        if (builtInstallment !== null) {
+                            updateData.installment = builtInstallment;
+                            updateData.installmentBaseDate = finalActDate; // 새 폰 할부는 개통일부터 차감 시작
                         }
                         if (parsedDiscount !== '미정') {
                             updateData.discountType = parsedDiscount;
@@ -3850,10 +3988,14 @@ familyStr + `\n` +
                             internetProd: document.getElementById('rep-wired-internet').value,
                             tvProd: document.getElementById('rep-wired-tv').value,
                             repCombination: document.getElementById('rep-wired-combo').value,
-                            combination: document.getElementById('rep-wired-combo').value,
                             wiredFee: document.getElementById('rep-wired-fee').value,
                             repBranch: document.getElementById('rep-wired-branch').value,
                         };
+                        const wiredComboVal = document.getElementById('rep-wired-combo').value.trim();
+                        if (wiredComboVal && wiredComboVal !== reportPrefill.combo) {
+                            updateData.combination = wiredComboVal;
+                            updateData.welfare = '';
+                        }
                     }
 
                     let newDob = reportCustomerData ? reportCustomerData.dob : '';
