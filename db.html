@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="ko" translate="no">
 <head>
@@ -167,6 +166,7 @@
             </button>
         </div>
 
+        <!-- Z Fold 8 등 폴드 펼친 화면 대응 위해 md:grid-cols-12 로 유지 -->
         <div id="scannerView" class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-white p-4 rounded-b-2xl shadow-sm">
             <div class="md:col-span-5 space-y-4">
                 <div class="glass-panel p-6 rounded-2xl h-full flex flex-col">
@@ -718,11 +718,18 @@
                         <input type="text" id="modalUsage" class="modal-input text-xs sm:text-sm" placeholder="데이터/통화">
                     </div>
 
-                    <div class="bg-blue-50/30 p-2 sm:p-3 rounded-lg border border-blue-200 focus-within:border-blue-500 col-span-2">
-                        <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">가족결합 및 복지할인</span>
-                        <input type="text" id="modalCombination" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="결합 및 복지 정보">
+                    <div class="bg-blue-50/30 p-2 sm:p-3 rounded-lg border border-blue-200 focus-within:border-blue-500 col-span-2 grid grid-cols-2 gap-2">
+                        <div>
+                            <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">가족결합</span>
+                            <input type="text" id="modalCombinationOnly" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="결합 정보">
+                        </div>
+                        <div>
+                            <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">복지할인</span>
+                            <input type="text" id="modalWelfareOnly" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="복지 정보">
+                        </div>
                     </div>
 
+                    <!-- 추가된 가족정보 연동 영역 -->
                     <div class="bg-indigo-50/30 p-2 sm:p-3 rounded-lg border border-indigo-200 focus-within:border-indigo-500 col-span-2">
                         <span class="block text-[10px] sm:text-xs text-indigo-700 font-bold mb-1">👨‍👩‍👧‍👦 가족 정보 (유선/결합 타겟)</span>
                         <textarea id="modalFamily" class="w-full bg-transparent border border-indigo-100 p-2 rounded text-xs text-gray-800 outline-none focus:ring-1 focus:ring-indigo-400 resize-none min-h-[60px]" placeholder="가족 관계 / 이름 / 연락처 등을 입력하세요"></textarea>
@@ -730,7 +737,10 @@
                     
                     <div class="bg-teal-50/30 p-2 sm:p-3 rounded-lg border border-teal-200 focus-within:border-teal-500 col-span-2">
                         <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">인터넷/TV 상품</span>
-                        <input type="text" id="modalInternetTv" class="modal-input text-xs sm:text-sm" placeholder="인터넷 및 TV 상품명">
+                        <div class="grid grid-cols-2 gap-2">
+                            <input type="text" id="modalInternetOnly" class="modal-input text-xs sm:text-sm" placeholder="인터넷 상품명">
+                            <input type="text" id="modalTvOnly" class="modal-input text-xs sm:text-sm" placeholder="TV 상품명">
+                        </div>
                         <div class="mt-2 pt-2 border-t border-teal-100">
                             <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">유선 월 청구금액</span>
                             <input type="text" id="modalWiredFee" class="modal-input text-xs sm:text-sm" placeholder="요금">
@@ -821,6 +831,7 @@
                     <input type="text" id="wired-rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
 
                     <div class="relative col-span-2 mt-1">
+                        <!-- 패스워드 제거하고 type="text"로 표시 -->
                         <input type="text" id="wired-rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
                     </div>
 
@@ -896,6 +907,7 @@
                     <input type="text" id="rep-phone" placeholder="연락처 (필수)" class="border border-blue-300 bg-blue-50 p-2 rounded focus:ring-1 focus:ring-blue-500 outline-none text-blue-900 font-bold">
                     
                     <div class="relative col-span-2 mt-1">
+                        <!-- 패스워드 제거하고 type="text"로 표시 -->
                         <input type="text" id="rep-jumin" placeholder="주민번호(6자리입력시 자동하이픈)" class="w-full border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     </div>
 
@@ -1057,7 +1069,7 @@
         };
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
@@ -1069,6 +1081,12 @@
             appId: "1:677969361393:web:0f05a20ead3d575e1d6c50"
         };
 
+        // ⚠️ 아래는 보조 안전장치일 뿐입니다. 진짜 보안은 Firebase 콘솔의 Firestore
+        // 보안 규칙(Rules)에서 걸어야 합니다 - 여기서 막아도 Rules가 열려있으면
+        // 개발자도구/API로 우회해 DB에 직접 접근할 수 있습니다.
+        // 배열이 비어있으면(기본값) 기존과 동일하게 전원 접근 허용 상태입니다.
+        const ALLOWED_EMAILS = []; // 예: ['staff1@gmail.com', 'staff2@gmail.com']
+
         let db, auth, customerDB = [], currentFilter = 'all';
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
         let currentDetailId = null;
@@ -1077,10 +1095,13 @@
         let dbUnsubscribe = null;
         let statsUnsubscribe = null;
         
+        // 페이징 처리 변수
         let currentPage = 1;
         const itemsPerPage = 15;
-        let globalFilteredDB = []; 
+        let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
+        let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
+        // 🔒 Firebase 초기화 및 로그인 관리
         async function initFirebase() {
             try {
                 const app = initializeApp(myFirebaseConfig);
@@ -1088,13 +1109,27 @@
                 db = getFirestore(app);
                 const provider = new GoogleAuthProvider();
 
+                // 리다이렉트 로그인 후 되돌아왔을 때 발생한 에러를 잡기 위함
+                // (팝업 대신 리다이렉트 방식 사용 - 모바일 브라우저에서 팝업이 조용히 막혀 무반응이 되는 문제 해결)
+                getRedirectResult(auth).catch((error) => {
+                    const errMsg = document.getElementById('loginErrorMsg');
+                    errMsg.textContent = "로그인 실패: " + error.message;
+                    errMsg.classList.remove('hidden');
+                });
+
                 onAuthStateChanged(auth, (user) => {
-                    if (user) {
+                    if (user && (ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.includes(user.email))) {
                         document.getElementById('loginOverlay').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
                         document.getElementById('userEmailDisplay').textContent = user.email;
                         
                         attachDBListeners(); 
+                    } else if (user) {
+                        // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
+                        const errMsg = document.getElementById('loginErrorMsg');
+                        errMsg.textContent = "접근 권한이 없는 계정입니다. 담당자에게 문의해주세요.";
+                        errMsg.classList.remove('hidden');
+                        signOut(auth);
                     } else {
                         document.getElementById('loginOverlay').style.display = 'flex';
                         document.getElementById('appContent').style.display = 'none';
@@ -1107,12 +1142,7 @@
 
                 document.getElementById('googleLoginBtn').onclick = () => {
                     document.getElementById('loginBtnText').textContent = "로그인 처리 중...";
-                    signInWithPopup(auth, provider).catch((error) => {
-                        const errMsg = document.getElementById('loginErrorMsg');
-                        errMsg.textContent = "로그인 실패: " + error.message;
-                        errMsg.classList.remove('hidden');
-                        document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
-                    });
+                    signInWithRedirect(auth, provider);
                 };
 
                 document.getElementById('logoutBtn').onclick = () => {
@@ -1211,7 +1241,6 @@
 
         updateAndRenderStats();
 
-        // [버그수정 6] 생년월일/나이 재계산 시 기존 (XX세) 제거 후 계산하도록 수정
         function formatDob(dob) {
             if (!dob || dob === '-') return '-';
             let cleaned = dob.split('(')[0].replace(/[^0-9]/g, ''); 
@@ -1267,6 +1296,29 @@
             }
         }
         document.getElementById('val-phone').addEventListener('input', applyPhoneFormat);
+
+        // 재스캔 중인 번호가 이미 DB에 있는 고객이면, 법정대리인/마케팅동의/할인유형/통신사를
+        // 화면에 미리 불러와서 보여준다. (그래야 그대로 저장해도 기존 값이 안 날아감)
+        document.getElementById('val-phone').addEventListener('blur', function(e) {
+            const cleanPhone = e.target.value.replace(/[^0-9]/g, '');
+            if (!cleanPhone) return;
+            const existing = customerDB.find(c => c.id === cleanPhone);
+            if (!existing) return;
+
+            document.getElementById('val-legal-name').value = existing.legalName || '';
+            document.getElementById('val-legal-phone').value = existing.legalPhone || '';
+            document.getElementById('val-legal-dob').value = existing.legalDob || '';
+            document.getElementById('val-marketing-deny').checked = existing.marketingDeny || false;
+
+            const validCarriers = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
+            if (existing.carrier && validCarriers.includes(existing.carrier)) {
+                document.getElementById('val-carrier').value = existing.carrier;
+            }
+            if (existing.discountType) restoreDiscountTypeUI(existing.discountType);
+
+            customAlert(`📋 이미 등록된 고객입니다${existing.name ? ' (' + existing.name + ')' : ''}.\n법정대리인/마케팅동의/할인유형/통신사 정보를 불러왔어요. 확인 후 저장해주세요.`);
+        });
+
         document.getElementById('val-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
         document.getElementById('rep-legal-phone').addEventListener('input', applyPhoneFormat);
@@ -1339,6 +1391,34 @@
                 document.querySelectorAll('input[name="selectContractTerm"]').forEach(r => r.checked = false);
             }
         };
+
+        // 스캐너 라디오(선택약정/공시지원금/해당없음 + 약정개월수)를 discountType 문자열로 복원.
+        // AI가 방금 추출한 값("선택약정")과 DB에 저장된 합성값("선택약정(24개월)") 둘 다 처리한다.
+        function restoreDiscountTypeUI(dtValue) {
+            const radios = document.getElementsByName('discountType');
+            for (let r of radios) r.checked = false;
+            toggleSelectContractOptions(false);
+            if (!dtValue || dtValue === '미정') return;
+
+            let baseType = null;
+            if (dtValue.includes('선택약정')) baseType = '선택약정';
+            else if (dtValue.includes('공시지원금')) baseType = '공시지원금';
+            else if (dtValue.includes('해당없음')) baseType = '해당없음';
+            if (!baseType) return;
+
+            const matchedRadio = document.querySelector(`input[name="discountType"][value="${baseType}"]`);
+            if (matchedRadio) {
+                matchedRadio.checked = true;
+                if (baseType === '선택약정') {
+                    toggleSelectContractOptions(true);
+                    const termMatch = dtValue.match(/\(([^)]+)\)/);
+                    if (termMatch) {
+                        const termRadio = document.querySelector(`input[name="selectContractTerm"][value="${termMatch[1]}"]`);
+                        if (termRadio) termRadio.checked = true;
+                    }
+                }
+            }
+        }
 
         function formatInstallmentInput(e) {
             let val = e.target.value.trim();
@@ -1435,7 +1515,6 @@
             else return `만료됨 (D+${Math.abs(diffDays)})`;
         }
 
-        // [버그수정 4] 할부 잔여금 이중차감 수정: 방문(스캔)일 기준으로만 차감
         function getDynamicInstallment(installmentStr, activationDateStr, visitDateStr) {
             if (!installmentStr || typeof installmentStr !== 'string') return installmentStr;
             if (installmentStr.includes('해당없음') || installmentStr.includes('완납') || installmentStr === '-') return installmentStr;
@@ -1651,17 +1730,7 @@
                     document.getElementById('val-wired-dday').textContent = getWiredRemainingDays(wDate);
                 }
 
-                const radios = document.getElementsByName('discountType');
-                for (let r of radios) r.checked = false;
-                toggleSelectContractOptions(false);
-                
-                if(data.discountType) {
-                    const matchedRadio = document.querySelector(`input[name="discountType"][value="${data.discountType}"]`);
-                    if(matchedRadio) {
-                        matchedRadio.checked = true;
-                        if (data.discountType === '선택약정') toggleSelectContractOptions(true);
-                    }
-                }
+                restoreDiscountTypeUI(data.discountType || '');
 
                 document.getElementById('saveDbBtn').classList.remove('hidden');
             } catch (error) { 
@@ -1670,7 +1739,6 @@
             finally { document.getElementById('loadingOverlay').style.display = 'none'; }
         }
 
-        // [버그수정 1] 재스캔 시 기존 정보 날아가는 현상 보완
         document.getElementById('saveDbBtn').addEventListener('click', async () => {
             if (!db) return customAlert("DB 연결중입니다.");
             const phoneVal = document.getElementById('val-phone').value;
@@ -1864,38 +1932,28 @@
 
         document.getElementById('selectAllChk').addEventListener('change', function(e) {
             const isChecked = e.target.checked;
+            // 화면에 보이는 현재 페이지뿐 아니라, 검색/필터링된 전체 대상으로 선택 상태를 기록한다.
+            if (isChecked) {
+                globalFilteredDB.forEach(c => selectedIds.add(c.id));
+            } else {
+                globalFilteredDB.forEach(c => selectedIds.delete(c.id));
+            }
             document.querySelectorAll('.row-chk').forEach(chk => {
                 chk.checked = isChecked;
             });
         });
 
-        // [버그수정 2] 엑셀출력 전체선택 시 필터링된 전체 리스트 출력 및 전체 항목(20개) 복구
         document.getElementById('exportExcelBtn').addEventListener('click', async () => {
-            const checkedBoxes = document.querySelectorAll('.row-chk:checked');
-            const isSelectAll = document.getElementById('selectAllChk').checked;
             let exportList = [];
-            
-            if (checkedBoxes.length === 0) {
+
+            if (selectedIds.size === 0) {
                 const confirmAll = await customConfirm(`선택된 고객이 없습니다.\n현재 검색/필터링된 전체 고객(${globalFilteredDB.length}명)을 출력하시겠습니까?`);
                 if (!confirmAll) return;
                 exportList = globalFilteredDB;
-            } else if (isSelectAll) {
-                const confirmAll = await customConfirm(`현재 보이는 ${checkedBoxes.length}건만 출력하시겠습니까?\n[취소]를 누르면 필터링된 전체(${globalFilteredDB.length}명)가 출력됩니다.`);
-                if (confirmAll) {
-                    checkedBoxes.forEach(chk => {
-                        const c = customerDB.find(x => x.id === chk.value);
-                        if (c) exportList.push(c);
-                    });
-                } else {
-                    exportList = globalFilteredDB;
-                }
             } else {
-                checkedBoxes.forEach(chk => {
-                    const c = customerDB.find(x => x.id === chk.value);
-                    if (c) exportList.push(c);
-                });
+                exportList = customerDB.filter(c => selectedIds.has(c.id));
             }
-            
+
             let csv = '\uFEFF';
             csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일\n";
 
@@ -1939,6 +1997,9 @@
 
         document.getElementById('dbTableBody').addEventListener('change', function(e) {
             if (e.target.classList.contains('row-chk')) {
+                if (e.target.checked) selectedIds.add(e.target.value);
+                else selectedIds.delete(e.target.value);
+
                 const total = document.querySelectorAll('.row-chk').length;
                 const checked = document.querySelectorAll('.row-chk:checked').length;
                 document.getElementById('selectAllChk').checked = (total > 0 && total === checked);
@@ -1951,11 +2012,10 @@
             let monthTargetCount = 0;
 
             customerDB.forEach(c => {
-                const promises = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate];
-                promises.forEach((pDate, idx) => {
-                    const chks = [c.promPlanChk, c.promAddonChk, c.promInsChk, c.promOtherChk];
-                    if (pDate === today && !chks[idx]) todayPromisesCount++;
-                });
+                const dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate];
+                const chks = [c.promPlanChk, c.promAddonChk, c.promInsChk, c.promOtherChk];
+                const hasTodayPromise = dates.some((pDate, idx) => pDate === today && !chks[idx]);
+                if (hasTodayPromise) todayPromisesCount++; // 약속 건수가 아니라 고객 수 기준
 
                 const calc = getDdayAndMonths(c.activationDate);
                 const isExpired = (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
@@ -1970,7 +2030,6 @@
             if (dashTarget) dashTarget.textContent = `기변/만료 타겟: ${monthTargetCount}명`;
         }
 
-        // [버그수정 3] 대시보드 클릭 시 전용 필터 적용
         document.getElementById('dashPromise').addEventListener('click', () => {
             document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
             const pBtn = document.querySelector('[data-filter="promise"]');
@@ -2038,7 +2097,6 @@
 
         function renderDB() {
             const selectAll = document.getElementById('selectAllChk');
-            if (selectAll) selectAll.checked = false;
 
             updateAlertDashboard();
 
@@ -2059,7 +2117,6 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
-                // [버그수정 3] 대시보드 전용 필터 적용
                 if (currentFilter === 'today_promise') {
                     const today = getTodayStr();
                     const dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate];
@@ -2084,6 +2141,10 @@
                 if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate); 
                 return true; 
             });
+
+            if (selectAll) {
+                selectAll.checked = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
+            }
 
             const totalCountEl = document.getElementById('totalCustomerCount');
             if (totalCountEl) {
@@ -2301,7 +2362,7 @@
 
                 tbody.innerHTML += `<tr class="${rowStyle}">
                     <td class="px-3 py-3 text-center align-middle">
-                        <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" ${selectedIds.has(c.id) ? 'checked' : ''} onclick="event.stopPropagation()">
                     </td>
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-900 text-sm ${textStrike}">${marketingBadge}${c.name || '-'}</div>
@@ -2411,32 +2472,31 @@
             document.getElementById('modalFee').value = applyComma(c.fee || '');
             document.getElementById('modalUsage').value = c.usage || '';
             
-            // [버그수정 5 & 복구] 결합/인터넷 필드를 모달창에 제대로 합쳐서 보여줌
-            let comboStr = (c.combination && c.combination !== '해당없음' && c.combination !== '-' ? c.combination : '') + (c.welfare && c.welfare !== '해당없음' && c.welfare !== '-' ? ` / ${c.welfare}` : '');
-            document.getElementById('modalCombination').value = comboStr.replace(/^ \/ |\s*\/ $/g, ''); 
+            // 결합/복지, 인터넷/TV를 각각 독립된 필드로 그대로 로드 (합쳤다 쪼개는 파싱 없음 → 데이터 유실 방지)
+            document.getElementById('modalCombinationOnly').value = (c.combination && c.combination !== '해당없음' && c.combination !== '-' && c.combination !== '미적용') ? c.combination : '';
+            document.getElementById('modalWelfareOnly').value = (c.welfare && c.welfare !== '해당없음' && c.welfare !== '-' && c.welfare !== '미적용') ? c.welfare : '';
 
+            // 새롭게 연동된 가족 정보
             document.getElementById('modalFamily').value = c.repFamily || '';
-            
-            let intTvStr = '';
-            if(c.internetProd && c.internetProd !== '-' && c.internetProd !== '해당없음') intTvStr += c.internetProd;
-            if(c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') intTvStr += (intTvStr ? ' + ' : '') + c.tvProd;
-            document.getElementById('modalInternetTv').value = c.repInternetTv || intTvStr || '';
-            
+
+            document.getElementById('modalInternetOnly').value = (c.internetProd && c.internetProd !== '-' && c.internetProd !== '해당없음') ? c.internetProd : '';
+            document.getElementById('modalTvOnly').value = (c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') ? c.tvProd : '';
             document.getElementById('modalWiredFee').value = c.wiredFee || '';
+            
             document.getElementById('modalWiredDate').value = c.wiredDate || '';
             document.getElementById('modalWiredBadge').textContent = c.wiredDate ? getWiredRemainingDays(c.wiredDate) : '';
 
-            // [버그수정 6] 존재하지 않는 임시값 무한 증식 방지
             const discountSelect = document.getElementById('modalDiscount');
+            const prevTempOpt = discountSelect.querySelector('option[data-temp="1"]');
+            if (prevTempOpt) prevTempOpt.remove(); // 이전에 추가했던 임시 옵션은 지우고 시작 (계속 쌓이는 것 방지)
+
             discountSelect.value = c.discountType && c.discountType !== '미정' ? c.discountType : '미정';
-            if (discountSelect.selectedIndex === -1) {
-                let existingOpt = Array.from(discountSelect.options).find(opt => opt.value === c.discountType);
-                if (!existingOpt) {
-                    let opt = document.createElement('option');
-                    opt.value = c.discountType;
-                    opt.text = c.discountType;
-                    discountSelect.add(opt);
-                }
+            if (discountSelect.selectedIndex === -1 && c.discountType) {
+                let opt = document.createElement('option');
+                opt.value = c.discountType;
+                opt.text = c.discountType;
+                opt.dataset.temp = '1';
+                discountSelect.add(opt);
                 discountSelect.value = c.discountType;
             }
 
@@ -2595,7 +2655,6 @@ ${typeInstruction}
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
 
-        // [버그수정 5] 결합/인터넷 필드를 Split 하지 않고 텍스트 그대로 안전하게 통째로 저장
         document.getElementById('saveDetailBtn').onclick = async () => {
             if(!currentDetailId || !db) return;
             
@@ -2642,10 +2701,10 @@ ${typeInstruction}
                 wiredFee: document.getElementById('modalWiredFee').value,
                 usage: document.getElementById('modalUsage').value,
                 
-                combination: document.getElementById('modalCombination').value || '', 
-                welfare: '', 
-                internetProd: document.getElementById('modalInternetTv').value || '',
-                tvProd: '', 
+                combination: document.getElementById('modalCombinationOnly').value || '',
+                welfare: document.getElementById('modalWelfareOnly').value || '',
+                internetProd: document.getElementById('modalInternetOnly').value || '',
+                tvProd: document.getElementById('modalTvOnly').value || '',
                 
                 wiredDate: document.getElementById('modalWiredDate').value,
                 repFamily: document.getElementById('modalFamily').value,
@@ -2998,6 +3057,7 @@ familyStr + `\n` +
             document.getElementById('rep-legal-phone').value = reportCustomerData.legalPhone || '';
             document.getElementById('rep-legal-dob').value = formatDob(reportCustomerData.legalDob || '');
 
+            // 모바일 필드 세팅
             document.getElementById('rep-device').value = reportCustomerData.repDevice || reportCustomerData.device || ''; 
             document.getElementById('rep-plan').value = reportCustomerData.plan || '';
             document.getElementById('rep-usim').value = reportCustomerData.repUsim || '';
@@ -3024,6 +3084,7 @@ familyStr + `\n` +
             document.getElementById('rep-combination').value = repCombo || '';
             document.getElementById('rep-family').value = reportCustomerData.repFamily || '';
 
+            // 유선 필드 세팅
             document.getElementById('rep-wired-internet').value = reportCustomerData.internetProd || '';
             document.getElementById('rep-wired-tv').value = reportCustomerData.tvProd || '';
             document.getElementById('rep-wired-combo').value = repCombo || '';
@@ -3200,7 +3261,7 @@ familyStr + `\n` +
                             internetProd: document.getElementById('rep-internet-tv').value,
                             repCombination: document.getElementById('rep-combination').value,
                             combination: document.getElementById('rep-combination').value,
-                            repFamily: document.getElementById('rep-family').value, 
+                            repFamily: document.getElementById('rep-family').value, // 모바일보고 가족정보
                             repAddress: document.getElementById('rep-address').value, 
                             plan: document.getElementById('rep-plan').value,
                             repUsim: document.getElementById('rep-usim').value, 
@@ -3416,4 +3477,3 @@ familyStr + `\n` +
     </script>
 </body>
 </html>
-```
