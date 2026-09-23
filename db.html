@@ -82,6 +82,14 @@
             border-bottom: 2px solid #6366f1;
         }
 
+        /* 👤 고객 프로필 카드(바텀시트) 열릴 때 살짝 올라오는 효과 */
+        .sheet-in { animation: sheetIn 0.22s ease-out; }
+        @keyframes sheetIn {
+            from { transform: translateY(24px); opacity: 0.6; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }
+
         /* 🖨️ PDF 인쇄 전용 스타일 */
         #printSection { display: none; } 
         
@@ -386,18 +394,36 @@
         </div>
 
         <div id="dbView" class="hidden glass-panel p-4 sm:p-6 rounded-b-2xl bg-white shadow-sm min-h-[600px] flex flex-col">
-            <!-- 미리 알림 대시보드 -->
-            <div id="alertDashboard" class="mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-xl text-white shadow-md flex flex-wrap justify-between items-center gap-3">
-                <div class="flex items-center gap-2">
+            <!-- 미리 알림 대시보드 (타일을 누르면 해당 고객만 목록에 보여줌) -->
+            <div id="alertDashboard" class="mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-xl text-white shadow-md">
+                <div class="flex items-center gap-2 mb-3">
                     <i class="fa-solid fa-bell text-yellow-300 text-xl animate-bounce"></i>
                     <div>
                         <h4 class="font-bold text-sm">실시간 미리 알림 대시보드</h4>
-                        <p class="text-[11px] text-indigo-100">오늘 챙겨야 할 약속과 이번 달 기변 타겟 고객입니다.</p>
+                        <p class="text-[11px] text-indigo-100">오늘 챙길 고객이에요. 누르면 해당 고객만 목록에 보여드려요.</p>
                     </div>
                 </div>
-                <div class="flex gap-2 text-xs font-bold">
-                    <span id="dashPromise" class="bg-white/20 px-3 py-1.5 rounded-lg border border-white/30 cursor-pointer hover:bg-white/30 transition">오늘 약속: 0명</span>
-                    <span id="dashTarget" class="bg-white/20 px-3 py-1.5 rounded-lg border border-white/30 cursor-pointer hover:bg-white/30 transition">이번달 기변타겟: 0명</span>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <button type="button" id="dashPromise" data-dash-filter="today_promise" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-clock"></i> 처리할 약속</span>
+                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashPromiseCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
+                        <span id="dashPromiseSub" class="block text-[10px] text-indigo-100 mt-0.5">오늘 0명, 지연 0명</span>
+                    </button>
+                    <button type="button" id="dashMobile" data-dash-filter="target_dashboard" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-mobile-screen"></i> 무선 만료타겟</span>
+                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashMobileCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
+                        <span id="dashMobileSub" class="block text-[10px] text-indigo-100 mt-0.5">18개월 이상, 약정만료</span>
+                    </button>
+                    <button type="button" id="dashWired" data-dash-filter="wired_target" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-tv"></i> 유선 만료타겟</span>
+                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashWiredCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
+                        <span id="dashWiredSub" class="block text-[10px] text-indigo-100 mt-0.5">만료 0명, 곧 만료 0명</span>
+                    </button>
+                    <button type="button" id="dashBirthday" data-dash-filter="birthday" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
+                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-cake-candles"></i> 생일자</span>
+                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashBirthdayCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
+                        <span id="dashBirthdaySub" class="block text-[10px] text-indigo-100 mt-0.5">오늘 0명, 7일 이내</span>
+                    </button>
                 </div>
             </div>
 
@@ -441,6 +467,12 @@
                 <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition whitespace-nowrap" data-filter="promise">⏰ 약속/할일</button>
             </div>
 
+            <!-- 대시보드 타일 필터가 적용 중일 때 보이는 안내 배너 -->
+            <div id="dashFilterBanner" class="hidden mb-3 flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold px-3 py-2 rounded-lg">
+                <span id="dashFilterBannerText"></span>
+                <button type="button" id="clearDashFilterBtn" class="flex-shrink-0 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition">전체 보기</button>
+            </div>
+
             <div class="overflow-x-auto border border-gray-200 rounded-xl flex-1 relative bg-white">
                 <table class="w-full text-sm text-left text-gray-600">
                     <thead class="text-xs text-gray-700 bg-gray-50 uppercase border-b border-gray-200">
@@ -475,6 +507,19 @@
     <div id="imageZoomModal" class="fixed inset-0 bg-black/95 hidden items-center justify-center z-[100] cursor-zoom-out" onclick="closeImageModal()">
         <button class="absolute top-4 right-4 text-white text-4xl font-bold p-4 opacity-70 hover:opacity-100">&times;</button>
         <img id="zoomedImage" class="max-w-full max-h-full object-contain" />
+    </div>
+
+    <!-- 👤 고객 프로필 카드 (목록에서 고객 이름을 누르면 열림 · 보기 전용 · 내용은 JS에서 채움) -->
+    <div id="profileModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 sm:p-4">
+        <div class="sheet-in bg-white w-full sm:max-w-md max-h-[92vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="relative flex items-center justify-center px-4 pt-4 pb-3 border-b border-[#f6e1d9] flex-shrink-0">
+                <div class="absolute top-1.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-gray-200 sm:hidden"></div>
+                <h3 class="text-base font-bold text-gray-900">고객 정보</h3>
+                <button type="button" id="closeProfileModal" class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-2xl leading-none" aria-label="닫기">&times;</button>
+            </div>
+            <div id="profileBody" class="overflow-y-auto flex-1"></div>
+            <div id="profileActions" class="flex-shrink-0 p-3 border-t border-gray-100 bg-white grid grid-cols-3 gap-2"></div>
+        </div>
     </div>
 
     <!-- 고객 상세 모달창 -->
@@ -1101,6 +1146,17 @@
         let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
         let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
+        // 📊 대시보드 타겟 기준 (매장 방침에 맞게 숫자만 바꾸면 대시보드/필터/배지에 모두 반영됨)
+        const MOBILE_TARGET_MONTHS = 18;  // 무선 만료타겟: 개통 후 N개월 이상 사용 or 약정만료(해당없음)
+        const WIRED_TARGET_DAYS = 90;     // 유선 만료타겟: 36개월 약정 만료 N일 전부터 (이미 만료된 고객 포함)
+        const BIRTHDAY_DAYS_AHEAD = 7;    // 생일자: 오늘부터 N일 이내 생일
+
+        // 👤 고객 프로필 카드 상태
+        let currentProfileId = null;
+        let currentProfileTab = 'mobile';
+        let profileDetailOpen = true;
+        let profileHistoryPushed = false;
+
         // 🔒 Firebase 초기화 및 로그인 관리
         async function initFirebase() {
             try {
@@ -1156,6 +1212,7 @@
                 customerDB = [];
                 snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
+                if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
             });
             
             statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
@@ -1564,6 +1621,88 @@
                 }
             }
             return installmentStr; 
+        }
+
+        // ─────────────────────────────────────────────
+        // 🔎 대시보드 · 필터 · 배지 · 프로필 카드 공용 계산 함수
+        //    (대시보드 숫자와 눌렀을 때 나오는 목록이 항상 같은 기준을 쓰도록 한 곳에서 관리)
+        // ─────────────────────────────────────────────
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        // "1990-05-12 (35세)" / "900512" / "19900512" → { y, m, d, age }
+        function parseBirth(dob) {
+            if (!dob || dob === '-') return null;
+            const digits = String(dob).split('(')[0].replace(/[^0-9]/g, '');
+            let y, m, d;
+            if (digits.length === 8) {
+                y = parseInt(digits.slice(0, 4), 10); m = parseInt(digits.slice(4, 6), 10); d = parseInt(digits.slice(6, 8), 10);
+            } else if (digits.length === 6) {
+                const yy = parseInt(digits.slice(0, 2), 10);
+                y = (yy <= 30 ? 2000 : 1900) + yy; m = parseInt(digits.slice(2, 4), 10); d = parseInt(digits.slice(4, 6), 10);
+            } else {
+                return null;
+            }
+            if (!(m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+            const today = new Date();
+            let age = today.getFullYear() - y;
+            if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age--;
+            return { y, m, d, age: age >= 0 ? age : null };
+        }
+
+        // 다음 생일까지 남은 일수 (오늘이 생일이면 0, 생년월일 모르면 null)
+        function getDaysUntilBirthday(dob) {
+            const b = parseBirth(dob);
+            if (!b) return null;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            let next = new Date(today.getFullYear(), b.m - 1, b.d);
+            if (next < today) next = new Date(today.getFullYear() + 1, b.m - 1, b.d);
+            return Math.round((next - today) / (1000 * 60 * 60 * 24));
+        }
+
+        // 유선 36개월 약정 만료일 / 남은 일수 (이미 만료면 음수, 날짜 없으면 null)
+        function getWiredEndDate(dateStr) {
+            const start = parseDateString(dateStr);
+            if (!start || isNaN(start.getTime())) return null;
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + 36);
+            end.setHours(0, 0, 0, 0);
+            return end;
+        }
+        function getWiredDaysLeft(dateStr) {
+            const end = getWiredEndDate(dateStr);
+            if (!end) return null;
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            return Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+        }
+
+        // 아직 체크(완료) 안 된 약속 날짜들
+        function getOpenPromiseDates(c) {
+            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promInsDate, c.promInsChk], [c.promOtherDate, c.promOtherChk]]
+                .filter(([d, chk]) => d && d.length >= 10 && !chk)
+                .map(([d]) => d);
+        }
+        function getPromiseDueInfo(c) {
+            const today = getTodayStr();
+            const open = getOpenPromiseDates(c);
+            return { today: open.some(d => d === today), overdue: open.some(d => d < today) };
+        }
+
+        function isMobileExpiryTarget(c) {
+            if (c.salesStatus === '고객거부') return false;
+            const isExpired = (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
+            return getDdayAndMonths(c.activationDate).months >= MOBILE_TARGET_MONTHS || isExpired;
+        }
+        function isWiredExpiryTarget(c) {
+            if (c.salesStatus === '고객거부') return false;
+            const left = getWiredDaysLeft(c.wiredDate);
+            return left !== null && left <= WIRED_TARGET_DAYS;
+        }
+        function isBirthdayTarget(c) {
+            if (c.salesStatus === '고객거부') return false;
+            const left = getDaysUntilBirthday(c.dob);
+            return left !== null && left <= BIRTHDAY_DAYS_AHEAD;
         }
 
         window.fillPromDate = function(targetId, addDays) {
@@ -2006,50 +2145,84 @@
             }
         });
 
+        // 대시보드 4개 타일 숫자 계산 (고객 수 기준 / 필터 목록과 같은 함수 사용)
         function updateAlertDashboard() {
-            const today = getTodayStr();
-            let todayPromisesCount = 0;
-            let monthTargetCount = 0;
+            let promiseCount = 0, promiseToday = 0, promiseOverdue = 0;
+            let mobileCount = 0;
+            let wiredCount = 0, wiredExpired = 0;
+            let birthdayCount = 0, birthdayToday = 0;
 
             customerDB.forEach(c => {
-                const dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate];
-                const chks = [c.promPlanChk, c.promAddonChk, c.promInsChk, c.promOtherChk];
-                const hasTodayPromise = dates.some((pDate, idx) => pDate === today && !chks[idx]);
-                if (hasTodayPromise) todayPromisesCount++; // 약속 건수가 아니라 고객 수 기준
+                const p = getPromiseDueInfo(c);
+                if (p.today || p.overdue) promiseCount++;
+                if (p.today) promiseToday++;
+                if (p.overdue) promiseOverdue++;
 
-                const calc = getDdayAndMonths(c.activationDate);
-                const isExpired = (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-                if (calc.months >= 18 || isExpired) {
-                    if (c.salesStatus !== '고객거부') monthTargetCount++;
+                if (isMobileExpiryTarget(c)) mobileCount++;
+
+                if (isWiredExpiryTarget(c)) {
+                    wiredCount++;
+                    if (getWiredDaysLeft(c.wiredDate) < 0) wiredExpired++;
+                }
+
+                if (isBirthdayTarget(c)) {
+                    birthdayCount++;
+                    if (getDaysUntilBirthday(c.dob) === 0) birthdayToday++;
                 }
             });
 
-            const dashPromise = document.getElementById('dashPromise');
-            const dashTarget = document.getElementById('dashTarget');
-            if (dashPromise) dashPromise.textContent = `오늘 약속: ${todayPromisesCount}명`;
-            if (dashTarget) dashTarget.textContent = `기변/만료 타겟: ${monthTargetCount}명`;
+            const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+            setText('dashPromiseCount', promiseCount);
+            setText('dashPromiseSub', `오늘 ${promiseToday}명, 지연 ${promiseOverdue}명`);
+            setText('dashMobileCount', mobileCount);
+            setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월 이상, 약정만료`);
+            setText('dashWiredCount', wiredCount);
+            setText('dashWiredSub', `만료 ${wiredExpired}명, ${WIRED_TARGET_DAYS}일 내 ${wiredCount - wiredExpired}명`);
+            setText('dashBirthdayCount', birthdayCount);
+            setText('dashBirthdaySub', `오늘 ${birthdayToday}명, ${BIRTHDAY_DAYS_AHEAD}일 이내`);
         }
 
-        document.getElementById('dashPromise').addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
-            const pBtn = document.querySelector('[data-filter="promise"]');
-            if(pBtn) {
-                pBtn.className = "filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-purple-600 text-white transition whitespace-nowrap";
+        const DASH_FILTER_LABELS = {
+            today_promise: () => '⏰ 처리할 약속(오늘 + 지난 미처리)이 있는 고객만 보는 중',
+            target_dashboard: () => `📱 무선 만료타겟(${MOBILE_TARGET_MONTHS}개월 이상 또는 약정만료) 고객만 보는 중`,
+            wired_target: () => `📺 유선 만료타겟(만료 ${WIRED_TARGET_DAYS}일 전부터 만료 후까지) 고객만 보는 중`,
+            birthday: () => `🎂 생일이 오늘부터 ${BIRTHDAY_DAYS_AHEAD}일 이내인 고객만 보는 중`
+        };
+
+        // 선택된 타일 강조 + 목록 위 안내 배너 표시
+        function updateDashFilterUI() {
+            document.querySelectorAll('[data-dash-filter]').forEach(tile => {
+                const active = tile.dataset.dashFilter === currentFilter;
+                tile.classList.toggle('ring-2', active);
+                tile.classList.toggle('ring-white', active);
+                tile.classList.toggle('bg-white/30', active);
+                tile.classList.toggle('bg-white/15', !active);
+            });
+            const banner = document.getElementById('dashFilterBanner');
+            if (!banner) return;
+            const labelFn = DASH_FILTER_LABELS[currentFilter];
+            if (labelFn) {
+                document.getElementById('dashFilterBannerText').textContent = labelFn();
+                banner.classList.remove('hidden');
+            } else {
+                banner.classList.add('hidden');
             }
-            currentFilter = 'today_promise';
-            currentPage = 1;
-            renderDB();
+        }
+
+        document.querySelectorAll('[data-dash-filter]').forEach(tile => {
+            tile.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
+                currentFilter = tile.dataset.dashFilter;
+                currentPage = 1;
+                renderDB();
+                // 폰에서는 타일 누르면 걸러진 목록이 바로 보이도록 스크롤
+                document.getElementById('dashFilterBanner').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
         });
 
-        document.getElementById('dashTarget').addEventListener('click', () => {
-            document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
-            const tBtn = document.querySelector('[data-filter="target18"]');
-            if(tBtn) {
-                tBtn.classList.remove('bg-gray-100', 'text-gray-600'); tBtn.classList.add('active', 'bg-gray-800', 'text-white');
-            }
-            currentFilter = 'target_dashboard';
-            currentPage = 1;
-            renderDB();
+        document.getElementById('clearDashFilterBtn').addEventListener('click', () => {
+            const allBtn = document.querySelector('.filter-btn[data-filter="all"]');
+            if (allBtn) allBtn.click();
         });
 
         function renderPagination(totalPages) {
@@ -2117,16 +2290,14 @@
                 const calc = getDdayAndMonths(c.activationDate);
                 const months = calc.months;
 
+                // 대시보드 타일 필터 (대시보드 숫자와 같은 함수 사용 → 숫자와 목록이 항상 일치)
                 if (currentFilter === 'today_promise') {
-                    const today = getTodayStr();
-                    const dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate];
-                    const chks = [c.promPlanChk, c.promAddonChk, c.promInsChk, c.promOtherChk];
-                    return dates.some((d, idx) => d === today && !chks[idx]);
+                    const p = getPromiseDueInfo(c);
+                    return p.today || p.overdue;
                 }
-                if (currentFilter === 'target_dashboard') {
-                    const isExpired = (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-                    return (months >= 18 || isExpired) && c.salesStatus !== '고객거부';
-                }
+                if (currentFilter === 'target_dashboard') return isMobileExpiryTarget(c);
+                if (currentFilter === 'wired_target') return isWiredExpiryTarget(c);
+                if (currentFilter === 'birthday') return isBirthdayTarget(c);
 
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
                 if (currentFilter === 'wired') {
@@ -2145,6 +2316,8 @@
             if (selectAll) {
                 selectAll.checked = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
             }
+
+            updateDashFilterUI();
 
             const totalCountEl = document.getElementById('totalCustomerCount');
             if (totalCountEl) {
@@ -2195,13 +2368,14 @@
             }
 
             if (currentFilter === 'promise' || currentFilter === 'today_promise') {
-                globalFilteredDB.sort((a,b) => {
-                    const getMinDate = (c) => {
-                        let dates = [c.promPlanDate, c.promAddonDate, c.promInsDate, c.promOtherDate].filter(d => d);
-                        return dates.length > 0 ? dates.sort()[0] : '9999-12-31';
-                    };
-                    return getMinDate(a).localeCompare(getMinDate(b));
-                });
+                // 아직 처리 안 된 약속 중 가장 빠른 날짜 순 (밀린 약속이 맨 위, 전부 완료한 고객은 맨 아래)
+                const minOpenDate = (c) => { const d = getOpenPromiseDates(c).sort(); return d.length ? d[0] : '9999-12-31'; };
+                globalFilteredDB.sort((a, b) => minOpenDate(a).localeCompare(minOpenDate(b)));
+            } else if (currentFilter === 'wired_target') {
+                // 만료일 전후로 가까운 고객부터
+                globalFilteredDB.sort((a, b) => Math.abs(getWiredDaysLeft(a.wiredDate) ?? 99999) - Math.abs(getWiredDaysLeft(b.wiredDate) ?? 99999));
+            } else if (currentFilter === 'birthday') {
+                globalFilteredDB.sort((a, b) => (getDaysUntilBirthday(a.dob) ?? 999) - (getDaysUntilBirthday(b.dob) ?? 999));
             } else {
                 globalFilteredDB.sort((a,b) => (b.visitDate || b.updatedAt || '').localeCompare(a.visitDate || a.updatedAt || ''));
             }
@@ -2249,6 +2423,15 @@
 
                 if (calc.months >= 18 && c.combination && c.combination !== '-' && !c.combination.includes('해당없음')) {
                     targetBadges += `<span class="bg-purple-100 text-purple-700 border border-purple-300 text-[10px] px-1.5 py-0.5 rounded font-extrabold shadow-sm">👨‍👩‍👧‍👦 가족 동시기변 타겟!</span>`;
+                }
+                if (isWiredExpiryTarget(c)) {
+                    const wLeft = getWiredDaysLeft(c.wiredDate);
+                    const wText = wLeft < 0 ? '유선만료' : (wLeft === 0 ? '유선 오늘만료' : `유선 D-${wLeft}`);
+                    targetBadges += `<span class="bg-teal-50 text-teal-700 border border-teal-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">📺 ${wText}</span>`;
+                }
+                if (isBirthdayTarget(c)) {
+                    const bLeft = getDaysUntilBirthday(c.dob);
+                    targetBadges += `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1 rounded font-bold whitespace-nowrap">🎂 ${bLeft === 0 ? '오늘 생일' : '생일 D-' + bLeft}</span>`;
                 }
 
                 let familyTargetHtml = '';
@@ -2365,8 +2548,10 @@
                         <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" ${selectedIds.has(c.id) ? 'checked' : ''} onclick="event.stopPropagation()">
                     </td>
                     <td class="px-3 py-3">
-                        <div class="font-bold text-gray-900 text-sm ${textStrike}">${marketingBadge}${c.name || '-'}</div>
-                        <div class="text-[10px] text-gray-500 mt-1">${c.visitDate || '-'}</div>
+                        <div role="button" tabindex="0" onclick="openProfileCard('${c.id}')" class="cursor-pointer select-none active:opacity-60" title="고객 정보 카드 보기">
+                            <div class="font-bold text-gray-900 text-sm ${textStrike}">${marketingBadge}${escapeHtml(c.name || '-')}<i class="fa-solid fa-address-card text-[11px] text-indigo-300 ml-1 align-middle"></i></div>
+                            <div class="text-[10px] text-gray-500 mt-1">${escapeHtml(c.visitDate || '-')}</div>
+                        </div>
                     </td>
                     <td class="px-3 py-3">
                         <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center ${textStrike}">${formatPhone(c.phone)}${carrierBadge}</div>
@@ -2544,6 +2729,369 @@
         function closeDetailModalFunc() { detailModal.style.display = 'none'; currentDetailId = null; }
         document.getElementById('closeDetailModal').onclick = closeDetailModalFunc;
         document.getElementById('closeDetailBtn2').onclick = closeDetailModalFunc;
+
+        // ─────────────────────────────────────────────
+        // 👤 고객 프로필 카드 (목록에서 이름 누르면 열리는 보기 전용 카드)
+        //    수정은 카드 아래 [수정] 버튼 → 기존 상세 카드로 이동
+        // ─────────────────────────────────────────────
+        const profileModal = document.getElementById('profileModal');
+        const PROFILE_TABS = [
+            { key: 'mobile', label: '모바일' },
+            { key: 'wired', label: '유선' },
+            { key: 'promise', label: '약속' },
+            { key: 'contact', label: '연락' }
+        ];
+        const PROMISE_DEFS = [
+            { key: 'Plan', label: '요금제 변경' },
+            { key: 'Addon', label: '부가 해지' },
+            { key: 'Ins', label: '보험 해지' },
+            { key: 'Other', label: '기타 약속' }
+        ];
+        const PROFILE_DASH = '<span class="text-gray-300 font-medium">-</span>';
+        const profileValue = (v) => (v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '-') ? PROFILE_DASH : escapeHtml(v);
+
+        const hasMobileInfo = (c) => [c.device, c.plan, c.fee, c.activationDate, c.installment, c.usage].some(v => v && String(v).trim() && String(v).trim() !== '-');
+        const hasWiredInfo = (c) => [c.internetProd, c.tvProd, c.wiredFee, c.wiredDate].some(v => v && String(v).trim() && String(v).trim() !== '-' && !String(v).includes('해당없음'));
+
+        window.openProfileCard = function(id) {
+            const c = customerDB.find(x => x.id === id);
+            if (!c) return;
+            currentProfileId = id;
+            currentProfileTab = (!hasMobileInfo(c) && hasWiredInfo(c)) ? 'wired' : 'mobile'; // 유선만 있는 고객은 유선 탭부터
+            renderProfileCard();
+            profileModal.style.display = 'flex';
+            document.getElementById('profileBody').scrollTop = 0;
+            // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 카드만 닫히도록 히스토리 한 칸 추가
+            if (!profileHistoryPushed) {
+                history.pushState({ profileCard: true }, '');
+                profileHistoryPushed = true;
+            }
+        };
+
+        function closeProfileCard(fromPopState = false) {
+            profileModal.style.display = 'none';
+            currentProfileId = null;
+            if (profileHistoryPushed) {
+                profileHistoryPushed = false;
+                if (!fromPopState) history.back();
+            }
+        }
+
+        window.addEventListener('popstate', () => {
+            if (currentProfileId) closeProfileCard(true);
+        });
+
+        function renderProfileCard() {
+            const c = customerDB.find(x => x.id === currentProfileId);
+            if (!c) { closeProfileCard(); return; } // 다른 곳에서 삭제된 경우
+            document.getElementById('profileBody').innerHTML = buildProfileCardHtml(c);
+            const actions = document.getElementById('profileActions');
+            actions.className = `flex-shrink-0 p-3 border-t border-gray-100 bg-white grid gap-2 ${c.legalPhone ? 'grid-cols-4' : 'grid-cols-3'}`;
+            actions.innerHTML = buildProfileActionsHtml(c);
+        }
+
+        function getProfileStatusPill(status) {
+            const map = {
+                '가망고객': ['bg-blue-50 text-blue-600 border-blue-100', '💙 가망'],
+                '가망고객(문자발송)': ['bg-blue-50 text-blue-600 border-blue-100', '💬 가망(문자)'],
+                '가망고객(OB콜)': ['bg-blue-50 text-blue-600 border-blue-100', '📞 가망(OB)'],
+                '방문약속': ['bg-purple-50 text-purple-600 border-purple-100', '🤝 방문약속'],
+                '판매성공': ['bg-green-50 text-green-600 border-green-100', '🟢 개통완료'],
+                '고객거부': ['bg-red-50 text-red-500 border-red-100', '🔴 거부']
+            };
+            const [cls, label] = map[status] || ['bg-gray-50 text-gray-500 border-gray-200', '미정'];
+            return `<span class="inline-block px-2.5 py-1 rounded-md border text-xs font-bold whitespace-nowrap ${cls}">${label}</span>`;
+        }
+
+        function buildProfileCardHtml(c) {
+            const e = escapeHtml;
+            const name = (c.name || '').trim() || '이름 미상';
+            const birth = parseBirth(c.dob);
+            const bLeft = getDaysUntilBirthday(c.dob);
+
+            // 주민번호 7번째 자리로 성별 표시 (주민번호 자체는 카드에 노출하지 않음)
+            const juminDigits = String(c.repJumin || '').replace(/[^0-9]/g, '');
+            const genderCode = juminDigits.length >= 7 ? juminDigits.charAt(6) : '';
+            let genderIcon = '';
+            if ('13579'.includes(genderCode) && genderCode) genderIcon = '<i class="fa-solid fa-mars text-sky-500 text-base" title="남성"></i>';
+            else if ('24680'.includes(genderCode) && genderCode) genderIcon = '<i class="fa-solid fa-venus text-[#e27a63] text-base" title="여성"></i>';
+
+            let ageHtml = PROFILE_DASH;
+            if (birth && birth.age !== null) {
+                const decade = birth.age < 10 ? '10세 미만' : `${Math.floor(birth.age / 10) * 10}대`;
+                ageHtml = `${decade} <span class="text-gray-400 font-medium">(만 ${birth.age}세)</span>`;
+                if (birth.age < 19) ageHtml += ' <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-100 text-pink-600 align-middle">미성년</span>';
+            }
+            let birthdayHtml = PROFILE_DASH;
+            if (birth) {
+                birthdayHtml = `${birth.m}월 ${birth.d}일`;
+                if (bLeft !== null && bLeft <= BIRTHDAY_DAYS_AHEAD) {
+                    birthdayHtml += ` <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-100 text-pink-600 align-middle">🎂 ${bLeft === 0 ? '오늘!' : 'D-' + bLeft}</span>`;
+                }
+            }
+            const carrierColor = { 'SKT': 'text-red-500', 'KT': 'text-cyan-600', 'LG U+': 'text-pink-600' }[c.carrier] || ((c.carrier || '').includes('알뜰폰') ? 'text-yellow-700' : 'text-gray-800');
+            const carrierHtml = (c.carrier && c.carrier !== '미정') ? `<span class="${carrierColor}">${e(c.carrier)}</span>` : PROFILE_DASH;
+            const consentHtml = c.marketingDeny ? '광고성 <span class="text-red-500">거부</span>' : '광고성 <span class="text-green-600">동의</span>';
+            const legalText = [c.legalName, c.legalPhone ? `(${formatPhone(c.legalPhone)})` : ''].filter(Boolean).join(' ');
+
+            const headerRow = (label, html) => `<div class="flex gap-2 py-[3px] text-[13px] leading-snug"><span class="w-[4.6rem] flex-shrink-0 text-gray-500">${label}</span><span class="min-w-0 font-semibold text-gray-800 break-words">${html}</span></div>`;
+            const detailRows = [
+                headerRow('연령', ageHtml),
+                headerRow('생일', birthdayHtml),
+                headerRow('통신사', carrierHtml),
+                headerRow('담당자', profileValue(c.manager)),
+                headerRow('방문일', profileValue(c.visitDate)),
+                headerRow('수신동의', consentHtml),
+                legalText ? headerRow('법정대리인', e(legalText)) : '',
+                headerRow('기타 메모', c.memo && c.memo.trim() ? `<span class="font-medium whitespace-pre-wrap line-clamp-3">${e(c.memo)}</span>` : PROFILE_DASH)
+            ].join('');
+
+            // 3칸 요약 (영업상태 / 사용기간 / 할인유형)
+            const hasAct = !!(c.activationDate && c.activationDate.length === 10);
+            const act = getDdayAndMonths(c.activationDate);
+            const discount = (c.discountType && c.discountType !== '미정') ? c.discountType : '';
+            const discountBase = discount.split('(')[0];
+            const discountTerm = discount.includes('(') ? discount.split('(')[1].replace(')', '') : '';
+            const statCells = `
+                <div class="grid grid-cols-3 border-y border-gray-100 divide-x divide-gray-100">
+                    <div class="py-3 px-1 text-center">
+                        <p class="text-[11px] text-gray-400 mb-1.5">영업상태</p>
+                        ${getProfileStatusPill(c.salesStatus)}
+                    </div>
+                    <div class="py-3 px-1 text-center">
+                        <p class="text-[11px] text-gray-400 mb-0.5">사용기간</p>
+                        ${hasAct
+                            ? `<p class="text-lg font-extrabold text-gray-800 leading-tight">${act.months}<span class="text-sm text-[#e0826a] ml-0.5">개월</span></p><p class="text-[10px] text-gray-400">D+${act.days}</p>`
+                            : '<p class="text-lg font-extrabold text-gray-300 leading-tight">-</p>'}
+                    </div>
+                    <div class="py-3 px-1 text-center">
+                        <p class="text-[11px] text-gray-400 mb-0.5">할인유형</p>
+                        ${discountBase
+                            ? `<p class="text-sm font-extrabold text-gray-800 leading-tight mt-1">${e(discountBase)}</p>${discountTerm ? `<p class="text-[10px] font-bold text-[#e0826a]">${e(discountTerm)}</p>` : ''}`
+                            : '<p class="text-lg font-extrabold text-gray-300 leading-tight">-</p>'}
+                    </div>
+                </div>`;
+
+            // 탭 (약속/연락 탭에는 건수 표시)
+            const tabCount = { promise: getOpenPromiseDates(c).length, contact: parseContactHistory(c.contactHistory).length };
+            const tabsHtml = `
+                <div class="grid grid-cols-4 rounded-xl border border-[#e3a592] overflow-hidden">
+                    ${PROFILE_TABS.map((t, i) => {
+                        const active = t.key === currentProfileTab;
+                        const cnt = tabCount[t.key];
+                        return `<button type="button" data-ptab="${t.key}" class="py-2.5 text-[13px] font-bold transition ${i > 0 ? 'border-l border-[#efc8bb]' : ''} ${active ? 'bg-[#df9b85] text-white' : 'bg-white text-gray-700 hover:bg-[#fdf1ec]'}">${t.label}${cnt ? `<span class="ml-0.5 text-[10px] ${active ? 'text-white/80' : 'text-[#e0826a]'}">${cnt}</span>` : ''}</button>`;
+                    }).join('')}
+                </div>`;
+
+            let tabContent;
+            if (currentProfileTab === 'wired') tabContent = buildProfileWiredTab(c);
+            else if (currentProfileTab === 'promise') tabContent = buildProfilePromiseTab(c);
+            else if (currentProfileTab === 'contact') tabContent = buildProfileContactTab(c);
+            else tabContent = buildProfileMobileTab(c);
+
+            return `
+                <div class="bg-gradient-to-b from-[#f7d9ce] via-[#fcefea] to-white px-5 pt-5 pb-4">
+                    <div class="flex gap-4">
+                        <div class="w-[4.5rem] h-[4.5rem] flex-shrink-0 rounded-2xl bg-white/80 border border-white shadow-sm flex items-center justify-center text-3xl font-extrabold text-[#df8a72]">${e(name.charAt(0))}</div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex items-center gap-1.5 flex-wrap">
+                                <h2 class="text-xl font-extrabold text-gray-900 break-all">${e(name)}</h2>
+                                ${genderIcon}
+                                ${c.marketingDeny ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white whitespace-nowrap">마케팅거부</span>' : ''}
+                            </div>
+                            <p class="text-[15px] font-semibold text-gray-800 mt-0.5 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
+                            <button type="button" id="profileToggleDetail" class="mt-1 text-xs font-bold text-gray-600 flex items-center gap-1">상세보기 <i class="fa-solid ${profileDetailOpen ? 'fa-caret-up' : 'fa-caret-down'} text-[#e0957f]"></i></button>
+                            <div class="${profileDetailOpen ? '' : 'hidden'} mt-2">${detailRows}</div>
+                        </div>
+                    </div>
+                </div>
+                ${statCells}
+                <div class="px-5 pt-4">
+                    <h4 class="text-[15px] font-bold text-gray-900 mb-2.5">상세 정보</h4>
+                    ${tabsHtml}
+                </div>
+                <div class="px-5 pt-1 pb-5">${tabContent}</div>`;
+        }
+
+        function profileKV(label, valueHtml) {
+            return `<div class="flex items-start justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">
+                <span class="text-[13px] text-gray-400 whitespace-nowrap">${label}</span>
+                <span class="text-[13px] font-bold text-gray-800 text-right min-w-0 break-words">${valueHtml}</span>
+            </div>`;
+        }
+
+        function profileEmpty(icon, text) {
+            return `<div class="py-10 text-center text-gray-400">
+                <i class="fa-solid ${icon} text-3xl text-[#f0c4b6] mb-3"></i>
+                <p class="text-sm font-medium whitespace-pre-line">${text}</p>
+            </div>`;
+        }
+
+        function buildProfileMobileTab(c) {
+            const filled = (v) => v && String(v).trim() && String(v).trim() !== '-';
+            if (!hasMobileInfo(c)) {
+                return profileEmpty('fa-mobile-screen', '등록된 모바일 정보가 없어요.\n[수정]에서 입력하거나 전산 화면을 스캔해주세요.');
+            }
+            const act = getDdayAndMonths(c.activationDate);
+            const actHtml = c.activationDate ? `${escapeHtml(c.activationDate)} <span class="text-[11px] text-red-400 ml-1">D+${act.days}</span>` : PROFILE_DASH;
+            let instHtml = PROFILE_DASH;
+            if (filled(c.installment)) {
+                const dyn = getDynamicInstallment(c.installment, c.activationDate, c.visitDate);
+                instHtml = `<span class="text-pink-600">${escapeHtml(dyn)}</span>`;
+                if (dyn !== c.installment) instHtml += `<br><span class="text-[11px] text-gray-400 font-medium">스캔 당시: ${escapeHtml(c.installment)}</span>`;
+            }
+            return [
+                profileKV('단말기', profileValue(c.device)),
+                profileKV('요금제', profileValue(c.plan)),
+                profileKV('월 청구금액', profileValue(c.fee)),
+                profileKV('개통일', actHtml),
+                profileKV('할인유형', profileValue(c.discountType === '미정' ? '' : c.discountType)),
+                profileKV('할부 잔여', instHtml),
+                profileKV('평균 사용량', profileValue(c.usage)),
+                profileKV('가족결합', profileValue(c.combination)),
+                profileKV('복지할인', profileValue(c.welfare)),
+                profileKV('가족 정보', c.repFamily && c.repFamily.trim() ? `<span class="font-medium whitespace-pre-wrap">${escapeHtml(c.repFamily)}</span>` : PROFILE_DASH)
+            ].join('');
+        }
+
+        function buildProfileWiredTab(c) {
+            if (!hasWiredInfo(c)) {
+                return profileEmpty('fa-tv', '등록된 유선(인터넷/TV) 정보가 없어요.');
+            }
+            const left = getWiredDaysLeft(c.wiredDate);
+            let endHtml = PROFILE_DASH;
+            if (left !== null) {
+                const end = getWiredEndDate(c.wiredDate);
+                const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
+                const cls = left < 0 ? 'bg-red-50 text-red-600' : (left <= WIRED_TARGET_DAYS ? 'bg-orange-50 text-orange-600' : 'bg-teal-50 text-teal-600');
+                const txt = left < 0 ? `만료 D+${Math.abs(left)}` : (left === 0 ? '오늘 만료' : `D-${left}`);
+                endHtml = `${endStr} <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded ${cls}">${txt}</span>`;
+            }
+            return [
+                profileKV('인터넷', profileValue(c.internetProd)),
+                profileKV('TV', profileValue(c.tvProd)),
+                profileKV('유선 월요금', profileValue(c.wiredFee)),
+                profileKV('가입/재약정일', profileValue(c.wiredDate)),
+                profileKV('약정 만료(36개월)', endHtml)
+            ].join('');
+        }
+
+        function buildProfilePromiseTab(c) {
+            const today = parseDateString(getTodayStr());
+            const items = PROMISE_DEFS.map(p => ({
+                label: p.label,
+                date: c[`prom${p.key}Date`] || '',
+                memo: c[`prom${p.key}Memo`] || '',
+                done: !!c[`prom${p.key}Chk`]
+            })).filter(x => x.date || x.memo);
+            if (items.length === 0) return profileEmpty('fa-calendar-check', '등록된 약속이 없어요.\n[수정]에서 요금제 변경·부가 해지 등 약속을 추가하세요.');
+
+            // 미처리 약속을 날짜 빠른 순으로 먼저, 완료한 약속은 아래로
+            items.sort((a, b) => (Number(a.done) - Number(b.done)) || (a.date || '9999').localeCompare(b.date || '9999'));
+            const pill = (cls, text) => `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${cls}">${text}</span>`;
+            return items.map(p => {
+                let badge;
+                const pDate = parseDateString(p.date);
+                const diff = pDate && !isNaN(pDate.getTime()) ? Math.round((pDate - today) / (1000 * 60 * 60 * 24)) : null;
+                if (p.done) badge = pill('bg-gray-100 text-gray-400', '완료');
+                else if (diff === null) badge = pill('bg-gray-50 text-gray-400', '날짜 미정');
+                else if (diff < 0) badge = pill('bg-red-50 text-red-600', `지연 D+${-diff}`);
+                else if (diff === 0) badge = pill('bg-red-500 text-white', '오늘');
+                else badge = pill(diff <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600', `D-${diff}`);
+                return `<div class="py-3 border-b border-gray-100 last:border-0">
+                    <div class="flex items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}</div>
+                    <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
+                    ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
+                </div>`;
+            }).join('');
+        }
+
+        // "[2026.09.23 14:05] [법대] 📞 전화발신 (담당: 홍길동)" 형식의 자동 기록을 한 줄씩 해석 (최신순)
+        function parseContactHistory(text) {
+            return String(text || '').split('\n').map(s => s.trim()).filter(Boolean).map(line => {
+                const m = line.match(/^\[(\d{4})\.(\d{2})\.(\d{2})\s+(\d{2}):(\d{2})\]\s*(.*)$/);
+                if (!m) return { date: '', time: '', type: '', legal: false, manager: '', body: line };
+                const body = m[6];
+                const mgr = body.match(/\(담당:\s*([^)]*)\)/);
+                return {
+                    date: `${m[1]}-${m[2]}-${m[3]}`,
+                    time: `${m[4]}:${m[5]}`,
+                    type: body.includes('문자') ? 'sms' : (body.includes('전화') ? 'tel' : ''),
+                    legal: body.includes('[법대]'),
+                    manager: mgr ? mgr[1].trim() : '',
+                    body
+                };
+            }).reverse();
+        }
+
+        function buildProfileContactTab(c) {
+            let html = '';
+            if (c.obMemo && c.obMemo.trim()) {
+                html += `<div class="mt-2 mb-3 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
+                    <p class="text-[11px] font-bold text-indigo-500 mb-1">OB 메모</p>
+                    <p class="text-[13px] text-gray-700 whitespace-pre-wrap">${escapeHtml(c.obMemo)}</p>
+                </div>`;
+            }
+            const pros = [['원하는 통신사', c.prosCarrier], ['원하는 단말', c.prosDevice], ['원하는 요금제', c.prosPlan], ['유선 동반', c.prosWired], ['현금/할부', c.prosPay]]
+                .filter(([, v]) => v && String(v).trim());
+            if (pros.length || (c.prospectMemo && c.prospectMemo.trim())) {
+                html += `<div class="mb-3 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
+                    <p class="text-[11px] font-bold text-blue-500 mb-1">상담보고 (가망)</p>
+                    ${pros.map(([k, v]) => `<div class="flex justify-between gap-3 text-[12px] py-0.5"><span class="text-gray-400 whitespace-nowrap">${k}</span><span class="font-bold text-gray-700 text-right">${escapeHtml(v)}</span></div>`).join('')}
+                    ${c.prospectMemo && c.prospectMemo.trim() ? `<p class="text-[12px] text-gray-600 mt-1 whitespace-pre-wrap">${escapeHtml(c.prospectMemo)}</p>` : ''}
+                </div>`;
+            }
+
+            const logs = parseContactHistory(c.contactHistory);
+            html += `<p class="text-[11px] font-bold text-gray-400 mt-3 mb-1">연락 기록${logs.length ? ` ${logs.length}건` : ''}</p>`;
+            if (logs.length === 0) {
+                return html + profileEmpty('fa-clock-rotate-left', '아직 연락 기록이 없어요.\n아래 [전화]·[문자]를 누르면 자동으로 기록돼요.');
+            }
+            const MAX_LOGS = 50;
+            const pill = (cls, text) => `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${cls}">${text}</span>`;
+            html += logs.slice(0, MAX_LOGS).map(l => {
+                if (!l.date) return `<div class="py-2.5 border-b border-gray-100 last:border-0 text-[13px] text-gray-600">${escapeHtml(l.body)}</div>`;
+                const typeBadge = l.type === 'tel' ? pill('bg-orange-50 text-orange-500', '전화') : (l.type === 'sms' ? pill('bg-sky-50 text-sky-600', '문자') : '');
+                const legalBadge = l.legal ? pill('bg-pink-50 text-pink-500', '법대') : '';
+                return `<div class="py-3 border-b border-gray-100 last:border-0">
+                    <div class="flex items-center gap-1.5 mb-1">${typeBadge}${legalBadge}${l.manager ? `<span class="ml-auto text-[11px] text-gray-400">담당 ${escapeHtml(l.manager)}</span>` : ''}</div>
+                    <p class="text-[15px] font-bold text-gray-900">${l.date} <span class="ml-1 font-semibold text-[#e0957f]">${l.time}</span></p>
+                </div>`;
+            }).join('');
+            if (logs.length > MAX_LOGS) {
+                html += `<p class="text-center text-[11px] text-gray-400 pt-3">이전 기록 ${logs.length - MAX_LOGS}건은 [수정] 화면의 타임라인에서 볼 수 있어요.</p>`;
+            }
+            return html;
+        }
+
+        function buildProfileActionsHtml(c) {
+            const btn = (action, cls, icon, label) => `<button type="button" data-paction="${action}" class="py-3 rounded-xl ${cls} text-white font-bold text-sm flex items-center justify-center gap-1.5 active:scale-95 transition shadow-sm"><i class="fa-solid ${icon}"></i> ${label}</button>`;
+            return [
+                btn('tel', 'bg-green-500 hover:bg-green-600', 'fa-phone', '전화'),
+                btn('sms', 'bg-blue-500 hover:bg-blue-600', 'fa-envelope', '문자'),
+                c.legalPhone ? btn('legal', 'bg-orange-500 hover:bg-orange-600', 'fa-phone', '법대') : '',
+                btn('edit', 'bg-gray-800 hover:bg-gray-900', 'fa-pen', '수정')
+            ].join('');
+        }
+
+        // 카드 안의 모든 클릭을 한 곳에서 처리 (카드 내용이 다시 그려져도 동작 유지)
+        profileModal.addEventListener('click', (ev) => {
+            if (ev.target === profileModal || ev.target.closest('#closeProfileModal')) { closeProfileCard(); return; }
+            const tabBtn = ev.target.closest('[data-ptab]');
+            if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
+            if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
+
+            const actBtn = ev.target.closest('[data-paction]');
+            if (!actBtn || !currentProfileId) return;
+            const id = currentProfileId;
+            const c = customerDB.find(x => x.id === id);
+            if (!c) return;
+            const action = actBtn.dataset.paction;
+            if (action === 'tel') logActionAndCall(id, 'tel', c.phone);
+            else if (action === 'sms') logActionAndCall(id, 'sms', c.phone);
+            else if (action === 'legal') logActionAndCall(id, 'tel', c.legalPhone, '법대');
+            else if (action === 'edit') { closeProfileCard(); openDetailModal(id); }
+        });
 
         window.insertSmsTemplate = async function(type) {
             if (!geminiApiKey) return customAlert("우측 상단 [AI 키 설정]을 먼저 완료해주세요.");
