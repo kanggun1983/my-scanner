@@ -24,3 +24,92 @@
                 "theme_color": "#4f46e5",
                 "icons": [{
                     "src": "https://cdn-icons-png.flaticon.com/512/3208/3208003.png",
+            const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
+            const text = `-상담보고 ${dateStr}-\n\n원하는통신사: ${document.getElementById('pros-carrier').value}\n원하는단말: ${document.getElementById('pros-device').value}\n유선동판유무: ${document.getElementById('pros-wired').value}\n현금/할부: ${document.getElementById('pros-pay').value}\n원하는요금제: ${document.getElementById('pros-plan').value}`;
+            document.getElementById('prospectPreview').value = text;
+        }
+
+        prospectInputs.forEach(id => { document.getElementById(id).addEventListener('input', updateProspectPreview); });
+
+        document.getElementById('copyProspectBtn').addEventListener('click', () => {
+            const text = document.getElementById('prospectPreview').value;
+            
+            const saveProspectData = () => {
+                document.getElementById('detailProsCarrier').value = document.getElementById('pros-carrier').value;
+                document.getElementById('detailProsDevice').value = document.getElementById('pros-device').value;
+                document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
+                document.getElementById('detailProsPay').value = document.getElementById('pros-pay').value;
+                document.getElementById('detailProsPlan').value = document.getElementById('pros-plan').value;
+                customAlert('✅ 내역에 깔끔하게 적용되었습니다!\n(상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
+                prospectModal.style.display = 'none';
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => saveProspectData()).catch(err => customAlert('저장에 실패했습니다.'));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                    saveProspectData();
+                } catch (err) { customAlert('저장에 실패했습니다.'); }
+                document.body.removeChild(textarea);
+            }
+        });
+
+        document.getElementById('detailCopyProspectBtn').addEventListener('click', () => {
+            const today = new Date();
+            const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
+            let text = `-상담보고 ${dateStr}-\n\n원하는통신사: ${document.getElementById('detailProsCarrier').value}\n원하는단말: ${document.getElementById('detailProsDevice').value}\n유선동판유무: ${document.getElementById('detailProsWired').value}\n현금/할부: ${document.getElementById('detailProsPay').value}\n원하는요금제: ${document.getElementById('detailProsPlan').value}`;
+            const addMemo = document.getElementById('modalProspectMemo').value;
+            if(addMemo) { text += `\n\n[추가 수기메모]\n${addMemo}`; }
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!')).catch(err => customAlert('복사에 실패했습니다.'));
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try { document.execCommand('copy'); customAlert('✅ 작성하신 상담보고 내역이 텍스트로 복사되었습니다!'); } 
+                catch (err) { customAlert('복사에 실패했습니다.'); }
+                document.body.removeChild(textarea);
+            }
+        });
+
+        const moneyFields = ['val-installment', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'pros-pay', 'detailProsPay'];
+        moneyFields.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('input', function(e) {
+                    let cursor = this.selectionStart;
+                    let oldLength = this.value.length;
+                    let newVal = applyComma(this.value);
+                    if (this.value !== newVal) {
+                        this.value = newVal;
+                        let newLength = this.value.length;
+                        cursor += (newLength - oldLength);
+                        try { this.setSelectionRange(cursor, cursor); } catch(err){}
+                    }
+                });
+            }
+        });
+
+        document.getElementById('modalMarketingDeny').addEventListener('change', function(e) {
+            if(e.target.checked) document.getElementById('modalMarketingBadge').classList.remove('hidden');
+            else document.getElementById('modalMarketingBadge').classList.add('hidden');
+        });
+
+        window.addEventListener('click', function(e) {
+            if (e.target.id === 'detailModal') closeDetailModalFunc();
+            if (e.target.id === 'reportModal') document.getElementById('reportModal').style.display = 'none';
+            if (e.target.id === 'wiredReportModal') document.getElementById('wiredReportModal').style.display = 'none';
+            if (e.target.id === 'prospectModal') document.getElementById('prospectModal').style.display = 'none';
+            if (e.target.id === 'apiModal') document.getElementById('apiModal').style.display = 'none';
+        });
+
+    </script>
+</body>
+</html>
