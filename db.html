@@ -920,6 +920,7 @@
                     
                     <input type="text" id="wired-rep-branch" placeholder="접수처" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
                     <input type="text" id="wired-rep-memo" placeholder="기타(메모)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-teal-500 outline-none">
+                    <input type="text" id="wired-rep-manager" placeholder="개통자 (실제 개통한 직원)" class="border border-emerald-300 bg-emerald-50/50 p-2 rounded focus:ring-1 focus:ring-emerald-500 outline-none col-span-2 font-bold text-emerald-900">
                 </div>
                 <textarea id="wiredReportPreview" readonly class="w-full h-[230px] p-3 mt-1 bg-gray-50 border border-gray-200 rounded-xl text-[11px] sm:text-xs font-mono resize-none focus:outline-none"></textarea>
             </div>
@@ -962,6 +963,7 @@
                     </div>
 
                     <input type="text" id="rep-address" placeholder="주소" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
+                    <input type="text" id="rep-manager" placeholder="개통자 (실제 개통한 직원)" class="border border-emerald-300 bg-emerald-50/50 p-2 rounded focus:ring-1 focus:ring-emerald-500 outline-none col-span-2 font-bold text-emerald-900">
                 </div>
 
                 <div id="mobileReportFields" class="grid grid-cols-2 gap-2 text-xs">
@@ -1206,7 +1208,12 @@
 
                 document.getElementById('googleLoginBtn').onclick = () => {
                     document.getElementById('loginBtnText').textContent = "로그인 처리 중...";
-                    signInWithRedirect(auth, provider);
+                    signInWithRedirect(auth, provider).catch((error) => {
+                        const errMsg = document.getElementById('loginErrorMsg');
+                        errMsg.textContent = "로그인 실패: " + error.message;
+                        errMsg.classList.remove('hidden');
+                        document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
+                    });
                 };
 
                 document.getElementById('logoutBtn').onclick = () => {
@@ -1218,7 +1225,8 @@
         function attachDBListeners() {
             dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
                 customerDB = [];
-                snapshot.forEach((doc) => { customerDB.push({ id: doc.id, ...doc.data() }); });
+                // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
+                snapshot.forEach((doc) => { customerDB.push({ ...doc.data(), id: doc.id }); });
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
             });
@@ -1352,7 +1360,7 @@
             let cursor = e.target.selectionStart;
             let oldLength = e.target.value.length;
             let val = e.target.value.replace(/[^0-9]/g, '');
-            let newVal = formatPhone(val);
+            let newVal = val ? formatPhone(val) : ''; // 다 지우면 빈칸 (예전엔 '-' 가 남아 저장 오류)
             if (e.target.value !== newVal) {
                 e.target.value = newVal;
                 let newLength = e.target.value.length;
@@ -1362,27 +1370,37 @@
         }
         document.getElementById('val-phone').addEventListener('input', applyPhoneFormat);
 
-        // 재스캔 중인 번호가 이미 DB에 있는 고객이면, 법정대리인/마케팅동의/할인유형/통신사를
-        // 화면에 미리 불러와서 보여준다. (그래야 그대로 저장해도 기존 값이 안 날아감)
-        document.getElementById('val-phone').addEventListener('blur', function(e) {
-            const cleanPhone = e.target.value.replace(/[^0-9]/g, '');
-            if (!cleanPhone) return;
+        // 스캐너의 번호가 이미 DB에 있는 고객이면 법정대리인/마케팅거부/할인유형/통신사를 불러와 보여줌
+        //  · 전화칸을 벗어날 때 + AI 스캔 직후 둘 다 실행 (예전엔 스캔만 하면 안내가 안 떴음)
+        //  · 같은 번호로는 한 번만 안내 (전화칸을 누를 때마다 알림이 반복되던 문제 수정)
+        //  · 방금 스캔/입력한 값은 덮어쓰지 않고 빈 칸만 채움 (스캔 화면의 통신사·할인유형이 더 최신일 수 있음)
+        let lastScannerLookupPhone = '';
+        function checkScannerExistingCustomer() {
+            const cleanPhone = document.getElementById('val-phone').value.replace(/[^0-9]/g, '');
+            if (!cleanPhone || cleanPhone === lastScannerLookupPhone) return;
+            lastScannerLookupPhone = cleanPhone;
             const existing = customerDB.find(c => c.id === cleanPhone);
             if (!existing) return;
 
-            document.getElementById('val-legal-name').value = existing.legalName || '';
-            document.getElementById('val-legal-phone').value = existing.legalPhone || '';
-            document.getElementById('val-legal-dob').value = existing.legalDob || '';
-            document.getElementById('val-marketing-deny').checked = existing.marketingDeny || false;
+            const fillIfBlank = (id, val) => { const el = document.getElementById(id); if (!el.value.trim() && val) el.value = val; };
+            fillIfBlank('val-legal-name', existing.legalName);
+            fillIfBlank('val-legal-phone', existing.legalPhone);
+            fillIfBlank('val-legal-dob', existing.legalDob);
+            if (existing.marketingDeny) document.getElementById('val-marketing-deny').checked = true;
 
             const validCarriers = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
-            if (existing.carrier && validCarriers.includes(existing.carrier)) {
-                document.getElementById('val-carrier').value = existing.carrier;
-            }
-            if (existing.discountType) restoreDiscountTypeUI(existing.discountType);
+            const carrierEl = document.getElementById('val-carrier');
+            if (carrierEl.value === '미정' && existing.carrier && validCarriers.includes(existing.carrier)) carrierEl.value = existing.carrier;
 
-            customAlert(`📋 이미 등록된 고객입니다${existing.name ? ' (' + existing.name + ')' : ''}.\n법정대리인/마케팅동의/할인유형/통신사 정보를 불러왔어요. 확인 후 저장해주세요.`);
-        });
+            const checked = document.querySelector('input[name="discountType"]:checked');
+            const curBase = checked ? checked.value : '';
+            if (existing.discountType && existing.discountType !== '미정' && (!curBase || existing.discountType.startsWith(curBase))) {
+                restoreDiscountTypeUI(existing.discountType); // 같은 유형이면 저장된 약정개월(예: 24개월)까지 복원
+            }
+
+            customAlert(`📋 이미 등록된 고객이에요${existing.name ? ' (' + existing.name + ')' : ''}.\n저장하면 기존 정보에 합쳐지고, 이번 사진에 없는 항목은 기존 값이 그대로 유지돼요.${existing.marketingDeny ? '\n⚠️ 마케팅 수신거부 고객이에요.' : ''}`);
+        }
+        document.getElementById('val-phone').addEventListener('blur', checkScannerExistingCustomer);
 
         document.getElementById('val-legal-phone').addEventListener('input', applyPhoneFormat);
         document.getElementById('modalLegalPhone').addEventListener('input', applyPhoneFormat);
@@ -1608,16 +1626,20 @@
         }
         document.getElementById('modalInstallment').addEventListener('input', syncModalInstallmentBase);
 
+        // 요금 칸 정리: '69000' / '6만9천' / '월 69,000' → '69,000원'
+        // (예전엔 '6만9천' → 69원, '69,000 (할인후 55,000)' → 6,900,055,000원 으로 망가졌음)
+        // 숫자 하나만 적은 경우에만 정리하고, 설명이 붙은 문구는 입력 그대로 둠
         function formatFeeInput(e) {
-            let val = e.target.value.trim();
-            if (!val || val.includes('원') || val === '-' || val === '무료') return;
-            
-            let p = val.replace(/[^0-9]/g, '');
-            if(p) {
-                e.target.value = `${parseInt(p, 10).toLocaleString('ko-KR')}원`;
-                const saveBtn = document.getElementById('saveDbBtn');
-                if(saveBtn) saveBtn.classList.remove('hidden');
-            }
+            const val = e.target.value.trim();
+            if (!val || val === '-' || val.includes('무료')) return;
+            const compact = val.replace(/\s+/g, '');
+            if (!/^월?[\d,.]+(만([\d,]+천?)?)?원?$/.test(compact)) return;
+            const amount = parseKoreanAmount(compact.replace(/^월/, ''));
+            if (amount === null) return;
+            const formatted = `${amount.toLocaleString('ko-KR')}원`;
+            if (formatted === val) return;
+            e.target.value = formatted;
+            if (e.target.id === 'val-fee' || e.target.id === 'val-wired-fee') document.getElementById('saveDbBtn').classList.remove('hidden');
         }
         document.getElementById('val-fee').addEventListener('blur', formatFeeInput);
         document.getElementById('modalFee').addEventListener('blur', formatFeeInput);
@@ -1645,6 +1667,18 @@
             return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
         }
         document.getElementById('val-date').value = getTodayStr();
+
+        // 📅 앱을 켜둔 채 날짜가 바뀌어도 첫 스캔이 '어제'로 저장되지 않도록 (직접 바꾼 날짜는 존중)
+        let valDateTouched = false;
+        document.getElementById('val-date').addEventListener('change', () => { valDateTouched = true; });
+
+        // 👤 이 폰을 쓰는 직원 이름 기억 → 스캐너 담당자 / 개통자 / 전화·문자 기록의 기본값
+        //    (예전엔 [다시 찍기]를 누를 때마다 담당자 칸이 지워져 매번 다시 입력해야 했음)
+        function getStaffName() { return (localStorage.getItem('staffName') || '').trim(); }
+        document.getElementById('val-manager').value = getStaffName();
+        document.getElementById('val-manager').addEventListener('change', (e) => {
+            localStorage.setItem('staffName', e.target.value.trim());
+        });
 
         function parseDateString(dateStr) {
             if (!dateStr || typeof dateStr !== 'string') return null;
@@ -1794,6 +1828,7 @@
             const mm = String(pDate.getMonth() + 1).padStart(2, '0');
             const dd = String(pDate.getDate()).padStart(2, '0');
             document.getElementById(targetId).value = `${yyyy}-${mm}-${dd}`;
+            detailDirty = true;
             const chkId = targetId.replace('Date', 'Chk');
             if(document.getElementById(chkId)) document.getElementById(chkId).checked = false;
         };
@@ -1801,6 +1836,7 @@
         window.clearAllPromises = function() {
             ['promPlanDate', 'promPlanMemo', 'promAddonDate', 'promAddonMemo', 'promInsDate', 'promInsMemo', 'promOtherDate', 'promOtherMemo'].forEach(id => document.getElementById(id).value = '');
             ['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk'].forEach(id => document.getElementById(id).checked = false);
+            detailDirty = true;
         };
 
         document.getElementById('val-activation').addEventListener('change', function(e) {
@@ -1834,17 +1870,20 @@
             document.getElementById('apiModal').style.display = 'none'; customAlert("저장 완료!");
         };
 
+        // 긴 변 2000px / 품질 0.85 (예전 1200px·0.7은 폰 스크린샷의 작은 글씨·금액이 뭉개져 오인식 위험)
         function compressImage(file, callback) {
             const r = new FileReader();
+            r.onerror = () => callback(null);
             r.onload = e => {
                 const img = new Image();
+                img.onerror = () => callback(null); // HEIC 등 브라우저가 못 여는 사진
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height, max = 1200;
+                    let w = img.width, h = img.height, max = 2000;
                     if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
-                    canvas.width = w; canvas.height = h;
-                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-                    callback(canvas.toDataURL('image/jpeg', 0.7)); 
+                    canvas.width = Math.round(w); canvas.height = Math.round(h);
+                    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                    callback(canvas.toDataURL('image/jpeg', 0.85));
                 };
                 img.src = e.target.result;
             };
@@ -1858,8 +1897,16 @@
             document.getElementById('uploadPrompt').classList.add('hidden');
             document.getElementById('loadingOverlay').style.display = 'flex';
             document.getElementById('resetBtn').classList.remove('hidden');
+            if (!valDateTouched) document.getElementById('val-date').value = getTodayStr();
 
             compressImage(e.target.files[0], async (base64) => {
+                if (!base64) {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                    document.getElementById('uploadPrompt').classList.remove('hidden');
+                    document.getElementById('resetBtn').classList.add('hidden');
+                    e.target.value = '';
+                    return customAlert("사진을 열 수 없어요.\n(HEIC 같은 형식일 수 있어요) 화면 캡처나 카메라로 다시 찍어주세요.");
+                }
                 document.getElementById('imagePreview').src = base64; 
                 document.getElementById('imagePreview').classList.remove('hidden');
                 document.getElementById('zoomHint').classList.remove('hidden');
@@ -1880,7 +1927,10 @@
             
             if(document.getElementById('val-marketing-deny')) document.getElementById('val-marketing-deny').checked = false;
 
-            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-wired-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-manager', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
+            valDateTouched = false;
+            lastScannerLookupPhone = '';
+            document.getElementById('val-manager').value = getStaffName(); // 담당자(직원 이름)는 지우지 않음
+            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-wired-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
                 if(document.getElementById(id)) document.getElementById(id).value = '';
             });
             document.getElementById('val-dday').textContent = 'D+0일';
@@ -1919,7 +1969,8 @@
                 const data = JSON.parse(result.candidates[0].content.parts[0].text);
                 
                 document.getElementById('val-name').value = data.name || '';
-                document.getElementById('val-phone').value = formatPhone(data.phone || '');
+                const scannedPhoneDigits = String(data.phone || '').replace(/[^0-9]/g, '');
+                document.getElementById('val-phone').value = scannedPhoneDigits ? formatPhone(scannedPhoneDigits) : ''; // 못 읽으면 빈칸 (예전엔 '-' 로 들어가 저장 실패)
                 document.getElementById('val-dob').value = formatDob(data.dob || '');
 
                 document.getElementById('val-carrier').value = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'].includes(data.carrier) ? data.carrier : '미정';
@@ -1952,6 +2003,10 @@
                 restoreDiscountTypeUI(data.discountType || '');
 
                 document.getElementById('saveDbBtn').classList.remove('hidden');
+
+                // 스캔한 번호가 이미 등록된 고객이면 바로 안내 + 빈 칸(법대/마케팅 등) 채우기
+                lastScannerLookupPhone = '';
+                checkScannerExistingCustomer();
             } catch (error) { 
                 customAlert("🚨 AI 스캔 에러 🚨\n\n" + error.message);
             } 
@@ -1961,7 +2016,8 @@
         document.getElementById('saveDbBtn').addEventListener('click', async () => {
             if (!db) return customAlert("DB 연결중입니다.");
             const phoneVal = document.getElementById('val-phone').value;
-            const docId = phoneVal ? phoneVal.replace(/[^0-9]/g, '') : Date.now().toString();
+            const phoneDigits = phoneVal.replace(/[^0-9]/g, '');
+            const docId = phoneDigits || Date.now().toString(); // 번호를 못 읽었으면 임시ID로 저장 (나중에 상세카드에서 번호 입력 시 정리됨)
             
             const checkedDiscount = document.querySelector('input[name="discountType"]:checked');
             let finalDiscount = checkedDiscount ? checkedDiscount.value : '미정';
@@ -1996,8 +2052,22 @@
                 finalInstallmentBase = getInstallmentBaseDate(existingCustomer);
             }
 
-            const finalMemo = document.getElementById('memoPad').value || (existingCustomer ? (existingCustomer.memo || '') : '');
-            const finalObMemo = document.getElementById('obMemoPad').value || (existingCustomer ? (existingCustomer.obMemo || '') : '');
+            // 🔁 기존 고객 재스캔: 이번 사진에 안 찍혀 빈칸인 항목은 기존 값 유지
+            //    (예전엔 이름·단말기·요금제 등이 빈칸으로 덮어써지고, 유선 월요금은 재스캔할 때마다 지워졌음)
+            const isBlankScan = (v) => v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '-';
+            const keepIfBlank = (field, newVal) => (existingCustomer && isBlankScan(newVal) && !isBlankScan(existingCustomer[field])) ? existingCustomer[field] : newVal;
+
+            // 📝 메모는 덮어쓰지 않고 날짜를 붙여 이어서 기록 (예전엔 새 메모를 쓰면 기존 메모가 통째로 사라졌음)
+            const appendNote = (newText, oldText) => {
+                const t = (newText || '').trim();
+                if (!t) return oldText || '';
+                if (!oldText || !oldText.trim()) return t;
+                if (oldText.includes(t)) return oldText;
+                const stamp = getTodayStr().slice(5).replace('-', '/');
+                return `${oldText}\n[${stamp}] ${t}`;
+            };
+            const finalMemo = appendNote(document.getElementById('memoPad').value, existingCustomer ? existingCustomer.memo : '');
+            const finalObMemo = appendNote(document.getElementById('obMemoPad').value, existingCustomer ? existingCustomer.obMemo : '');
             const finalProspectMemo = existingCustomer ? (existingCustomer.prospectMemo || '') : '';
             const finalProsCarrier = existingCustomer ? (existingCustomer.prosCarrier || '') : '';
             const finalProsDevice = existingCustomer ? (existingCustomer.prosDevice || '') : '';
@@ -2028,24 +2098,24 @@
 
             const savedData = {
                 visitDate: document.getElementById('val-date').value,
-                manager: document.getElementById('val-manager').value || '',
-                name: document.getElementById('val-name').value,
-                phone: document.getElementById('val-phone').value,
+                manager: (existingCustomer && existingCustomer.manager) ? existingCustomer.manager : (document.getElementById('val-manager').value || ''), // 최초 등록 담당자는 유지
+                name: keepIfBlank('name', document.getElementById('val-name').value),
+                phone: phoneDigits ? phoneVal : '',
                 carrier: finalCarrier,
-                device: document.getElementById('val-device').value,
+                device: keepIfBlank('device', document.getElementById('val-device').value),
                 installment: finalInstallment,
                 installmentBaseDate: finalInstallmentBase,
-                activationDate: document.getElementById('val-activation').value, 
-                dob: document.getElementById('val-dob').value,
-                plan: document.getElementById('val-plan').value,
-                fee: document.getElementById('val-fee').value,
-                wiredFee: document.getElementById('val-wired-fee').value,
-                usage: document.getElementById('val-usage').value,
-                combination: document.getElementById('val-combination').value,
-                welfare: document.getElementById('val-welfare').value,
-                internetProd: document.getElementById('val-internet').value,
-                tvProd: document.getElementById('val-tv').value,
-                wiredDate: document.getElementById('val-wireddate').value,
+                activationDate: keepIfBlank('activationDate', document.getElementById('val-activation').value),
+                dob: keepIfBlank('dob', document.getElementById('val-dob').value),
+                plan: keepIfBlank('plan', document.getElementById('val-plan').value),
+                fee: keepIfBlank('fee', document.getElementById('val-fee').value),
+                wiredFee: keepIfBlank('wiredFee', document.getElementById('val-wired-fee').value),
+                usage: keepIfBlank('usage', document.getElementById('val-usage').value),
+                combination: keepIfBlank('combination', document.getElementById('val-combination').value),
+                welfare: keepIfBlank('welfare', document.getElementById('val-welfare').value),
+                internetProd: keepIfBlank('internetProd', document.getElementById('val-internet').value),
+                tvProd: keepIfBlank('tvProd', document.getElementById('val-tv').value),
+                wiredDate: keepIfBlank('wiredDate', document.getElementById('val-wireddate').value),
                 discountType: finalDiscount,
                 
                 legalName: finalLegalName,
@@ -2068,13 +2138,17 @@
 
             try {
                 await setDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
-                customAlert("저장 성공!"); 
+                customAlert(phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요."); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
                 switchTab('db');
             } catch (error) { customAlert("저장 실패! " + error); }
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '') {
+            // 번호가 없으면 기록/건수만 올라가던 문제 → 안내만 하고 중단
+            const cleanPhoneNum = phoneNum ? String(phoneNum).replace(/[^0-9]/g, '') : '';
+            if (!cleanPhoneNum) return customAlert('전화번호가 없어요.\n고객 상세카드에서 번호를 먼저 입력해주세요.');
+
             updateAndRenderStats(actionType);
 
             if(db && docId) {
@@ -2083,17 +2157,23 @@
                 
                 const targetStr = targetLabel ? `[${targetLabel}] ` : '';
                 const actionName = actionType === 'tel' ? `${targetStr}📞 전화발신` : `${targetStr}💬 문자발송`;
-                let managerName = '담당자미상';
-                
-                if (currentDetailId === docId && document.getElementById('modalContactManager').value) {
-                    managerName = document.getElementById('modalContactManager').value;
-                } else if (document.getElementById(`listManager_${docId}`) && document.getElementById(`listManager_${docId}`).value) {
-                    managerName = document.getElementById(`listManager_${docId}`).value;
-                } else if (document.getElementById('val-manager').value) {
-                    managerName = document.getElementById('val-manager').value;
-                }
-
+                // 👤 누가 연락했는지: 담당자 칸에 직접 다른 이름을 적었으면 그 이름, 아니면 이 폰의 직원 이름
+                //    (예전엔 칸에 미리 채워진 '지난번 연락한 사람' 이름으로 기록돼 OB 실적이 엉뚱한 직원에게 쌓였음)
                 const customer = customerDB.find(c => c.id === docId);
+                const staff = getStaffName();
+                let managerName = '';
+                if (currentDetailId === docId) {
+                    const typed = document.getElementById('modalContactManager').value.trim();
+                    const stored = (customer && customer.contactManager) || '';
+                    managerName = (typed && typed !== stored) ? typed : (staff || typed);
+                } else {
+                    const listInput = document.getElementById(`listManager_${docId}`);
+                    const typed = listInput ? listInput.value.trim() : '';
+                    const stored = customer ? (customer.contactManager || customer.manager || '') : '';
+                    managerName = (typed && typed !== stored) ? typed : (staff || typed);
+                }
+                managerName = managerName || document.getElementById('val-manager').value.trim() || '담당자미상';
+
                 let currentHistory = customer ? (customer.contactHistory || '') : '';
                 const logEntry = `[${timeStr}] ${actionName} (담당: ${managerName})`;
                 const newHistory = currentHistory ? (currentHistory + '\n' + logEntry) : logEntry;
@@ -2115,14 +2195,14 @@
                 }
             }
             
-            const cleanPhoneNum = phoneNum ? phoneNum.replace(/[^0-9]/g, '') : '';
-            if(cleanPhoneNum) { window.location.href = `${actionType}:${cleanPhoneNum}`; }
+            window.location.href = `${actionType}:${cleanPhoneNum}`;
         };
 
         window.deleteCustomer = async function(docId) {
             if (await customConfirm("이 고객을 영구 삭제할까요?")) {
                 await deleteDoc(doc(db, 'smart_customers', docId));
-                document.getElementById('detailModal').style.display = 'none';
+                selectedIds.delete(docId);
+                closeDetailModalFunc();
             }
         };
 
@@ -2181,6 +2261,12 @@
                 exportList = globalFilteredDB;
             } else {
                 exportList = customerDB.filter(c => selectedIds.has(c.id));
+                const visibleIds = new Set(globalFilteredDB.map(c => c.id));
+                const hiddenCount = exportList.filter(c => !visibleIds.has(c.id)).length;
+                if (hiddenCount > 0) {
+                    const ok = await customConfirm(`선택한 ${exportList.length}명을 출력할까요?\n(지금 목록에 안 보이는 ${hiddenCount}명 포함 — 다른 필터에서 체크해둔 고객이에요)`);
+                    if (!ok) return;
+                }
             }
 
             let csv = '\uFEFF';
@@ -2695,6 +2781,20 @@
         }
 
         const detailModal = document.getElementById('detailModal');
+
+        // ✋ 상세카드 '저장 안 한 변경' 감지 → 바깥 터치/취소/닫기 때 한 번 더 물어봄
+        //    (폰에서 어두운 바깥을 잘못 터치하면 입력한 내용이 저장 없이 날아가던 문제)
+        let detailDirty = false;
+        detailModal.addEventListener('input', () => { detailDirty = true; });
+        detailModal.addEventListener('change', () => { detailDirty = true; });
+        async function requestCloseDetailModal() {
+            if (detailDirty && !(await customConfirm('저장하지 않은 변경사항이 있어요.\n저장하지 않고 닫을까요?'))) return;
+            closeDetailModalFunc();
+        }
+        async function confirmLeaveDirtyDetail() {
+            if (!detailDirty) return true;
+            return customConfirm('상세카드에 저장 안 한 변경사항이 있어요.\n보고서를 저장하면 상세카드를 새로 불러오면서 그 내용은 사라져요.\n계속할까요? (먼저 [저장]을 눌러두는 걸 추천해요)');
+        }
         
         window.openDetailModal = function(id) {
             const c = customerDB.find(x => x.id === id);
@@ -2828,11 +2928,12 @@
             setTimeout(() => { historyEl.scrollTop = historyEl.scrollHeight; }, 10);
 
             detailModal.style.display = 'flex';
+            detailDirty = false;
         };
 
-        function closeDetailModalFunc() { detailModal.style.display = 'none'; currentDetailId = null; }
-        document.getElementById('closeDetailModal').onclick = closeDetailModalFunc;
-        document.getElementById('closeDetailBtn2').onclick = closeDetailModalFunc;
+        function closeDetailModalFunc() { detailModal.style.display = 'none'; currentDetailId = null; detailDirty = false; }
+        document.getElementById('closeDetailModal').onclick = () => requestCloseDetailModal();
+        document.getElementById('closeDetailBtn2').onclick = () => requestCloseDetailModal();
 
         // ─────────────────────────────────────────────
         // 👤 고객 프로필 카드 (목록에서 이름 누르면 열리는 보기 전용 카드)
@@ -3274,6 +3375,7 @@ ${typeInstruction}
                 const result = await response.json();
                 const aiText = result.candidates[0].content.parts[0].text;
                 smsInput.value = aiText.trim();
+                detailDirty = true; // AI가 만든 문자 초안도 저장 전엔 '변경됨'
             } catch (error) {
                 console.error(error);
                 customAlert("AI 문자 생성에 실패했습니다. 우측 상단 AI 키를 다시 확인해주세요.");
@@ -3306,7 +3408,7 @@ ${typeInstruction}
             }
         });
 
-        document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); };
+        document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); detailDirty = true; };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
 
         document.getElementById('saveDetailBtn').onclick = async () => {
@@ -3401,18 +3503,19 @@ ${typeInstruction}
                 prosPay: document.getElementById('detailProsPay').value,
                 prosPlan: document.getElementById('detailProsPlan').value,
 
-                contactHistory: document.getElementById('modalHistory').value,
                 updatedAt: new Date().toISOString()
             };
             try {
                 if (newId !== currentDetailId) {
-                    const oldDoc = customerDB.find(x => x.id === currentDetailId) || {};
-                    const finalData = { ...oldDoc, ...updatedData };
+                    // 번호 변경: 예전 문서 내용을 새 번호로 옮김 (예전 id 값은 빼고 저장 → 목록에서 옛 번호로 꼬이던 문제 수정)
+                    const { id: _oldId, ...oldData } = customerDB.find(x => x.id === currentDetailId) || {};
+                    const finalData = { ...oldData, ...updatedData };
                     await setDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
                     await deleteDoc(doc(db, 'smart_customers', currentDetailId));
                 } else {
                     await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
                 }
+                detailDirty = false;
                 customAlert("상세 정보 및 약속이 저장되었습니다!");
                 closeDetailModalFunc();
             } catch (e) { customAlert("업데이트 실패!"); }
@@ -3529,11 +3632,33 @@ ${typeInstruction}
             window.print();
         });
 
+        // 📋 클립보드 복사 (실패해도 에러 없이 false) — 복사가 막힌 폰에서도 저장은 되도록 복사와 저장을 분리
+        async function copyTextSafe(text) {
+            try {
+                if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; }
+            } catch (e) { /* 아래 예전 방식으로 재시도 */ }
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                const ok = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return ok !== false;
+            } catch (e) { return false; }
+        }
+        const COPY_FAILED_MSG = '\n\n⚠️ 이 폰에서 자동 복사가 막혔어요. 미리보기 글을 길게 눌러 직접 복사해주세요.';
+
+        // 📅 개통일 갱신 규칙: 기존 날짜가 3개월 안쪽이면(같은 개통을 다시 보고) 유지, 없거나 오래됐으면 오늘
+        function recentOrToday(dateStr) {
+            return (dateStr && dateStr.length === 10 && dateStr !== '-' && getDdayAndMonths(dateStr).months < 3) ? dateStr : getTodayStr();
+        }
+
         const wiredReportModal = document.getElementById('wiredReportModal');
         let wiredReportPrefillCombo = '';
-        const wiredReportInputs = ['wired-rep-name', 'wired-rep-phone', 'wired-rep-jumin', 'wired-rep-address', 'wired-rep-internet', 'wired-rep-tv', 'wired-rep-extratv', 'wired-rep-subsidy', 'wired-rep-bank', 'wired-rep-account', 'wired-rep-owner', 'wired-rep-combination', 'wired-rep-family', 'wired-rep-fee', 'wired-rep-branch', 'wired-rep-memo'];
+        const wiredReportInputs = ['wired-rep-name', 'wired-rep-phone', 'wired-rep-jumin', 'wired-rep-address', 'wired-rep-internet', 'wired-rep-tv', 'wired-rep-extratv', 'wired-rep-subsidy', 'wired-rep-bank', 'wired-rep-account', 'wired-rep-owner', 'wired-rep-combination', 'wired-rep-family', 'wired-rep-fee', 'wired-rep-branch', 'wired-rep-memo', 'wired-rep-manager'];
         
-        document.getElementById('openWiredReportBtn').addEventListener('click', () => {
+        document.getElementById('openWiredReportBtn').addEventListener('click', async () => {
+            if (detailDirty && !(await confirmLeaveDirtyDetail())) return; // 변경 없으면 바로 진행
             if(!currentDetailId) return;
             const c = customerDB.find(x => x.id === currentDetailId);
             if(!c) return;
@@ -3565,6 +3690,7 @@ ${typeInstruction}
             document.getElementById('wired-rep-fee').value = c.wiredFee || '';
             document.getElementById('wired-rep-branch').value = c.repBranch || '';
             document.getElementById('wired-rep-memo').value = '';
+            document.getElementById('wired-rep-manager').value = getStaffName() || document.getElementById('val-manager').value || c.contactManager || c.manager || '';
 
             updateWiredReportPreview();
             wiredReportModal.style.display = 'flex';
@@ -3575,7 +3701,7 @@ ${typeInstruction}
         function updateWiredReportPreview() {
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
-            const cManager = document.getElementById('val-manager').value || '';
+            const cManager = document.getElementById('wired-rep-manager').value || ''; // 개통자 = 폼에 적힌 직원 (예전엔 스캐너 칸 값이 들어갔음)
             
             const iNet = document.getElementById('wired-rep-internet').value;
             const iTv = document.getElementById('wired-rep-tv').value;
@@ -3621,9 +3747,14 @@ familyStr + `\n` +
         document.getElementById('copyWiredReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('wiredReportPreview').value;
             
-            const saveWiredData = async () => {
+            const saveWiredData = async (copied) => {
                 if(currentDetailId && db) {
+                    const cur = customerDB.find(x => x.id === currentDetailId) || {};
                     const updateData = {
+                        // 유선 개통보고 = 실제 개통 → 판매성공 + 유선 약정일 갱신 (예전엔 이 폼으로 보고하면 이달 유선개통·유선 만료타겟에 반영이 안 됐음)
+                        salesStatus: '판매성공',
+                        wiredDate: recentOrToday(cur.wiredDate),
+                        repManager: document.getElementById('wired-rep-manager').value,
                         repJumin: document.getElementById('wired-rep-jumin').value,
                         repAddress: document.getElementById('wired-rep-address').value,
                         internetProd: document.getElementById('wired-rep-internet').value,
@@ -3648,28 +3779,23 @@ familyStr + `\n` +
                         renderDB();
                     }
                 }
-                customAlert('✅ 유선 개통보고 폼이 복사되고 데이터가 저장되었습니다!');
-                wiredReportModal.style.display = 'none';
+                if (copied) {
+                    customAlert('✅ 유선 개통보고 폼이 복사되고 데이터가 저장되었습니다!');
+                    wiredReportModal.style.display = 'none';
+                } else {
+                    customAlert('✅ 저장은 완료됐어요.' + COPY_FAILED_MSG); // 복사할 수 있게 폼은 열어둠
+                }
             };
 
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(saveWiredData).catch(err => customAlert('복사 실패!'));
-            } else {
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                document.body.appendChild(textarea);
-                textarea.select();
-                try {
-                    document.execCommand('copy');
-                    saveWiredData();
-                } catch (err) { customAlert('복사 실패!'); }
-                document.body.removeChild(textarea);
-            }
+            // 복사가 막혀도 저장은 진행 (예전엔 복사 실패 시 저장도 안 됐음)
+            const copied = await copyTextSafe(text);
+            try { await saveWiredData(copied); }
+            catch (err) { console.error(err); customAlert('저장에 실패했어요. 인터넷 연결을 확인하고 다시 눌러주세요.'); }
         });
 
         const reportModal = document.getElementById('reportModal');
-        const mobileReportInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-family', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
-        const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const mobileReportInputs = ['rep-name', 'rep-phone', 'rep-manager', 'rep-jumin', 'rep-address', 'rep-device', 'rep-plan', 'rep-usim', 'rep-usim-pay', 'rep-type', 'rep-addons', 'rep-insurance', 'rep-principal', 'rep-installment', 'rep-discount', 'rep-subsidy', 'rep-usedphone', 'rep-branch', 'rep-internet-tv', 'rep-combination', 'rep-family', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
+        const wiredReportModalInputs = ['rep-name', 'rep-phone', 'rep-manager', 'rep-jumin', 'rep-address', 'rep-wired-internet', 'rep-wired-tv', 'rep-wired-extratv', 'rep-wired-subsidy', 'rep-wired-bank', 'rep-wired-account', 'rep-wired-owner', 'rep-wired-combo', 'rep-wired-fee', 'rep-wired-branch', 'rep-legal-name', 'rep-legal-phone', 'rep-legal-dob'];
         let reportCustomerData = null;
         let reportPrefill = { intTv: '', combo: '' }; // 개통보고를 열 때 미리 채워진 인터넷/결합 문구
 
@@ -3703,17 +3829,30 @@ familyStr + `\n` +
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
+            setReportPhoneLocked(false);
+            document.getElementById('rep-manager').value = getStaffName() || document.getElementById('val-manager').value || '';
             switchReportTab('mobile');
             reportModal.style.display = 'flex';
         });
 
-        document.getElementById('openReportBtn').addEventListener('click', () => {
+        // 기존 고객의 개통보고에선 번호 수정 잠금 (번호=고객 키라서, 바꾸면 저장 번호와 키가 어긋났음 → 번호 변경은 상세카드에서)
+        function setReportPhoneLocked(locked) {
+            const el = document.getElementById('rep-phone');
+            el.readOnly = locked;
+            el.classList.toggle('opacity-60', locked);
+            el.title = locked ? '번호 변경은 고객 상세카드에서 해주세요' : '';
+        }
+
+        document.getElementById('openReportBtn').addEventListener('click', async () => {
+            if (detailDirty && !(await confirmLeaveDirtyDetail())) return; // 변경 없으면 바로 진행
             if(!currentDetailId) return;
             reportCustomerData = customerDB.find(x => x.id === currentDetailId);
             if(!reportCustomerData) return;
             
             document.getElementById('rep-name').value = reportCustomerData.name || '';
             document.getElementById('rep-phone').value = reportCustomerData.phone || '';
+            setReportPhoneLocked(true);
+            document.getElementById('rep-manager').value = getStaffName() || document.getElementById('val-manager').value || reportCustomerData.contactManager || reportCustomerData.manager || '';
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
             document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
 
@@ -3801,9 +3940,10 @@ familyStr + `\n` +
             const today = new Date();
             const dateStr = `${String(today.getMonth() + 1).padStart(2, '0')}월 ${String(today.getDate()).padStart(2, '0')}일`;
             
-            const cName = reportCustomerData ? (reportCustomerData.name || document.getElementById('rep-name').value) : (document.getElementById('rep-name') ? document.getElementById('rep-name').value : '');
-            const cPhone = reportCustomerData ? (reportCustomerData.phone || document.getElementById('rep-phone').value) : (document.getElementById('rep-phone') ? document.getElementById('rep-phone').value : '');
-            const cManager = reportCustomerData ? (reportCustomerData.contactManager || reportCustomerData.manager || '') : (document.getElementById('val-manager').value || '');
+            // 보고서 글은 폼에 적힌 값 기준 (예전엔 이름을 고쳐도 DB의 옛 이름으로 복사됐고, 개통자는 '지난번 연락한 사람'이 들어갔음)
+            const cName = document.getElementById('rep-name').value || (reportCustomerData ? (reportCustomerData.name || '') : '');
+            const cPhone = document.getElementById('rep-phone').value || (reportCustomerData ? (reportCustomerData.phone || '') : '');
+            const cManager = document.getElementById('rep-manager').value || '';
 
             let text = '';
 
@@ -3881,26 +4021,36 @@ familyStr + `\n` +
         document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
             
-            const saveReportData = async () => {
+            const saveReportData = async (copied) => {
                 let targetId = currentDetailId;
                 let isNewCustomer = false;
+                let mergeIntoExisting = false;
                 let baseData = {};
 
                 if (!targetId) {
                     const inputPhone = document.getElementById('rep-phone').value.trim();
                     const inputName = document.getElementById('rep-name').value.trim();
-                    if (!inputPhone || !inputName) {
+                    targetId = inputPhone.replace(/[^0-9]/g, '');
+                    if (!targetId || !inputName) {
                         customAlert("신규 등록 시 이름과 연락처는 필수 입력 사항입니다!");
                         return false;
                     }
-                    targetId = inputPhone.replace(/[^0-9]/g, '');
-                    isNewCustomer = true;
-                    baseData = {
-                        id: targetId,
-                        visitDate: getTodayStr(),
-                        manager: document.getElementById('val-manager').value || '',
-                        carrier: '미정'
-                    };
+                    const existing = customerDB.find(x => x.id === targetId);
+                    if (existing) {
+                        // 예전엔 기존 고객의 통신사가 '미정'으로, 담당자·법대·주민번호·생년월일이 빈칸으로 덮어써졌음
+                        const ok = await customConfirm(`이미 등록된 번호예요 (${existing.name || '이름 없음'}).\n기존 고객에 이번 개통 내용을 합칠까요?\n(비워둔 칸은 기존 정보 그대로 유지돼요)`);
+                        if (!ok) return false;
+                        reportCustomerData = existing;
+                        mergeIntoExisting = true;
+                    } else {
+                        isNewCustomer = true;
+                        baseData = {
+                            id: targetId,
+                            visitDate: getTodayStr(),
+                            manager: getStaffName() || document.getElementById('val-manager').value || '',
+                            carrier: '미정'
+                        };
+                    }
                 }
 
                 if (targetId && db) {
@@ -3914,7 +4064,10 @@ familyStr + `\n` +
                         
                         let parsedDiscount = '미정';
                         if (newDiscount) {
-                            if (newDiscount.includes('선약') || newDiscount.includes('선택')) parsedDiscount = '선택약정';
+                            if (newDiscount.includes('선약') || newDiscount.includes('선택')) {
+                                parsedDiscount = newDiscount.includes('12+12') ? '선택약정(12+12개월)'
+                                    : (/24/.test(newDiscount) ? '선택약정(24개월)' : (/12/.test(newDiscount) ? '선택약정(12개월)' : '선택약정'));
+                            }
                             else if (newDiscount.includes('공시') || newDiscount.includes('지원')) parsedDiscount = '공시지원금';
                             else parsedDiscount = '해당없음';
                         }
@@ -3924,9 +4077,7 @@ familyStr + `\n` +
 
                         // 📅 개통일: 기존 개통일이 없거나 3개월 이상 지난 값(=지금 쓰던 폰 개통일)이면 오늘로 새로 설정
                         //    (상세카드에서 '판매성공' 저장할 때와 같은 규칙. 예전엔 옛 폰 개통일이 그대로 남아 사용기간/기변타겟이 틀어졌음)
-                        const currentActDate = reportCustomerData ? reportCustomerData.activationDate : '';
-                        const keepActDate = !!(currentActDate && currentActDate.length === 10 && currentActDate !== '-' && getDdayAndMonths(currentActDate).months < 3);
-                        const finalActDate = keepActDate ? currentActDate : getTodayStr();
+                        const finalActDate = recentOrToday(reportCustomerData ? reportCustomerData.activationDate : '');
 
                         updateData = {
                             ...updateData,
@@ -3982,7 +4133,7 @@ familyStr + `\n` +
                         updateData = {
                             ...updateData,
                             salesStatus: '판매성공',
-                            wiredDate: getTodayStr(), 
+                            wiredDate: recentOrToday(reportCustomerData ? reportCustomerData.wiredDate : ''), 
                             repJumin: document.getElementById('rep-jumin').value,
                             repAddress: document.getElementById('rep-address').value,
                             internetProd: document.getElementById('rep-wired-internet').value,
@@ -4019,8 +4170,18 @@ familyStr + `\n` +
                     updateData.legalPhone = document.getElementById('rep-legal-phone').value;
                     updateData.legalDob = document.getElementById('rep-legal-dob').value;
                     updateData.name = document.getElementById('rep-name').value.trim();
-                    updateData.phone = formatPhone(document.getElementById('rep-phone').value.trim());
+                    // 기존 고객은 번호=고객 키라 저장된 번호 유지 (번호 변경은 상세카드에서)
+                    updateData.phone = (reportCustomerData && reportCustomerData.phone) ? reportCustomerData.phone : formatPhone(document.getElementById('rep-phone').value.trim());
+                    updateData.repManager = document.getElementById('rep-manager').value.trim();
                     updateData.updatedAt = new Date().toISOString();
+
+                    // [신규등록]으로 기존 고객에 합칠 때: 비워둔 칸은 저장하지 않아 기존 값 유지
+                    // (tvProd/welfare 빈 값은 '중복 방지용으로 일부러 비운 것'이라 유지)
+                    if (mergeIntoExisting) {
+                        for (const k of Object.keys(updateData)) {
+                            if (typeof updateData[k] === 'string' && updateData[k].trim() === '' && k !== 'tvProd' && k !== 'welfare') delete updateData[k];
+                        }
+                    }
 
                     await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
@@ -4036,29 +4197,21 @@ familyStr + `\n` +
                     }
                     renderDB(); 
                 }
-                customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기/가족정보가 안전하게 반영되었습니다!');
-                reportModal.style.display = 'none'; 
+                if (copied) {
+                    customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기/가족정보가 안전하게 반영되었습니다!');
+                    reportModal.style.display = 'none';
+                } else {
+                    customAlert('✅ 저장은 완료됐어요.' + COPY_FAILED_MSG); // 직접 복사할 수 있게 폼은 열어둠
+                }
                 if (isNewCustomer) switchTab('db'); 
                 return true;
             };
 
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text)
-                    .then(async () => await saveReportData())
-                    .catch(err => { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); });
-            } else {
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                document.body.appendChild(textarea);
-                textarea.select();
-                try {
-                    document.execCommand('copy');
-                    await saveReportData();
-                } catch (err) { customAlert('복사 및 저장에 실패했습니다.'); console.error(err); }
-                document.body.removeChild(textarea);
-            }
+            // 복사가 막혀도 저장은 진행 (예전엔 복사 실패 시 저장도 안 됐음)
+            const copied = await copyTextSafe(text);
+            try { await saveReportData(copied); }
+            catch (err) { console.error(err); customAlert('저장에 실패했어요. 인터넷 연결을 확인하고 다시 눌러주세요.'); }
         });
-
         const prospectModal = document.getElementById('prospectModal');
         const prospectInputs = ['pros-carrier', 'pros-device', 'pros-wired', 'pros-pay', 'pros-plan'];
         
@@ -4085,32 +4238,22 @@ familyStr + `\n` +
 
         prospectInputs.forEach(id => { document.getElementById(id).addEventListener('input', updateProspectPreview); });
 
-        document.getElementById('copyProspectBtn').addEventListener('click', () => {
+        document.getElementById('copyProspectBtn').addEventListener('click', async () => {
             const text = document.getElementById('prospectPreview').value;
             
-            const saveProspectData = () => {
+            const saveProspectData = (copied) => {
                 document.getElementById('detailProsCarrier').value = document.getElementById('pros-carrier').value;
                 document.getElementById('detailProsDevice').value = document.getElementById('pros-device').value;
                 document.getElementById('detailProsWired').value = document.getElementById('pros-wired').value;
                 document.getElementById('detailProsPay').value = document.getElementById('pros-pay').value;
                 document.getElementById('detailProsPlan').value = document.getElementById('pros-plan').value;
-                customAlert('✅ 내역에 깔끔하게 적용되었습니다!\n(상세창 우측 하단의 [저장]을 눌러야 완전 저장됩니다.)');
+                detailDirty = true;
+                customAlert((copied ? '✅ 복사하고 내역에 적용했어요!' : '✅ 내역에 적용했어요. (이 폰에서 자동 복사는 막혔어요)') + '\n상세카드 아래 [저장]을 눌러야 완전히 저장돼요.');
                 prospectModal.style.display = 'none';
             };
 
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(() => saveProspectData()).catch(err => customAlert('저장에 실패했습니다.'));
-            } else {
-                const textarea = document.createElement('textarea');
-                textarea.value = text;
-                document.body.appendChild(textarea);
-                textarea.select();
-                try {
-                    document.execCommand('copy');
-                    saveProspectData();
-                } catch (err) { customAlert('저장에 실패했습니다.'); }
-                document.body.removeChild(textarea);
-            }
+            // 복사가 막혀도 내역 적용은 진행 (예전엔 복사 실패 시 적용도 안 됐음)
+            saveProspectData(await copyTextSafe(text));
         });
 
         document.getElementById('detailCopyProspectBtn').addEventListener('click', () => {
@@ -4157,7 +4300,7 @@ familyStr + `\n` +
         });
 
         window.addEventListener('click', function(e) {
-            if (e.target.id === 'detailModal') closeDetailModalFunc();
+            if (e.target.id === 'detailModal') requestCloseDetailModal();
             if (e.target.id === 'reportModal') document.getElementById('reportModal').style.display = 'none';
             if (e.target.id === 'wiredReportModal') document.getElementById('wiredReportModal').style.display = 'none';
             if (e.target.id === 'prospectModal') document.getElementById('prospectModal').style.display = 'none';
