@@ -593,7 +593,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V55</span>
+                    <span class="text-sm text-gray-600">V55.1</span>
                 </div>
             </section>
         </div>
@@ -1368,6 +1368,9 @@
         let dbUnsubscribe = null;
         let statsUnsubscribe = null;
         let settingsUnsubscribe = null;
+        // 📱 [뒤로가기] 관리: 창을 코드로 닫으면서 히스토리를 한 칸 되돌릴 때, 그 신호가 다른 창까지 닫지 않도록 표시
+        let suppressedBacks = [];
+        function historyBackSilently() { suppressedBacks.push(Date.now()); history.back(); }
         let trashDB = [];                      // 🗑️ 휴지통: 삭제 표시된 고객 (30일 뒤 자동으로 완전 삭제)
         const TRASH_KEEP_DAYS = 30;
         const purgedIds = new Set();
@@ -2252,7 +2255,9 @@
                     throw new Error(`[구글 서버 거절 사유]\n${errData.error?.message || response.status}\n\n1. AI 키가 정확한지 확인해주세요.\n2. aistudio.google.com 에서 키를 '새로 발급' 받아주세요!`);
                 }
                 const result = await response.json();
-                const data = JSON.parse(result.candidates[0].content.parts[0].text);
+                const scanText = extractGeminiText(result);
+                if (!scanText) throw new Error(describeGeminiError(0, result, 'AI가 빈 답을 보냈어요. 사진을 다시 찍어 한 번 더 해주세요.'));
+                const data = JSON.parse(scanText);
                 
                 document.getElementById('val-name').value = data.name || '';
                 const scannedPhoneDigits = String(data.phone || '').replace(/[^0-9]/g, '');
@@ -2471,12 +2476,14 @@
                 const logEntry = `[${timeStr}] ${actionName} (담당: ${managerName})`;
                 const newHistory = currentHistory ? (currentHistory + '\n' + logEntry) : logEntry;
 
-                await setDoc(doc(db, 'smart_customers', docId), { 
+                const logWrite = setDoc(doc(db, 'smart_customers', docId), { 
                     lastContactDate: getTodayStr(), 
                     contactManager: managerName,
                     contactHistory: newHistory,
                     updatedAt: new Date().toISOString() 
                 }, { merge: true }).catch(e=>console.log(e));
+                // 인터넷이 느려도 전화·문자앱이 늦게(또는 아예 안) 열리지 않도록 최대 1.5초만 기다림 (저장은 계속 진행)
+                await Promise.race([logWrite, new Promise(r => setTimeout(r, 1500))]);
                 
                 if(currentDetailId === docId) {
                     document.getElementById('modalContactDate').value = getTodayStr();
@@ -3508,12 +3515,11 @@
             actionSheet.style.display = 'none';
             if (actionSheetHistoryPushed) {
                 actionSheetHistoryPushed = false;
-                if (!fromPopState) history.back();
+                if (!fromPopState) historyBackSilently();
             }
         }
         document.getElementById('actionSheetClose').addEventListener('click', () => closeActionSheet());
         actionSheet.addEventListener('click', (e) => { if (e.target === actionSheet) closeActionSheet(); });
-        window.addEventListener('popstate', () => { if (actionSheet.style.display === 'flex') closeActionSheet(true); });
 
         // 스캐너를 새 고객 입력용으로 비움
         //  · 이미 저장한 고객 내용이 남아있으면 조용히 비우고
@@ -3585,7 +3591,7 @@
             if (on && !selectionHistoryPushed) { history.pushState({ selection: true }, ''); selectionHistoryPushed = true; }
             if (!on) {
                 selectedIds.clear();
-                if (selectionHistoryPushed) { selectionHistoryPushed = false; if (!fromPopState) history.back(); }
+                if (selectionHistoryPushed) { selectionHistoryPushed = false; if (!fromPopState) historyBackSilently(); }
             }
             renderCardList();
             updateSelectionUI();
@@ -3606,7 +3612,6 @@
             updateSelectionUI();
         });
         document.getElementById('selectExportBtn').addEventListener('click', () => document.getElementById('exportExcelBtn').click());
-        window.addEventListener('popstate', () => { if (selectionMode) setSelectionMode(false, true); });
 
         // ── 설정 화면 ──
         function renderSettings() {
@@ -3900,13 +3905,10 @@
             currentProfileId = null;
             if (profileHistoryPushed) {
                 profileHistoryPushed = false;
-                if (!fromPopState) history.back();
+                if (!fromPopState) historyBackSilently();
             }
         }
 
-        window.addEventListener('popstate', () => {
-            if (currentProfileId) closeProfileCard(true);
-        });
 
         function renderProfileCard() {
             const c = customerDB.find(x => x.id === currentProfileId);
@@ -4257,7 +4259,7 @@
             if (familyPickerSheet.style.display !== 'flex') return;
             familyPickerSheet.style.display = 'none';
             familyPickerForId = null;
-            if (familyPickerHistoryPushed) { familyPickerHistoryPushed = false; if (!fromPopState) history.back(); }
+            if (familyPickerHistoryPushed) { familyPickerHistoryPushed = false; if (!fromPopState) historyBackSilently(); }
         }
         function renderFamilyPickerResults() {
             const box = document.getElementById('familyPickerResults');
@@ -4306,7 +4308,6 @@
                 if (currentProfileId) { currentProfileTab = 'family'; renderProfileCard(); }
             } catch (err) { console.error(err); customAlert('가족으로 묶지 못했어요. 인터넷 연결을 확인해주세요.'); }
         });
-        window.addEventListener('popstate', () => { if (familyPickerSheet.style.display === 'flex') closeFamilyPicker(true); });
 
         // "[2026.09.23 14:05] [법대] 📞 전화발신 (담당: 홍길동)" 형식의 자동 기록을 한 줄씩 해석 (최신순)
         function parseContactHistory(text) {
@@ -4448,7 +4449,12 @@
         document.addEventListener('visibilitychange', () => {
             const p = loadPendingCall();
             if (!p) return;
-            if (document.visibilityState === 'hidden') { if (!p.left) setPendingCall({ ...p, left: true }); }
+            if (document.visibilityState === 'hidden') {
+                if (!p.left) {
+                    if (Date.now() - p.at < 15000) setPendingCall({ ...p, left: true });
+                    else setPendingCall(null);   // 전화앱이 안 열렸던 것 → 묻지 않음
+                }
+            }
             else checkPendingCallResult();
         });
 
@@ -4479,7 +4485,7 @@
             setPendingCall(null);
             if (callResultHistoryPushed) {
                 callResultHistoryPushed = false;
-                if (!fromPopState) history.back();
+                if (!fromPopState) historyBackSilently();
             }
         }
         function updateCallResultButtons() {
@@ -4512,7 +4518,6 @@
         });
         document.getElementById('callResultClose').addEventListener('click', () => closeCallResultSheet());
         document.getElementById('callResultSkip').addEventListener('click', () => closeCallResultSheet());
-        window.addEventListener('popstate', () => { if (callResultSheet.style.display === 'flex') closeCallResultSheet(true); });
 
         async function saveCallResult() {
             const p = loadPendingCall();
@@ -4552,6 +4557,31 @@
             }
         }
         document.getElementById('callResultSave').addEventListener('click', saveCallResult);
+
+        // ─────────────────────────────────────────────
+        // 🤖 Gemini 응답에서 글만 모으기
+        //    최신 Gemini 3.x는 답 안에 '생각 서명' 조각이 끼어 있어서 첫 조각에 글이 없을 수 있음
+        //    (예전엔 첫 조각만 읽어서 AI 문자가 '만들지 못했어요'로 실패할 수 있었음)
+        // ─────────────────────────────────────────────
+        function extractGeminiText(result) {
+            const cand = result && Array.isArray(result.candidates) ? result.candidates[0] : null;
+            const parts = cand && cand.content && Array.isArray(cand.content.parts) ? cand.content.parts : [];
+            return parts.filter(p => p && typeof p.text === 'string' && !p.thought).map(p => p.text).join('').trim();
+        }
+        // 실패 이유를 알아듣기 쉬운 말로 (예전엔 원인과 상관없이 '인터넷/키 확인'만 떴음)
+        function describeGeminiError(status, body, fallback) {
+            const msg = String((body && body.error && body.error.message) || '');
+            if (status === 400 && /api key/i.test(msg)) return 'AI 키가 올바르지 않아요. 설정 탭에서 키를 다시 넣어주세요.';
+            if (status === 401 || status === 403) return 'AI 키 사용이 막혀 있어요. 구글 쪽 키 사용 제한(허용 사이트) 설정을 확인해주세요.';
+            if (status === 404) return 'AI 모델을 찾을 수 없어요. (404)';
+            if (status === 429) return 'AI 사용 한도를 넘었어요. 잠시 뒤 다시 해주세요. (429)';
+            if (status >= 500) return `AI 서버가 잠시 불안정해요. 잠시 뒤 다시 해주세요. (${status})`;
+            if (status) return `AI 요청이 실패했어요 (${status}${msg ? ': ' + msg.slice(0, 80) : ''})`;
+            const block = body && body.promptFeedback && body.promptFeedback.blockReason;
+            const finish = body && Array.isArray(body.candidates) && body.candidates[0] && body.candidates[0].finishReason;
+            if (block || finish === 'SAFETY' || finish === 'PROHIBITED_CONTENT') return 'AI가 이 요청은 쓸 수 없다고 했어요. 다른 종류로 다시 해주세요.';
+            return fallback;
+        }
 
         // ═════════════════════════════════════════════
         // ✨ AI 문자 (고객 목록 카드의 [AI문자] 버튼)
@@ -4616,12 +4646,11 @@
             aiSmsSheet.style.display = 'none';
             if (aiSmsHistoryPushed) {
                 aiSmsHistoryPushed = false;
-                if (!fromPopState) history.back();
+                if (!fromPopState) historyBackSilently();
             }
         }
         document.getElementById('aiSmsClose').addEventListener('click', () => closeAiSmsSheet());
         aiSmsSheet.addEventListener('click', (e) => { if (e.target === aiSmsSheet) closeAiSmsSheet(); });
-        window.addEventListener('popstate', () => { if (aiSmsSheet.style.display === 'flex') closeAiSmsSheet(true); });
 
         async function generateAiSms(type) {
             if (aiSmsBusy) return;
@@ -4659,29 +4688,35 @@ ${typeInstruction}
 5. 너무 길지 않게 3~4문장 내외로 간결하게 작성할 것.
 6. 바로 복사해서 보낼 수 있도록 다른 부가 설명 없이 딱 문자 내용만 텍스트로 출력할 것.`;
 
-            const payload = { contents: [{ role: "user", parts: [{ text: promptText }] }], generationConfig: { temperature: 0.7 } };
+            // Gemini 3.x는 temperature 등을 바꾸지 말라고 권장해서 기본값 그대로 사용
+            const payload = { contents: [{ role: "user", parts: [{ text: promptText }] }] };
             const draftEl = document.getElementById('aiSmsDraft');
             const templateBtns = document.querySelectorAll('#aiSmsTemplates button');
             aiSmsBusy = true;
             templateBtns.forEach(b => { b.disabled = true; });
             draftEl.disabled = true;
             setAiSmsStatus('AI가 문자를 쓰는 중이에요…');
+            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const abortTimer = controller ? setTimeout(() => controller.abort(), 40000) : null;
             try {
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                if (!response.ok) throw new Error('AI 응답 오류');
-                const result = await response.json();
-                const aiText = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!aiText) throw new Error('AI 응답이 비어 있음');
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
+                let result = null;
+                try { result = await response.json(); } catch (e) { result = null; }
+                if (!response.ok) throw Object.assign(new Error(`AI 응답 오류 ${response.status}`), { reason: describeGeminiError(response.status, result, `AI 요청이 실패했어요${response.status ? ` (${response.status})` : ''}.`) });
+                const aiText = extractGeminiText(result);
+                if (!aiText) throw Object.assign(new Error('AI 응답이 비어 있음'), { reason: describeGeminiError(0, result, 'AI가 빈 답을 보냈어요. 한 번 더 눌러주세요.') });
                 if (aiSmsCustomerId === c.id) {  // 쓰는 사이 다른 고객 창을 열었으면 반영하지 않음
                     draftEl.value = aiText.trim();
                     if (aiSmsSheet.style.display === 'flex') setAiSmsStatus('다 썼어요. 확인하고 고친 뒤 [문자 보내기]를 눌러주세요.', 'green');
                     else saveAiSmsDraft();  // 창을 닫았어도 쓴 내용은 초안으로 남김
                 }
             } catch (error) {
-                console.error(error);
-                setAiSmsStatus('AI 문자를 만들지 못했어요. 인터넷 연결이나 설정 탭의 AI 키를 확인해주세요.', 'red');
+                console.error('AI 문자 실패:', error);
+                const reason = error.reason || (error.name === 'AbortError' ? 'AI 응답이 너무 오래 걸려요. 잠시 뒤 다시 해주세요.' : 'AI에 연결하지 못했어요. 인터넷 연결을 확인해주세요.');
+                setAiSmsStatus(reason, 'red');
             } finally {
+                if (abortTimer) clearTimeout(abortTimer);
                 aiSmsBusy = false;
                 templateBtns.forEach(b => { b.disabled = false; });
                 draftEl.disabled = false;
@@ -4704,7 +4739,7 @@ ${typeInstruction}
             const c = customerDB.find(x => x.id === aiSmsCustomerId);
             if (!c) return;
             const text = document.getElementById('aiSmsDraft').value.trim();
-            await saveAiSmsDraft();
+            saveAiSmsDraft();   // 저장은 뒤에서 진행 (기다리면 느린 인터넷에서 문자앱이 안 열릴 수 있음)
             closeAiSmsSheet();
             logActionAndCall(c.id, 'sms', c.phone, '', text);  // 문자 기록 + 문자앱에 내용 채워서 열기
         });
@@ -5654,6 +5689,60 @@ familyStr + `\n` +
         document.getElementById('modalMarketingDeny').addEventListener('change', function(e) {
             if(e.target.checked) document.getElementById('modalMarketingBadge').classList.remove('hidden');
             else document.getElementById('modalMarketingBadge').classList.add('hidden');
+        });
+
+        // ═════════════════════════════════════════════
+        // 📱 안드로이드 [뒤로가기] 한 곳에서 처리 — 맨 위에 떠 있는 창 하나만 닫기
+        //    · 예전: 가족 추가 창·통화 결과 창을 닫으면 밑에 있던 고객 카드까지 같이 닫혔음
+        //    · 예전: 상세카드·개통보고·상담보고 창에서 뒤로가기를 누르면 앱이 꺼졌음 (입력 내용 날아감)
+        // ═════════════════════════════════════════════
+        const BACK_MODALS = ['prospectModal', 'wiredReportModal', 'reportModal', 'detailModal'];   // 위에 뜨는 순서
+        const backModalPushed = {};
+        if (typeof MutationObserver !== 'undefined') {
+            BACK_MODALS.forEach(id => {
+                const el = document.getElementById(id);
+                new MutationObserver(() => {
+                    const open = el.style.display === 'flex';
+                    if (open && !backModalPushed[id]) { backModalPushed[id] = true; history.pushState({ modal: id }, ''); }
+                    else if (!open && backModalPushed[id]) { backModalPushed[id] = false; historyBackSilently(); }
+                }).observe(el, { attributes: true, attributeFilter: ['style'] });
+            });
+        }
+        window.addEventListener('popstate', () => {
+            const nowMs = Date.now();
+            suppressedBacks = suppressedBacks.filter(t => nowMs - t < 1500);   // 오래된 표시는 버림 (사용자 뒤로가기를 삼키지 않게)
+            if (suppressedBacks.length) { suppressedBacks.shift(); return; }
+            // 알림·확인 창이 떠 있으면 그것만 닫고, 밑의 창은 그대로 (소비된 한 칸은 다시 넣어둠)
+            const alertOpen = document.getElementById('customAlert').style.display === 'flex';
+            const confirmOpen = document.getElementById('customConfirm').style.display === 'flex';
+            if (alertOpen || confirmOpen) {
+                if (confirmOpen) document.getElementById('customConfirmCancel').click(); else closeCustomAlert();
+                history.pushState({ reArm: true }, '');
+                return;
+            }
+            if (familyPickerSheet.style.display === 'flex') return closeFamilyPicker(true);
+            if (callResultSheet.style.display === 'flex') return closeCallResultSheet(true);
+            if (aiSmsSheet.style.display === 'flex') return closeAiSmsSheet(true);
+            if (actionSheet.style.display === 'flex') return closeActionSheet(true);
+            for (const id of BACK_MODALS) {
+                const el = document.getElementById(id);
+                if (el.style.display !== 'flex' || !backModalPushed[id]) continue;
+                backModalPushed[id] = false;   // 이 창의 한 칸은 이미 빠졌음
+                if (id === 'detailModal') {
+                    if (!detailDirty) { closeDetailModalFunc(); return; }
+                    // 확인창이 떠 있는 동안 한 번 더 뒤로가기를 눌러도 앱이 꺼지지 않게 한 칸 미리 넣어둠
+                    history.pushState({ modal: id }, '');
+                    customConfirm('저장하지 않은 변경사항이 있어요.\n저장하지 않고 닫을까요?').then(ok => {
+                        if (ok) { closeDetailModalFunc(); historyBackSilently(); }
+                        else backModalPushed[id] = true;   // 계속 편집 (넣어둔 한 칸이 상세카드 몫)
+                    });
+                } else {
+                    el.style.display = 'none';
+                }
+                return;
+            }
+            if (currentProfileId) return closeProfileCard(true);
+            if (selectionMode) return setSelectionMode(false, true);
         });
 
         window.addEventListener('click', function(e) {
