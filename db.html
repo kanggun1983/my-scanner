@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="google" content="notranslate">
-    <title>스마트 고객 정보 추출기 V52</title>
+    <title>스마트 고객 정보 추출기 V53</title>
     
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -144,12 +144,12 @@
     </div>
 
     <!-- 📱 실제 앱 콘텐츠 영역 (로그인 후 표시) -->
-    <div id="appContent" class="max-w-7xl mx-auto space-y-6 p-2 md:p-8 hidden">
-        <header class="flex items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border-b-4 border-indigo-600">
+    <div id="appContent" class="max-w-7xl mx-auto space-y-3 lg:space-y-6 p-2 pb-28 lg:p-8 hidden">
+        <header class="hidden lg:flex items-center justify-between bg-white p-4 sm:p-6 rounded-2xl shadow-sm border-b-4 border-indigo-600">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">🚀 V52: 폴드최적화</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V53</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -165,17 +165,20 @@
             </div>
         </header>
 
-        <div class="flex gap-2 border-b-2 border-gray-200 px-2 sm:px-6 pt-2 bg-white rounded-t-2xl shadow-sm">
+        <div class="hidden lg:flex gap-2 border-b-2 border-gray-200 px-2 sm:px-6 pt-2 bg-white rounded-t-2xl shadow-sm">
             <button id="tabScanner" onclick="switchTab('scanner')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
                 <i class="fa-solid fa-camera text-lg"></i> 스캐너 화면
             </button>
             <button id="tabDB" onclick="switchTab('db')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
                 <i class="fa-solid fa-database text-lg"></i> 고객 DB 목록
             </button>
+            <button id="tabSettings" onclick="switchTab('settings')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-sliders text-lg"></i> 설정
+            </button>
         </div>
 
         <!-- Z Fold 8 등 폴드 펼친 화면 대응 위해 md:grid-cols-12 로 유지 -->
-        <div id="scannerView" class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-white p-4 rounded-b-2xl shadow-sm">
+        <div id="scannerView" class="grid grid-cols-1 md:grid-cols-12 gap-6 bg-white p-4 rounded-2xl lg:rounded-t-none shadow-sm">
             <div class="md:col-span-5 space-y-4">
                 <div class="glass-panel p-6 rounded-2xl h-full flex flex-col">
                     <h2 class="text-lg font-bold mb-4 flex items-center gap-2">
@@ -393,87 +396,106 @@
             </div>
         </div>
 
-        <div id="dbView" class="hidden glass-panel p-4 sm:p-6 rounded-b-2xl bg-white shadow-sm min-h-[600px] flex flex-col">
-            <!-- 미리 알림 대시보드 (타일을 누르면 해당 고객만 목록에 보여줌) -->
-            <div id="alertDashboard" class="mb-4 bg-gradient-to-r from-indigo-500 to-purple-600 p-4 rounded-xl text-white shadow-md">
-                <div class="flex items-center gap-2 mb-3">
-                    <i class="fa-solid fa-bell text-yellow-300 text-xl animate-bounce"></i>
-                    <div>
-                        <h4 class="font-bold text-sm">실시간 미리 알림 대시보드</h4>
-                        <p class="text-[11px] text-indigo-100">오늘 챙길 고객이에요. 누르면 해당 고객만 목록에 보여드려요.</p>
-                    </div>
+        <div id="dbView" class="hidden flex flex-col min-h-[600px] px-1 lg:p-6 lg:bg-white lg:rounded-b-2xl lg:shadow-sm">
+            <!-- 목록 머리: 고객 수 + 정렬 + 선택 + 추가 -->
+            <div id="listHeader" class="flex items-center justify-between gap-2 mb-2">
+                <div class="flex items-baseline gap-2 min-w-0">
+                    <h2 class="text-[22px] font-bold text-gray-900 tracking-tight">고객</h2>
+                    <span id="totalCustomerCount" class="text-[15px] font-medium text-gray-600 truncate">0명</span>
                 </div>
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <button type="button" id="dashPromise" data-dash-filter="today_promise" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-clock"></i> 처리할 약속</span>
-                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashPromiseCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
-                        <span id="dashPromiseSub" class="block text-[10px] text-indigo-100 mt-0.5">오늘 0명, 지연 0명</span>
-                    </button>
-                    <button type="button" id="dashMobile" data-dash-filter="target_dashboard" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-mobile-screen"></i> 무선 만료타겟</span>
-                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashMobileCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
-                        <span id="dashMobileSub" class="block text-[10px] text-indigo-100 mt-0.5">18개월 이상, 약정만료</span>
-                    </button>
-                    <button type="button" id="dashWired" data-dash-filter="wired_target" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-tv"></i> 유선 만료타겟</span>
-                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashWiredCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
-                        <span id="dashWiredSub" class="block text-[10px] text-indigo-100 mt-0.5">만료 0명, 곧 만료 0명</span>
-                    </button>
-                    <button type="button" id="dashBirthday" data-dash-filter="birthday" class="text-left bg-white/15 hover:bg-white/25 border border-white/25 rounded-xl px-3 py-2.5 transition">
-                        <span class="flex items-center gap-1 text-[11px] font-bold text-indigo-100"><i class="fa-solid fa-cake-candles"></i> 생일자</span>
-                        <span class="block text-xl font-extrabold leading-tight mt-0.5"><span id="dashBirthdayCount">0</span><span class="text-xs font-bold ml-0.5">명</span></span>
-                        <span id="dashBirthdaySub" class="block text-[10px] text-indigo-100 mt-0.5">오늘 0명, 7일 이내</span>
-                    </button>
+                <div class="flex items-center gap-0.5 flex-shrink-0">
+                    <button type="button" id="sortBtn" class="h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60 flex items-center gap-1"><span id="sortLabel">최근 방문순</span><i class="fa-solid fa-chevron-down text-[11px]"></i></button>
+                    <button type="button" id="selectModeBtn" class="lg:hidden h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60">선택</button>
+                    <button type="button" id="addMenuBtn" aria-label="추가하기 (신규 개통보고, 고객 등록)" class="ml-1 w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm"><i class="fa-solid fa-plus text-lg"></i></button>
                 </div>
             </div>
 
-            <!-- 폴드8 최적화: flex-col md:flex-row 로 넓게 분할 적용 -->
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                
-                <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full md:w-auto">
-                    <h2 class="text-xl font-bold flex flex-wrap items-center gap-2 text-gray-800">
-                        <i class="fa-solid fa-users text-indigo-500"></i> 내 고객 목록
-                        <span id="totalCustomerCount" class="text-[13px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-bold shadow-sm">총 0명</span>
-                        <span id="monthlyActivationCount" class="text-[12px] bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-bold shadow-sm flex items-center gap-1"><i class="fa-solid fa-medal text-emerald-500"></i>이달 개통 <span id="monthlyActTotal" class="text-red-500 font-extrabold">0건</span> (<span class="text-green-700">무선 <span id="monthlyActWireless">0</span></span>, <span class="text-blue-700">유선 <span id="monthlyActWired">0</span></span>, <span class="text-purple-700">동시 <span id="monthlyActBoth">0</span></span>)</span>
-                    </h2>
-                    <div id="statsContainer" class="text-[11px] sm:text-xs font-bold text-gray-600 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-full flex flex-wrap items-center gap-1 shadow-sm w-fit transition-all">
-                        <!-- JS에서 실시간 연동되어 렌더링됩니다 -->
-                    </div>
+            <!-- 선택 모드 머리 (엑셀로 내보낼 고객 고르기) -->
+            <div id="selectHeader" class="hidden items-center justify-between gap-2 mb-2">
+                <div class="flex items-center gap-1 min-w-0">
+                    <button type="button" id="selectExitBtn" aria-label="선택 끝내기" class="w-11 h-11 rounded-xl text-gray-700 hover:bg-gray-200/60 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+                    <h2 class="text-lg font-bold text-gray-900"><span id="selectCount">0</span>명 선택됨</h2>
                 </div>
+                <button type="button" id="selectAllVisibleBtn" class="h-11 px-2.5 rounded-xl text-sm font-bold text-indigo-700 hover:bg-indigo-50">지금 목록 전체 선택</button>
+            </div>
 
-                <div class="flex gap-2 w-full md:w-auto items-center">
-                    <div class="relative flex-1 sm:w-64">
-                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
-                        <input type="text" id="searchInput" placeholder="고객/법대/담당자 이름 또는 번호 검색" class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 text-sm">
-                    </div>
-                    <!-- 신규등록 버튼 -->
-                    <button id="newReportBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-md transition flex items-center gap-1 whitespace-nowrap">
-                        <i class="fa-solid fa-plus"></i> 신규등록
-                    </button>
-                    <button id="exportExcelBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold shadow-md transition flex items-center gap-1 whitespace-nowrap">
-                        <i class="fa-solid fa-file-excel"></i> 엑셀출력
-                    </button>
+            <!-- 검색 (+ 넓은 화면 전용 신규 개통보고 / 엑셀 버튼) -->
+            <div class="flex gap-2 items-center mb-2.5">
+                <label for="searchInput" class="sr-only">고객 검색</label>
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                    <input type="search" id="searchInput" placeholder="이름, 번호, 담당자로 검색" class="w-full h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                </div>
+                <button id="newReportBtn" class="hidden lg:flex bg-blue-600 hover:bg-blue-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
+                    <i class="fa-solid fa-plus"></i> 신규 개통보고
+                </button>
+                <button id="exportExcelBtn" class="hidden lg:flex bg-green-700 hover:bg-green-800 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
+                    <i class="fa-solid fa-file-excel"></i> 엑셀출력
+                </button>
+            </div>
+
+            <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌) -->
+            <div id="alertDashboard" class="grid grid-cols-4 gap-2 mb-2.5">
+                <button type="button" id="dashPromise" data-dash-filter="today_promise" class="text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600">약속</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashPromiseCount">0</span><span class="text-sm">명</span></span>
+                    <span id="dashPromiseSub" class="text-xs text-gray-600 truncate">오늘 0명</span>
+                </button>
+                <button type="button" id="dashMobile" data-dash-filter="target_dashboard" class="text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600 truncate">무선 만료</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashMobileCount">0</span><span class="text-sm">명</span></span>
+                    <span id="dashMobileSub" class="text-xs text-gray-600 truncate">18개월↑</span>
+                </button>
+                <button type="button" id="dashWired" data-dash-filter="wired_target" class="text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600 truncate">유선 만료</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashWiredCount">0</span><span class="text-sm">명</span></span>
+                    <span id="dashWiredSub" class="text-xs text-gray-600 truncate">90일 안</span>
+                </button>
+                <button type="button" id="dashBirthday" data-dash-filter="birthday" class="text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600">생일</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashBirthdayCount">0</span><span class="text-sm">명</span></span>
+                    <span id="dashBirthdaySub" class="text-xs text-gray-600 truncate">7일 안</span>
+                </button>
+            </div>
+
+            <!-- 이달 개통 · 오늘/이번 달 연락 실적 -->
+            <div class="grid grid-cols-2 bg-white border border-gray-200 rounded-xl mb-2.5">
+                <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
+                    <span id="monthlyActLabel" class="text-xs font-medium text-gray-600">이달 개통</span>
+                    <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
+                    <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
+                </div>
+                <div class="px-3 py-2 flex flex-col min-w-0">
+                    <span class="text-xs font-medium text-gray-600">오늘 연락</span>
+                    <span id="statsTodayText" class="text-[17px] font-bold text-gray-900 leading-snug">OB 0 / 문자 0</span>
+                    <span id="statsMonthText" class="text-xs text-gray-600 truncate">이번 달 OB 0 / 문자 0</span>
                 </div>
             </div>
 
-            <div class="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-                <button class="filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-gray-800 text-white transition whitespace-nowrap" data-filter="all">전체고객 보기</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="mobile">📱 무선</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="wired">📺 유선</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="m6">⚡ M+6 (6개월↑)</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="target18">📱 기변타겟 (18개월↑)</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 transition whitespace-nowrap" data-filter="expired">🚨 약정만료</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-blue-50 text-blue-600 border border-blue-200 transition whitespace-nowrap" data-filter="status_prospect">💙 가망고객</button>
-                <button class="filter-btn px-4 py-1.5 rounded-full text-sm font-bold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition whitespace-nowrap" data-filter="promise">⏰ 약속/할일</button>
+            <!-- 필터 (옆으로 넘겨서 더 보기) -->
+            <div class="flex gap-2 mb-2.5 overflow-x-auto pb-1 scrollbar-hide">
+                <button type="button" aria-pressed="true" class="filter-btn active flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-indigo-600 text-white border-indigo-600 font-bold" data-filter="all">전체</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="promise">약속·할일</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_prospect">가망</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="mobile">무선</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="wired">유선</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="expired">약정만료</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="target18">18개월↑</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="m6">6~17개월</button>
             </div>
 
-            <!-- 대시보드 타일 필터가 적용 중일 때 보이는 안내 배너 -->
-            <div id="dashFilterBanner" class="hidden mb-3 flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs font-bold px-3 py-2 rounded-lg">
-                <span id="dashFilterBannerText"></span>
-                <button type="button" id="clearDashFilterBtn" class="flex-shrink-0 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition">전체 보기</button>
+            <!-- 대시보드 타일로 걸러 보는 중일 때 안내 -->
+            <div id="dashFilterBanner" class="hidden mb-2.5 flex items-center justify-between gap-2 bg-white border border-indigo-200 rounded-xl pl-3.5 pr-1 py-1">
+                <span id="dashFilterBannerText" class="text-sm font-medium text-gray-900"></span>
+                <button type="button" id="clearDashFilterBtn" class="flex-shrink-0 h-11 px-3 rounded-lg text-sm font-bold text-indigo-700 hover:bg-indigo-50">전체 보기</button>
             </div>
 
-            <div class="overflow-x-auto border border-gray-200 rounded-xl flex-1 relative bg-white">
+            <!-- 📱 폰·폴드: 고객 카드 목록 (넓은 화면에서는 아래 표로 보여줌) -->
+            <div id="cardList" class="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+            <div id="cardListFooter" class="lg:hidden flex justify-center py-3"></div>
+
+            <!-- 🖥️ 넓은 화면: 표 -->
+            <div class="hidden lg:block overflow-x-auto border border-gray-200 rounded-xl flex-1 relative bg-white">
                 <table class="w-full text-sm text-left text-gray-600">
                     <thead class="text-xs text-gray-700 bg-gray-50 uppercase border-b border-gray-200">
                         <tr>
@@ -496,11 +518,74 @@
                 </table>
             </div>
             
-            <!-- 페이지네이션 UI -->
-            <div id="paginationContainer" class="flex justify-center items-center gap-1 mt-4">
-                <!-- 동적으로 페이지 버튼 렌더링 -->
-            </div>
+            <!-- 페이지네이션 (넓은 화면의 표 전용) -->
+            <div id="paginationContainer" class="hidden lg:flex justify-center items-center gap-1 mt-4"></div>
         </div>
+
+        <!-- ⚙️ 설정 -->
+        <div id="settingsView" class="hidden max-w-xl w-full mx-auto px-1 lg:px-0 space-y-4">
+            <h2 class="text-[22px] font-bold text-gray-900 tracking-tight lg:hidden">설정</h2>
+            <section class="space-y-2" aria-labelledby="setMeTitle">
+                <h3 id="setMeTitle" class="text-[13px] font-bold text-gray-600 pl-1">내 정보</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label for="settingsStaffName" class="text-sm font-bold text-gray-900">직원 이름</label>
+                        <span id="settingsStaffSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</span>
+                    </div>
+                    <input type="text" id="settingsStaffName" placeholder="예: 홍길동" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <p class="text-xs text-gray-600 leading-relaxed">전화·문자 기록, 개통자, 스캔 담당자에 자동으로 들어가요. 이 폰에만 저장돼요.</p>
+                </div>
+            </section>
+            <section class="space-y-2" aria-labelledby="setAccountTitle">
+                <h3 id="setAccountTitle" class="text-[13px] font-bold text-gray-600 pl-1">계정</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                    <div class="min-h-[56px] px-4 py-2 flex items-center justify-between gap-3 border-b border-gray-100">
+                        <span class="text-[15px] font-medium text-gray-900 flex-shrink-0">로그인 계정</span>
+                        <span id="settingsEmail" class="text-sm text-gray-600 truncate">-</span>
+                    </div>
+                    <button type="button" id="settingsLogoutBtn" class="w-full h-14 px-4 text-left text-[15px] font-medium text-red-700 hover:bg-red-50">로그아웃</button>
+                </div>
+            </section>
+            <section class="space-y-2" aria-labelledby="setAiTitle">
+                <h3 id="setAiTitle" class="text-[13px] font-bold text-gray-600 pl-1">AI 스캔</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-2 py-2 flex items-center justify-between gap-3">
+                    <div class="flex flex-col min-w-0">
+                        <span class="text-[15px] font-medium text-gray-900">AI 키</span>
+                        <span id="settingsApiStatus" class="text-[13px] font-medium text-gray-600">-</span>
+                    </div>
+                    <button type="button" id="settingsApiBtn" class="flex-shrink-0 h-11 px-4 border border-gray-300 bg-white rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50">변경</button>
+                </div>
+            </section>
+            <section class="space-y-2" aria-labelledby="setAppTitle">
+                <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
+                    <span class="text-[15px] font-medium text-gray-900">버전</span>
+                    <span class="text-sm text-gray-600">V53.1 (카드형 목록)</span>
+                </div>
+            </section>
+        </div>
+
+        <!-- 📱 폰 아래 탭 (엄지로 누르기 쉬운 위치) -->
+        <nav id="bottomNav" aria-label="주요 메뉴" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 grid grid-cols-3" style="padding-bottom: env(safe-area-inset-bottom);">
+            <button type="button" id="navScanner" onclick="switchTab('scanner')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-camera text-xl"></i>스캔</button>
+            <button type="button" id="navDB" onclick="switchTab('db')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-users text-xl"></i>고객</button>
+            <button type="button" id="navSettings" onclick="switchTab('settings')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-sliders text-xl"></i>설정</button>
+        </nav>
+
+        <!-- 선택 모드 아래 바 -->
+        <div id="selectBar" class="hidden lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-4 pt-3" style="padding-bottom: max(16px, env(safe-area-inset-bottom));">
+            <button type="button" id="selectExportBtn" class="w-full h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-file-arrow-down"></i><span id="selectExportLabel">엑셀로 내보내기</span></button>
+        </div>
+    </div>
+
+    <!-- 📋 아래에서 올라오는 선택 메뉴 (추가하기 / 정렬 / 법대 연락) -->
+    <div id="actionSheet" class="fixed inset-0 z-[65] hidden items-end sm:items-center justify-center bg-black/50">
+        <section aria-labelledby="actionSheetTitle" class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-2" style="padding-bottom: max(20px, env(safe-area-inset-bottom));">
+            <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+            <h2 id="actionSheetTitle" class="text-lg font-bold text-gray-900 pl-1 pt-1.5 pb-1"></h2>
+            <div id="actionSheetOptions" class="flex flex-col gap-2"></div>
+            <button type="button" id="actionSheetClose" class="h-12 mt-1 rounded-xl bg-gray-100 hover:bg-gray-200 text-[15px] font-medium text-gray-700">닫기</button>
+        </section>
     </div>
 
     <!-- 이미지 확대 팝업 -->
@@ -1153,6 +1238,13 @@
         // 페이징 처리 변수
         let currentPage = 1;
         const itemsPerPage = 15;
+        let dbLoaded = false;                  // 첫 고객 데이터가 도착했는지 (도착 전엔 '불러오는 중' 표시)
+        let dbLoadError = null;                // 고객 목록을 못 불러왔을 때의 오류 (권한·연결 문제)
+        const CARD_PAGE = 30;                  // 폰 카드 목록: 한 번에 보여줄 고객 수 (아래로 내리면 이어서 불러옴)
+        let cardLimit = CARD_PAGE;
+        let lastListSig = '';
+        let selectionMode = false;             // 폰: [선택] 눌러 엑셀로 내보낼 고객 고르는 중
+        let currentSort = localStorage.getItem('listSort') || 'visit';
         let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
         let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
@@ -1188,6 +1280,8 @@
                         document.getElementById('loginOverlay').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
                         document.getElementById('userEmailDisplay').textContent = user.email;
+                        document.getElementById('settingsEmail').textContent = user.email;
+                        switchTab(localStorage.getItem('lastTab') || 'db');
                         
                         attachDBListeners(); 
                     } else if (user) {
@@ -1222,13 +1316,34 @@
             } catch (error) { console.error("Firebase 에러:", error); }
         }
 
+        // 저장된 값이 숫자·null 로 들어있는 고객이 하나라도 있으면 목록 전체가 멈출 수 있어서
+        // 불러올 때 글자 칸은 모두 글자로 맞춰둠 (체크 여부 같은 참/거짓 값은 그대로)
+        const BOOL_FIELDS = new Set(['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk', 'marketingDeny']);
+        function normalizeCustomer(c) {
+            Object.keys(c).forEach(k => {
+                if (BOOL_FIELDS.has(k)) return;
+                const v = c[k];
+                if (v === null || v === undefined) c[k] = '';
+                else if (typeof v === 'number') c[k] = String(v);
+            });
+            return c;
+        }
+
         function attachDBListeners() {
             dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
                 customerDB = [];
                 // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
-                snapshot.forEach((doc) => { customerDB.push({ ...doc.data(), id: doc.id }); });
+                snapshot.forEach((doc) => { customerDB.push(normalizeCustomer({ ...doc.data(), id: doc.id })); });
+                dbLoaded = true;
+                dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
+            }, (error) => {
+                // 예전엔 오류가 나도 아무 표시 없이 빈 목록/불러오는 중으로 남았음
+                console.error('고객 목록 불러오기 실패:', error);
+                dbLoaded = true;
+                dbLoadError = error;
+                if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
             });
             
             statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
@@ -1251,18 +1366,10 @@
             let mOB = globalStats.month === monthStr ? (globalStats.monthlyOB || 0) : 0;
             let mSMS = globalStats.month === monthStr ? (globalStats.monthlySMS || 0) : 0;
 
-            const container = document.getElementById('statsContainer');
-            if (container) {
-                const dayLabel = String(now.getDate()).padStart(2, '0');
-                const monthLabel = now.getMonth() + 1;
-                container.innerHTML = `
-                    <span class="text-indigo-600 mr-1">${dayLabel}일</span> 
-                    OB(<span class="text-red-500 font-bold">${dOB}</span>건), 
-                    문자(<span class="text-blue-500 font-bold">${dSMS}</span>건) 
-                    <span class="text-gray-300 mx-1">|</span> 
-                    [${monthLabel}월 총 OB <span class="text-red-500 font-bold">${mOB}</span>건 문자 <span class="text-blue-500 font-bold">${mSMS}</span>건]
-                `;
-            }
+            const todayEl = document.getElementById('statsTodayText');
+            const monthEl = document.getElementById('statsMonthText');
+            if (todayEl) todayEl.textContent = `OB ${dOB} / 문자 ${dSMS}`;
+            if (monthEl) monthEl.textContent = `${now.getMonth() + 1}월 OB ${mOB} / 문자 ${mSMS}`;
         }
 
         async function updateAndRenderStats(actionType = null) {
@@ -1647,19 +1754,29 @@
         document.getElementById('modalWiredFee').addEventListener('blur', formatFeeInput);
         document.getElementById('wired-rep-fee').addEventListener('blur', formatFeeInput);
 
+        const TOP_TAB_ON = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
+        const TOP_TAB_OFF = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
         window.switchTab = function(tabId) {
-            const tScanner = document.getElementById('tabScanner'), tDB = document.getElementById('tabDB');
-            const vScanner = document.getElementById('scannerView'), vDB = document.getElementById('dbView');
-            if (tabId === 'scanner') {
-                vScanner.classList.remove('hidden'); vDB.classList.add('hidden');
-                tScanner.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
-                tDB.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
-            } else {
-                vDB.classList.remove('hidden'); vScanner.classList.add('hidden');
-                tDB.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
-                tScanner.className = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
-                renderDB();
-            }
+            if (!['scanner', 'db', 'settings'].includes(tabId)) tabId = 'db';
+            if (tabId !== 'db' && selectionMode) setSelectionMode(false);
+            const views = { scanner: 'scannerView', db: 'dbView', settings: 'settingsView' };
+            const tops = { scanner: 'tabScanner', db: 'tabDB', settings: 'tabSettings' };
+            const navs = { scanner: 'navScanner', db: 'navDB', settings: 'navSettings' };
+            Object.keys(views).forEach(k => {
+                const on = k === tabId;
+                document.getElementById(views[k]).classList.toggle('hidden', !on);
+                document.getElementById(tops[k]).className = on ? TOP_TAB_ON : TOP_TAB_OFF;
+                const nav = document.getElementById(navs[k]);
+                nav.classList.toggle('text-indigo-700', on);
+                nav.classList.toggle('font-bold', on);
+                nav.classList.toggle('text-gray-600', !on);
+                nav.classList.toggle('font-medium', !on);
+                nav.setAttribute('aria-current', on ? 'page' : 'false');
+            });
+            try { localStorage.setItem('lastTab', tabId); } catch (e) { /* 저장 못 해도 동작엔 지장 없음 */ }
+            if (tabId === 'db') renderDB();
+            if (tabId === 'settings') renderSettings();
+            if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
         };
 
         function getTodayStr() {
@@ -1868,6 +1985,7 @@
             geminiApiKey = document.getElementById('apiKeyInput').value.trim();
             geminiApiKey ? localStorage.setItem('geminiApiKey', geminiApiKey) : localStorage.removeItem('geminiApiKey');
             document.getElementById('apiModal').style.display = 'none'; customAlert("저장 완료!");
+            renderSettings();
         };
 
         // 긴 변 2000px / 품질 0.85 (예전 1200px·0.7은 폰 스크린샷의 작은 글씨·금액이 뭉개져 오인식 위험)
@@ -2206,19 +2324,22 @@
             }
         };
 
+        // 필터칩 선택 표시 (filter가 null이면 전부 해제 → 대시보드 타일로 거르는 중)
+        const CHIP_ON = ['active', 'bg-indigo-600', 'text-white', 'border-indigo-600', 'font-bold'];
+        const CHIP_OFF = ['bg-white', 'text-gray-700', 'border-gray-200', 'font-medium'];
+        function setActiveFilterChip(filter) {
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                const on = b.getAttribute('data-filter') === filter;
+                CHIP_ON.forEach(cls => b.classList.toggle(cls, on));
+                CHIP_OFF.forEach(cls => b.classList.toggle(cls, !on));
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+            });
+        }
         const filterBtns = document.querySelectorAll('.filter-btn');
         filterBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                filterBtns.forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
-                
-                if(e.target.getAttribute('data-filter') === 'status_prospect'){
-                    e.target.className = "filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-blue-600 text-white transition whitespace-nowrap";
-                } else if(e.target.getAttribute('data-filter') === 'promise'){
-                    e.target.className = "filter-btn active px-4 py-1.5 rounded-full text-sm font-bold bg-purple-600 text-white transition whitespace-nowrap";
-                } else {
-                    e.target.classList.remove('bg-gray-100', 'text-gray-600'); e.target.classList.add('active', 'bg-gray-800', 'text-white');
-                }
-                currentFilter = e.target.getAttribute('data-filter');
+            btn.addEventListener('click', () => {
+                setActiveFilterChip(btn.getAttribute('data-filter'));
+                currentFilter = btn.getAttribute('data-filter');
                 currentPage = 1; 
                 renderDB();
             });
@@ -2351,36 +2472,51 @@
 
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
             setText('dashPromiseCount', promiseCount);
-            setText('dashPromiseSub', `오늘 ${promiseToday}명, 지연 ${promiseOverdue}명`);
+            setText('dashPromiseSub', promiseOverdue > 0 ? `지연 ${promiseOverdue}명` : `오늘 ${promiseToday}명`);
             setText('dashMobileCount', mobileCount);
-            setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월 이상, 약정만료`);
+            setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월↑`);
             setText('dashWiredCount', wiredCount);
-            setText('dashWiredSub', `만료 ${wiredExpired}명, ${WIRED_TARGET_DAYS}일 내 ${wiredCount - wiredExpired}명`);
+            setText('dashWiredSub', wiredExpired > 0 ? `만료 ${wiredExpired}명` : `${WIRED_TARGET_DAYS}일 안`);
             setText('dashBirthdayCount', birthdayCount);
-            setText('dashBirthdaySub', `오늘 ${birthdayToday}명, ${BIRTHDAY_DAYS_AHEAD}일 이내`);
+            setText('dashBirthdaySub', birthdayToday > 0 ? `오늘 ${birthdayToday}명` : `${BIRTHDAY_DAYS_AHEAD}일 안`);
+
+            // 처리할 약속이 있으면 숫자는 주황, 지연이 있으면 보조문구는 빨강
+            const promiseNum = document.getElementById('dashPromiseCount');
+            if (promiseNum && promiseNum.parentElement) {
+                promiseNum.parentElement.classList.toggle('text-orange-700', promiseCount > 0);
+                promiseNum.parentElement.classList.toggle('text-gray-900', promiseCount === 0);
+            }
+            const promiseSub = document.getElementById('dashPromiseSub');
+            if (promiseSub) {
+                promiseSub.classList.toggle('text-red-700', promiseOverdue > 0);
+                promiseSub.classList.toggle('font-bold', promiseOverdue > 0);
+                promiseSub.classList.toggle('text-gray-600', promiseOverdue === 0);
+            }
         }
 
         const DASH_FILTER_LABELS = {
-            today_promise: () => '⏰ 처리할 약속(오늘 + 지난 미처리)이 있는 고객만 보는 중',
-            target_dashboard: () => `📱 무선 만료타겟(${MOBILE_TARGET_MONTHS}개월 이상 또는 약정만료) 고객만 보는 중`,
-            wired_target: () => `📺 유선 만료타겟(만료 ${WIRED_TARGET_DAYS}일 전부터 만료 후까지) 고객만 보는 중`,
-            birthday: () => `🎂 생일이 오늘부터 ${BIRTHDAY_DAYS_AHEAD}일 이내인 고객만 보는 중`
+            today_promise: (n) => `처리할 약속 고객만 보는 중 (${n}명)`,
+            target_dashboard: (n) => `무선 만료타겟만 보는 중 (${n}명)`,
+            wired_target: (n) => `유선 만료타겟만 보는 중 (${n}명)`,
+            birthday: (n) => `생일 ${BIRTHDAY_DAYS_AHEAD}일 안 고객만 보는 중 (${n}명)`
         };
 
         // 선택된 타일 강조 + 목록 위 안내 배너 표시
         function updateDashFilterUI() {
             document.querySelectorAll('[data-dash-filter]').forEach(tile => {
                 const active = tile.dataset.dashFilter === currentFilter;
-                tile.classList.toggle('ring-2', active);
-                tile.classList.toggle('ring-white', active);
-                tile.classList.toggle('bg-white/30', active);
-                tile.classList.toggle('bg-white/15', !active);
+                tile.classList.toggle('border-2', active);
+                tile.classList.toggle('border-indigo-600', active);
+                tile.classList.toggle('bg-indigo-50', active);
+                tile.classList.toggle('border-gray-200', !active);
+                tile.classList.toggle('bg-white', !active);
+                tile.setAttribute('aria-pressed', active ? 'true' : 'false');
             });
             const banner = document.getElementById('dashFilterBanner');
             if (!banner) return;
             const labelFn = DASH_FILTER_LABELS[currentFilter];
             if (labelFn) {
-                document.getElementById('dashFilterBannerText').textContent = labelFn();
+                document.getElementById('dashFilterBannerText').textContent = labelFn(globalFilteredDB.length);
                 banner.classList.remove('hidden');
             } else {
                 banner.classList.add('hidden');
@@ -2389,7 +2525,7 @@
 
         document.querySelectorAll('[data-dash-filter]').forEach(tile => {
             tile.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => { b.classList.remove('active', 'bg-gray-800', 'text-white', 'bg-blue-600', 'bg-purple-600'); b.classList.add('bg-gray-100', 'text-gray-600'); });
+                setActiveFilterChip(null);
                 currentFilter = tile.dataset.dashFilter;
                 currentPage = 1;
                 renderDB();
@@ -2491,6 +2627,10 @@
                 return true; 
             });
 
+            if (dbLoaded && selectedIds.size) {
+                const existingIds = new Set(customerDB.map(c => c.id));
+                [...selectedIds].forEach(id => { if (!existingIds.has(id)) selectedIds.delete(id); });
+            }
             if (selectAll) {
                 selectAll.checked = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
             }
@@ -2499,11 +2639,9 @@
 
             const totalCountEl = document.getElementById('totalCustomerCount');
             if (totalCountEl) {
-                if (customerDB.length === globalFilteredDB.length) {
-                    totalCountEl.textContent = `총 ${customerDB.length}명`;
-                } else {
-                    totalCountEl.textContent = `검색 ${globalFilteredDB.length}명 / 총 ${customerDB.length}명`;
-                }
+                totalCountEl.textContent = customerDB.length === globalFilteredDB.length
+                    ? `${customerDB.length}명`
+                    : `${globalFilteredDB.length}/${customerDB.length}명`;
             }
 
             const t = new Date();
@@ -2536,16 +2674,40 @@
             const monthlyActBoth = document.getElementById('monthlyActBoth');
 
             if (monthlyActTotal) monthlyActTotal.textContent = `${totalMonthlyAct}건`;
+            const monthlyActLabel = document.getElementById('monthlyActLabel');
+            if (monthlyActLabel) monthlyActLabel.textContent = `${t.getMonth() + 1}월 개통`;
+
+            // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
+            const listSig = `${currentFilter}|${query}|${currentSort}`;
+            if (listSig !== lastListSig) { cardLimit = CARD_PAGE; lastListSig = listSig; }
             if (monthlyActWireless) monthlyActWireless.textContent = wirelessCount;
             if (monthlyActWired) monthlyActWired.textContent = wiredCount;
             if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
 
+            // 정렬: 기본(최근 방문순)일 때는 필터마다 맞는 순서, 직접 고른 정렬이 있으면 그걸로
+            const FILTER_SORTS = ['promise', 'today_promise', 'wired_target', 'birthday'];
+            const useFilterSort = currentSort === 'visit' && FILTER_SORTS.includes(currentFilter);
+            const sortLabelEl = document.getElementById('sortLabel');
+            if (sortLabelEl) sortLabelEl.textContent = useFilterSort ? '급한 순' : (SORT_OPTIONS.find(o => o.key === currentSort) || SORT_OPTIONS[0]).label;
+
             if (globalFilteredDB.length === 0) {
                 document.getElementById('paginationContainer').innerHTML = '';
-                return tbody.innerHTML = '<tr><td colspan="9" class="px-6 py-8 text-center text-gray-500 font-bold">고객 데이터가 없습니다.</td></tr>';
+                renderCardList();
+                if (selectionMode) updateSelectionUI();
+                const emptyMsg = dbLoadError ? '고객 목록을 불러오지 못했어요. 인터넷 연결이나 계정 권한을 확인해주세요.' : (dbLoaded ? '고객 데이터가 없습니다.' : '데이터를 불러오는 중입니다...');
+                return tbody.innerHTML = `<tr><td colspan="9" class="px-6 py-8 text-center text-gray-500 font-bold">${emptyMsg}</td></tr>`;
             }
 
-            if (currentFilter === 'promise' || currentFilter === 'today_promise') {
+            const byVisitDesc = (a, b) => (b.visitDate || b.updatedAt || '').localeCompare(a.visitDate || a.updatedAt || '');
+            if (!useFilterSort && currentSort === 'urgent') {
+                const key = new Map(globalFilteredDB.map(c => { const top = getCustomerTasks(c)[0]; return [c.id, top ? [top.rank, top.order] : [99, 0]]; }));
+                globalFilteredDB.sort((a, b) => { const ka = key.get(a.id), kb = key.get(b.id); return (ka[0] - kb[0]) || (ka[1] - kb[1]) || byVisitDesc(a, b); });
+            } else if (!useFilterSort && currentSort === 'usage') {
+                const actKey = (c) => (c.activationDate && c.activationDate.length === 10) ? c.activationDate : '9999-99-99';
+                globalFilteredDB.sort((a, b) => actKey(a).localeCompare(actKey(b)) || byVisitDesc(a, b));
+            } else if (!useFilterSort && currentSort === 'name') {
+                globalFilteredDB.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+            } else if (currentFilter === 'promise' || currentFilter === 'today_promise') {
                 // 아직 처리 안 된 약속 중 가장 빠른 날짜 순 (밀린 약속이 맨 위, 전부 완료한 고객은 맨 아래)
                 const minOpenDate = (c) => { const d = getOpenPromiseDates(c).sort(); return d.length ? d[0] : '9999-12-31'; };
                 globalFilteredDB.sort((a, b) => minOpenDate(a).localeCompare(minOpenDate(b)));
@@ -2736,8 +2898,8 @@
                         <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center ${textStrike}">${formatPhone(c.phone)}${carrierBadge}</div>
                         ${dobHtml}
                         <div class="flex items-center gap-1.5">
-                            <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
-                            <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
+                            <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone || ''}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
+                            <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone || ''}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
                             <input type="text" id="listManager_${c.id}" value="${c.contactManager || c.manager || ''}" placeholder="담당자" class="w-14 text-[10px] px-1 py-0.5 border border-gray-300 rounded outline-none focus:border-indigo-400 text-gray-700 bg-white" onclick="event.stopPropagation()">
                         </div>
                         ${legalActionHtml}
@@ -2778,7 +2940,457 @@
             });
 
             renderPagination(totalPages);
+            renderCardList();
+            if (selectionMode) updateSelectionUI();
         }
+
+        // ═════════════════════════════════════════════
+        // 📱 폰 카드형 고객 목록
+        // ═════════════════════════════════════════════
+        const SORT_OPTIONS = [
+            { key: 'visit', label: '최근 방문순', sub: '최근에 스캔하거나 방문한 고객부터', icon: 'fa-solid fa-clock-rotate-left' },
+            { key: 'urgent', label: '급한 할 일 순', sub: '지연된 약속, 오늘 할 일, 만료 임박 순', icon: 'fa-solid fa-bolt' },
+            { key: 'usage', label: '오래 쓴 순', sub: '개통한 지 오래된 고객부터 (기변 상담용)', icon: 'fa-solid fa-hourglass-half' },
+            { key: 'name', label: '이름순', sub: '가나다 순', icon: 'fa-solid fa-arrow-down-a-z' }
+        ];
+
+        const TASK_TONES = {
+            red:    { box: 'bg-red-50',    badge: 'bg-red-700',    title: 'text-red-900',    sub: 'text-red-800' },
+            orange: { box: 'bg-orange-50', badge: 'bg-orange-700', title: 'text-orange-900', sub: 'text-orange-800' },
+            indigo: { box: 'bg-indigo-50', badge: 'bg-indigo-700', title: 'text-indigo-900', sub: 'text-indigo-800' }
+        };
+
+        function getStatusInfo(status) {
+            const st = status || '';
+            if (st.startsWith('가망고객')) return { text: st === '가망고객(문자발송)' ? '가망(문자)' : (st === '가망고객(OB콜)' ? '가망(OB)' : '가망'), cls: 'bg-blue-50 text-blue-700' };
+            if (st === '방문약속') return { text: '방문약속', cls: 'bg-purple-50 text-purple-700' };
+            if (st === '판매성공') return { text: '개통완료', cls: 'bg-green-50 text-green-700' };
+            if (st === '고객거부') return { text: '거부', cls: 'bg-red-50 text-red-700' };
+            return { text: '미정', cls: 'bg-gray-100 text-gray-600' };
+        }
+
+        // 오늘 기준 며칠 뒤인지 (지난 날짜면 음수)
+        function daysFromToday(dateStr) {
+            const d = parseDateString(dateStr);
+            if (!d || isNaN(d.getTime())) return null;
+            const t = new Date(); t.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+            return Math.round((d - t) / 86400000);
+        }
+
+        // 'YYYY-MM-DD' → 올해면 '9/12', 다른 해면 '2025.9.12'
+        function formatShortDate(dateStr) {
+            const d = parseDateString(dateStr);
+            if (!d || isNaN(d.getTime())) return '';
+            return d.getFullYear() === new Date().getFullYear() ? `${d.getMonth() + 1}/${d.getDate()}` : `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+        }
+
+        // 고객의 '할 일' 목록 (급한 순) — 카드에는 맨 앞 1개 + '외 N건'
+        //   지연 약속 > 오늘 약속 > 오늘 생일 > 유선 만료/오늘만료 > 유선 만료 임박 > 가족 동시기변·무선 만료 > 예정 약속 > 생일 임박
+        const PROMISE_KEYS = [['promPlan', '요금제 변경 약속'], ['promAddon', '부가서비스 해지 약속'], ['promIns', '보험 해지 약속'], ['promOther', '기타 약속']];
+        function getCustomerTasks(c) {
+            const tasks = [];
+            PROMISE_KEYS.forEach(([key, label]) => {
+                const date = c[key + 'Date'];
+                if (!date || date.length < 10 || c[key + 'Chk']) return;
+                const diff = daysFromToday(date);
+                if (diff === null) return;
+                const memo = (c[key + 'Memo'] || '').trim();
+                if (diff < 0) tasks.push({ rank: 0, order: diff, tone: 'red', badge: `지연 ${-diff}일`, title: label, sub: memo });
+                else if (diff === 0) tasks.push({ rank: 1, order: 0, tone: 'orange', badge: '오늘', title: label, sub: memo });
+                else tasks.push({ rank: 6, order: diff, tone: 'indigo', badge: `D-${diff}`, title: label, sub: memo || `${formatShortDate(date)} 약속` });
+            });
+            if (c.salesStatus !== '고객거부') {
+                const bLeft = getDaysUntilBirthday(c.dob);
+                if (bLeft !== null && bLeft <= BIRTHDAY_DAYS_AHEAD) {
+                    const b = parseBirth(c.dob);
+                    const age = b && b.age !== null ? (bLeft === 0 ? b.age : b.age + 1) : null;
+                    tasks.push({ rank: bLeft === 0 ? 2 : 7, order: bLeft, tone: bLeft === 0 ? 'orange' : 'indigo', badge: bLeft === 0 ? '오늘' : `D-${bLeft}`, title: '생일', sub: age !== null ? `만 ${age}세` : '' });
+                }
+                if (isWiredExpiryTarget(c)) {
+                    const left = getWiredDaysLeft(c.wiredDate);
+                    const wiredStr = [c.internetProd, c.tvProd].filter(Boolean).join(' + ');
+                    if (left < 0) tasks.push({ rank: 3, order: left, tone: 'red', badge: '만료', title: '유선 약정 만료됨', sub: `${-left}일 지남${wiredStr ? ', ' + wiredStr : ''}` });
+                    else if (left === 0) tasks.push({ rank: 3, order: 0, tone: 'orange', badge: '오늘', title: '유선 약정 오늘 만료', sub: wiredStr });
+                    else tasks.push({ rank: 4, order: left, tone: 'indigo', badge: `D-${left}`, title: '유선 약정 만료 예정', sub: wiredStr });
+                }
+                const months = getDdayAndMonths(c.activationDate).months;
+                const hasCombo = c.combination && c.combination !== '-' && !c.combination.includes('해당없음');
+                if (months >= MOBILE_TARGET_MONTHS && hasCombo) {
+                    tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: '타겟', title: '가족 동시 기변', sub: c.combination });
+                } else if (isMobileExpiryTarget(c)) {
+                    const dt = c.discountType || '';
+                    const expired = dt.includes('해당없음') || dt.includes('만료');
+                    tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: expired ? '만료' : '타겟', title: expired ? '무선 약정 끝남' : '기변 상담 대상', sub: months > 0 ? `${months}개월째 사용` : '' });
+                }
+            }
+            tasks.sort((a, b) => (a.rank - b.rank) || (a.order - b.order));
+            return tasks;
+        }
+
+        // 카드의 정보칩 (단말기 / 사용기간 / 할부 / 유선 / 약정 / 결합 …) — 많으면 앞의 6개만
+        function getCardFacts(c) {
+            const valid = (v) => v && String(v).trim() && String(v).trim() !== '-' && !String(v).includes('해당없음') && !String(v).includes('미적용') && !String(v).includes('없음');
+            const facts = [];
+            let warn = null;
+            const wiredStr = [c.internetProd, c.tvProd].filter(valid).join('+');
+            if (valid(c.device)) facts.push(c.device);
+            if (c.activationDate && c.activationDate.length === 10) {
+                const calc = getDdayAndMonths(c.activationDate);
+                facts.push(calc.months >= 1 ? `${calc.months}개월째 사용` : (calc.days === 0 ? '오늘 개통' : `개통 ${calc.days}일째`));
+            }
+            const inst = (c.installment || '').trim();
+            if (inst && inst !== '-' && !inst.includes('해당없음')) {
+                const base = getInstallmentBaseInfo(c);
+                const dyn = String(getDynamicInstallment(inst, base.date) || '');
+                if (dyn.includes('완납')) facts.push('할부 완납');
+                else {
+                    const slash = dyn.indexOf('/');
+                    const m = slash >= 0 ? parseInstallmentMonths(dyn.slice(slash + 1)) : null;
+                    facts.push(m ? `할부 ${m}개월 남음` : '할부 있음');
+                }
+                if (base.uncertain) warn = '할부 기준일 확인';
+            }
+            if (wiredStr) {
+                const left = getWiredDaysLeft(c.wiredDate);
+                facts.push(wiredStr + (left !== null && left <= WIRED_TARGET_DAYS ? (left < 0 ? ' 만료됨' : ` 만료 D-${left}`) : ''));
+            }
+            const dt = c.discountType || '';
+            if (dt.includes('선택약정')) facts.push(dt.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim());
+            else if (dt.includes('공시')) facts.push('공시지원');
+            if (valid(c.combination)) facts.push(c.combination);
+            if (valid(c.welfare)) facts.push(c.welfare);
+            if (valid(c.legalName)) facts.push(`법정대리인 ${c.legalName}`);
+            return { facts: facts.slice(0, 6), warn };
+        }
+
+        function buildCustomerCardHtml(c) {
+            const idAttr = escapeHtml(c.id);
+            const refused = c.salesStatus === '고객거부';
+            const st = getStatusInfo(c.salesStatus);
+            const tasks = getCustomerTasks(c);
+            const top = tasks[0];
+            const birth = parseBirth(c.dob);
+            const isMinor = !!(birth && birth.age !== null && birth.age < 19);
+            const carrier = c.carrier && c.carrier !== '미정' ? c.carrier : '';
+            const hasPhone = !!(c.phone || '').replace(/[^0-9]/g, '');
+            const visit = formatShortDate(c.visitDate);
+            const contact = formatShortDate(c.lastContactDate);
+            const meta = (visit ? `<span>방문 ${visit}</span>` : '') + (contact ? `<span>최근 연락 ${contact}${c.contactManager ? ' ' + escapeHtml(c.contactManager) : ''}</span>` : '');
+
+            const { facts, warn } = getCardFacts(c);
+            const chipCls = 'text-[13px] leading-5 px-2 py-0.5 rounded-lg border max-w-full truncate';
+            const factsHtml = facts.map(f => `<span class="${chipCls} ${refused ? 'bg-gray-100 border-transparent text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-700'}">${escapeHtml(f)}</span>`).join('')
+                + (warn ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold">${escapeHtml(warn)}</span>` : '');
+
+            let taskHtml = '';
+            if (top) {
+                const tone = TASK_TONES[top.tone];
+                taskHtml = `<div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${tone.box}">
+                    <span class="flex-shrink-0 text-xs font-bold text-white ${tone.badge} rounded-md px-2 py-0.5">${escapeHtml(top.badge)}</span>
+                    <span class="flex-1 min-w-0 flex flex-col">
+                        <span class="text-sm font-bold ${tone.title} truncate">${escapeHtml(top.title)}</span>
+                        ${top.sub ? `<span class="text-[13px] ${tone.sub} truncate">${escapeHtml(top.sub)}</span>` : ''}
+                    </span>
+                    ${tasks.length > 1 ? `<span class="flex-shrink-0 text-xs font-medium ${tone.sub}">외 ${tasks.length - 1}건</span>` : ''}
+                </div>`;
+            }
+
+            const callCls = refused ? 'border border-gray-300 bg-white text-gray-700' : 'bg-green-700 hover:bg-green-800 text-white';
+            return `<article class="rounded-2xl border p-3.5 pb-3 flex flex-col gap-2.5 ${refused ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}">
+                <div class="flex items-start justify-between gap-2">
+                    <button type="button" data-card-action="profile" data-id="${idAttr}" class="min-w-0 text-left flex flex-col gap-0.5 rounded-lg -m-1 p-1 active:bg-gray-100">
+                        <span class="flex items-center gap-1.5 flex-wrap">
+                            <span class="text-[17px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(c.name || '이름 없음')}</span>
+                            ${carrier ? `<span class="text-xs font-medium text-gray-700 bg-gray-100 rounded-md px-1.5 py-0.5">${escapeHtml(carrier)}</span>` : ''}
+                            ${isMinor ? `<span class="text-xs font-bold text-orange-800 border border-orange-200 rounded-md px-1.5">미성년</span>` : ''}
+                            ${c.marketingDeny ? `<span class="text-xs font-bold text-red-700 border border-red-200 rounded-md px-1.5">마케팅 거부</span>` : ''}
+                        </span>
+                        <span class="text-[15px] font-medium ${refused ? 'text-gray-500' : 'text-gray-700'} tabular-nums">${hasPhone ? escapeHtml(formatPhone(c.phone)) : '번호 없음'}</span>
+                        ${meta ? `<span class="flex flex-wrap gap-x-2.5 text-xs text-gray-500">${meta}</span>` : ''}
+                    </button>
+                    <span class="flex-shrink-0 text-xs font-bold rounded-full px-2.5 py-1 ${st.cls}">${escapeHtml(st.text)}</span>
+                </div>
+                ${factsHtml ? `<div class="flex flex-wrap gap-1.5">${factsHtml}</div>` : ''}
+                ${taskHtml}
+                <div class="flex gap-2">
+                    <button type="button" data-card-action="tel" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} class="flex-1 h-11 rounded-xl text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 ${callCls}"><i class="fa-solid fa-phone"></i>전화</button>
+                    <button type="button" data-card-action="sms" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} class="flex-1 h-11 rounded-xl border border-gray-300 bg-white text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40 ${refused ? 'text-gray-700' : 'text-indigo-700'}"><i class="fa-solid fa-comment-sms"></i>문자</button>
+                    ${c.legalPhone ? `<button type="button" data-card-action="legal" data-id="${idAttr}" aria-label="법정대리인에게 연락" class="flex-shrink-0 w-16 h-11 rounded-xl border border-orange-200 bg-orange-50 text-orange-800 text-[15px] font-bold">법대</button>` : ''}
+                    <button type="button" data-card-action="profile" data-id="${idAttr}" aria-label="${escapeHtml(c.name || '고객')} 고객 정보 열기" class="flex-shrink-0 w-11 h-11 rounded-xl border border-gray-300 bg-white text-gray-700 flex items-center justify-center"><i class="fa-solid fa-ellipsis"></i></button>
+                </div>
+            </article>`;
+        }
+
+        // 선택 모드 카드 (눌러서 체크 → 아래 바에서 엑셀로 내보내기)
+        function buildSelectCardHtml(c) {
+            const on = selectedIds.has(c.id);
+            const st = getStatusInfo(c.salesStatus);
+            const carrier = c.carrier && c.carrier !== '미정' ? c.carrier : '';
+            const hasPhone = !!(c.phone || '').replace(/[^0-9]/g, '');
+            return `<label class="flex items-center gap-2 py-2 pl-1 pr-3.5 rounded-2xl border-2 cursor-pointer ${on ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 bg-white'}">
+                <span class="w-11 h-11 flex items-center justify-center flex-shrink-0"><input type="checkbox" class="card-chk w-[22px] h-[22px] accent-indigo-600" value="${escapeHtml(c.id)}" ${on ? 'checked' : ''}></span>
+                <span class="flex-1 min-w-0 flex flex-col gap-0.5">
+                    <span class="flex items-center gap-1.5 min-w-0"><span class="text-base font-bold text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')}</span>${carrier ? `<span class="flex-shrink-0 text-xs font-medium text-gray-700 bg-gray-100 rounded-md px-1.5 py-0.5">${escapeHtml(carrier)}</span>` : ''}</span>
+                    <span class="text-sm text-gray-700 tabular-nums">${hasPhone ? escapeHtml(formatPhone(c.phone)) : '번호 없음'}</span>
+                </span>
+                <span class="flex-shrink-0 text-xs font-bold rounded-full px-2.5 py-1 ${st.cls}">${escapeHtml(st.text)}</span>
+            </label>`;
+        }
+
+        function buildListMessageHtml(title, sub, action, actionLabel) {
+            return `<div class="md:col-span-2 bg-white border border-gray-200 rounded-2xl px-5 py-8 text-center">
+                <p class="text-[15px] font-bold text-gray-900">${escapeHtml(title)}</p>
+                ${sub ? `<p class="text-sm text-gray-600 mt-1">${escapeHtml(sub)}</p>` : ''}
+                ${action ? `<button type="button" data-card-action="${action}" class="mt-4 h-11 px-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold">${escapeHtml(actionLabel)}</button>` : ''}
+            </div>`;
+        }
+
+        let cardObserver = null;
+        function renderCardList() {
+            const list = document.getElementById('cardList');
+            const footer = document.getElementById('cardListFooter');
+            if (!list || !footer) return;
+            if (cardObserver) cardObserver.disconnect();
+
+            if (!dbLoaded) {
+                list.innerHTML = buildListMessageHtml('고객 목록을 불러오는 중이에요', '', '', '');
+                footer.innerHTML = '';
+                return;
+            }
+            if (dbLoadError && customerDB.length === 0) {
+                const noPermission = dbLoadError.code === 'permission-denied';
+                list.innerHTML = buildListMessageHtml('고객 목록을 불러오지 못했어요',
+                    noPermission ? '이 계정은 고객 목록을 볼 권한이 없어요. 관리자에게 문의해주세요.' : '인터넷 연결을 확인한 뒤 다시 시도해주세요.',
+                    'reload', '다시 불러오기');
+                footer.innerHTML = '';
+                return;
+            }
+            if (globalFilteredDB.length === 0) {
+                const query = document.getElementById('searchInput').value.trim();
+                if (customerDB.length === 0) list.innerHTML = buildListMessageHtml('아직 등록된 고객이 없어요', '[＋]를 눌러 사진이나 직접 입력으로 첫 고객을 등록해보세요.', 'add', '고객 등록하기');
+                else if (query) list.innerHTML = buildListMessageHtml(`'${query}'에 맞는 고객이 없어요`, '이름, 번호, 담당자 이름으로 찾을 수 있어요.', 'clear-search', '검색 지우기');
+                else list.innerHTML = buildListMessageHtml('이 조건에 맞는 고객이 없어요', '', 'show-all', '전체 보기');
+                footer.innerHTML = '';
+                return;
+            }
+
+            const shown = globalFilteredDB.slice(0, cardLimit);
+            list.innerHTML = shown.map(c => selectionMode ? buildSelectCardHtml(c) : buildCustomerCardHtml(c)).join('');
+            const remaining = globalFilteredDB.length - shown.length;
+            if (remaining > 0) {
+                footer.innerHTML = `<button type="button" id="cardMoreBtn" data-card-action="more" class="h-11 px-5 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50">다음 ${Math.min(remaining, CARD_PAGE)}명 더 보기 (남은 ${remaining}명)</button>`;
+                // 아래로 내려서 버튼 근처에 오면 자동으로 이어서 불러옴
+                if ('IntersectionObserver' in window) {
+                    if (!cardObserver) cardObserver = new IntersectionObserver((entries) => {
+                        if (entries.some(en => en.isIntersecting)) { cardLimit += CARD_PAGE; renderCardList(); }
+                    }, { rootMargin: '300px' });
+                    cardObserver.observe(document.getElementById('cardMoreBtn'));
+                }
+            } else {
+                footer.innerHTML = shown.length > 5 ? `<p class="text-sm text-gray-500 py-2">목록 끝이에요 (${shown.length}명)</p>` : '';
+            }
+        }
+
+        document.getElementById('cardList').addEventListener('click', (e) => {
+            const el = e.target && e.target.closest ? e.target.closest('[data-card-action]') : null;
+            if (!el || el.disabled) return;
+            const id = el.dataset.id;
+            const action = el.dataset.cardAction;
+            if (action === 'profile') openProfileCard(id);
+            else if (action === 'tel' || action === 'sms') cardContact(id, action);
+            else if (action === 'legal') cardLegal(id);
+            else if (action === 'add') openAddMenu();
+            else if (action === 'reload') window.location.reload();
+            else if (action === 'clear-search') { document.getElementById('searchInput').value = ''; currentPage = 1; renderDB(); }
+            else if (action === 'show-all') { const all = document.querySelector('.filter-btn[data-filter="all"]'); if (all) all.click(); }
+        });
+        document.getElementById('cardList').addEventListener('change', (e) => {
+            const chk = e.target;
+            if (!chk || !chk.classList || !chk.classList.contains('card-chk')) return;
+            if (chk.checked) selectedIds.add(chk.value); else selectedIds.delete(chk.value);
+            renderCardList();
+            updateSelectionUI();
+        });
+        document.getElementById('cardListFooter').addEventListener('click', (e) => {
+            const el = e.target && e.target.closest ? e.target.closest('[data-card-action="more"]') : null;
+            if (!el) return;
+            cardLimit += CARD_PAGE;
+            renderCardList();
+        });
+
+        function cardContact(id, type) {
+            const c = customerDB.find(x => x.id === id);
+            if (c) logActionAndCall(id, type, c.phone);
+        }
+
+        // ── 아래에서 올라오는 선택 메뉴 (추가하기 / 정렬 / 법대 연락) ──
+        const actionSheet = document.getElementById('actionSheet');
+        let actionSheetHistoryPushed = false;
+        function openActionSheet(title, options) {
+            document.getElementById('actionSheetTitle').textContent = title;
+            const box = document.getElementById('actionSheetOptions');
+            box.innerHTML = '';
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `min-h-[64px] px-3 py-2.5 rounded-2xl border text-left flex items-center gap-3 transition ${opt.selected ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`;
+                const icon = document.createElement('span');
+                icon.className = 'w-11 h-11 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center flex-shrink-0';
+                icon.innerHTML = `<i class="${opt.icon}"></i>`;
+                const texts = document.createElement('span');
+                texts.className = 'flex-1 min-w-0 flex flex-col gap-0.5';
+                const label = document.createElement('span');
+                label.className = 'text-[15px] font-bold text-gray-900';
+                label.textContent = opt.label;
+                texts.appendChild(label);
+                if (opt.sub) {
+                    const sub = document.createElement('span');
+                    sub.className = 'text-[13px] text-gray-600';
+                    sub.textContent = opt.sub;
+                    texts.appendChild(sub);
+                }
+                btn.appendChild(icon);
+                btn.appendChild(texts);
+                if (opt.selected) {
+                    const check = document.createElement('i');
+                    check.className = 'fa-solid fa-check text-indigo-700 flex-shrink-0 pr-1';
+                    btn.appendChild(check);
+                }
+                btn.addEventListener('click', () => { closeActionSheet(); opt.onClick(); });
+                box.appendChild(btn);
+            });
+            actionSheet.style.display = 'flex';
+            // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 메뉴만 닫히도록
+            if (!actionSheetHistoryPushed) { history.pushState({ actionSheet: true }, ''); actionSheetHistoryPushed = true; }
+        }
+        function closeActionSheet(fromPopState = false) {
+            if (actionSheet.style.display !== 'flex') return;
+            actionSheet.style.display = 'none';
+            if (actionSheetHistoryPushed) {
+                actionSheetHistoryPushed = false;
+                if (!fromPopState) history.back();
+            }
+        }
+        document.getElementById('actionSheetClose').addEventListener('click', () => closeActionSheet());
+        actionSheet.addEventListener('click', (e) => { if (e.target === actionSheet) closeActionSheet(); });
+        window.addEventListener('popstate', () => { if (actionSheet.style.display === 'flex') closeActionSheet(true); });
+
+        // 스캐너를 새 고객 입력용으로 비움
+        //  · 이미 저장한 고객 내용이 남아있으면 조용히 비우고
+        //  · 저장 안 한 내용이 있으면 먼저 물어봄 (예전엔 이전 고객의 단말기·요금제 등이 새 고객에 섞여 저장될 수 있었음)
+        async function prepareScannerForNew() {
+            const unsaved = !document.getElementById('saveDbBtn').classList.contains('hidden');
+            const hasContent = document.getElementById('uploadPrompt').classList.contains('hidden')
+                || ['val-name', 'val-phone', 'val-device', 'val-plan', 'val-installment', 'memoPad', 'obMemoPad'].some(id => document.getElementById(id).value.trim());
+            if (!hasContent) return true;
+            if (unsaved && !(await customConfirm('스캐너에 저장하지 않은 내용이 있어요.\n지우고 새 고객을 입력할까요?'))) return false;
+            document.getElementById('resetBtn').onclick();
+            return true;
+        }
+
+        function openAddMenu() {
+            openActionSheet('추가하기', [
+                { icon: 'fa-solid fa-file-lines', label: '신규 개통보고', sub: '개통한 고객을 보고서로 쓰고 바로 저장해요', onClick: () => document.getElementById('newReportBtn').click() },
+                { icon: 'fa-solid fa-camera', label: '사진으로 고객 등록', sub: '전산 화면을 찍으면 AI가 칸을 채워줘요', onClick: async () => {
+                    const ready = await prepareScannerForNew();
+                    switchTab('scanner');
+                    if (ready) document.getElementById('cameraUpload').click();
+                } },
+                { icon: 'fa-solid fa-pen', label: '직접 입력으로 등록', sub: '사진 없이 가망고객을 손으로 추가해요', onClick: async () => {
+                    const ready = await prepareScannerForNew();
+                    switchTab('scanner');
+                    if (!ready) return;
+                    document.getElementById('saveDbBtn').classList.remove('hidden');
+                    const nameEl = document.getElementById('val-name');
+                    nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    nameEl.focus();
+                } }
+            ]);
+        }
+
+        function openSortMenu() {
+            openActionSheet('정렬', SORT_OPTIONS.map(o => ({
+                icon: o.icon, label: o.label, sub: o.sub, selected: o.key === currentSort,
+                onClick: () => {
+                    currentSort = o.key;
+                    try { localStorage.setItem('listSort', o.key); } catch (e) { /* 무시 */ }
+                    currentPage = 1;
+                    renderDB();
+                }
+            })));
+        }
+
+        function cardLegal(id) {
+            const c = customerDB.find(x => x.id === id);
+            if (!c || !c.legalPhone) return;
+            openActionSheet(`법정대리인${c.legalName ? ' ' + c.legalName : ''}`, [
+                { icon: 'fa-solid fa-phone', label: '전화하기', sub: formatPhone(c.legalPhone), onClick: () => logActionAndCall(id, 'tel', c.legalPhone, '법대') },
+                { icon: 'fa-solid fa-comment-sms', label: '문자 보내기', sub: formatPhone(c.legalPhone), onClick: () => logActionAndCall(id, 'sms', c.legalPhone, '법대') }
+            ]);
+        }
+
+        document.getElementById('sortBtn').addEventListener('click', openSortMenu);
+        document.getElementById('addMenuBtn').addEventListener('click', openAddMenu);
+
+        // ── 선택 모드 (폰: 여러 명 골라 엑셀로 내보내기) ──
+        let selectionHistoryPushed = false;
+        function setSelectionMode(on, fromPopState = false) {
+            selectionMode = on;
+            document.getElementById('listHeader').classList.toggle('hidden', on);
+            const header = document.getElementById('selectHeader');
+            header.classList.toggle('hidden', !on);
+            header.classList.toggle('flex', on);
+            document.getElementById('selectBar').classList.toggle('hidden', !on);
+            document.getElementById('bottomNav').classList.toggle('hidden', on);
+            if (on && !selectionHistoryPushed) { history.pushState({ selection: true }, ''); selectionHistoryPushed = true; }
+            if (!on) {
+                selectedIds.clear();
+                if (selectionHistoryPushed) { selectionHistoryPushed = false; if (!fromPopState) history.back(); }
+            }
+            renderCardList();
+            updateSelectionUI();
+        }
+        function updateSelectionUI() {
+            const n = selectedIds.size;
+            document.getElementById('selectCount').textContent = n;
+            document.getElementById('selectExportLabel').textContent = n > 0 ? `엑셀로 내보내기 (${n}명)` : '엑셀로 내보내기';
+            const allVisible = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
+            document.getElementById('selectAllVisibleBtn').textContent = allVisible ? '전체 해제' : '지금 목록 전체 선택';
+        }
+        document.getElementById('selectModeBtn').addEventListener('click', () => setSelectionMode(true));
+        document.getElementById('selectExitBtn').addEventListener('click', () => setSelectionMode(false));
+        document.getElementById('selectAllVisibleBtn').addEventListener('click', () => {
+            const allVisible = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
+            globalFilteredDB.forEach(c => allVisible ? selectedIds.delete(c.id) : selectedIds.add(c.id));
+            renderCardList();
+            updateSelectionUI();
+        });
+        document.getElementById('selectExportBtn').addEventListener('click', () => document.getElementById('exportExcelBtn').click());
+        window.addEventListener('popstate', () => { if (selectionMode) setSelectionMode(false, true); });
+
+        // ── 설정 화면 ──
+        function renderSettings() {
+            const nameEl = document.getElementById('settingsStaffName');
+            if (document.activeElement !== nameEl) nameEl.value = getStaffName();
+            const email = document.getElementById('userEmailDisplay').textContent;
+            if (email) document.getElementById('settingsEmail').textContent = email;
+            const hasKey = !!geminiApiKey;
+            const status = document.getElementById('settingsApiStatus');
+            status.textContent = hasKey ? '연결됨' : '설정 필요 (AI 스캔에 필요해요)';
+            status.className = `text-[13px] font-medium ${hasKey ? 'text-green-700' : 'text-red-700'}`;
+        }
+        let staffSavedTimer = null;
+        document.getElementById('settingsStaffName').addEventListener('change', (e) => {
+            const v = e.target.value.trim();
+            try { localStorage.setItem('staffName', v); } catch (err) { /* 무시 */ }
+            document.getElementById('val-manager').value = v;
+            const saved = document.getElementById('settingsStaffSaved');
+            saved.classList.remove('hidden');
+            clearTimeout(staffSavedTimer);
+            staffSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000);
+        });
+        document.getElementById('settingsLogoutBtn').addEventListener('click', () => document.getElementById('logoutBtn').click());
+        document.getElementById('settingsApiBtn').addEventListener('click', () => document.getElementById('apiSettingBtn').click());
 
         const detailModal = document.getElementById('detailModal');
 
