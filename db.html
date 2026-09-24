@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V54</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V55</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -424,7 +424,7 @@
                 <label for="searchInput" class="sr-only">고객 검색</label>
                 <div class="relative flex-1">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                    <input type="search" id="searchInput" placeholder="이름, 번호, 담당자로 검색" class="w-full h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <input type="search" id="searchInput" placeholder="이름, 번호, 단말기, 메모로 검색" class="w-full h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
                 </div>
                 <button id="newReportBtn" class="hidden lg:flex bg-blue-600 hover:bg-blue-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
                     <i class="fa-solid fa-plus"></i> 신규 개통보고
@@ -478,7 +478,7 @@
             </div>
 
             <!-- 필터 (옆으로 넘겨서 더 보기) -->
-            <div class="flex gap-2 mb-2.5 overflow-x-auto pb-1 scrollbar-hide">
+            <div id="filterChipsRow" class="flex gap-2 mb-2.5 overflow-x-auto pb-1 scrollbar-hide scroll-mt-2">
                 <button type="button" aria-pressed="true" class="filter-btn active flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-indigo-600 text-white border-indigo-600 font-bold" data-filter="all">전체</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_visit">방문약속</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="promise">약속·할일</button>
@@ -497,6 +497,7 @@
             </div>
 
             <!-- 📱 폰·폴드: 고객 카드 목록 (넓은 화면에서는 아래 표로 보여줌) -->
+            <p id="cardRangeInfo" class="lg:hidden hidden text-[13px] text-gray-600 font-medium mb-2 px-1" aria-live="polite"></p>
             <div id="cardList" class="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-3"></div>
             <div id="cardListFooter" class="lg:hidden flex justify-center py-3"></div>
 
@@ -562,11 +563,37 @@
                     <button type="button" id="settingsApiBtn" class="flex-shrink-0 h-11 px-4 border border-gray-300 bg-white rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50">변경</button>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setAutoTitle">
+                <h3 id="setAutoTitle" class="text-[13px] font-bold text-gray-600 pl-1">개통 후 자동 약속</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+                    <p class="text-xs text-gray-600 leading-relaxed">개통보고를 저장하면 아래 약속을 개통일 기준으로 자동으로 넣어요. 이미 날짜가 잡혀 있는 약속은 건드리지 않고, 매장 모든 직원에게 똑같이 적용돼요.</p>
+                    <div class="flex items-center justify-between gap-3">
+                        <label class="flex items-center gap-2 text-[15px] font-medium text-gray-900 min-w-0"><input type="checkbox" id="autoPlanOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>요금제 변경</span></label>
+                        <span class="flex items-center gap-1 text-sm text-gray-600 flex-shrink-0"><input type="number" id="autoPlanDays" min="1" max="730" inputmode="numeric" aria-label="요금제 변경 약속: 개통 며칠 후" class="w-16 h-11 px-2 border border-gray-300 rounded-xl text-center text-[15px] text-gray-900">일 후</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <label class="flex items-center gap-2 text-[15px] font-medium text-gray-900 min-w-0"><input type="checkbox" id="autoAddonOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>부가서비스 해지 <span class="text-xs text-gray-500">(부가를 적었을 때)</span></span></label>
+                        <span class="flex items-center gap-1 text-sm text-gray-600 flex-shrink-0"><input type="number" id="autoAddonDays" min="1" max="730" inputmode="numeric" aria-label="부가서비스 해지 약속: 개통 며칠 후" class="w-16 h-11 px-2 border border-gray-300 rounded-xl text-center text-[15px] text-gray-900">일 후</span>
+                    </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <label class="flex items-center gap-2 text-[15px] font-medium text-gray-900 min-w-0"><input type="checkbox" id="autoInsOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>보험 해지 <span class="text-xs text-gray-500">(보험을 적었을 때)</span></span></label>
+                        <span class="flex items-center gap-1 text-sm text-gray-600 flex-shrink-0"><input type="number" id="autoInsDays" min="1" max="730" inputmode="numeric" aria-label="보험 해지 약속: 개통 며칠 후" class="w-16 h-11 px-2 border border-gray-300 rounded-xl text-center text-[15px] text-gray-900">일 후</span>
+                    </div>
+                    <p id="autoPromSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
+                </div>
+            </section>
+            <section class="space-y-2" aria-labelledby="setTrashTitle">
+                <h3 id="setTrashTitle" class="text-[13px] font-bold text-gray-600 pl-1">휴지통 <span id="trashCount" class="font-medium"></span></h3>
+                <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                    <p class="text-xs text-gray-600 px-4 pt-3 pb-2 leading-relaxed">삭제한 고객은 30일 동안 여기 있다가 자동으로 완전히 지워져요.</p>
+                    <div id="trashList"></div>
+                </div>
+            </section>
             <section class="space-y-2" aria-labelledby="setAppTitle">
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V54 (방문약속·AI문자)</span>
+                    <span class="text-sm text-gray-600">V55</span>
                 </div>
             </section>
         </div>
@@ -629,6 +656,62 @@
                 <button type="button" id="aiSmsCopyBtn" class="h-12 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-[15px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>복사</button>
                 <button type="button" id="aiSmsSendBtn" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>문자 보내기</button>
             </div>
+        </section>
+    </div>
+
+    <!-- 📞 통화 결과 (전화 끊고 앱으로 돌아오면 자동으로 뜸) -->
+    <div id="callResultSheet" class="fixed inset-0 z-[66] hidden items-end sm:items-center justify-center bg-black/50">
+        <section aria-labelledby="callResultTitle" class="sheet-in w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-3" style="padding-bottom: max(20px, env(safe-area-inset-bottom));">
+            <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 pl-1 pt-1">
+                    <h2 id="callResultTitle" class="text-lg font-bold text-gray-900">통화 어땠어요?</h2>
+                    <p id="callResultTarget" class="text-sm text-gray-600 truncate"></p>
+                </div>
+                <button type="button" id="callResultClose" aria-label="나중에 기록하기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="callResultOptions" role="radiogroup" aria-label="통화 결과" class="grid grid-cols-2 gap-2">
+                <button type="button" role="radio" aria-checked="false" data-result="missed" class="h-12 rounded-xl border-2 border-gray-200 bg-white text-[15px] font-bold text-gray-800 ">📵 부재중</button>
+                <button type="button" role="radio" aria-checked="false" data-result="done" class="h-12 rounded-xl border-2 border-gray-200 bg-white text-[15px] font-bold text-gray-800 ">✅ 통화 완료</button>
+                <button type="button" role="radio" aria-checked="false" data-result="interest" class="h-12 rounded-xl border-2 border-gray-200 bg-white text-[15px] font-bold text-gray-800 ">🙂 관심 있음</button>
+                <button type="button" role="radio" aria-checked="false" data-result="visit" class="h-12 rounded-xl border-2 border-gray-200 bg-white text-[15px] font-bold text-gray-800 ">🤝 방문약속</button>
+                <button type="button" role="radio" aria-checked="false" data-result="refuse" class="h-12 rounded-xl border-2 border-gray-200 bg-white text-[15px] font-bold text-gray-800 col-span-2">🙅 거부</button>
+            </div>
+            <p id="callResultHint" class="text-[13px] text-gray-600 pl-1 leading-snug"></p>
+            <div>
+                <label for="callResultMemo" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">메모 <span class="font-normal text-gray-500">(선택)</span></label>
+                <textarea id="callResultMemo" rows="2" class="w-full p-3 border border-gray-300 rounded-xl text-[15px] leading-relaxed text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" placeholder="예: 저녁 7시 이후 통화 가능"></textarea>
+            </div>
+            <div>
+                <label for="callResultNext" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">다음 연락일 <span class="font-normal text-gray-500">(선택 · 재연락 약속으로 등록)</span></label>
+                <div class="flex gap-1.5">
+                    <input type="date" id="callResultNext" class="flex-1 min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900">
+                    <button type="button" data-next-days="1" class="flex-shrink-0 h-11 px-2.5 rounded-xl border border-gray-300 bg-white text-[13px] font-medium text-gray-700">내일</button>
+                    <button type="button" data-next-days="3" class="flex-shrink-0 h-11 px-2.5 rounded-xl border border-gray-300 bg-white text-[13px] font-medium text-gray-700">3일 뒤</button>
+                    <button type="button" data-next-days="7" class="flex-shrink-0 h-11 px-2.5 rounded-xl border border-gray-300 bg-white text-[13px] font-medium text-gray-700">1주 뒤</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+                <button type="button" id="callResultSkip" class="h-12 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-[15px] font-bold text-gray-800">나중에</button>
+                <button type="button" id="callResultSave" disabled class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold disabled:opacity-40">기록하기</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 👨‍👩‍👧 가족 추가 (고객 카드 → 가족 탭 → [가족 추가]) -->
+    <div id="familyPickerSheet" class="fixed inset-0 z-[66] hidden items-end sm:items-center justify-center bg-black/50">
+        <section aria-labelledby="familyPickerTitle" class="sheet-in w-full sm:max-w-md h-[80vh] sm:h-[70vh] bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-3" style="padding-bottom: max(16px, env(safe-area-inset-bottom));">
+            <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 pl-1 pt-1">
+                    <h2 id="familyPickerTitle" class="text-lg font-bold text-gray-900">가족 추가</h2>
+                    <p id="familyPickerTarget" class="text-sm text-gray-600 truncate"></p>
+                </div>
+                <button type="button" id="familyPickerClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <label for="familyPickerSearch" class="sr-only">가족 고객 검색</label>
+            <input type="search" id="familyPickerSearch" placeholder="이름이나 번호로 찾기" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            <div id="familyPickerResults" class="flex-1 overflow-y-auto min-h-0"></div>
         </section>
     </div>
 
@@ -793,6 +876,17 @@
                             <div class="flex gap-2">
                                 <input type="date" id="promOtherDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                                 <input type="text" id="promOtherMemo" placeholder="상세내용 (예: 인터넷 가입 상담)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                            </div>
+                        </div>
+
+                        <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm flex flex-col gap-2">
+                            <label class="flex items-center gap-1.5 cursor-pointer">
+                                <input type="checkbox" id="promCallChk" class="w-4 h-4 text-purple-600 rounded focus:ring-purple-500">
+                                <span class="text-xs font-bold text-gray-700">✅ 재연락 (통화 결과에서 자동 등록)</span>
+                            </label>
+                            <div class="flex gap-2">
+                                <input type="date" id="promCallDate" class="w-28 flex-shrink-0 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
+                                <input type="text" id="promCallMemo" placeholder="상세내용 (예: 부재중, 저녁에 다시)" class="flex-1 p-1.5 border border-purple-200 rounded text-xs outline-none focus:ring-1 focus:ring-purple-400">
                             </div>
                         </div>
                         <div class="text-right">
@@ -1077,6 +1171,21 @@
 
                 <div id="mobileReportFields" class="grid grid-cols-2 gap-2 text-xs">
                     <input type="text" id="rep-device" placeholder="개통단말기(모델명)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none col-span-2">
+                    <div class="relative col-span-2">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
+                            <span class="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1 rounded">통신사</span>
+                        </div>
+                        <label for="rep-carrier" class="sr-only">개통 통신사</label>
+                        <select id="rep-carrier" class="w-full border border-indigo-300 p-2 pl-12 rounded focus:ring-1 focus:ring-indigo-500 outline-none text-xs bg-white">
+                            <option value="">통신사 선택 (번호이동이면 꼭 바꿔주세요)</option>
+                            <option value="SKT">SKT</option>
+                            <option value="KT">KT</option>
+                            <option value="LG U+">LG U+</option>
+                            <option value="알뜰폰(SK)">알뜰폰(SK)</option>
+                            <option value="알뜰폰(KT)">알뜰폰(KT)</option>
+                            <option value="알뜰폰(LG)">알뜰폰(LG)</option>
+                        </select>
+                    </div>
                     
                     <div class="relative col-span-2">
                         <div class="absolute inset-y-0 left-0 flex items-center pl-2 pointer-events-none">
@@ -1258,14 +1367,21 @@
         let currentReportType = 'mobile';
         let dbUnsubscribe = null;
         let statsUnsubscribe = null;
+        let settingsUnsubscribe = null;
+        let trashDB = [];                      // 🗑️ 휴지통: 삭제 표시된 고객 (30일 뒤 자동으로 완전 삭제)
+        const TRASH_KEEP_DAYS = 30;
+        const purgedIds = new Set();
+        // ⚙️ 매장 공용 설정 (개통 후 자동 약속) — 모든 직원 폰에 똑같이 적용
+        const AUTO_PROMISE_DEFAULTS = { autoPlanOn: true, autoPlanDays: 93, autoAddonOn: true, autoAddonDays: 62, autoInsOn: true, autoInsDays: 62 };
+        let appSettings = { ...AUTO_PROMISE_DEFAULTS };
         
         // 페이징 처리 변수
         let currentPage = 1;
         const itemsPerPage = 15;
         let dbLoaded = false;                  // 첫 고객 데이터가 도착했는지 (도착 전엔 '불러오는 중' 표시)
         let dbLoadError = null;                // 고객 목록을 못 불러왔을 때의 오류 (권한·연결 문제)
-        const CARD_PAGE = 30;                  // 폰 카드 목록: 한 번에 보여줄 고객 수 (아래로 내리면 이어서 불러옴)
-        let cardLimit = CARD_PAGE;
+        const CARD_PAGE_SIZE = 10;             // 폰 카드 목록: 한 페이지 10명
+        let cardPage = 1;
         let lastListSig = '';
         let selectionMode = false;             // 폰: [선택] 눌러 엑셀로 내보낼 고객 고르는 중
         let currentSort = localStorage.getItem('listSort') || 'visit';
@@ -1320,6 +1436,7 @@
                         
                         if(dbUnsubscribe) dbUnsubscribe();
                         if(statsUnsubscribe) statsUnsubscribe();
+                        if(settingsUnsubscribe) settingsUnsubscribe();
                         customerDB = [];
                     }
                 });
@@ -1342,7 +1459,7 @@
 
         // 저장된 값이 숫자·null 로 들어있는 고객이 하나라도 있으면 목록 전체가 멈출 수 있어서
         // 불러올 때 글자 칸은 모두 글자로 맞춰둠 (체크 여부 같은 참/거짓 값은 그대로)
-        const BOOL_FIELDS = new Set(['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk', 'marketingDeny']);
+        const BOOL_FIELDS = new Set(['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk', 'promCallChk', 'marketingDeny']);
         function normalizeCustomer(c) {
             Object.keys(c).forEach(k => {
                 if (BOOL_FIELDS.has(k)) return;
@@ -1353,14 +1470,32 @@
             return c;
         }
 
+        function purgeOldTrash() {
+            if (!db) return;
+            const limit = Date.now() - TRASH_KEEP_DAYS * 86400000;
+            trashDB.forEach(c => {
+                const t = Date.parse(c.deletedAt);
+                if (!isNaN(t) && t < limit && !purgedIds.has(c.id)) {
+                    purgedIds.add(c.id);
+                    deleteDoc(doc(db, 'smart_customers', c.id)).catch(e => console.error('휴지통 자동 비우기 실패', e));
+                }
+            });
+        }
+
         function attachDBListeners() {
             dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
-                customerDB = [];
+                const all = [];
                 // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
-                snapshot.forEach((doc) => { customerDB.push(normalizeCustomer({ ...doc.data(), id: doc.id })); });
+                snapshot.forEach((doc) => { all.push(normalizeCustomer({ ...doc.data(), id: doc.id })); });
+                // 휴지통에 들어간 고객은 목록·대시보드·검색에서 모두 빠짐
+                customerDB = all.filter(c => !c.deletedAt);
+                trashDB = all.filter(c => c.deletedAt).sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
+                purgeOldTrash();
                 dbLoaded = true;
                 dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
+                if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
+                checkPendingCallResult();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
             }, (error) => {
                 // 예전엔 오류가 나도 아무 표시 없이 빈 목록/불러오는 중으로 남았음
@@ -1370,6 +1505,11 @@
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
             });
             
+            settingsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'settings'), (docSnap) => {
+                appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
+                if (!document.getElementById('settingsView').classList.contains('hidden')) renderAutoPromiseSettings();
+            }, (error) => console.error('매장 설정 불러오기 실패:', error));
+
             statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
                 if (docSnap.exists()) {
                     globalStats = docSnap.data();
@@ -1511,7 +1651,11 @@
             if (!cleanPhone || cleanPhone === lastScannerLookupPhone) return;
             lastScannerLookupPhone = cleanPhone;
             const existing = customerDB.find(c => c.id === cleanPhone);
-            if (!existing) return;
+            if (!existing) {
+                const trashed = trashDB.find(c => c.id === cleanPhone);
+                if (trashed) customAlert(`🗑️ 휴지통에 있는 고객이에요${trashed.name ? ' (' + trashed.name + ')' : ''}.\n저장하면 휴지통에서 복구되고 이번 내용이 합쳐져요.`);
+                return;
+            }
 
             const fillIfBlank = (id, val) => { const el = document.getElementById(id); if (!el.value.trim() && val) el.value = val; };
             fillIfBlank('val-legal-name', existing.legalName);
@@ -1934,7 +2078,7 @@
 
         // 아직 체크(완료) 안 된 약속 날짜들
         function getOpenPromiseDates(c) {
-            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promInsDate, c.promInsChk], [c.promOtherDate, c.promOtherChk]]
+            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promInsDate, c.promInsChk], [c.promOtherDate, c.promOtherChk], [c.promCallDate, c.promCallChk]]
                 .filter(([d, chk]) => d && d.length >= 10 && !chk)
                 .map(([d]) => d);
         }
@@ -1975,8 +2119,8 @@
         };
 
         window.clearAllPromises = function() {
-            ['promPlanDate', 'promPlanMemo', 'promAddonDate', 'promAddonMemo', 'promInsDate', 'promInsMemo', 'promOtherDate', 'promOtherMemo'].forEach(id => document.getElementById(id).value = '');
-            ['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk'].forEach(id => document.getElementById(id).checked = false);
+            ['promPlanDate', 'promPlanMemo', 'promAddonDate', 'promAddonMemo', 'promInsDate', 'promInsMemo', 'promOtherDate', 'promOtherMemo', 'promCallDate', 'promCallMemo'].forEach(id => document.getElementById(id).value = '');
+            ['promPlanChk', 'promAddonChk', 'promInsChk', 'promOtherChk', 'promCallChk'].forEach(id => document.getElementById(id).checked = false);
             detailDirty = true;
         };
 
@@ -2169,7 +2313,8 @@
                 if (term) finalDiscount = `선택약정(${term.value})`;
             }
 
-            const existingCustomer = customerDB.find(c => c.id === docId);
+            const restoringFromTrash = !customerDB.some(c => c.id === docId) && trashDB.some(c => c.id === docId);
+            const existingCustomer = customerDB.find(c => c.id === docId) || trashDB.find(c => c.id === docId);
             
             // 기존 데이터 증발 방지 처리
             if (finalDiscount === '미정' && existingCustomer && existingCustomer.discountType) {
@@ -2237,8 +2382,12 @@
             const finalPromOtherDate = existingCustomer ? (existingCustomer.promOtherDate || '') : '';
             const finalPromOtherMemo = existingCustomer ? (existingCustomer.promOtherMemo || '') : '';
             const finalPromOtherChk = existingCustomer ? (existingCustomer.promOtherChk || false) : false;
+            const finalPromCallDate = existingCustomer ? (existingCustomer.promCallDate || '') : '';
+            const finalPromCallMemo = existingCustomer ? (existingCustomer.promCallMemo || '') : '';
+            const finalPromCallChk = existingCustomer ? (existingCustomer.promCallChk || false) : false;
 
             const savedData = {
+                deletedAt: '',  // 휴지통에 있던 고객이면 복구
                 visitDate: document.getElementById('val-date').value,
                 manager: (existingCustomer && existingCustomer.manager) ? existingCustomer.manager : (document.getElementById('val-manager').value || ''), // 최초 등록 담당자는 유지
                 name: keepIfBlank('name', document.getElementById('val-name').value),
@@ -2273,6 +2422,7 @@
                 promAddonDate: finalPromAddonDate, promAddonMemo: finalPromAddonMemo, promAddonChk: finalPromAddonChk,
                 promInsDate: finalPromInsDate, promInsMemo: finalPromInsMemo, promInsChk: finalPromInsChk,
                 promOtherDate: finalPromOtherDate, promOtherMemo: finalPromOtherMemo, promOtherChk: finalPromOtherChk,
+                promCallDate: finalPromCallDate, promCallMemo: finalPromCallMemo, promCallChk: finalPromCallChk,
                 
                 contactHistory: finalHistory, salesStatus: finalStatus, lastContactDate: finalLastDate, contactManager: finalContactManager,
                 updatedAt: new Date().toISOString()
@@ -2280,7 +2430,7 @@
 
             try {
                 await setDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
-                customAlert(phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요."); 
+                customAlert((phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요.") + (restoringFromTrash ? "\n(휴지통에 있던 고객이라 함께 복구했어요)" : "")); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
                 switchTab('db');
             } catch (error) { customAlert("저장 실패! " + error); }
@@ -2292,6 +2442,7 @@
             if (!cleanPhoneNum) return customAlert('전화번호가 없어요.\n고객 상세카드에서 번호를 먼저 입력해주세요.');
 
             updateAndRenderStats(actionType);
+            if (actionType === 'tel' && docId && currentDetailId !== docId) rememberCallForResult(docId, targetLabel);
 
             if(db && docId) {
                 const now = new Date();
@@ -2343,13 +2494,32 @@
                 : `${actionType}:${cleanPhoneNum}`;
         };
 
+        // 🗑️ 삭제는 휴지통으로 (30일 안에는 설정 → 휴지통에서 복구 가능)
         window.deleteCustomer = async function(docId) {
-            if (await customConfirm("이 고객을 영구 삭제할까요?")) {
-                await deleteDoc(doc(db, 'smart_customers', docId));
-                selectedIds.delete(docId);
-                closeDetailModalFunc();
+            if (!(await customConfirm("이 고객을 휴지통으로 옮길까요?\n30일 안에는 [설정 → 휴지통]에서 되살릴 수 있어요."))) return;
+            try {
+                await setDoc(doc(db, 'smart_customers', docId), { deletedAt: new Date().toISOString(), deletedBy: getStaffName(), updatedAt: new Date().toISOString() }, { merge: true });
+            } catch (e) {
+                console.error(e);
+                return customAlert('삭제하지 못했어요. 인터넷 연결을 확인해주세요.');
             }
+            selectedIds.delete(docId);
+            closeDetailModalFunc();
         };
+
+        async function restoreFromTrash(id) {
+            try {
+                await setDoc(doc(db, 'smart_customers', id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
+                const c = trashDB.find(x => x.id === id);
+                customAlert(`${c && c.name ? c.name + ' 고객을' : '고객을'} 되살렸어요.`);
+            } catch (e) { console.error(e); customAlert('복구하지 못했어요. 인터넷 연결을 확인해주세요.'); }
+        }
+        async function purgeFromTrash(id) {
+            const c = trashDB.find(x => x.id === id);
+            if (!(await customConfirm(`${c && c.name ? c.name + ' 고객을' : '이 고객을'} 완전히 지울까요?\n지우면 다시 되살릴 수 없어요.`))) return;
+            try { await deleteDoc(doc(db, 'smart_customers', id)); }
+            catch (e) { console.error(e); customAlert('지우지 못했어요. 인터넷 연결을 확인해주세요.'); }
+        }
 
         // 필터칩 선택 표시 (filter가 null이면 전부 해제 → 대시보드 타일로 거르는 중)
         const CHIP_ON = ['active', 'bg-indigo-600', 'text-white', 'border-indigo-600', 'font-bold'];
@@ -2623,13 +2793,12 @@
             const tbody = document.getElementById('dbTableBody'); tbody.innerHTML = '';
             
             globalFilteredDB = customerDB.filter(c => {
-                const matchSearch = 
-                    (c.name || '').toLowerCase().includes(query) || 
-                    (c.phone || '').replace(/-/g, '').includes(query.replace(/-/g, '')) ||
-                    (c.legalName || '').toLowerCase().includes(query) ||
-                    (c.legalPhone || '').replace(/-/g, '').includes(query.replace(/-/g, '')) ||
-                    (c.manager || '').toLowerCase().includes(query) ||
-                    (c.contactManager || '').toLowerCase().includes(query);
+                // 이름·번호·법대·담당자 + 단말기·요금제·메모·가족정보·결합·인터넷/TV로도 검색
+                const qDigits = query.replace(/-/g, '');
+                const matchSearch = !query
+                    || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd]
+                        .some(v => String(v || '').toLowerCase().includes(query))
+                    || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)));
                 
                 if (!matchSearch) return false;
 
@@ -2656,7 +2825,7 @@
                 if (currentFilter === 'target18') return months >= 18; 
                 if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
                 if (currentFilter === 'status_prospect') return c.salesStatus && c.salesStatus.includes('가망고객');
-                if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate); 
+                if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promInsDate || c.promOtherDate || c.promCallDate); 
                 return true; 
             });
 
@@ -2712,7 +2881,7 @@
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
             const listSig = `${currentFilter}|${query}|${currentSort}`;
-            if (listSig !== lastListSig) { cardLimit = CARD_PAGE; lastListSig = listSig; }
+            if (listSig !== lastListSig) { cardPage = 1; lastListSig = listSig; }
             if (monthlyActWireless) monthlyActWireless.textContent = wirelessCount;
             if (monthlyActWired) monthlyActWired.textContent = wiredCount;
             if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
@@ -2850,7 +3019,8 @@
                     { name: '요금제', date: c.promPlanDate, memo: c.promPlanMemo, chk: c.promPlanChk },
                     { name: '부가해지', date: c.promAddonDate, memo: c.promAddonMemo, chk: c.promAddonChk },
                     { name: '보험해지', date: c.promInsDate, memo: c.promInsMemo, chk: c.promInsChk },
-                    { name: '기타약속', date: c.promOtherDate, memo: c.promOtherMemo, chk: c.promOtherChk }
+                    { name: '기타약속', date: c.promOtherDate, memo: c.promOtherMemo, chk: c.promOtherChk },
+                    { name: '재연락', date: c.promCallDate, memo: c.promCallMemo, chk: c.promCallChk }
                 ];
 
                 let badges = [];
@@ -3019,7 +3189,7 @@
 
         // 고객의 '할 일' 목록 (급한 순) — 카드에는 맨 앞 1개 + '외 N건'
         //   지연 약속 > 오늘 약속 > 오늘 생일 > 유선 만료/오늘만료 > 유선 만료 임박 > 가족 동시기변·무선 만료 > 예정 약속 > 생일 임박
-        const PROMISE_KEYS = [['promPlan', '요금제 변경 약속'], ['promAddon', '부가서비스 해지 약속'], ['promIns', '보험 해지 약속'], ['promOther', '기타 약속']];
+        const PROMISE_KEYS = [['promPlan', '요금제 변경 약속'], ['promAddon', '부가서비스 해지 약속'], ['promIns', '보험 해지 약속'], ['promOther', '기타 약속'], ['promCall', '재연락']];
         function getCustomerTasks(c) {
             const tasks = [];
             PROMISE_KEYS.forEach(([key, label]) => {
@@ -3048,7 +3218,11 @@
                 }
                 const months = getDdayAndMonths(c.activationDate).months;
                 const hasCombo = c.combination && c.combination !== '-' && !c.combination.includes('해당없음');
-                if (months >= MOBILE_TARGET_MONTHS && hasCombo) {
+                const famMembers = getFamilyMembers(c);
+                const famTargets = famMembers.length ? [c, ...famMembers].filter(x => isMobileExpiryTarget(x)).length : 0;
+                if (famMembers.length && famTargets >= 2 && isMobileExpiryTarget(c)) {
+                    tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: '타겟', title: '가족 동시 기변', sub: `가족 ${famMembers.length + 1}명 중 ${famTargets}명 기변 시기` });
+                } else if (!famMembers.length && months >= MOBILE_TARGET_MONTHS && hasCombo) {
                     tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: '타겟', title: '가족 동시 기변', sub: c.combination });
                 } else if (isMobileExpiryTarget(c)) {
                     const dt = c.discountType || '';
@@ -3083,6 +3257,8 @@
                 }
                 if (base.uncertain) warn = '할부 기준일 확인';
             }
+            const famN = getFamilyMembers(c).length;
+            if (famN) facts.push(`가족 ${famN + 1}명`);
             if (wiredStr) {
                 const left = getWiredDaysLeft(c.wiredDate);
                 facts.push(wiredStr + (left !== null && left <= WIRED_TARGET_DAYS ? (left < 0 ? ' 만료됨' : ` 만료 D-${left}`) : ''));
@@ -3108,7 +3284,9 @@
             const hasPhone = !!(c.phone || '').replace(/[^0-9]/g, '');
             const visit = formatShortDate(c.visitDate);
             const contact = formatShortDate(c.lastContactDate);
-            const meta = (visit ? `<span>방문 ${visit}</span>` : '') + (contact ? `<span>최근 연락 ${contact}${c.contactManager ? ' ' + escapeHtml(c.contactManager) : ''}</span>` : '');
+            const missed = parseInt(c.missedCalls, 10) || 0;
+            const meta = (visit ? `<span>방문 ${visit}</span>` : '') + (contact ? `<span>최근 연락 ${contact}${c.contactManager ? ' ' + escapeHtml(c.contactManager) : ''}</span>` : '')
+                + (missed > 0 ? `<span class="font-bold text-amber-700">부재 ${missed}회</span>` : '');
 
             const { facts, warn } = getCardFacts(c);
             const chipCls = 'text-[13px] leading-5 px-2 py-0.5 rounded-lg border max-w-full truncate';
@@ -3179,16 +3357,24 @@
             </div>`;
         }
 
-        let cardObserver = null;
+        // 페이지 번호 버튼 목록 — 좁은 폰에서도 한 줄에 들어가도록 최대 5칸 (많으면 … 로 줄이고 [이전]/[다음]으로 이동)
+        function getPageItems(page, total) {
+            if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1);
+            if (page <= 3) return [1, 2, 3, '…', total];
+            if (page >= total - 2) return [1, '…', total - 2, total - 1, total];
+            return [1, '…', page, '…', total];
+        }
+
         function renderCardList() {
             const list = document.getElementById('cardList');
             const footer = document.getElementById('cardListFooter');
+            const rangeInfo = document.getElementById('cardRangeInfo');
             if (!list || !footer) return;
-            if (cardObserver) cardObserver.disconnect();
+            const hideRange = () => { if (rangeInfo) { rangeInfo.textContent = ''; rangeInfo.classList.add('hidden'); } };
 
             if (!dbLoaded) {
                 list.innerHTML = buildListMessageHtml('고객 목록을 불러오는 중이에요', '', '', '');
-                footer.innerHTML = '';
+                footer.innerHTML = ''; hideRange();
                 return;
             }
             if (dbLoadError && customerDB.length === 0) {
@@ -3196,33 +3382,53 @@
                 list.innerHTML = buildListMessageHtml('고객 목록을 불러오지 못했어요',
                     noPermission ? '이 계정은 고객 목록을 볼 권한이 없어요. 관리자에게 문의해주세요.' : '인터넷 연결을 확인한 뒤 다시 시도해주세요.',
                     'reload', '다시 불러오기');
-                footer.innerHTML = '';
+                footer.innerHTML = ''; hideRange();
                 return;
             }
             if (globalFilteredDB.length === 0) {
                 const query = document.getElementById('searchInput').value.trim();
                 if (customerDB.length === 0) list.innerHTML = buildListMessageHtml('아직 등록된 고객이 없어요', '[＋]를 눌러 사진이나 직접 입력으로 첫 고객을 등록해보세요.', 'add', '고객 등록하기');
-                else if (query) list.innerHTML = buildListMessageHtml(`'${query}'에 맞는 고객이 없어요`, '이름, 번호, 담당자 이름으로 찾을 수 있어요.', 'clear-search', '검색 지우기');
+                else if (query) list.innerHTML = buildListMessageHtml(`'${query}'에 맞는 고객이 없어요`, '이름, 번호, 단말기, 요금제, 메모로 찾을 수 있어요.', 'clear-search', '검색 지우기');
                 else list.innerHTML = buildListMessageHtml('이 조건에 맞는 고객이 없어요', '', 'show-all', '전체 보기');
-                footer.innerHTML = '';
+                footer.innerHTML = ''; hideRange();
                 return;
             }
 
-            const shown = globalFilteredDB.slice(0, cardLimit);
+            const total = globalFilteredDB.length;
+            const totalPages = Math.ceil(total / CARD_PAGE_SIZE);
+            if (cardPage > totalPages) cardPage = totalPages;
+            if (cardPage < 1) cardPage = 1;
+            const startIdx = (cardPage - 1) * CARD_PAGE_SIZE;
+            const shown = globalFilteredDB.slice(startIdx, startIdx + CARD_PAGE_SIZE);
             list.innerHTML = shown.map(c => selectionMode ? buildSelectCardHtml(c) : buildCustomerCardHtml(c)).join('');
-            const remaining = globalFilteredDB.length - shown.length;
-            if (remaining > 0) {
-                footer.innerHTML = `<button type="button" id="cardMoreBtn" data-card-action="more" class="h-11 px-5 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 hover:bg-gray-50">다음 ${Math.min(remaining, CARD_PAGE)}명 더 보기 (남은 ${remaining}명)</button>`;
-                // 아래로 내려서 버튼 근처에 오면 자동으로 이어서 불러옴
-                if ('IntersectionObserver' in window) {
-                    if (!cardObserver) cardObserver = new IntersectionObserver((entries) => {
-                        if (entries.some(en => en.isIntersecting)) { cardLimit += CARD_PAGE; renderCardList(); }
-                    }, { rootMargin: '300px' });
-                    cardObserver.observe(document.getElementById('cardMoreBtn'));
-                }
-            } else {
-                footer.innerHTML = shown.length > 5 ? `<p class="text-sm text-gray-500 py-2">목록 끝이에요 (${shown.length}명)</p>` : '';
+
+            if (rangeInfo) {
+                rangeInfo.textContent = `${startIdx + 1}–${startIdx + shown.length} / ${total}명`;
+                rangeInfo.classList.toggle('hidden', totalPages <= 1);
             }
+            if (totalPages <= 1) {
+                footer.innerHTML = total > 3 ? `<p class="text-sm text-gray-500 py-2">목록 끝이에요 (${total}명)</p>` : '';
+                return;
+            }
+            const navBtn = (page, label, aria, disabled) => `<button type="button" data-card-page="${page}" aria-label="${aria}" ${disabled ? 'disabled' : ''} class="h-11 min-w-[44px] px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 disabled:opacity-40">${label}</button>`;
+            const pages = getPageItems(cardPage, totalPages).map(p => p === '…'
+                ? '<span class="h-11 w-6 flex items-center justify-center text-gray-400" aria-hidden="true">…</span>'
+                : (p === cardPage
+                    ? `<button type="button" aria-current="page" class="h-11 min-w-[44px] px-2 rounded-xl bg-indigo-600 text-white text-sm font-bold">${p}</button>`
+                    : `<button type="button" data-card-page="${p}" aria-label="${p}페이지" class="h-11 min-w-[44px] px-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">${p}</button>`)).join('');
+            footer.innerHTML = `<nav aria-label="고객 목록 페이지" class="flex items-center justify-center gap-1 flex-wrap">
+                ${navBtn(cardPage - 1, '<i class="fa-solid fa-chevron-left"></i>', '이전 페이지', cardPage === 1)}
+                ${pages}
+                ${navBtn(cardPage + 1, '<i class="fa-solid fa-chevron-right"></i>', '다음 페이지', cardPage === totalPages)}
+            </nav>`;
+        }
+
+        // 페이지를 넘기면 필터칩 위치로 이동 (맨 위 대시보드까지 올라가지 않게)
+        function goToCardPage(page) {
+            cardPage = page;
+            renderCardList();
+            const anchor = document.getElementById('filterChipsRow');
+            if (anchor && anchor.scrollIntoView) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
         document.getElementById('cardList').addEventListener('click', (e) => {
@@ -3247,10 +3453,9 @@
             updateSelectionUI();
         });
         document.getElementById('cardListFooter').addEventListener('click', (e) => {
-            const el = e.target && e.target.closest ? e.target.closest('[data-card-action="more"]') : null;
-            if (!el) return;
-            cardLimit += CARD_PAGE;
-            renderCardList();
+            const el = e.target && e.target.closest ? e.target.closest('[data-card-page]') : null;
+            if (!el || el.disabled) return;
+            goToCardPage(parseInt(el.dataset.cardPage, 10));
         });
 
         function cardContact(id, type) {
@@ -3413,6 +3618,8 @@
             const status = document.getElementById('settingsApiStatus');
             status.textContent = hasKey ? '연결됨' : '설정 필요 (AI 스캔에 필요해요)';
             status.className = `text-[13px] font-medium ${hasKey ? 'text-green-700' : 'text-red-700'}`;
+            renderAutoPromiseSettings();
+            renderTrashList();
         }
         let staffSavedTimer = null;
         document.getElementById('settingsStaffName').addEventListener('change', (e) => {
@@ -3425,6 +3632,70 @@
             staffSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000);
         });
         document.getElementById('settingsLogoutBtn').addEventListener('click', () => document.getElementById('logoutBtn').click());
+
+        // 개통 후 자동 약속 (매장 공용 설정)
+        const AUTO_KEYS = ['Plan', 'Addon', 'Ins'];
+        function renderAutoPromiseSettings() {
+            AUTO_KEYS.forEach(k => {
+                const on = document.getElementById(`auto${k}On`);
+                const days = document.getElementById(`auto${k}Days`);
+                on.checked = appSettings[`auto${k}On`] !== false;
+                if (document.activeElement !== days) days.value = appSettings[`auto${k}Days`];
+                days.disabled = !on.checked;
+            });
+        }
+        let autoSavedTimer = null;
+        async function saveAutoPromiseSettings() {
+            const data = {};
+            AUTO_KEYS.forEach(k => {
+                const on = document.getElementById(`auto${k}On`).checked;
+                let days = parseInt(document.getElementById(`auto${k}Days`).value, 10);
+                if (!(days >= 1 && days <= 730)) days = appSettings[`auto${k}Days`] || AUTO_PROMISE_DEFAULTS[`auto${k}Days`];
+                data[`auto${k}On`] = on;
+                data[`auto${k}Days`] = days;
+            });
+            appSettings = { ...appSettings, ...data };
+            renderAutoPromiseSettings();
+            try {
+                await setDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
+                const saved = document.getElementById('autoPromSaved');
+                saved.classList.remove('hidden');
+                clearTimeout(autoSavedTimer);
+                autoSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000);
+            } catch (e) { console.error(e); customAlert('설정을 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); }
+        }
+        AUTO_KEYS.forEach(k => {
+            document.getElementById(`auto${k}On`).addEventListener('change', saveAutoPromiseSettings);
+            document.getElementById(`auto${k}Days`).addEventListener('change', saveAutoPromiseSettings);
+        });
+
+        // 휴지통 목록
+        function renderTrashList() {
+            const box = document.getElementById('trashList');
+            document.getElementById('trashCount').textContent = trashDB.length ? `${trashDB.length}명` : '';
+            if (!trashDB.length) { box.innerHTML = '<p class="px-4 pb-4 text-sm text-gray-500">비어 있어요.</p>'; return; }
+            box.innerHTML = trashDB.map(c => {
+                const t = Date.parse(c.deletedAt);
+                const daysLeft = isNaN(t) ? null : Math.max(0, TRASH_KEEP_DAYS - Math.floor((Date.now() - t) / 86400000));
+                const hasPhone = !!String(c.phone || '').replace(/[^0-9]/g, '');
+                const idAttr = escapeHtml(c.id);
+                const info = [hasPhone ? formatPhone(c.phone) : '번호 없음', daysLeft !== null ? `${daysLeft}일 뒤 완전 삭제` : '', c.deletedBy ? `삭제: ${c.deletedBy}` : ''].filter(Boolean).join(' · ');
+                return `<div class="px-4 py-3 border-t border-gray-100 flex items-center gap-2">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')}</p>
+                        <p class="text-xs text-gray-600 truncate">${escapeHtml(info)}</p>
+                    </div>
+                    <button type="button" data-trash-action="restore" data-id="${idAttr}" class="flex-shrink-0 h-11 px-3 rounded-xl border border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-700">복구</button>
+                    <button type="button" data-trash-action="purge" data-id="${idAttr}" aria-label="${escapeHtml(c.name || '고객')} 완전 삭제" class="flex-shrink-0 w-11 h-11 rounded-xl border border-gray-300 text-gray-600 flex items-center justify-center"><i class="fa-solid fa-trash"></i></button>
+                </div>`;
+            }).join('');
+        }
+        document.getElementById('trashList').addEventListener('click', (e) => {
+            const btn = e.target && e.target.closest ? e.target.closest('[data-trash-action]') : null;
+            if (!btn) return;
+            if (btn.dataset.trashAction === 'restore') restoreFromTrash(btn.dataset.id);
+            else purgeFromTrash(btn.dataset.id);
+        });
         document.getElementById('settingsApiBtn').addEventListener('click', () => document.getElementById('apiSettingBtn').click());
 
         const detailModal = document.getElementById('detailModal');
@@ -3558,6 +3829,9 @@
             document.getElementById('promOtherDate').value = c.promOtherDate || '';
             document.getElementById('promOtherMemo').value = c.promOtherMemo || '';
             document.getElementById('promOtherChk').checked = c.promOtherChk || false;
+            document.getElementById('promCallDate').value = c.promCallDate || '';
+            document.getElementById('promCallMemo').value = c.promCallMemo || '';
+            document.getElementById('promCallChk').checked = c.promCallChk || false;
 
             document.getElementById('modalMemo').value = c.memo || '';
             document.getElementById('modalObMemo').value = c.obMemo || ''; 
@@ -3590,13 +3864,15 @@
             { key: 'mobile', label: '모바일' },
             { key: 'wired', label: '유선' },
             { key: 'promise', label: '약속' },
-            { key: 'contact', label: '연락' }
+            { key: 'contact', label: '연락' },
+            { key: 'family', label: '가족' }
         ];
         const PROMISE_DEFS = [
             { key: 'Plan', label: '요금제 변경' },
             { key: 'Addon', label: '부가 해지' },
             { key: 'Ins', label: '보험 해지' },
-            { key: 'Other', label: '기타 약속' }
+            { key: 'Other', label: '기타 약속' },
+            { key: 'Call', label: '재연락' }
         ];
         const PROFILE_DASH = '<span class="text-gray-300 font-medium">-</span>';
         const profileValue = (v) => (v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '-') ? PROFILE_DASH : escapeHtml(v);
@@ -3724,9 +4000,10 @@
                 </div>`;
 
             // 탭 (약속/연락 탭에는 건수 표시)
-            const tabCount = { promise: getOpenPromiseDates(c).length, contact: parseContactHistory(c.contactHistory).length };
+            const famCount = getFamilyMembers(c).length;
+            const tabCount = { promise: getOpenPromiseDates(c).length, contact: parseContactHistory(c.contactHistory).length, family: famCount ? famCount + 1 : 0 };
             const tabsHtml = `
-                <div class="grid grid-cols-4 rounded-xl border border-[#e3a592] overflow-hidden">
+                <div class="grid grid-cols-5 rounded-xl border border-[#e3a592] overflow-hidden">
                     ${PROFILE_TABS.map((t, i) => {
                         const active = t.key === currentProfileTab;
                         const cnt = tabCount[t.key];
@@ -3738,6 +4015,7 @@
             if (currentProfileTab === 'wired') tabContent = buildProfileWiredTab(c);
             else if (currentProfileTab === 'promise') tabContent = buildProfilePromiseTab(c);
             else if (currentProfileTab === 'contact') tabContent = buildProfileContactTab(c);
+            else if (currentProfileTab === 'family') tabContent = buildProfileFamilyTab(c);
             else tabContent = buildProfileMobileTab(c);
 
             return `
@@ -3829,6 +4107,16 @@
             ].join('');
         }
 
+        // 📅 구글 캘린더 '일정 추가' 화면을 내용이 채워진 채로 열기 (저장만 누르면 됨, 하루 종일 일정)
+        function buildCalendarUrl(c, label, date, memo) {
+            const start = String(date || '').replace(/-/g, '');
+            const end = addDaysStr(date, 1).replace(/-/g, '');
+            if (start.length !== 8 || end.length !== 8) return '';
+            const text = `[${label}] ${c.name || '고객'}`;
+            const details = [c.phone ? `연락처: ${formatPhone(c.phone)}` : '', memo || ''].filter(Boolean).join('\n');
+            return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(text)}&dates=${start}/${end}&details=${encodeURIComponent(details)}`;
+        }
+
         function buildProfilePromiseTab(c) {
             const today = parseDateString(getTodayStr());
             const items = PROMISE_DEFS.map(p => ({
@@ -3851,13 +4139,174 @@
                 else if (diff < 0) badge = pill('bg-red-50 text-red-600', `지연 D+${-diff}`);
                 else if (diff === 0) badge = pill('bg-red-500 text-white', '오늘');
                 else badge = pill(diff <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600', `D-${diff}`);
+                const calUrl = (!p.done && diff !== null) ? buildCalendarUrl(c, p.label, p.date, p.memo) : '';
                 return `<div class="py-3 border-b border-gray-100 last:border-0">
                     <div class="flex items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}</div>
                     <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
+                    ${calUrl ? `<a href="${escapeHtml(calUrl)}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</a>` : ''}
                 </div>`;
             }).join('');
         }
+
+        // ═════════════════════════════════════════════
+        // 👨‍👩‍👧 가족 묶기 — 가족 고객끼리 연결해서 가족 전체의 약정·만료를 한 번에
+        // ═════════════════════════════════════════════
+        function getFamilyMembers(c) {
+            if (!c || !c.familyGroupId) return [];
+            return customerDB.filter(x => x.familyGroupId === c.familyGroupId && x.id !== c.id);
+        }
+
+        function familyRowHtml(m) {
+            const idAttr = escapeHtml(m.id);
+            const calc = getDdayAndMonths(m.activationDate);
+            const usage = m.activationDate && m.activationDate.length === 10 ? (calc.months >= 1 ? `${calc.months}개월째` : `개통 ${calc.days}일째`) : '';
+            const dt = m.discountType || '';
+            const discount = dt.includes('선택약정') ? dt.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim() : (dt.includes('공시') ? '공시지원' : '');
+            const target = isMobileExpiryTarget(m);
+            const expired = dt.includes('해당없음') || dt.includes('만료');
+            const st = getStatusInfo(m.salesStatus);
+            const hasPhone = !!String(m.phone || '').replace(/[^0-9]/g, '');
+            const sub = [hasPhone ? formatPhone(m.phone) : '번호 없음', m.device, usage, discount].filter(Boolean).join(' · ');
+            return `<div class="py-3 border-b border-gray-100 last:border-0 flex items-center gap-2">
+                <button type="button" data-family-action="open" data-id="${idAttr}" class="flex-1 min-w-0 text-left">
+                    <span class="flex items-center gap-1.5 flex-wrap">
+                        <span class="text-[15px] font-bold text-gray-900">${escapeHtml(m.name || '이름 없음')}</span>
+                        ${m.carrier && m.carrier !== '미정' ? `<span class="text-[11px] font-medium text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">${escapeHtml(m.carrier)}</span>` : ''}
+                        ${target ? `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">${expired ? '약정 끝남' : '기변 시기'}</span>` : ''}
+                    </span>
+                    <span class="block text-[13px] text-gray-600 truncate">${escapeHtml(sub)}</span>
+                </button>
+                <span class="flex-shrink-0 text-[11px] font-bold rounded-full px-2 py-0.5 ${st.cls}">${escapeHtml(st.text)}</span>
+                <button type="button" data-family-action="unlink" data-id="${idAttr}" aria-label="${escapeHtml(m.name || '고객')} 가족 연결 해제" class="flex-shrink-0 w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-link-slash"></i></button>
+            </div>`;
+        }
+
+        function buildProfileFamilyTab(c) {
+            const members = getFamilyMembers(c);
+            let html = '';
+            if (members.length) {
+                const everyone = [c, ...members];
+                const targets = everyone.filter(x => isMobileExpiryTarget(x)).length;
+                html += `<div class="mt-2 mb-1 p-3 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <p class="text-[13px] font-bold text-indigo-900">가족 ${everyone.length}명 묶음${targets ? ` · 기변 시기 ${targets}명` : ''}</p>
+                    ${targets >= 2 ? '<p class="text-xs text-indigo-800 mt-0.5">여러 명이 기변 시기예요. 가족 동시 기변을 권해볼 만해요.</p>' : ''}
+                </div>`;
+                const sorted = members.slice().sort((a, b) => Number(isMobileExpiryTarget(b)) - Number(isMobileExpiryTarget(a)) || (a.name || '').localeCompare(b.name || '', 'ko'));
+                html += sorted.map(familyRowHtml).join('');
+            } else {
+                html += profileEmpty('fa-people-group', '아직 묶인 가족이 없어요.\n[가족 추가]로 가족 고객을 연결하면\n가족 전체의 약정·만료를 한눈에 볼 수 있어요.');
+            }
+            if (c.repFamily && c.repFamily.trim()) {
+                html += `<div class="mt-3 p-3 rounded-xl bg-gray-50 border border-gray-100">
+                    <p class="text-[11px] font-bold text-gray-500 mb-1">개통보고에 적은 가족 정보</p>
+                    <p class="text-[13px] text-gray-700 whitespace-pre-wrap">${escapeHtml(c.repFamily)}</p>
+                </div>`;
+            }
+            html += `<button type="button" data-family-action="add" class="mt-3 w-full h-12 rounded-xl border-2 border-dashed border-indigo-300 text-indigo-700 font-bold text-[15px] flex items-center justify-center gap-2"><i class="fa-solid fa-user-plus"></i>가족 추가</button>`;
+            return html;
+        }
+
+        async function linkFamily(aId, bId) {
+            const a = customerDB.find(x => x.id === aId);
+            const b = customerDB.find(x => x.id === bId);
+            if (!a || !b || aId === bId) return false;
+            const aGroup = a.familyGroupId || '';
+            const bGroup = b.familyGroupId || '';
+            if (aGroup && aGroup === bGroup) return true;
+            if (aGroup && bGroup) {
+                const bCount = customerDB.filter(x => x.familyGroupId === bGroup).length;
+                if (bCount > 1 && !(await customConfirm(`${b.name || '이 고객'}님은 이미 다른 가족(${bCount}명)과 묶여 있어요.\n두 가족을 하나로 합칠까요?`))) return false;
+            }
+            const groupId = aGroup || bGroup || `fam_${aId}_${Date.now().toString(36)}`;
+            const ids = new Set([aId, bId]);
+            [aGroup, bGroup].forEach(g => { if (g && g !== groupId) customerDB.filter(x => x.familyGroupId === g).forEach(x => ids.add(x.id)); });
+            const now = new Date().toISOString();
+            await Promise.all([...ids].map(id => setDoc(doc(db, 'smart_customers', id), { familyGroupId: groupId, updatedAt: now }, { merge: true })));
+            ids.forEach(id => { const x = customerDB.find(y => y.id === id); if (x) x.familyGroupId = groupId; });
+            return true;
+        }
+
+        async function unlinkFamily(memberId) {
+            const m = customerDB.find(x => x.id === memberId);
+            if (!m || !m.familyGroupId) return;
+            const groupId = m.familyGroupId;
+            const remaining = customerDB.filter(x => x.familyGroupId === groupId && x.id !== memberId);
+            const now = new Date().toISOString();
+            const clear = (id) => setDoc(doc(db, 'smart_customers', id), { familyGroupId: '', updatedAt: now }, { merge: true });
+            await Promise.all([clear(memberId), ...(remaining.length === 1 ? [clear(remaining[0].id)] : [])]);
+            m.familyGroupId = '';
+            if (remaining.length === 1) remaining[0].familyGroupId = '';  // 혼자 남으면 묶음도 해제
+        }
+
+        // 가족 추가 창 (고객 카드 위에 뜸)
+        const familyPickerSheet = document.getElementById('familyPickerSheet');
+        let familyPickerForId = null;
+        let familyPickerHistoryPushed = false;
+        function openFamilyPicker(forId) {
+            const c = customerDB.find(x => x.id === forId);
+            if (!c) return;
+            familyPickerForId = forId;
+            document.getElementById('familyPickerTarget').textContent = `${c.name || '이름 없음'} 고객과 묶을 가족을 골라주세요`;
+            document.getElementById('familyPickerSearch').value = '';
+            renderFamilyPickerResults();
+            familyPickerSheet.style.display = 'flex';
+            if (!familyPickerHistoryPushed) { history.pushState({ familyPicker: true }, ''); familyPickerHistoryPushed = true; }
+        }
+        function closeFamilyPicker(fromPopState = false) {
+            if (familyPickerSheet.style.display !== 'flex') return;
+            familyPickerSheet.style.display = 'none';
+            familyPickerForId = null;
+            if (familyPickerHistoryPushed) { familyPickerHistoryPushed = false; if (!fromPopState) history.back(); }
+        }
+        function renderFamilyPickerResults() {
+            const box = document.getElementById('familyPickerResults');
+            const c = customerDB.find(x => x.id === familyPickerForId);
+            if (!c) { box.innerHTML = ''; return; }
+            const memberIds = new Set([c.id, ...getFamilyMembers(c).map(m => m.id)]);
+            const q = document.getElementById('familyPickerSearch').value.trim().toLowerCase();
+            const qDigits = q.replace(/[^0-9]/g, '');
+            let list, heading = '';
+            if (q) {
+                list = customerDB.filter(x => !memberIds.has(x.id) && (String(x.name || '').toLowerCase().includes(q) || (qDigits.length >= 3 && String(x.phone || '').replace(/[^0-9]/g, '').includes(qDigits))));
+            } else {
+                // 개통보고 가족 정보에 적힌 번호와 같은 고객을 먼저 추천
+                const famDigits = (String(c.repFamily || '').match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/g) || []).map(t => t.replace(/[^0-9]/g, ''));
+                list = customerDB.filter(x => !memberIds.has(x.id) && famDigits.includes(String(x.phone || '').replace(/[^0-9]/g, '')));
+                heading = list.length ? '개통보고 가족 정보와 번호가 같은 고객' : '';
+            }
+            if (!list.length) {
+                box.innerHTML = `<p class="py-8 text-center text-sm text-gray-500">${q ? `'${escapeHtml(q)}'에 맞는 고객이 없어요.` : '이름이나 번호로 가족 고객을 찾아주세요.'}</p>`;
+                return;
+            }
+            box.innerHTML = (heading ? `<p class="text-xs font-bold text-gray-500 px-1 pt-1 pb-1">${heading}</p>` : '') + list.slice(0, 20).map(x => {
+                const otherFam = getFamilyMembers(x).length;
+                const hasPhone = !!String(x.phone || '').replace(/[^0-9]/g, '');
+                const sub = [hasPhone ? formatPhone(x.phone) : '번호 없음', x.device, otherFam ? `다른 가족 ${otherFam + 1}명 묶음` : ''].filter(Boolean).join(' · ');
+                return `<div class="py-2.5 border-b border-gray-100 last:border-0 flex items-center gap-2">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '이름 없음')}</p>
+                        <p class="text-[13px] text-gray-600 truncate">${escapeHtml(sub)}</p>
+                    </div>
+                    <button type="button" data-family-pick="${escapeHtml(x.id)}" class="flex-shrink-0 h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold">묶기</button>
+                </div>`;
+            }).join('');
+        }
+        document.getElementById('familyPickerSearch').addEventListener('input', renderFamilyPickerResults);
+        document.getElementById('familyPickerClose').addEventListener('click', () => closeFamilyPicker());
+        familyPickerSheet.addEventListener('click', async (e) => {
+            if (e.target === familyPickerSheet) { closeFamilyPicker(); return; }
+            const pick = e.target && e.target.closest ? e.target.closest('[data-family-pick]') : null;
+            if (!pick || !familyPickerForId) return;
+            const forId = familyPickerForId;
+            try {
+                const done = await linkFamily(forId, pick.dataset.familyPick);
+                if (!done) return;
+                closeFamilyPicker();
+                if (currentProfileId) { currentProfileTab = 'family'; renderProfileCard(); }
+            } catch (err) { console.error(err); customAlert('가족으로 묶지 못했어요. 인터넷 연결을 확인해주세요.'); }
+        });
+        window.addEventListener('popstate', () => { if (familyPickerSheet.style.display === 'flex') closeFamilyPicker(true); });
 
         // "[2026.09.23 14:05] [법대] 📞 전화발신 (담당: 홍길동)" 형식의 자동 기록을 한 줄씩 해석 (최신순)
         function parseContactHistory(text) {
@@ -3869,7 +4318,7 @@
                 return {
                     date: `${m[1]}-${m[2]}-${m[3]}`,
                     time: `${m[4]}:${m[5]}`,
-                    type: body.includes('문자') ? 'sms' : (body.includes('전화') ? 'tel' : ''),
+                    type: body.includes('통화결과') ? 'result' : (body.includes('문자') ? 'sms' : (body.includes('전화') ? 'tel' : '')),
                     legal: body.includes('[법대]'),
                     manager: mgr ? mgr[1].trim() : '',
                     body
@@ -3904,11 +4353,13 @@
             const pill = (cls, text) => `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${cls}">${text}</span>`;
             html += logs.slice(0, MAX_LOGS).map(l => {
                 if (!l.date) return `<div class="py-2.5 border-b border-gray-100 last:border-0 text-[13px] text-gray-600">${escapeHtml(l.body)}</div>`;
-                const typeBadge = l.type === 'tel' ? pill('bg-orange-50 text-orange-500', '전화') : (l.type === 'sms' ? pill('bg-sky-50 text-sky-600', '문자') : '');
+                const typeBadge = l.type === 'tel' ? pill('bg-orange-50 text-orange-500', '전화') : (l.type === 'sms' ? pill('bg-sky-50 text-sky-600', '문자') : (l.type === 'result' ? pill('bg-indigo-50 text-indigo-600', '통화결과') : ''));
+                const resultText = l.type === 'result' ? l.body.replace(/^.*통화결과:\s*/, '').replace(/\s*\(담당:[^)]*\)\s*$/, '') : '';
                 const legalBadge = l.legal ? pill('bg-pink-50 text-pink-500', '법대') : '';
                 return `<div class="py-3 border-b border-gray-100 last:border-0">
                     <div class="flex items-center gap-1.5 mb-1">${typeBadge}${legalBadge}${l.manager ? `<span class="ml-auto text-[11px] text-gray-400">담당 ${escapeHtml(l.manager)}</span>` : ''}</div>
                     <p class="text-[15px] font-bold text-gray-900">${l.date} <span class="ml-1 font-semibold text-[#e0957f]">${l.time}</span></p>
+                    ${resultText ? `<p class="text-[13px] text-gray-700 mt-0.5">${escapeHtml(resultText)}</p>` : ''}
                 </div>`;
             }).join('');
             if (logs.length > MAX_LOGS) {
@@ -3934,6 +4385,22 @@
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
 
+            const famBtn = ev.target.closest('[data-family-action]');
+            if (famBtn && currentProfileId) {
+                const fa = famBtn.dataset.familyAction;
+                if (fa === 'add') openFamilyPicker(currentProfileId);
+                else if (fa === 'open') { currentProfileTab = 'family'; openProfileCard(famBtn.dataset.id); currentProfileTab = 'family'; renderProfileCard(); }
+                else if (fa === 'unlink') {
+                    const m = customerDB.find(x => x.id === famBtn.dataset.id);
+                    (async () => {
+                        if (!(await customConfirm(`${m && m.name ? m.name + '님을' : '이 고객을'} 가족 묶음에서 뺄까요?`))) return;
+                        try { await unlinkFamily(famBtn.dataset.id); renderProfileCard(); }
+                        catch (err) { console.error(err); customAlert('연결을 해제하지 못했어요. 인터넷 연결을 확인해주세요.'); }
+                    })();
+                }
+                return;
+            }
+
             const actBtn = ev.target.closest('[data-paction]');
             if (!actBtn || !currentProfileId) return;
             const id = currentProfileId;
@@ -3945,6 +4412,146 @@
             else if (action === 'legal') logActionAndCall(id, 'tel', c.legalPhone, '법대');
             else if (action === 'edit') { closeProfileCard(); openDetailModal(id); }
         });
+
+        // ═════════════════════════════════════════════
+        // 📞 통화 결과 바로 기록 — 전화 걸고 앱으로 돌아오면 자동으로 물어봄
+        //    (상세카드를 안 열어도 영업상태·연락기록·부재 횟수·재연락 약속이 한 번에 저장됨)
+        // ═════════════════════════════════════════════
+        const CALL_RESULTS = {
+            missed:   { label: '부재중',   status: null,             hint: "부재 횟수가 올라가요. 다음 연락일을 넣으면 '재연락' 약속으로 잡혀요." },
+            done:     { label: '통화 완료', status: null,             hint: '영업상태는 그대로 두고 통화 기록만 남겨요.' },
+            interest: { label: '관심 있음', status: '가망고객(OB콜)', hint: "영업상태가 '가망고객(OB콜)'로 바뀌어요." },
+            visit:    { label: '방문약속',  status: '방문약속',        hint: "영업상태가 '방문약속'으로 바뀌어요." },
+            refuse:   { label: '거부',     status: '고객거부',        hint: "영업상태가 '고객거부'로 바뀌고 타겟 목록에서 빠져요." }
+        };
+        const PENDING_CALL_KEY = 'pendingCallResult';
+        const PENDING_CALL_MAX_AGE = 2 * 60 * 60 * 1000;   // 2시간 지난 통화는 묻지 않음
+        const callResultSheet = document.getElementById('callResultSheet');
+        let pendingCall = null;
+        let callResultChoice = null;
+        let callResultHistoryPushed = false;
+
+        function setPendingCall(p) {
+            pendingCall = p;
+            try { if (p) localStorage.setItem(PENDING_CALL_KEY, JSON.stringify(p)); else localStorage.removeItem(PENDING_CALL_KEY); } catch (e) { /* 무시 */ }
+        }
+        function loadPendingCall() {
+            if (pendingCall) return pendingCall;
+            try { const raw = localStorage.getItem(PENDING_CALL_KEY); pendingCall = raw ? JSON.parse(raw) : null; } catch (e) { pendingCall = null; }
+            return pendingCall;
+        }
+        function rememberCallForResult(id, target) {
+            setPendingCall({ id, target: target || '', at: Date.now(), left: false });
+        }
+
+        // 전화앱으로 넘어가면(화면 숨김) 표시해두고, 앱으로 돌아오면 결과를 물어봄
+        document.addEventListener('visibilitychange', () => {
+            const p = loadPendingCall();
+            if (!p) return;
+            if (document.visibilityState === 'hidden') { if (!p.left) setPendingCall({ ...p, left: true }); }
+            else checkPendingCallResult();
+        });
+
+        function checkPendingCallResult() {
+            const p = loadPendingCall();
+            if (!p || !dbLoaded) return;
+            if (Date.now() - p.at > PENDING_CALL_MAX_AGE) { setPendingCall(null); return; }
+            if (!p.left || callResultSheet.style.display === 'flex') return;
+            const c = customerDB.find(x => x.id === p.id);
+            if (!c) { setPendingCall(null); return; }
+            openCallResultSheet(c, p);
+        }
+
+        function openCallResultSheet(c, p) {
+            callResultChoice = null;
+            const num = p.target === '법대' ? c.legalPhone : c.phone;
+            document.getElementById('callResultTarget').textContent = `${c.name || '이름 없음'}${p.target ? ` (${p.target})` : ''} · ${formatPhone(num)}`;
+            document.getElementById('callResultMemo').value = '';
+            document.getElementById('callResultNext').value = '';
+            document.getElementById('callResultHint').textContent = '결과를 고르면 영업상태와 연락 기록에 바로 반영돼요.';
+            updateCallResultButtons();
+            callResultSheet.style.display = 'flex';
+            if (!callResultHistoryPushed) { history.pushState({ callResult: true }, ''); callResultHistoryPushed = true; }
+        }
+        function closeCallResultSheet(fromPopState = false) {
+            if (callResultSheet.style.display !== 'flex') return;
+            callResultSheet.style.display = 'none';
+            setPendingCall(null);
+            if (callResultHistoryPushed) {
+                callResultHistoryPushed = false;
+                if (!fromPopState) history.back();
+            }
+        }
+        function updateCallResultButtons() {
+            document.querySelectorAll('#callResultOptions [data-result]').forEach(b => {
+                const on = b.dataset.result === callResultChoice;
+                b.setAttribute('aria-checked', on ? 'true' : 'false');
+                b.classList.toggle('border-indigo-600', on);
+                b.classList.toggle('bg-indigo-50', on);
+                b.classList.toggle('text-indigo-800', on);
+                b.classList.toggle('border-gray-200', !on);
+                b.classList.toggle('bg-white', !on);
+                b.classList.toggle('text-gray-800', !on);
+            });
+            document.getElementById('callResultSave').disabled = !callResultChoice;
+            if (callResultChoice) document.getElementById('callResultHint').textContent = CALL_RESULTS[callResultChoice].hint;
+        }
+        function chooseCallResult(key) {
+            if (!CALL_RESULTS[key]) return;
+            callResultChoice = key;
+            updateCallResultButtons();
+        }
+        document.getElementById('callResultOptions').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-result]') : null;
+            if (b) chooseCallResult(b.dataset.result);
+        });
+        callResultSheet.addEventListener('click', (e) => {
+            if (e.target === callResultSheet) { closeCallResultSheet(); return; }
+            const quick = e.target && e.target.closest ? e.target.closest('[data-next-days]') : null;
+            if (quick) document.getElementById('callResultNext').value = addDaysStr(getTodayStr(), parseInt(quick.dataset.nextDays, 10));
+        });
+        document.getElementById('callResultClose').addEventListener('click', () => closeCallResultSheet());
+        document.getElementById('callResultSkip').addEventListener('click', () => closeCallResultSheet());
+        window.addEventListener('popstate', () => { if (callResultSheet.style.display === 'flex') closeCallResultSheet(true); });
+
+        async function saveCallResult() {
+            const p = loadPendingCall();
+            const c = p ? customerDB.find(x => x.id === p.id) : null;
+            if (!c || !callResultChoice) { closeCallResultSheet(); return; }
+            const r = CALL_RESULTS[callResultChoice];
+            const memo = document.getElementById('callResultMemo').value.trim();
+            const next = document.getElementById('callResultNext').value;
+            const now = new Date();
+            const two = (n) => String(n).padStart(2, '0');
+            const timeStr = `${now.getFullYear()}.${two(now.getMonth() + 1)}.${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}`;
+            const managerName = getStaffName() || c.contactManager || '담당자미상';
+            const entry = `[${timeStr}] ${p.target ? `[${p.target}] ` : ''}📝 통화결과: ${r.label}${memo ? ' - ' + memo.replace(/\s*\n\s*/g, ' ') : ''} (담당: ${managerName})`;
+            const update = {
+                contactHistory: c.contactHistory ? `${c.contactHistory}\n${entry}` : entry,
+                lastContactDate: getTodayStr(),
+                contactManager: managerName,
+                missedCalls: callResultChoice === 'missed' ? (parseInt(c.missedCalls, 10) || 0) + 1 : 0,
+                updatedAt: now.toISOString()
+            };
+            if (r.status) update.salesStatus = r.status;
+            if (memo) {
+                const stamp = `${two(now.getMonth() + 1)}/${two(now.getDate())}`;
+                update.obMemo = c.obMemo && c.obMemo.trim() ? `${c.obMemo}\n[${stamp}] ${r.label}: ${memo}` : `[${stamp}] ${r.label}: ${memo}`;
+            }
+            if (next) { update.promCallDate = next; update.promCallMemo = memo || `${r.label} → 다시 연락`; update.promCallChk = false; }
+            const saveBtn = document.getElementById('callResultSave');
+            saveBtn.disabled = true;
+            try {
+                await setDoc(doc(db, 'smart_customers', c.id), update, { merge: true });
+                closeCallResultSheet();
+                customAlert(`📝 '${r.label}'(으)로 기록했어요.${next ? `\n재연락 약속: ${formatShortDate(next)}` : ''}`);
+            } catch (e) {
+                console.error(e);
+                saveBtn.disabled = false;
+                customAlert('기록하지 못했어요. 인터넷 연결을 확인하고 다시 눌러주세요.');
+            }
+        }
+        document.getElementById('callResultSave').addEventListener('click', saveCallResult);
 
         // ═════════════════════════════════════════════
         // ✨ AI 문자 (고객 목록 카드의 [AI문자] 버튼)
@@ -4115,7 +4722,7 @@ ${typeInstruction}
             if (!newId) return customAlert("연락처는 필수입니다.");
 
             if (newId !== currentDetailId) {
-                const exists = customerDB.find(x => x.id === newId);
+                const exists = customerDB.find(x => x.id === newId) || trashDB.find(x => x.id === newId);
                 if (exists) {
                     const confirmOverwrite = await customConfirm("이미 등록된 다른 고객의 연락처입니다.\n이 번호로 덮어쓰시겠습니까?\n(기존 데이터는 삭제/통합됩니다)");
                     if (!confirmOverwrite) return;
@@ -4185,6 +4792,9 @@ ${typeInstruction}
                 promOtherDate: document.getElementById('promOtherDate').value,
                 promOtherMemo: document.getElementById('promOtherMemo').value,
                 promOtherChk: document.getElementById('promOtherChk').checked,
+                promCallDate: document.getElementById('promCallDate').value,
+                promCallMemo: document.getElementById('promCallMemo').value,
+                promCallChk: document.getElementById('promCallChk').checked,
 
                 memo: document.getElementById('modalMemo').value,
                 obMemo: document.getElementById('modalObMemo').value,
@@ -4202,7 +4812,7 @@ ${typeInstruction}
                 if (newId !== currentDetailId) {
                     // 번호 변경: 예전 문서 내용을 새 번호로 옮김 (예전 id 값은 빼고 저장 → 목록에서 옛 번호로 꼬이던 문제 수정)
                     const { id: _oldId, ...oldData } = customerDB.find(x => x.id === currentDetailId) || {};
-                    const finalData = { ...oldData, ...updatedData };
+                    const finalData = { ...oldData, ...updatedData, deletedAt: '' };
                     await setDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
                     await deleteDoc(doc(db, 'smart_customers', currentDetailId));
                 } else {
@@ -4340,6 +4950,40 @@ ${typeInstruction}
             } catch (e) { return false; }
         }
         const COPY_FAILED_MSG = '\n\n⚠️ 이 폰에서 자동 복사가 막혔어요. 미리보기 글을 길게 눌러 직접 복사해주세요.';
+
+        // 📅 개통 후 약속 자동 등록
+        //   · 요금제 변경: 항상 / 부가서비스·보험 해지: 개통보고에 부가·보험을 적었을 때만
+        //   · 이미 이번 개통 이후로 날짜가 잡힌(미완료) 약속은 건드리지 않음
+        //   · 돌려주는 값: 등록한 약속 설명 목록 (완료 안내에 표시)
+        function addDaysStr(dateStr, days) {
+            const d = parseDateString(dateStr);
+            if (!d || isNaN(d.getTime())) return '';
+            d.setDate(d.getDate() + days);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        function applyAutoPromises(updateData, existing, actDate, info) {
+            const added = [];
+            const meaningful = (v) => { const t = String(v || '').trim(); return t && !['-', 'x', 'X', '없음', '무', '해당없음', 'no', 'NO'].includes(t); };
+            const rules = [
+                { key: 'Plan', on: appSettings.autoPlanOn, days: appSettings.autoPlanDays, need: true, memo: meaningful(info.plan) ? `${info.plan.trim()} → 요금제 변경` : '요금제 변경', label: '요금제 변경' },
+                { key: 'Addon', on: appSettings.autoAddonOn, days: appSettings.autoAddonDays, need: meaningful(info.addons), memo: `${String(info.addons || '').trim()} 해지`, label: '부가 해지' },
+                { key: 'Ins', on: appSettings.autoInsOn, days: appSettings.autoInsDays, need: meaningful(info.insurance), memo: `${String(info.insurance || '').trim()} 해지`, label: '보험 해지' }
+            ];
+            rules.forEach(r => {
+                const days = parseInt(r.days, 10);
+                if (!r.on || !r.need || !(days > 0)) return;
+                const curDate = existing ? (existing[`prom${r.key}Date`] || '') : '';
+                const curDone = existing ? !!existing[`prom${r.key}Chk`] : false;
+                if (curDate && !curDone && curDate >= actDate) return; // 이번 개통 약속이 이미 잡혀 있음
+                const date = addDaysStr(actDate, days);
+                if (!date) return;
+                updateData[`prom${r.key}Date`] = date;
+                updateData[`prom${r.key}Memo`] = r.memo;
+                updateData[`prom${r.key}Chk`] = false;
+                added.push(`${r.label} ${formatShortDate(date)}`);
+            });
+            return added;
+        }
 
         // 📅 개통일 갱신 규칙: 기존 날짜가 3개월 안쪽이면(같은 개통을 다시 보고) 유지, 없거나 오래됐으면 오늘
         function recentOrToday(dateStr) {
@@ -4523,6 +5167,7 @@ familyStr + `\n` +
                 if (el) el.value = '';
             });
             setReportPhoneLocked(false);
+            document.getElementById('rep-carrier').value = '';
             document.getElementById('rep-manager').value = getStaffName() || document.getElementById('val-manager').value || '';
             switchReportTab('mobile');
             reportModal.style.display = 'flex';
@@ -4545,6 +5190,7 @@ familyStr + `\n` +
             document.getElementById('rep-name').value = reportCustomerData.name || '';
             document.getElementById('rep-phone').value = reportCustomerData.phone || '';
             setReportPhoneLocked(true);
+            document.getElementById('rep-carrier').value = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'].includes(reportCustomerData.carrier) ? reportCustomerData.carrier : '';
             document.getElementById('rep-manager').value = getStaffName() || document.getElementById('val-manager').value || reportCustomerData.contactManager || reportCustomerData.manager || '';
             document.getElementById('rep-jumin').value = reportCustomerData.repJumin || '';
             document.getElementById('rep-address').value = reportCustomerData.repAddress || '';
@@ -4714,7 +5360,9 @@ familyStr + `\n` +
         document.getElementById('copyReportBtn').addEventListener('click', async () => {
             const text = document.getElementById('reportPreview').value;
             
+            let autoAddedPromises = [];
             const saveReportData = async (copied) => {
+                autoAddedPromises = [];
                 let targetId = currentDetailId;
                 let isNewCustomer = false;
                 let mergeIntoExisting = false;
@@ -4728,10 +5376,13 @@ familyStr + `\n` +
                         customAlert("신규 등록 시 이름과 연락처는 필수 입력 사항입니다!");
                         return false;
                     }
-                    const existing = customerDB.find(x => x.id === targetId);
+                    const existing = customerDB.find(x => x.id === targetId) || trashDB.find(x => x.id === targetId);
+                    const existingInTrash = !!existing && !customerDB.some(x => x.id === targetId);
                     if (existing) {
                         // 예전엔 기존 고객의 통신사가 '미정'으로, 담당자·법대·주민번호·생년월일이 빈칸으로 덮어써졌음
-                        const ok = await customConfirm(`이미 등록된 번호예요 (${existing.name || '이름 없음'}).\n기존 고객에 이번 개통 내용을 합칠까요?\n(비워둔 칸은 기존 정보 그대로 유지돼요)`);
+                        const ok = await customConfirm(existingInTrash
+                            ? `휴지통에 있던 번호예요 (${existing.name || '이름 없음'}).\n휴지통에서 복구하고 이번 개통 내용을 합칠까요?`
+                            : `이미 등록된 번호예요 (${existing.name || '이름 없음'}).\n기존 고객에 이번 개통 내용을 합칠까요?\n(비워둔 칸은 기존 정보 그대로 유지돼요)`);
                         if (!ok) return false;
                         reportCustomerData = existing;
                         mergeIntoExisting = true;
@@ -4741,7 +5392,7 @@ familyStr + `\n` +
                             id: targetId,
                             visitDate: getTodayStr(),
                             manager: getStaffName() || document.getElementById('val-manager').value || '',
-                            carrier: '미정'
+                            carrier: document.getElementById('rep-carrier').value || '미정'
                         };
                     }
                 }
@@ -4822,6 +5473,17 @@ familyStr + `\n` +
                         if (parsedDiscount !== '미정') {
                             updateData.discountType = parsedDiscount;
                         }
+
+                        // 📡 통신사: 개통보고에서 고른 통신사로 (번호이동이면 새 통신사로 바뀜)
+                        const repCarrier = document.getElementById('rep-carrier').value;
+                        if (repCarrier) updateData.carrier = repCarrier;
+
+                        // 📅 개통 후 약속 자동 등록 (설정 → 개통 후 자동 약속)
+                        autoAddedPromises = applyAutoPromises(updateData, reportCustomerData, finalActDate, {
+                            plan: document.getElementById('rep-plan').value,
+                            addons: document.getElementById('rep-addons').value,
+                            insurance: document.getElementById('rep-insurance').value
+                        });
                     } else {
                         updateData = {
                             ...updateData,
@@ -4875,6 +5537,7 @@ familyStr + `\n` +
                             if (typeof updateData[k] === 'string' && updateData[k].trim() === '' && k !== 'tvProd' && k !== 'welfare') delete updateData[k];
                         }
                     }
+                    updateData.deletedAt = '';  // 휴지통에 있던 고객이면 복구
 
                     await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
@@ -4890,11 +5553,12 @@ familyStr + `\n` +
                     }
                     renderDB(); 
                 }
+                const autoMsg = autoAddedPromises.length ? `\n\n📅 약속 자동 등록: ${autoAddedPromises.join(', ')}` : '';
                 if (copied) {
-                    customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기/가족정보가 안전하게 반영되었습니다!');
+                    customAlert('✅ 개통보고 양식이 복사되고 개통일/요금제/단말기/가족정보가 안전하게 반영되었습니다!' + autoMsg);
                     reportModal.style.display = 'none';
                 } else {
-                    customAlert('✅ 저장은 완료됐어요.' + COPY_FAILED_MSG); // 직접 복사할 수 있게 폼은 열어둠
+                    customAlert('✅ 저장은 완료됐어요.' + autoMsg + COPY_FAILED_MSG); // 직접 복사할 수 있게 폼은 열어둠
                 }
                 if (isNewCustomer) switchTab('db'); 
                 return true;
