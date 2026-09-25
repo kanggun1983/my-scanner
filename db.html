@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V60</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V61</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -608,6 +608,16 @@
                         <label for="pushAppId" class="text-xs font-bold text-gray-600">OneSignal 앱 ID</label>
                         <input type="text" id="pushAppId" autocomplete="off" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 font-mono">
                     </div>
+                    <div class="border-t border-gray-100 pt-3 grid gap-2">
+                        <p class="text-[14px] font-bold text-gray-900">바로 보내기 연결 <span class="text-xs font-normal text-gray-500">(중계 서버)</span></p>
+                        <p class="text-xs text-gray-600 leading-relaxed">연결하면 강CRM에서 사진까지 한 번에 보내요. OneSignal에 따로 들어갈 필요가 없어요.</p>
+                        <label for="pushRelayUrl" class="text-xs font-bold text-gray-600">중계 서버 주소</label>
+                        <input type="url" id="pushRelayUrl" autocomplete="off" inputmode="url" placeholder="https://kangcrm-push.○○.workers.dev" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 font-mono">
+                        <label for="pushRelayPw" class="text-xs font-bold text-gray-600">비밀번호 <span class="font-normal text-gray-500">(이 폰에만 저장돼요)</span></label>
+                        <input type="password" id="pushRelayPw" autocomplete="off" placeholder="중계 서버에 넣은 SEND_PASSWORD" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900">
+                        <button type="button" id="pushRelayTestBtn" class="h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 disabled:opacity-40">연결 확인</button>
+                        <p id="pushRelayStatus" role="status" class="hidden text-[13px] font-medium"></p>
+                    </div>
                 </div>
             </section>
             <section class="space-y-2" aria-labelledby="setTrashTitle">
@@ -621,7 +631,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V60</span>
+                    <span class="text-sm text-gray-600">V61</span>
                 </div>
             </section>
         </div>
@@ -778,6 +788,11 @@
                 <label for="pushBody" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">내용</label>
                 <textarea id="pushBody" rows="3" maxlength="200" placeholder="예: 단골 고객님께만 사전예약 사은품을 챙겨드려요" class="w-full p-3 border border-gray-300 rounded-xl text-[15px] leading-relaxed text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"></textarea>
             </div>
+            <div>
+                <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">사진 <span class="font-normal text-gray-500">(선택 · 안드로이드·윈도우 크롬에서 크게 보여요)</span></p>
+                <div id="pushPosterStrip" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
+                <input type="url" id="pushImageUrl" inputmode="url" placeholder="다른 사진 주소 붙여넣기 (https://…)" class="mt-2 w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+            </div>
             <button type="button" id="pushAiBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-wand-magic-sparkles"></i>AI로 다듬기 (3가지)</button>
             <div id="pushVariantsBox" class="hidden space-y-2">
                 <p class="text-[13px] font-bold text-gray-700 pl-1">AI가 다듬은 문구 <span class="font-normal text-gray-500">(눌러서 고르기)</span></p>
@@ -790,14 +805,18 @@
                 <div class="bg-white rounded-xl p-3 shadow-sm">
                     <p id="pushPreviewHeading" class="text-[14px] font-bold text-gray-900 break-words">제목</p>
                     <p id="pushPreviewBody" class="text-[13px] text-gray-700 whitespace-pre-wrap break-words mt-0.5">내용</p>
+                    <img id="pushPreviewImage" alt="알림에 붙일 사진 미리보기" class="hidden mt-2 w-full rounded-lg object-cover" style="aspect-ratio: 2 / 1;">
                 </div>
             </div>
+            <button type="button" id="pushSendNowBtn" class="hidden h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>바로 보내기</button>
+            <p id="pushManualTitle" class="hidden text-xs font-bold text-gray-500 pl-1 pt-1">또는 OneSignal에서 직접 보내기</p>
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" id="pushCopyHeading" class="h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>제목 복사</button>
                 <button type="button" id="pushCopyBody" class="h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>내용 복사</button>
             </div>
             <button type="button" id="pushOpenOneSignal" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2">OneSignal에서 보내기 <i class="fa-solid fa-arrow-up-right-from-square text-sm"></i></button>
-            <p class="text-xs text-gray-500 leading-relaxed pl-1">OneSignal → [New Message] → [Push]에서 제목·내용에 붙여넣고 보내면 돼요.</p>
+            <p class="text-xs text-gray-500 leading-relaxed pl-1">OneSignal → [New Message] → [Push]에서 제목·내용에 붙여넣고 보내면 돼요. 사진은 Image 칸에서 올려요.</p>
+            <p id="pushRelayHint" class="text-xs text-indigo-700 leading-relaxed pl-1">설정 탭에서 '바로 보내기'를 연결하면 여기서 한 번에 보낼 수 있어요.</p>
         </section>
     </div>
 
@@ -3807,6 +3826,10 @@
             renderTrashList();
             const appIdEl = document.getElementById('pushAppId');
             if (document.activeElement !== appIdEl) appIdEl.value = pushAppId();
+            const relayEl = document.getElementById('pushRelayUrl');
+            if (document.activeElement !== relayEl) relayEl.value = pushRelayUrl();
+            const pwEl = document.getElementById('pushRelayPw');
+            if (document.activeElement !== pwEl) pwEl.value = pushRelayPw();
         }
         let staffSavedTimer = null;
         document.getElementById('settingsStaffName').addEventListener('change', (e) => {
@@ -4901,6 +4924,113 @@
         //    (발송 키를 이 앱에 넣으면 누구나 볼 수 있는 GitHub에 노출될 위험이 있어, 발송은 OneSignal 화면에서 함)
         // ═════════════════════════════════════════════
         const DEFAULT_PUSH_APP_ID = '32c44bb5-a891-4703-98ef-13e670cf8650';
+        const DEFAULT_CARD_URL = 'https://kanggun1983.github.io/';
+        // 명함 이벤트 탭에 올려둔 포스터 이름들 (명함과 같은 규칙: 이름 + 확장자를 차례로 찾아봄)
+        const POSTER_NAMES = ['event', ...Array.from({ length: 10 }, (_, i) => `event${i + 1}`), '1785770353642', '1000045372', '이벤트'];
+        const POSTER_EXTS = ['.jpg', '.png', '.jpeg', '.webp', '.JPG', '.PNG'];
+        let posterUrlsPromise = null;
+        let pushImage = '';
+        function pushRelayUrl() { return String(appSettings.pushRelayUrl || '').trim(); }
+        function pushRelayPw() { try { return localStorage.getItem('pushRelayPw') || ''; } catch (e) { return ''; } }
+        function isHttpsUrl(u) { return /^https:\/\/\S+$/.test(String(u || '').trim()); }
+        function findPoster(name) {
+            return new Promise(resolve => {
+                if (typeof Image === 'undefined') return resolve('');
+                let i = 0;
+                const tryNext = () => {
+                    if (i >= POSTER_EXTS.length) return resolve('');
+                    const url = encodeURI(`${DEFAULT_CARD_URL}${name}${POSTER_EXTS[i++]}`);
+                    const img = new Image();
+                    img.onload = () => resolve(url);
+                    img.onerror = tryNext;
+                    img.src = url;
+                };
+                tryNext();
+            });
+        }
+        function loadPosterUrls() {
+            if (!posterUrlsPromise) posterUrlsPromise = Promise.all(POSTER_NAMES.map(findPoster)).then(list => list.filter(Boolean));
+            return posterUrlsPromise;
+        }
+        async function renderPosterStrip() {
+            const strip = document.getElementById('pushPosterStrip');
+            const tile = (url, inner) => `<button type="button" data-poster="${escapeHtml(url)}" aria-pressed="${pushImage === url}" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden border-2 ${pushImage === url ? 'border-indigo-600' : 'border-gray-200'} bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-600">${inner}</button>`;
+            const draw = (urls, loading) => {
+                strip.innerHTML = tile('', '사진<br>없음') + urls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`)).join('')
+                    + (loading ? '<span class="flex-shrink-0 h-[72px] flex items-center text-xs text-gray-500 px-2">포스터 찾는 중…</span>' : '');
+            };
+            draw([], true);
+            const urls = await loadPosterUrls();
+            draw(urls, false);
+        }
+        function setPushImage(url) {
+            pushImage = isHttpsUrl(url) ? String(url).trim() : '';
+            document.querySelectorAll('#pushPosterStrip [data-poster]').forEach(b => {
+                const on = b.dataset.poster === pushImage;
+                b.setAttribute('aria-pressed', on ? 'true' : 'false');
+                b.classList.toggle('border-indigo-600', on);
+                b.classList.toggle('border-gray-200', !on);
+            });
+            const img = document.getElementById('pushPreviewImage');
+            if (pushImage) { img.src = pushImage; img.classList.remove('hidden'); }
+            else { if (img.removeAttribute) img.removeAttribute('src'); else img.src = ''; img.classList.add('hidden'); }
+        }
+        function renderPushSendMode() {
+            const connected = isHttpsUrl(pushRelayUrl()) && !!pushRelayPw();
+            document.getElementById('pushSendNowBtn').classList.toggle('hidden', !connected);
+            document.getElementById('pushSendNowBtn').classList.toggle('flex', connected);
+            document.getElementById('pushManualTitle').classList.toggle('hidden', !connected);
+            document.getElementById('pushRelayHint').classList.toggle('hidden', connected);
+            const open = document.getElementById('pushOpenOneSignal');
+            open.classList.toggle('bg-indigo-600', !connected);
+            open.classList.toggle('text-white', !connected);
+            open.classList.toggle('bg-white', connected);
+            open.classList.toggle('border', connected);
+            open.classList.toggle('border-gray-300', connected);
+            open.classList.toggle('text-gray-800', connected);
+        }
+        // 광고 알림을 보낼 수 없는 밤 시간이면 다음 오전 9시로 예약 (새벽이면 오늘 9시, 밤이면 내일 9시)
+        function nextMorningSendAfter(now = new Date()) {
+            const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getHours() >= 21 ? 1 : 0), 9, 0, 0);
+            const off = -t.getTimezoneOffset();
+            const sign = off >= 0 ? '+' : '-';
+            const hh = String(Math.floor(Math.abs(off) / 60)).padStart(2, '0'), mm = String(Math.abs(off) % 60).padStart(2, '0');
+            const p2 = (n) => String(n).padStart(2, '0');
+            return { iso: `${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}T09:00:00${sign}${hh}:${mm}`, label: `${t.getMonth() + 1}/${t.getDate()} 오전 9시` };
+        }
+        async function callPushRelay(body) {
+            const url = pushRelayUrl();
+            let res;
+            try {
+                res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, password: pushRelayPw() }) });
+            } catch (e) {
+                throw new Error('중계 서버에 연결하지 못했어요. 주소가 맞는지, 인터넷이 되는지 확인해주세요.');
+            }
+            let data = null;
+            try { data = await res.json(); } catch (e) { data = null; }
+            if (!res.ok || !data || !data.ok) throw new Error((data && data.error) || `중계 서버가 응답하지 않아요 (${res.status}). 주소를 확인해주세요.`);
+            return data;
+        }
+        async function sendPushNow() {
+            const t = pushFinalTexts();
+            if (!t.body) return setPushStatus('내용을 먼저 적어주세요.', 'red');
+            const ad = document.getElementById('pushAdOn').checked;
+            let sendAfter = null;
+            if (ad && isAdNightTime()) {
+                sendAfter = nextMorningSendAfter();
+                if (!(await customConfirm(`지금은 밤 9시~아침 8시라 광고성 알림을 바로 보낼 수 없어요.\n${sendAfter.label}에 자동으로 보내지게 예약할까요?`))) return;
+            } else if (!(await customConfirm(`명함 알림을 받기로 한 고객 모두에게 보낼까요?\n\n${t.heading ? t.heading + '\n' : ''}${t.body}${pushImage ? '\n(사진 포함)' : ''}`))) return;
+            const btn = document.getElementById('pushSendNowBtn');
+            btn.disabled = true;
+            setPushStatus(sendAfter ? '예약하는 중…' : '보내는 중…');
+            try {
+                const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
+                setPushStatus(sendAfter ? `예약했어요! ${sendAfter.label}에 보내져요.` : `보냈어요!${data.recipients ? ` (받는 사람 ${data.recipients}명)` : ''}`, 'green');
+            } catch (e) {
+                console.error('푸시 보내기 실패:', e);
+                setPushStatus(e.message, 'red');
+            } finally { btn.disabled = false; }
+        }
         const PUSH_AD_FOOTER = '수신거부: 휴대폰 설정 > 알림에서 끌 수 있어요';
         const pushSheet = document.getElementById('pushSheet');
         let pushHistoryPushed = false;
@@ -4929,6 +5059,8 @@
         function isAdNightTime(d = new Date()) { const h = d.getHours(); return h >= 21 || h < 8; }
         function openPushSheet() {
             document.getElementById('pushNightWarn').classList.toggle('hidden', !isAdNightTime());
+            renderPushSendMode();
+            renderPosterStrip().then(() => setPushImage(pushImage));
             document.getElementById('pushAdOn').checked = true;   // 광고 표시는 매번 켠 상태로 시작 (빠뜨리지 않게)
             pushVariantList = [];
             document.getElementById('pushVariantsBox').classList.add('hidden');
@@ -5007,6 +5139,53 @@
             document.getElementById('pushBody').value = v.body;
             renderPushPreview();
             setPushStatus('골랐어요. 고쳐서 써도 돼요.', 'green');
+        });
+        document.getElementById('pushPosterStrip').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-poster]') : null;
+            if (!b) return;
+            setPushImage(b.dataset.poster);
+            document.getElementById('pushImageUrl').value = '';
+        });
+        document.getElementById('pushImageUrl').addEventListener('input', (e) => {
+            const v = e.target.value.trim();
+            if (!v) return setPushImage('');
+            if (isHttpsUrl(v)) { setPushImage(v); setPushStatus(''); }
+            else setPushStatus('사진 주소는 https:// 로 시작해야 해요.', 'red');
+        });
+        document.getElementById('pushSendNowBtn').addEventListener('click', sendPushNow);
+        // 설정: 중계 서버 주소(매장 공용) · 비밀번호(이 폰에만) · 연결 확인
+        function setRelayStatus(text, tone) {
+            const el = document.getElementById('pushRelayStatus');
+            if (!text) { el.classList.add('hidden'); el.textContent = ''; return; }
+            el.textContent = text;
+            el.className = `text-[13px] font-medium ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
+        }
+        document.getElementById('pushRelayUrl').addEventListener('change', async (e) => {
+            const v = e.target.value.trim().replace(/\/+$/, '');
+            if (v && !isHttpsUrl(v)) return setRelayStatus('주소는 https:// 로 시작해야 해요.', 'red');
+            appSettings = { ...appSettings, pushRelayUrl: v };
+            try { await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: v }, { merge: true }); setRelayStatus(v ? '주소를 저장했어요. [연결 확인]을 눌러보세요.' : '', 'gray'); }
+            catch (err) { console.error(err); setRelayStatus('주소를 저장하지 못했어요. 인터넷 연결을 확인해주세요.', 'red'); }
+        });
+        document.getElementById('pushRelayPw').addEventListener('change', (e) => {
+            try { e.target.value ? localStorage.setItem('pushRelayPw', e.target.value) : localStorage.removeItem('pushRelayPw'); } catch (err) { /* 무시 */ }
+        });
+        document.getElementById('pushRelayTestBtn').addEventListener('click', async () => {
+            const urlEl = document.getElementById('pushRelayUrl'), pwEl = document.getElementById('pushRelayPw');
+            const url = urlEl.value.trim().replace(/\/+$/, '');
+            if (!isHttpsUrl(url)) return setRelayStatus('중계 서버 주소를 먼저 넣어주세요 (https:// 로 시작).', 'red');
+            if (!pwEl.value) return setRelayStatus('비밀번호를 먼저 넣어주세요.', 'red');
+            try { localStorage.setItem('pushRelayPw', pwEl.value); } catch (err) { /* 무시 */ }
+            if (url !== pushRelayUrl()) {
+                appSettings = { ...appSettings, pushRelayUrl: url };
+                try { await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: url }, { merge: true }); } catch (err) { console.error(err); }
+            }
+            const btn = document.getElementById('pushRelayTestBtn');
+            btn.disabled = true;
+            setRelayStatus('확인하는 중…', 'gray');
+            try { const data = await callPushRelay({ test: true }); setRelayStatus(`✅ ${data.message || '연결 성공!'}`, 'green'); }
+            catch (err) { setRelayStatus(`❌ ${err.message}`, 'red'); }
+            finally { btn.disabled = false; }
         });
         document.getElementById('pushCopyHeading').addEventListener('click', () => copyPushPart('heading'));
         document.getElementById('pushCopyBody').addEventListener('click', () => copyPushPart('body'));
