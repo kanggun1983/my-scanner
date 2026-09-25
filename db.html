@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V65</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V66</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -632,7 +632,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V65</span>
+                    <span class="text-sm text-gray-600">V66</span>
                 </div>
             </section>
         </div>
@@ -1661,6 +1661,10 @@
         }
 
         function attachDBListeners() {
+            // 로그인 신호가 두 번 오더라도 실시간 연결이 겹치지 않게 (겹치면 같은 화면을 두 번씩 그림)
+            if (dbUnsubscribe) dbUnsubscribe();
+            if (statsUnsubscribe) statsUnsubscribe();
+            if (settingsUnsubscribe) settingsUnsubscribe();
             dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
                 const all = [];
                 // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
@@ -1721,6 +1725,9 @@
                 renderGlobalStatsUI();
                 return;
             }
+            try { await saveStatsIncrement(actionType); } catch (e) { console.error('실적 숫자 저장 실패:', e); }
+        }
+        async function saveStatsIncrement(actionType) {
             if (actionType && db) {
                 const now = new Date();
                 const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
@@ -1733,8 +1740,9 @@
                         month: monthStr,
                         dailyOB: actionType === 'tel' ? 1 : 0,
                         dailySMS: actionType === 'sms' ? 1 : 0,
-                        monthlyOB: globalStats.month !== monthStr ? (actionType === 'tel' ? 1 : 0) : ((globalStats.monthlyOB || 0) + (actionType === 'tel' ? 1 : 0)),
-                        monthlySMS: globalStats.month !== monthStr ? (actionType === 'sms' ? 1 : 0) : ((globalStats.monthlySMS || 0) + (actionType === 'sms' ? 1 : 0)),
+                        // 같은 달이면 이달 숫자는 서버에서 +1 (다른 직원 폰과 동시에 눌러도 숫자가 빠지지 않게)
+                        monthlyOB: globalStats.month !== monthStr ? (actionType === 'tel' ? 1 : 0) : increment(actionType === 'tel' ? 1 : 0),
+                        monthlySMS: globalStats.month !== monthStr ? (actionType === 'sms' ? 1 : 0) : increment(actionType === 'sms' ? 1 : 0),
                     };
                     await setDoc(statsRef, newData, { merge: true });
                 } else {
@@ -2206,6 +2214,10 @@
         // 🔎 대시보드 · 필터 · 배지 · 프로필 카드 공용 계산 함수
         //    (대시보드 숫자와 눌렀을 때 나오는 목록이 항상 같은 기준을 쓰도록 한 곳에서 관리)
         // ─────────────────────────────────────────────
+        // onclick="함수('값')" 안에 고객 글자를 넣을 때: 자바스크립트용 → HTML용 순서로 처리
+        function jsAttr(value) {
+            return escapeHtml(String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\r?\n/g, ' '));
+        }
         function escapeHtml(value) {
             return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
         }
@@ -2875,7 +2887,13 @@
             let csv = '\uFEFF';
             csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일,할부기준일,잔여할부(오늘기준),명함설치\n";
 
-            const escapeCSV = (str) => `"${(str || '').toString().replace(/"/g, '""')}"`;
+            // 엑셀이 수식으로 읽지 않게: '- 메모', '=…', '+…', '@…' 로 시작하면 앞에 공백 한 칸
+            //   (예전엔 '- 요금제 변경 예정' 같은 메모가 엑셀에서 #NAME? 오류로 보였음)
+            const escapeCSV = (str) => {
+                let v = (str ?? '').toString();
+                if (/^[=+@\t\r]/.test(v) || (/^-/.test(v) && !/^-?\d+(\.\d+)?$/.test(v) && v !== '-')) v = ' ' + v;
+                return `"${v.replace(/"/g, '""')}"`;
+            };
 
             exportList.forEach(c => {
                 const row = [
@@ -3214,6 +3232,7 @@
             
             const paginatedDB = globalFilteredDB.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+            const tableRowsHtml = [];
             paginatedDB.forEach((c) => {
                 const calc = getDdayAndMonths(c.activationDate);
                 const wiredCalc = getDdayAndMonths(c.wiredDate);
@@ -3266,7 +3285,7 @@
                 let familyTargetHtml = '';
                 if (c.repFamily && c.repFamily.trim() !== '') {
                     const familyLines = c.repFamily.split('\n').filter(line => line.trim() !== '');
-                    const familyPreview = familyLines.join('<br>');
+                    const familyPreview = familyLines.map(escapeHtml).join('<br>');
                     familyTargetHtml = `<div class="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] px-1.5 py-1 rounded shadow-sm w-full max-w-[160px] leading-snug mt-1.5">
                         <div class="font-bold mb-0.5"><i class="fa-solid fa-users text-indigo-500"></i> 유선가족 타겟</div>
                         ${familyPreview}
@@ -3276,23 +3295,23 @@
                 let extraBadges = '';
                 const isInvalid = (val) => !val || val === '-' || String(val).includes('해당없음') || String(val).includes('미적용') || String(val).includes('없음');
                 
-                if(!isInvalid(c.combination)) extraBadges += `<span class="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 whitespace-nowrap">👪 ${c.combination}</span>`;
-                if(!isInvalid(c.welfare)) extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${c.welfare}</span>`;
+                if(!isInvalid(c.combination)) extraBadges += `<span class="bg-blue-50 text-blue-600 px-1 rounded border border-blue-100 whitespace-nowrap">👪 ${escapeHtml(c.combination)}</span>`;
+                if(!isInvalid(c.welfare)) extraBadges += `<span class="bg-green-50 text-green-600 px-1 rounded border border-green-100 whitespace-nowrap">🌿 ${escapeHtml(c.welfare)}</span>`;
                 if(!isInvalid(c.wiredDate)) extraBadges += `<span class="bg-teal-50 text-teal-600 px-1 rounded border border-teal-100 whitespace-nowrap">📺 유선약정: ${getWiredRemainingDays(c.wiredDate)}</span>`;
-                if(!isInvalid(c.wiredFee)) extraBadges += `<span class="bg-teal-50 text-teal-700 px-1 rounded border border-teal-200 whitespace-nowrap font-bold">유선요금: ${c.wiredFee}</span>`;
+                if(!isInvalid(c.wiredFee)) extraBadges += `<span class="bg-teal-50 text-teal-700 px-1 rounded border border-teal-200 whitespace-nowrap font-bold">유선요금: ${escapeHtml(c.wiredFee)}</span>`;
 
                 let carrierBadge = '';
                 if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">SKT</span>`;
                 else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">KT</span>`;
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">LG</span>`;
-                else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${c.carrier}</span>`;
+                else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${escapeHtml(c.carrier)}</span>`;
 
                 const instBase = getInstallmentBaseInfo(c);
                 let dynamicInstallment = getDynamicInstallment(c.installment, instBase.date);
 
                 let discountBadge = '';
                 if ((c.discountType || '').includes('선택약정')) {
-                    discountBadge = `<span class="bg-green-50 text-green-700 border border-green-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">${c.discountType}</span>`;
+                    discountBadge = `<span class="bg-green-50 text-green-700 border border-green-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">${escapeHtml(c.discountType)}</span>`;
                 } else if ((c.discountType || '').includes('공시지원금')) {
                     discountBadge = `<span class="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">공시지원금</span>`;
                 } else if ((c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료')) {
@@ -3316,7 +3335,7 @@
                         let shortDate = p.date.substring(5).replace('-', '/');
                         if (p.chk) {
                             badges.push(`<div class="bg-gray-100 text-gray-400 text-[10px] px-1.5 py-1 rounded font-bold border border-gray-200 shadow-sm leading-tight w-max max-w-[130px]">
-                                <i class="fa-solid fa-check-circle text-green-500 mr-0.5"></i> <strike>${shortDate} ${p.name}</strike>
+                                <i class="fa-solid fa-check-circle text-green-500 mr-0.5"></i> <strike>${escapeHtml(shortDate)} ${p.name}</strike>
                             </div>`);
                         } else {
                             const pDate = parseDateString(p.date);
@@ -3330,8 +3349,8 @@
                                             (diffDays <= 7 ? 'bg-orange-50 text-orange-700 border-orange-300' : 'bg-purple-50 text-purple-700 border-purple-200');
                             
                             badges.push(`<div class="${badgeColor} text-[10px] px-1.5 py-1 rounded font-bold border shadow-sm leading-tight w-max max-w-[130px]">
-                                <i class="fa-solid fa-calendar-check mr-0.5"></i> ${shortDate} ${p.name} <span class="${diffDays <= 7 ? 'text-red-500' : 'opacity-80'}">(${dDayStr})</span>
-                                ${p.memo ? `<br><span class="font-medium text-[9px] opacity-80 mt-0.5 block truncate">${p.memo}</span>` : ''}
+                                <i class="fa-solid fa-calendar-check mr-0.5"></i> ${escapeHtml(shortDate)} ${p.name} <span class="${diffDays <= 7 ? 'text-red-500' : 'opacity-80'}">(${dDayStr})</span>
+                                ${p.memo ? `<br><span class="font-medium text-[9px] opacity-80 mt-0.5 block truncate">${escapeHtml(p.memo)}</span>` : ''}
                             </div>`);
                         }
                     }
@@ -3343,7 +3362,7 @@
 
                 let displayDob = formatDob(c.dob);
                 let dobHtml = (displayDob && displayDob !== '-') 
-                    ? `<div class="text-[10px] text-gray-500 font-medium mb-1.5 pl-0.5"><i class="fa-solid fa-cake-candles text-gray-300 mr-1"></i>${displayDob}</div>` 
+                    ? `<div class="text-[10px] text-gray-500 font-medium mb-1.5 pl-0.5"><i class="fa-solid fa-cake-candles text-gray-300 mr-1"></i>${escapeHtml(displayDob)}</div>` 
                     : '<div class="mb-1.5"></div>';
 
                 let legalActionHtml = '';
@@ -3351,8 +3370,8 @@
                     legalActionHtml = `
                     <div class="flex items-center gap-1 mt-1.5">
                         <span class="text-[9px] bg-pink-100 text-pink-700 border border-pink-200 px-1 py-0.5 rounded font-bold">법대</span>
-                        <span class="text-[10px] text-gray-600 font-bold ml-0.5">${c.legalName || '이름미상'}</span>
-                        <button onclick="logActionAndCall('${c.id}', 'tel', '${c.legalPhone}', '법대')" class="text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded hover:bg-orange-100 font-bold ml-auto" title="법정대리인 전화걸기"><i class="fa-solid fa-phone"></i></button>
+                        <span class="text-[10px] text-gray-600 font-bold ml-0.5">${escapeHtml(c.legalName || '이름미상')}</span>
+                        <button onclick="logActionAndCall('${jsAttr(c.id)}', 'tel', '${jsAttr(c.legalPhone)}', '법대')" class="text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded hover:bg-orange-100 font-bold ml-auto" title="법정대리인 전화걸기"><i class="fa-solid fa-phone"></i></button>
                     </div>`;
                 }
 
@@ -3374,29 +3393,29 @@
                     }
                 }
 
-                tbody.innerHTML += `<tr class="${rowStyle}">
+                tableRowsHtml.push(`<tr class="${rowStyle}">
                     <td class="px-3 py-3 text-center align-middle">
-                        <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${c.id}" ${selectedIds.has(c.id) ? 'checked' : ''} onclick="event.stopPropagation()">
+                        <input type="checkbox" class="row-chk w-4 h-4 text-indigo-600 rounded cursor-pointer" value="${escapeHtml(c.id)}" ${selectedIds.has(c.id) ? 'checked' : ''} onclick="event.stopPropagation()">
                     </td>
                     <td class="px-3 py-3">
-                        <div role="button" tabindex="0" onclick="openProfileCard('${c.id}')" class="cursor-pointer select-none active:opacity-60" title="고객 정보 카드 보기">
+                        <div role="button" tabindex="0" onclick="openProfileCard('${jsAttr(c.id)}')" class="cursor-pointer select-none active:opacity-60" title="고객 정보 카드 보기">
                             <div class="font-bold text-gray-900 text-sm ${textStrike}">${marketingBadge}${escapeHtml(c.name || '-')}<i class="fa-solid fa-address-card text-[11px] text-indigo-300 ml-1 align-middle"></i></div>
                             <div class="text-[10px] text-gray-500 mt-1">${escapeHtml(c.visitDate || '-')}</div>
                         </div>
                     </td>
                     <td class="px-3 py-3">
-                        <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center ${textStrike}">${formatPhone(c.phone)}${carrierBadge}</div>
+                        <div class="font-bold text-gray-800 text-sm mb-0.5 flex items-center ${textStrike}">${escapeHtml(formatPhone(c.phone))}${carrierBadge}</div>
                         ${dobHtml}
                         <div class="flex items-center gap-1.5">
-                            <button onclick="logActionAndCall('${c.id}', 'tel', '${c.phone || ''}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
-                            <button onclick="logActionAndCall('${c.id}', 'sms', '${c.phone || ''}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
-                            <input type="text" id="listManager_${c.id}" value="${c.contactManager || c.manager || ''}" placeholder="담당자" class="w-14 text-[10px] px-1 py-0.5 border border-gray-300 rounded outline-none focus:border-indigo-400 text-gray-700 bg-white" onclick="event.stopPropagation()">
+                            <button onclick="logActionAndCall('${jsAttr(c.id)}', 'tel', '${jsAttr(c.phone || '')}')" class="text-xs bg-green-50 text-green-600 border border-green-200 px-1.5 py-0.5 rounded hover:bg-green-100 font-bold"><i class="fa-solid fa-phone"></i></button>
+                            <button onclick="logActionAndCall('${jsAttr(c.id)}', 'sms', '${jsAttr(c.phone || '')}')" class="text-xs bg-blue-50 text-blue-600 border border-blue-200 px-1.5 py-0.5 rounded hover:bg-blue-100 font-bold"><i class="fa-solid fa-envelope"></i></button>
+                            <input type="text" id="listManager_${escapeHtml(c.id)}" value="${escapeHtml(c.contactManager || c.manager || '')}" placeholder="담당자" class="w-14 text-[10px] px-1 py-0.5 border border-gray-300 rounded outline-none focus:border-indigo-400 text-gray-700 bg-white" onclick="event.stopPropagation()">
                         </div>
                         ${legalActionHtml}
                     </td>
                     <td class="px-3 py-3 text-xs">
-                        <div class="font-bold ${deviceColorClass} truncate max-w-[140px] mb-0.5 ${textStrike}">${displayDeviceOrWired}</div>
-                        <div class="font-medium text-gray-500 inline-block">${c.activationDate || '개통일 확인불가'}</div>
+                        <div class="font-bold ${deviceColorClass} truncate max-w-[140px] mb-0.5 ${textStrike}">${escapeHtml(displayDeviceOrWired)}</div>
+                        <div class="font-medium text-gray-500 inline-block">${escapeHtml(c.activationDate || '개통일 확인불가')}</div>
                         ${c.activationDate ? `<span class="text-red-500 font-bold ml-1">D+${calc.days}일</span>` : ''}
                         ${extraBadges ? `<div class="flex flex-wrap gap-1 mt-1.5 text-[9px]">${extraBadges}</div>` : ''}
                         ${familyTargetHtml}
@@ -3416,18 +3435,19 @@
                                 ${targetBadges ? `<div class="flex gap-1 flex-wrap">${targetBadges}</div>` : ''}
                             </div>
                         </div>
-                        ${c.lastContactDate ? `<div class="text-[9px] text-gray-500 font-medium mt-1">최근: ${c.lastContactDate}</div>` : ''}
+                        ${c.lastContactDate ? `<div class="text-[9px] text-gray-500 font-medium mt-1">최근: ${escapeHtml(c.lastContactDate)}</div>` : ''}
                     </td>
                     <td class="px-3 py-3 align-middle">
                         ${promiseBadgeHtml || '<span class="text-[11px] text-gray-400 font-bold">-</span>'}
                     </td>
                     <td class="px-3 py-3 text-center align-middle">
-                        <button onclick="openDetailModal('${c.id}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg p-1.5 transition shadow-sm">
+                        <button onclick="openDetailModal('${jsAttr(c.id)}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200 rounded-lg p-1.5 transition shadow-sm">
                             <i class="fa-solid fa-magnifying-glass font-bold"></i>
                         </button>
                     </td>
-                </tr>`;
+                </tr>`);
             });
+            tbody.innerHTML = tableRowsHtml.join('');
 
             renderPagination(totalPages);
             renderCardList();
@@ -5760,7 +5780,13 @@ ${AI_TONES[aiSmsTone]}
             let newPhone = document.getElementById('modalPhone').value.trim();
             let newId = newPhone.replace(/[^0-9]/g, '');
 
-            if (!newId) return customAlert("연락처는 필수입니다.");
+            if (!newId) {
+                // 번호 없이 등록된 고객(번호를 못 읽은 스캔 등)은 지금 문서 그대로 저장
+                //  (예전엔 번호를 모르면 메모 하나도 저장할 수 없었음. 원래 번호가 있던 고객의 번호를 지우는 건 계속 막음)
+                const cur = customerDB.find(x => x.id === currentDetailId);
+                if (cur && !String(cur.phone || '').replace(/[^0-9]/g, '')) newId = currentDetailId;
+                else return customAlert("연락처는 필수입니다.");
+            }
 
             if (newId !== currentDetailId) {
                 const exists = customerDB.find(x => x.id === newId) || trashDB.find(x => x.id === newId);
