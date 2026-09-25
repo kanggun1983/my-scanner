@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V57</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V58</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -609,7 +609,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V57</span>
+                    <span class="text-sm text-gray-600">V58</span>
                 </div>
             </section>
         </div>
@@ -4235,9 +4235,77 @@
             return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(text)}&dates=${start}/${end}&details=${encodeURIComponent(details)}`;
         }
 
+        // 📅 갤럭시(삼성) 캘린더: 일정 파일(.ics)을 받아서 '열기' → 캘린더가 일정 추가 화면을 띄움
+        //    당일 오전 10시 일정 + 시작할 때 알림 (전화번호·메모 내용은 일정 설명에 들어감)
+        function icsEscape(text) {
+            return String(text || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+        }
+        // 규격상 한 줄은 75바이트까지 → 넘으면 다음 줄을 공백으로 시작해 이어 붙임 (한글이 깨지지 않게 글자 단위로)
+        function icsFold(line) {
+            const enc = new TextEncoder();
+            const out = [];
+            let cur = '', bytes = 0;
+            for (const ch of line) {
+                const b = enc.encode(ch).length;
+                if (bytes + b > (out.length ? 74 : 75)) { out.push(cur); cur = ''; bytes = 0; }
+                cur += ch; bytes += b;
+            }
+            out.push(cur);
+            return out.join('\r\n ');
+        }
+        function buildPromiseIcs(c, key, label, date, memo) {
+            const ymd = String(date || '').replace(/-/g, '');
+            if (ymd.length !== 8) return '';
+            const now = new Date();
+            const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+            const title = `[${label}] ${c.name || '고객'}`;
+            const desc = [c.phone ? `연락처: ${formatPhone(c.phone)}` : '', memo || '', '강CRM에서 추가한 약속'].filter(Boolean).join('\n');
+            const lines = [
+                'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//KangCRM//Promise//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+                'BEGIN:VEVENT',
+                `UID:${String(c.id).replace(/[^0-9A-Za-z]/g, '')}-${key}-${ymd}@kangcrm`,
+                `DTSTAMP:${stamp}`,
+                `DTSTART:${ymd}T100000`,
+                `DTEND:${ymd}T103000`,
+                `SUMMARY:${icsEscape(title)}`,
+                `DESCRIPTION:${icsEscape(desc)}`,
+                'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEscape(title)}`, 'TRIGGER:PT0S', 'END:VALARM',
+                'END:VEVENT', 'END:VCALENDAR'
+            ];
+            return lines.map(icsFold).join('\r\n') + '\r\n';
+        }
+        function downloadPromiseIcs(c, key, label, date, memo) {
+            const ics = buildPromiseIcs(c, key, label, date, memo);
+            if (!ics) return customAlert('약속 날짜를 확인해주세요.');
+            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `약속_${String(date).replace(/-/g, '')}_${String(c.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}.ics`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* 무시 */ } }, 60000);
+            customAlert("📅 캘린더 파일을 받았어요.\n화면 아래(또는 알림창)의 [열기]를 누르고 '캘린더'를 고르면 갤럭시 캘린더에 추가돼요. (당일 오전 10시 알림)");
+        }
+        function openCalendarChoice(c, key) {
+            const def = PROMISE_DEFS.find(p => p.key === key);
+            const date = c[`prom${key}Date`] || '';
+            const memo = c[`prom${key}Memo`] || '';
+            if (!def || !date) return;
+            openActionSheet('캘린더에 추가', [
+                { icon: 'fa-solid fa-mobile-screen', label: '갤럭시 캘린더', sub: "파일을 받은 뒤 [열기] → '캘린더'를 고르면 추가돼요", onClick: () => downloadPromiseIcs(c, key, def.label, date, memo) },
+                { icon: 'fa-brands fa-google', label: '구글 캘린더', sub: '구글 캘린더 화면에서 [저장]만 누르면 돼요', onClick: () => {
+                    const url = buildCalendarUrl(c, def.label, date, memo);
+                    if (url) window.open(url, '_blank', 'noopener');
+                } }
+            ]);
+        }
+
         function buildProfilePromiseTab(c) {
             const today = parseDateString(getTodayStr());
             const items = PROMISE_DEFS.map(p => ({
+                key: p.key,
                 label: p.label,
                 date: c[`prom${p.key}Date`] || '',
                 memo: c[`prom${p.key}Memo`] || '',
@@ -4257,12 +4325,12 @@
                 else if (diff < 0) badge = pill('bg-red-50 text-red-600', `지연 D+${-diff}`);
                 else if (diff === 0) badge = pill('bg-red-500 text-white', '오늘');
                 else badge = pill(diff <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600', `D-${diff}`);
-                const calUrl = (!p.done && diff !== null) ? buildCalendarUrl(c, p.label, p.date, p.memo) : '';
+                const canCal = !p.done && diff !== null;
                 return `<div class="py-3 border-b border-gray-100 last:border-0">
                     <div class="flex items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}</div>
                     <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
-                    ${calUrl ? `<a href="${escapeHtml(calUrl)}" target="_blank" rel="noopener" class="mt-2 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</a>` : ''}
+                    ${canCal ? `<button type="button" data-cal-key="${p.key}" class="mt-2 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</button>` : ''}
                 </div>`;
             }).join('');
         }
@@ -4501,6 +4569,13 @@
             const tabBtn = ev.target.closest('[data-ptab]');
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
+
+            const calBtn = ev.target.closest('[data-cal-key]');
+            if (calBtn && currentProfileId) {
+                const cc = customerDB.find(x => x.id === currentProfileId);
+                if (cc) openCalendarChoice(cc, calBtn.dataset.calKey);
+                return;
+            }
 
             const famBtn = ev.target.closest('[data-family-action]');
             if (famBtn && currentProfileId) {
