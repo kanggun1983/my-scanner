@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V61</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V62</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -631,7 +631,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V61</span>
+                    <span class="text-sm text-gray-600">V62</span>
                 </div>
             </section>
         </div>
@@ -791,6 +791,7 @@
             <div>
                 <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">사진 <span class="font-normal text-gray-500">(선택 · 안드로이드·윈도우 크롬에서 크게 보여요)</span></p>
                 <div id="pushPosterStrip" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
+                <input type="file" id="pushImageFile" accept="image/*" class="hidden">
                 <input type="url" id="pushImageUrl" inputmode="url" placeholder="다른 사진 주소 붙여넣기 (https://…)" class="mt-2 w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
             </div>
             <button type="button" id="pushAiBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-wand-magic-sparkles"></i>AI로 다듬기 (3가지)</button>
@@ -4930,6 +4931,8 @@
         const POSTER_EXTS = ['.jpg', '.png', '.jpeg', '.webp', '.JPG', '.PNG'];
         let posterUrlsPromise = null;
         let pushImage = '';
+        let pushUploadedUrls = [];   // 이번에 폰에서 올린 사진들
+        let pushUploading = false;
         function pushRelayUrl() { return String(appSettings.pushRelayUrl || '').trim(); }
         function pushRelayPw() { try { return localStorage.getItem('pushRelayPw') || ''; } catch (e) { return ''; } }
         function isHttpsUrl(u) { return /^https:\/\/\S+$/.test(String(u || '').trim()); }
@@ -4955,8 +4958,11 @@
         async function renderPosterStrip() {
             const strip = document.getElementById('pushPosterStrip');
             const tile = (url, inner) => `<button type="button" data-poster="${escapeHtml(url)}" aria-pressed="${pushImage === url}" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden border-2 ${pushImage === url ? 'border-indigo-600' : 'border-gray-200'} bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-600">${inner}</button>`;
+            const uploadTile = `<button type="button" data-push-upload="1" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-indigo-700">${pushUploading ? '<i class="fa-solid fa-spinner fa-spin text-base"></i>올리는 중' : '<i class="fa-solid fa-camera text-base"></i>사진 올리기'}</button>`;
             const draw = (urls, loading) => {
-                strip.innerHTML = tile('', '사진<br>없음') + urls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`)).join('')
+                strip.innerHTML = uploadTile + tile('', '사진<br>없음')
+                    + pushUploadedUrls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="올린 사진" class="w-full h-full object-cover">`)).join('')
+                    + urls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`)).join('')
                     + (loading ? '<span class="flex-shrink-0 h-[72px] flex items-center text-xs text-gray-500 px-2">포스터 찾는 중…</span>' : '');
             };
             draw([], true);
@@ -4975,6 +4981,50 @@
             if (pushImage) { img.src = pushImage; img.classList.remove('hidden'); }
             else { if (img.removeAttribute) img.removeAttribute('src'); else img.src = ''; img.classList.add('hidden'); }
         }
+        // 알림용 사진: 긴 변 1200px · JPEG로 줄여서 올림 (알림에는 이 정도면 충분하고 빨리 올라가요)
+        function compressPushImage(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onerror = () => reject(new Error('사진을 읽지 못했어요.'));
+                r.onload = e => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('이 사진 형식은 열 수 없어요. (아이폰 HEIC 사진이면 스크린샷으로 올려주세요)'));
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let w = img.width, h = img.height;
+                        const max = 1200;
+                        if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
+                        canvas.width = Math.round(w); canvas.height = Math.round(h);
+                        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.82));
+                    };
+                    img.src = e.target.result;
+                };
+                r.readAsDataURL(file);
+            });
+        }
+        async function uploadPushImage(file) {
+            if (!file) return;
+            if (!/^image\//.test(file.type || '')) return setPushStatus('사진 파일만 올릴 수 있어요.', 'red');
+            pushUploading = true;
+            renderPosterStrip();
+            setPushStatus('사진을 줄여서 올리는 중…');
+            try {
+                const dataUrl = await compressPushImage(file);
+                const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' } });
+                pushUploadedUrls = [data.url, ...pushUploadedUrls.filter(u => u !== data.url)];
+                setPushImage(data.url);
+                setPushStatus('사진을 올렸어요. 미리보기에서 확인하세요.', 'green');
+            } catch (e) {
+                console.error('사진 올리기 실패:', e);
+                setPushStatus(e.message || '사진을 올리지 못했어요.', 'red');
+            } finally {
+                pushUploading = false;
+                await renderPosterStrip();
+                setPushImage(pushImage);
+            }
+        }
+
         function renderPushSendMode() {
             const connected = isHttpsUrl(pushRelayUrl()) && !!pushRelayPw();
             document.getElementById('pushSendNowBtn').classList.toggle('hidden', !connected);
@@ -5141,6 +5191,17 @@
             setPushStatus('골랐어요. 고쳐서 써도 돼요.', 'green');
         });
         document.getElementById('pushPosterStrip').addEventListener('click', (e) => {
+            const up = e.target && e.target.closest ? e.target.closest('[data-push-upload]') : null;
+            if (up) {
+                if (pushUploading) return;
+                if (!isHttpsUrl(pushRelayUrl()) || !pushRelayPw()) {
+                    return setPushStatus("폰에서 사진 올리기는 설정 탭의 '바로 보내기 연결'을 한 뒤에 쓸 수 있어요. 지금은 OneSignal 화면의 Image 칸에서 올려주세요.", 'red');
+                }
+                const input = document.getElementById('pushImageFile');
+                input.value = '';
+                input.click();
+                return;
+            }
             const b = e.target && e.target.closest ? e.target.closest('[data-poster]') : null;
             if (!b) return;
             setPushImage(b.dataset.poster);
@@ -5153,6 +5214,10 @@
             else setPushStatus('사진 주소는 https:// 로 시작해야 해요.', 'red');
         });
         document.getElementById('pushSendNowBtn').addEventListener('click', sendPushNow);
+        document.getElementById('pushImageFile').addEventListener('change', (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (f) uploadPushImage(f);
+        });
         // 설정: 중계 서버 주소(매장 공용) · 비밀번호(이 폰에만) · 연결 확인
         function setRelayStatus(text, tone) {
             const el = document.getElementById('pushRelayStatus');
@@ -5183,7 +5248,11 @@
             const btn = document.getElementById('pushRelayTestBtn');
             btn.disabled = true;
             setRelayStatus('확인하는 중…', 'gray');
-            try { const data = await callPushRelay({ test: true }); setRelayStatus(`✅ ${data.message || '연결 성공!'}`, 'green'); }
+            try {
+                const data = await callPushRelay({ test: true });
+                const photoNote = data.photo === false ? ' (사진 올리기 저장소는 아직 연결 안 됨 — wrangler.toml을 새 걸로 다시 올려주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
+                setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}`, data.photo === false ? 'gray' : 'green');
+            }
             catch (err) { setRelayStatus(`❌ ${err.message}`, 'red'); }
             finally { btn.disabled = false; }
         });
