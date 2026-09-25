@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V62</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V63</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -631,7 +631,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V62</span>
+                    <span class="text-sm text-gray-600">V63</span>
                 </div>
             </section>
         </div>
@@ -806,7 +806,10 @@
                 <div class="bg-white rounded-xl p-3 shadow-sm">
                     <p id="pushPreviewHeading" class="text-[14px] font-bold text-gray-900 break-words">제목</p>
                     <p id="pushPreviewBody" class="text-[13px] text-gray-700 whitespace-pre-wrap break-words mt-0.5">내용</p>
-                    <img id="pushPreviewImage" alt="알림에 붙일 사진 미리보기" class="hidden mt-2 w-full rounded-lg object-cover" style="aspect-ratio: 2 / 1;">
+                    <div id="pushPreviewImageWrap" class="hidden relative mt-2">
+                        <img id="pushPreviewImage" alt="알림에 붙일 사진 미리보기" class="w-full rounded-lg object-cover" style="aspect-ratio: 2 / 1;">
+                        <button type="button" id="pushRemoveImageBtn" class="absolute top-2 right-2 h-9 px-3 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-xmark"></i>사진 빼기</button>
+                    </div>
                 </div>
             </div>
             <button type="button" id="pushSendNowBtn" class="hidden h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>바로 보내기</button>
@@ -1680,7 +1683,9 @@
             
             settingsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'settings'), (docSnap) => {
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
-                if (!document.getElementById('settingsView').classList.contains('hidden')) renderAutoPromiseSettings();
+                if (typeof appSettings.pushRelayUrl === 'string') { try { localStorage.setItem('pushRelayUrl', appSettings.pushRelayUrl); } catch (e) { /* 무시 */ } }
+                // 예전: 여기서 자동 약속 칸만 다시 그려서, 설정 탭에서 새로고침하면 중계 서버 주소 칸이 빈 채로 남았음
+                if (!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
             }, (error) => console.error('매장 설정 불러오기 실패:', error));
 
             statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
@@ -4931,9 +4936,28 @@
         const POSTER_EXTS = ['.jpg', '.png', '.jpeg', '.webp', '.JPG', '.PNG'];
         let posterUrlsPromise = null;
         let pushImage = '';
-        let pushUploadedUrls = [];   // 이번에 폰에서 올린 사진들
+        // 폰에서 올린 사진 목록 (이 폰에 기억, 서버 사진은 90일 뒤 자동 삭제라 88일 지난 건 목록에서 뺌)
+        const UPLOAD_KEEP_MS = 88 * 24 * 60 * 60 * 1000;
+        function loadUploadedList() {
+            try {
+                const arr = JSON.parse(localStorage.getItem('pushUploadedImages') || '[]');
+                return Array.isArray(arr) ? arr.filter(x => x && isHttpsUrl(x.url) && Date.now() - (x.at || 0) < UPLOAD_KEEP_MS).slice(0, 20) : [];
+            } catch (e) { return []; }
+        }
+        function saveUploadedList() { try { localStorage.setItem('pushUploadedImages', JSON.stringify(pushUploaded)); } catch (e) { /* 무시 */ } }
+        let pushUploaded = loadUploadedList();
         let pushUploading = false;
-        function pushRelayUrl() { return String(appSettings.pushRelayUrl || '').trim(); }
+        // 매장 설정(Firebase)에서 불러온 주소 우선, 아직 못 불러왔으면 이 폰에 기억해 둔 주소
+        function pushRelayUrl() {
+            if (typeof appSettings.pushRelayUrl === 'string') return appSettings.pushRelayUrl.trim();
+            try { return (localStorage.getItem('pushRelayUrl') || '').trim(); } catch (e) { return ''; }
+        }
+        function normalizeRelayUrl(v) { return String(v || '').trim().replace(/\/+$/, ''); }
+        async function saveRelayUrl(v) {
+            appSettings = { ...appSettings, pushRelayUrl: v };
+            try { localStorage.setItem('pushRelayUrl', v); } catch (e) { /* 무시 */ }
+            await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: v }, { merge: true });
+        }
         function pushRelayPw() { try { return localStorage.getItem('pushRelayPw') || ''; } catch (e) { return ''; } }
         function isHttpsUrl(u) { return /^https:\/\/\S+$/.test(String(u || '').trim()); }
         function findPoster(name) {
@@ -4959,9 +4983,11 @@
             const strip = document.getElementById('pushPosterStrip');
             const tile = (url, inner) => `<button type="button" data-poster="${escapeHtml(url)}" aria-pressed="${pushImage === url}" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden border-2 ${pushImage === url ? 'border-indigo-600' : 'border-gray-200'} bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-600">${inner}</button>`;
             const uploadTile = `<button type="button" data-push-upload="1" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-indigo-700">${pushUploading ? '<i class="fa-solid fa-spinner fa-spin text-base"></i>올리는 중' : '<i class="fa-solid fa-camera text-base"></i>사진 올리기'}</button>`;
+            // 올린 사진 칸 + 모서리 [×] 지우기 버튼 (버튼 안에 버튼을 넣을 수 없어 겉을 감쌈)
+            const uploadedTile = (u) => `<div class="relative flex-shrink-0 pt-1.5 pr-1.5">${tile(u, `<img src="${escapeHtml(u)}" alt="올린 사진" class="w-full h-full object-cover">`)}<button type="button" data-push-delete="${escapeHtml(u)}" aria-label="이 사진 지우기" class="absolute top-0 right-0 w-8 h-8 rounded-full bg-gray-900/80 text-white border-2 border-white flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button></div>`;
             const draw = (urls, loading) => {
                 strip.innerHTML = uploadTile + tile('', '사진<br>없음')
-                    + pushUploadedUrls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="올린 사진" class="w-full h-full object-cover">`)).join('')
+                    + pushUploaded.map(x => uploadedTile(x.url)).join('')
                     + urls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`)).join('')
                     + (loading ? '<span class="flex-shrink-0 h-[72px] flex items-center text-xs text-gray-500 px-2">포스터 찾는 중…</span>' : '');
             };
@@ -4978,8 +5004,9 @@
                 b.classList.toggle('border-gray-200', !on);
             });
             const img = document.getElementById('pushPreviewImage');
-            if (pushImage) { img.src = pushImage; img.classList.remove('hidden'); }
-            else { if (img.removeAttribute) img.removeAttribute('src'); else img.src = ''; img.classList.add('hidden'); }
+            const wrap = document.getElementById('pushPreviewImageWrap');
+            if (pushImage) { img.src = pushImage; wrap.classList.remove('hidden'); }
+            else { if (img.removeAttribute) img.removeAttribute('src'); else img.src = ''; wrap.classList.add('hidden'); }
         }
         // 알림용 사진: 긴 변 1200px · JPEG로 줄여서 올림 (알림에는 이 정도면 충분하고 빨리 올라가요)
         function compressPushImage(file) {
@@ -5012,7 +5039,8 @@
             try {
                 const dataUrl = await compressPushImage(file);
                 const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' } });
-                pushUploadedUrls = [data.url, ...pushUploadedUrls.filter(u => u !== data.url)];
+                pushUploaded = [{ url: data.url, at: Date.now() }, ...pushUploaded.filter(x => x.url !== data.url)].slice(0, 20);
+                saveUploadedList();
                 setPushImage(data.url);
                 setPushStatus('사진을 올렸어요. 미리보기에서 확인하세요.', 'green');
             } catch (e) {
@@ -5190,7 +5218,31 @@
             renderPushPreview();
             setPushStatus('골랐어요. 고쳐서 써도 돼요.', 'green');
         });
+        async function deleteUploadedImage(url) {
+            if (!(await customConfirm('이 사진을 지울까요?\n(강CRM 사진 목록과 중계 서버에서 지워져요)'))) return;
+            const key = String(url).split('/img/')[1] || '';
+            pushUploaded = pushUploaded.filter(x => x.url !== url);
+            saveUploadedList();
+            if (pushImage === url) setPushImage('');
+            if (document.getElementById('pushImageUrl').value.trim() === url) document.getElementById('pushImageUrl').value = '';
+            await renderPosterStrip();
+            setPushImage(pushImage);
+            try {
+                await callPushRelay({ deleteImage: key });
+                setPushStatus('사진을 지웠어요.', 'green');
+            } catch (e) {
+                console.error('사진 지우기(서버) 실패:', e);
+                setPushStatus('목록에서 뺐어요. (서버에 남은 사진은 90일 뒤 자동으로 지워져요)', 'gray');
+            }
+        }
+        document.getElementById('pushRemoveImageBtn').addEventListener('click', () => {
+            setPushImage('');
+            document.getElementById('pushImageUrl').value = '';
+            setPushStatus('사진을 뺐어요. 글만 보내져요.', 'gray');
+        });
         document.getElementById('pushPosterStrip').addEventListener('click', (e) => {
+            const del = e.target && e.target.closest ? e.target.closest('[data-push-delete]') : null;
+            if (del) { deleteUploadedImage(del.dataset.pushDelete); return; }
             const up = e.target && e.target.closest ? e.target.closest('[data-push-upload]') : null;
             if (up) {
                 if (pushUploading) return;
@@ -5226,32 +5278,35 @@
             el.className = `text-[13px] font-medium ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
         }
         document.getElementById('pushRelayUrl').addEventListener('change', async (e) => {
-            const v = e.target.value.trim().replace(/\/+$/, '');
+            const v = normalizeRelayUrl(e.target.value);
             if (v && !isHttpsUrl(v)) return setRelayStatus('주소는 https:// 로 시작해야 해요.', 'red');
-            appSettings = { ...appSettings, pushRelayUrl: v };
-            try { await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: v }, { merge: true }); setRelayStatus(v ? '주소를 저장했어요. [연결 확인]을 눌러보세요.' : '', 'gray'); }
-            catch (err) { console.error(err); setRelayStatus('주소를 저장하지 못했어요. 인터넷 연결을 확인해주세요.', 'red'); }
+            e.target.value = v;   // 끝의 / 정리한 모양 그대로 보여주기
+            try { await saveRelayUrl(v); setRelayStatus(v ? '주소를 저장했어요. [연결 확인]을 눌러보세요.' : '', 'gray'); }
+            catch (err) { console.error(err); setRelayStatus('주소를 매장 설정에 저장하지 못했어요 (이 폰에는 기억해 둠). 인터넷 연결을 확인해주세요.', 'red'); }
         });
         document.getElementById('pushRelayPw').addEventListener('change', (e) => {
             try { e.target.value ? localStorage.setItem('pushRelayPw', e.target.value) : localStorage.removeItem('pushRelayPw'); } catch (err) { /* 무시 */ }
         });
         document.getElementById('pushRelayTestBtn').addEventListener('click', async () => {
             const urlEl = document.getElementById('pushRelayUrl'), pwEl = document.getElementById('pushRelayPw');
-            const url = urlEl.value.trim().replace(/\/+$/, '');
+            const url = normalizeRelayUrl(urlEl.value);
             if (!isHttpsUrl(url)) return setRelayStatus('중계 서버 주소를 먼저 넣어주세요 (https:// 로 시작).', 'red');
             if (!pwEl.value) return setRelayStatus('비밀번호를 먼저 넣어주세요.', 'red');
+            urlEl.value = url;
             try { localStorage.setItem('pushRelayPw', pwEl.value); } catch (err) { /* 무시 */ }
-            if (url !== pushRelayUrl()) {
-                appSettings = { ...appSettings, pushRelayUrl: url };
-                try { await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: url }, { merge: true }); } catch (err) { console.error(err); }
+            let saveWarn = '';
+            if (url !== pushRelayUrl() || typeof appSettings.pushRelayUrl !== 'string') {
+                try { await saveRelayUrl(url); }
+                catch (err) { console.error(err); saveWarn = ' (주소를 매장 설정에 저장하지 못했어요 — 이 폰에서만 기억해요)'; }
             }
             const btn = document.getElementById('pushRelayTestBtn');
             btn.disabled = true;
             setRelayStatus('확인하는 중…', 'gray');
             try {
                 const data = await callPushRelay({ test: true });
-                const photoNote = data.photo === false ? ' (사진 올리기 저장소는 아직 연결 안 됨 — wrangler.toml을 새 걸로 다시 올려주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
-                setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}`, data.photo === false ? 'gray' : 'green');
+                const photoNote = data.photo === false ? ' (사진 저장소는 아직 연결 안 됨 — Cloudflare에서 IMAGES 바인딩을 확인해주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
+                const verNote = (data.version || 0) < 3 ? ' 중계 서버 코드를 새 버전으로 바꾸면 사진 지우기도 돼요.' : '';
+                setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}${verNote}${saveWarn}`, data.photo === false || saveWarn ? 'gray' : 'green');
             }
             catch (err) { setRelayStatus(`❌ ${err.message}`, 'red'); }
             finally { btn.disabled = false; }
