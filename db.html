@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V64</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V65</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -560,6 +560,7 @@
                     <div class="flex flex-col min-w-0">
                         <span class="text-[15px] font-medium text-gray-900">AI 키</span>
                         <span id="settingsApiStatus" class="text-[13px] font-medium text-gray-600">-</span>
+                        <span id="settingsAiModel" class="text-xs text-gray-500 leading-snug"></span>
                     </div>
                     <button type="button" id="settingsApiBtn" class="flex-shrink-0 h-11 px-4 border border-gray-300 bg-white rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50">변경</button>
                 </div>
@@ -631,7 +632,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V64</span>
+                    <span class="text-sm text-gray-600">V65</span>
                 </div>
             </section>
         </div>
@@ -2415,8 +2416,89 @@
             return describeGeminiError(status, body, `AI 요청이 실패했어요 (${status}).`);
         }
 
+        // ═════════════════════════════════════════════
+        // 🤖 AI 모델 자동 선택
+        //  · 최근에 잘 된 모델부터 씀 (이 폰에 기억)
+        //  · 바쁨(5xx)·한도(429)·응답 없음이면 다음 모델로 바로 다시 시도 (모델마다 무료 한도가 따로라 한도 초과에도 도움)
+        //  · 없어진 모델(404)은 일주일간 건너뜀 → 구글이 옛 모델을 없애도 자동으로 넘어감
+        //  · 키 문제·사진 문제·인터넷 문제는 모델을 바꿔도 같아서 바로 안내
+        // ═════════════════════════════════════════════
+        const GEMINI_MODELS = [
+            { id: 'gemini-3.5-flash', label: '3.5 Flash' },
+            { id: 'gemini-3.6-flash', label: '3.6 Flash' },
+            { id: 'gemini-flash-latest', label: '최신 Flash' },
+            { id: 'gemini-3.5-flash-lite', label: '3.5 Flash-Lite' },
+            { id: 'gemini-3.1-flash-lite', label: '3.1 Flash-Lite' },
+            { id: 'gemini-2.5-flash', label: '2.5 Flash' }
+        ];
+        const MAX_MODEL_TRIES = 4;
+        function geminiModelLabel(id) { const m = GEMINI_MODELS.find(x => x.id === id); return m ? m.label : id; }
+        function loadModelState() { try { const st = JSON.parse(localStorage.getItem('geminiModelState') || '{}'); return st && typeof st === 'object' ? st : {}; } catch (e) { return {}; } }
+        function saveModelState(st) { try { localStorage.setItem('geminiModelState', JSON.stringify(st)); } catch (e) { /* 무시 */ } }
+        function orderedGeminiModels() {
+            const st = loadModelState(), cool = st.cool || {}, now = Date.now();
+            const ids = GEMINI_MODELS.map(m => m.id);
+            const ordered = ids.includes(st.best) ? [st.best, ...ids.filter(x => x !== st.best)] : ids;
+            const ready = ordered.filter(id => !(cool[id] > now));
+            const cooling = ordered.filter(id => cool[id] > now).sort((a, b) => cool[a] - cool[b]);   // 다 쉬는 중이면 곧 풀리는 순서로
+            return [...ready, ...cooling];
+        }
+        function markGeminiModel(id, ok, coolMs) {
+            const st = loadModelState();
+            st.cool = st.cool || {};
+            if (ok) { st.best = id; delete st.cool[id]; }
+            else if (coolMs) st.cool[id] = Date.now() + coolMs;
+            saveModelState(st);
+        }
+        function aiError(reason, code, result) { return Object.assign(new Error(reason), { reason, code, result }); }
+        async function callGemini(payload, { timeoutMs = 40000, onRetry } = {}) {
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) throw aiError('인터넷이 연결되어 있지 않아요.\n와이파이나 데이터를 켜고 다시 해주세요.', 'OFFLINE');
+            const models = orderedGeminiModels().slice(0, MAX_MODEL_TRIES);
+            let lastErr = null, busyCount = 0, timeoutCount = 0;
+            for (let i = 0; i < models.length; i++) {
+                const model = models[i];
+                if (i > 0 && onRetry) onRetry(geminiModelLabel(model));
+                const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+                let response;
+                try {
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
+                } catch (netErr) {
+                    if (timer) clearTimeout(timer);
+                    if (netErr && netErr.name === 'AbortError') {
+                        markGeminiModel(model, false, 3 * 60 * 1000);
+                        lastErr = aiError(`AI 응답이 너무 오래 걸려요 (${Math.round(timeoutMs / 1000)}초).\n인터넷이 느리거나 사진이 커서 그럴 수 있어요. 다시 해주세요.`, 'TIMEOUT');
+                        timeoutCount++;
+                        if (timeoutCount >= 2) throw lastErr;   // 두 번 연속 오래 걸리면 인터넷 문제일 가능성이 커서 그만 (너무 오래 기다리지 않게)
+                        continue;
+                    }
+                    throw aiError('AI 서버에 연결하지 못했어요.\n인터넷 연결을 확인하고 다시 해주세요.', 'NETWORK');
+                }
+                if (timer) clearTimeout(timer);
+                let result = null;
+                try { result = await response.json(); } catch (e) { result = null; }
+                if (response.ok) {
+                    const text = extractGeminiText(result);
+                    if (text) { markGeminiModel(model, true); return { result, text, model, fellBack: i > 0 }; }
+                    lastErr = aiError(describeGeminiError(0, result, 'AI가 빈 답을 보냈어요.\n한 번 더 해주세요.'), 'EMPTY', result);
+                    if (result && result.promptFeedback && result.promptFeedback.blockReason) throw lastErr;   // 안전 필터는 모델을 바꿔도 같음
+                    markGeminiModel(model, false, 60 * 1000);
+                    continue;
+                }
+                const status = response.status;
+                const msg = String((result && result.error && result.error.message) || '');
+                if ((status === 400 && /api key/i.test(msg)) || status === 401 || status === 403) throw aiError(describeScanHttpError(status, result), status);
+                if (status === 400 && /(image|payload|size|too large|inline)/i.test(msg) && !/model/i.test(msg)) throw aiError(describeScanHttpError(status, result), status);
+                const gone = status === 404 || (status === 400 && /model/i.test(msg) && /(not found|not supported|unsupported|not available|deprecated)/i.test(msg));
+                markGeminiModel(model, false, gone ? 7 * 24 * 60 * 60 * 1000 : (status === 429 ? 10 * 60 * 1000 : 3 * 60 * 1000));
+                if (status === 429 || status >= 500) busyCount++;
+                lastErr = aiError(describeScanHttpError(status, result), status, result);
+            }
+            if (busyCount >= 2) throw aiError(`AI 모델 ${models.length}개를 차례로 시도했지만 모두 바쁘거나 한도가 찼어요.\n1~2분 뒤에 다시 해주세요.`, lastErr ? lastErr.code : 'BUSY');
+            throw lastErr || aiError('AI가 응답하지 않아요. 잠시 뒤 다시 해주세요.', 'NONE');
+        }
+
         async function extractInformation(base64Data, mimeType) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
             
             const promptText = `통신사 전산 화면 분석해서 JSON으로 줘.
 규칙: 1. 마스킹(***) 무시. 2. 이름/번호는 진짜. 3. discountType은 "선택약정", "공시지원금", "해당없음" 택1.
@@ -2434,22 +2516,14 @@
                 }
             };
 
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const abortTimer = controller ? setTimeout(() => controller.abort(), 60000) : null;
+            const abortTimer = null;
+            const loadingTextEl = document.getElementById('loadingText');
+            const loadingDefault = loadingTextEl.textContent;
             try {
-                if (typeof navigator !== 'undefined' && navigator.onLine === false) throw scanAiError('인터넷이 연결되어 있지 않아요.\n와이파이나 데이터를 켜고 다시 해주세요.', 'OFFLINE');
-                let response;
-                try {
-                    response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
-                } catch (netErr) {
-                    if (netErr && netErr.name === 'AbortError') throw scanAiError('AI 응답이 너무 오래 걸려요 (60초).\n인터넷이 느리거나 사진이 커서 그럴 수 있어요. 다시 해주세요.', 'TIMEOUT');
-                    throw scanAiError('AI 서버에 연결하지 못했어요.\n인터넷 연결을 확인하고 다시 해주세요.', 'NETWORK');
-                }
-                let result = null;
-                try { result = await response.json(); } catch (e) { result = null; }
-                if (!response.ok) throw scanAiError(describeScanHttpError(response.status, result), response.status);
-                const scanText = extractGeminiText(result);
-                if (!scanText) throw scanAiError(describeGeminiError(0, result, 'AI가 빈 답을 보냈어요.\n사진을 다시 찍어 한 번 더 해주세요.'), 'EMPTY');
+                const { result, text: scanText } = await callGemini(payload, {
+                    timeoutMs: 60000,
+                    onRetry: (label) => { loadingTextEl.textContent = `AI가 바빠서 ${label}(으)로 다시 읽는 중…`; }
+                });
                 let data;
                 try { data = JSON.parse(scanText); }
                 catch (parseErr) {
@@ -2503,6 +2577,7 @@
             } 
             finally {
                 if (abortTimer) clearTimeout(abortTimer);
+                loadingTextEl.textContent = loadingDefault;
                 document.getElementById('loadingOverlay').style.display = 'none';
             }
         }
@@ -3829,6 +3904,8 @@
             const status = document.getElementById('settingsApiStatus');
             status.textContent = hasKey ? '연결됨' : '설정 필요 (AI 스캔에 필요해요)';
             status.className = `text-[13px] font-medium ${hasKey ? 'text-green-700' : 'text-red-700'}`;
+            const bestModel = loadModelState().best;
+            document.getElementById('settingsAiModel').textContent = `AI 모델: 자동 선택${bestModel ? ` (최근 사용: ${geminiModelLabel(bestModel)})` : ''} · 바쁘면 다른 모델로 자동 전환`;
             renderAutoPromiseSettings();
             renderTrashList();
             const appIdEl = document.getElementById('pushAppId');
@@ -5234,18 +5311,17 @@
             btn.disabled = true;
             setPushStatus('AI가 3가지로 다듬는 중이에요…');
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-                let result = null;
-                try { result = await response.json(); } catch (e) { result = null; }
-                if (!response.ok) throw Object.assign(new Error('AI 오류'), { reason: describeScanHttpError(response.status, result) });
-                const text = extractGeminiText(result);
+                const { result, text, model: usedModel, fellBack } = await callGemini(payload, {
+                    timeoutMs: 40000,
+                    onRetry: (label) => setPushStatus(`AI가 바빠서 ${label}(으)로 다시 다듬는 중…`)
+                });
                 let list = [];
                 try { const j = JSON.parse(text); if (Array.isArray(j)) list = j; } catch (e) { list = []; }
                 pushVariantList = list.filter(v => v && (v.title || v.body)).map(v => ({ title: String(v.title || '').trim(), body: String(v.body || '').trim() })).slice(0, 3);
                 if (!pushVariantList.length) throw Object.assign(new Error('빈 답'), { reason: describeGeminiError(0, result, 'AI가 빈 답을 보냈어요. 한 번 더 눌러주세요.') });
                 document.getElementById('pushVariants').innerHTML = pushVariantList.map((v, i) => `<button type="button" data-push-variant="${i}" class="text-left p-3 rounded-xl border-2 border-gray-200 bg-white"><span class="block text-[11px] font-bold text-gray-500 mb-1">버전 ${i + 1}</span><span class="block text-[14px] font-bold text-gray-900">${escapeHtml(v.title)}</span><span class="block text-[13px] text-gray-700 mt-0.5">${escapeHtml(v.body)}</span></button>`).join('');
                 document.getElementById('pushVariantsBox').classList.remove('hidden');
-                setPushStatus('마음에 드는 문구를 눌러서 고르세요.', 'green');
+                setPushStatus('마음에 드는 문구를 눌러서 고르세요.' + (fellBack ? ` (예비 AI ${geminiModelLabel(usedModel)} 사용)` : ''), 'green');
             } catch (error) {
                 console.error('푸시 문구 AI 실패:', error);
                 setPushStatus(error.reason || 'AI에 연결하지 못했어요. 인터넷 연결을 확인해주세요.', 'red');
@@ -5608,15 +5684,12 @@ ${AI_TONES[aiSmsTone]}
             lockEls.forEach(b => { b.disabled = true; });
             draftEl.disabled = true;
             setAiSmsStatus('AI가 3가지로 써보는 중이에요…');
-            const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-            const abortTimer = controller ? setTimeout(() => controller.abort(), 40000) : null;
+            const abortTimer = null;
             try {
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
-                let result = null;
-                try { result = await response.json(); } catch (e) { result = null; }
-                if (!response.ok) throw Object.assign(new Error(`AI 응답 오류 ${response.status}`), { reason: describeGeminiError(response.status, result, `AI 요청이 실패했어요${response.status ? ` (${response.status})` : ''}.`) });
-                const aiText = extractGeminiText(result);
+                const { result, text: aiText, model: usedModel, fellBack } = await callGemini(payload, {
+                    timeoutMs: 40000,
+                    onRetry: (label) => setAiSmsStatus(`AI가 바빠서 ${label}(으)로 다시 쓰는 중…`)
+                });
                 const variants = aiText ? parseAiVariants(aiText) : [];
                 if (!variants.length) throw Object.assign(new Error('AI 응답이 비어 있음'), { reason: describeGeminiError(0, result, 'AI가 빈 답을 보냈어요. 한 번 더 눌러주세요.') });
                 if (aiSmsCustomerId === c.id) {  // 쓰는 사이 다른 고객 창을 열었으면 반영하지 않음
@@ -5625,7 +5698,7 @@ ${AI_TONES[aiSmsTone]}
                     draftEl.value = variants[0];
                     renderAiVariants();
                     if (aiSmsSheet.style.display === 'flex') {
-                        setAiSmsStatus(variants.length > 1 ? `${variants.length}가지로 써봤어요. 마음에 드는 걸 눌러 고른 뒤 고쳐서 보내세요.` : '다 썼어요. 확인하고 고친 뒤 [문자 보내기]를 눌러주세요.', 'green');
+                        setAiSmsStatus((variants.length > 1 ? `${variants.length}가지로 써봤어요. 마음에 드는 걸 눌러 고른 뒤 고쳐서 보내세요.` : '다 썼어요. 확인하고 고친 뒤 [문자 보내기]를 눌러주세요.') + (fellBack ? ` (예비 AI ${geminiModelLabel(usedModel)} 사용)` : ''), 'green');
                     } else saveAiSmsDraft();  // 창을 닫았어도 쓴 내용은 초안으로 남김
                 }
             } catch (error) {
