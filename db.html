@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V63</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V64</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -631,7 +631,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V63</span>
+                    <span class="text-sm text-gray-600">V64</span>
                 </div>
             </section>
         </div>
@@ -792,6 +792,7 @@
                 <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">사진 <span class="font-normal text-gray-500">(선택 · 안드로이드·윈도우 크롬에서 크게 보여요)</span></p>
                 <div id="pushPosterStrip" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
                 <input type="file" id="pushImageFile" accept="image/*" class="hidden">
+                <button type="button" id="pushUnhideBtn" class="hidden mt-1 h-9 px-1 text-xs font-bold text-gray-500 underline underline-offset-2"></button>
                 <input type="url" id="pushImageUrl" inputmode="url" placeholder="다른 사진 주소 붙여넣기 (https://…)" class="mt-2 w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
             </div>
             <button type="button" id="pushAiBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-wand-magic-sparkles"></i>AI로 다듬기 (3가지)</button>
@@ -4979,21 +4980,69 @@
             if (!posterUrlsPromise) posterUrlsPromise = Promise.all(POSTER_NAMES.map(findPoster)).then(list => list.filter(Boolean));
             return posterUrlsPromise;
         }
+        // 🙈 명함 포스터 숨기기 (매장 공용). 같은 이름으로 새 포스터를 올리면(파일 크기가 달라지면) 다시 보여요
+        function hiddenPosterList() {
+            const a = appSettings.pushHiddenPosters;
+            return Array.isArray(a) ? a.filter(x => x && typeof x.url === 'string') : [];
+        }
+        async function posterSize(url) {
+            try {
+                const r = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+                return r && r.ok && r.headers && r.headers.get ? (r.headers.get('Content-Length') || '') : '';
+            } catch (e) { return ''; }
+        }
+        async function saveHiddenPosters(list) {
+            appSettings = { ...appSettings, pushHiddenPosters: list };
+            await setDoc(doc(db, 'smart_global', 'settings'), { pushHiddenPosters: list }, { merge: true });
+        }
+        async function visiblePosterUrls() {
+            const all = await loadPosterUrls();
+            const hidden = hiddenPosterList();
+            if (!hidden.length) return { visible: all, hiddenCount: 0 };
+            const checks = await Promise.all(all.map(async (u) => {
+                const h = hidden.find(x => x.url === u);
+                if (!h) return { u, show: true };
+                if (h.size) {
+                    const cur = await posterSize(u);
+                    if (cur && cur !== h.size) return { u, show: true, renewed: true };   // 같은 이름으로 새 포스터가 올라옴
+                }
+                return { u, show: false, h };
+            }));
+            const stillHidden = checks.filter(c => !c.show).map(c => c.h);
+            // 새 포스터로 바뀌었거나 명함에서 지워진 사진은 숨김 목록에서 정리
+            if (stillHidden.length !== hidden.length) saveHiddenPosters(stillHidden).catch(err => console.error(err));
+            return { visible: checks.filter(c => c.show).map(c => c.u), hiddenCount: stillHidden.length };
+        }
         async function renderPosterStrip() {
             const strip = document.getElementById('pushPosterStrip');
-            const tile = (url, inner) => `<button type="button" data-poster="${escapeHtml(url)}" aria-pressed="${pushImage === url}" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl overflow-hidden border-2 ${pushImage === url ? 'border-indigo-600' : 'border-gray-200'} bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-600">${inner}</button>`;
-            const uploadTile = `<button type="button" data-push-upload="1" class="flex-shrink-0 w-[72px] h-[72px] rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-indigo-700">${pushUploading ? '<i class="fa-solid fa-spinner fa-spin text-base"></i>올리는 중' : '<i class="fa-solid fa-camera text-base"></i>사진 올리기'}</button>`;
-            // 올린 사진 칸 + 모서리 [×] 지우기 버튼 (버튼 안에 버튼을 넣을 수 없어 겉을 감쌈)
-            const uploadedTile = (u) => `<div class="relative flex-shrink-0 pt-1.5 pr-1.5">${tile(u, `<img src="${escapeHtml(u)}" alt="올린 사진" class="w-full h-full object-cover">`)}<button type="button" data-push-delete="${escapeHtml(u)}" aria-label="이 사진 지우기" class="absolute top-0 right-0 w-8 h-8 rounded-full bg-gray-900/80 text-white border-2 border-white flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button></div>`;
+            const tile = (url, inner) => `<button type="button" data-poster="${escapeHtml(url)}" aria-pressed="${pushImage === url}" class="w-[72px] h-[72px] rounded-xl overflow-hidden border-2 ${pushImage === url ? 'border-indigo-600' : 'border-gray-200'} bg-gray-50 flex items-center justify-center text-xs font-bold text-gray-600">${inner}</button>`;
+            // 모든 칸을 같은 틀로 감싸서 높이를 맞추고, 지울 수 있는 칸엔 모서리 [×] (버튼 안에 버튼을 넣을 수 없어 겉을 감쌈)
+            const cell = (inner, xAttr, xUrl, xLabel) => `<div class="relative flex-shrink-0 pt-1.5 pr-1.5">${inner}${xAttr ? `<button type="button" ${xAttr}="${escapeHtml(xUrl)}" aria-label="${xLabel}" class="absolute top-0 right-0 w-8 h-8 rounded-full bg-gray-900/80 text-white border-2 border-white flex items-center justify-center"><i class="fa-solid fa-xmark text-sm"></i></button>` : ''}</div>`;
+            const uploadTile = `<button type="button" data-push-upload="1" class="w-[72px] h-[72px] rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-[11px] font-bold text-indigo-700">${pushUploading ? '<i class="fa-solid fa-spinner fa-spin text-base"></i>올리는 중' : '<i class="fa-solid fa-camera text-base"></i>사진 올리기'}</button>`;
             const draw = (urls, loading) => {
-                strip.innerHTML = uploadTile + tile('', '사진<br>없음')
-                    + pushUploaded.map(x => uploadedTile(x.url)).join('')
-                    + urls.map(u => tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`)).join('')
-                    + (loading ? '<span class="flex-shrink-0 h-[72px] flex items-center text-xs text-gray-500 px-2">포스터 찾는 중…</span>' : '');
+                strip.innerHTML = cell(uploadTile) + cell(tile('', '사진<br>없음'))
+                    + pushUploaded.map(x => cell(tile(x.url, `<img src="${escapeHtml(x.url)}" alt="올린 사진" class="w-full h-full object-cover">`), 'data-push-delete', x.url, '이 사진 지우기')).join('')
+                    + urls.map(u => cell(tile(u, `<img src="${escapeHtml(u)}" alt="명함 이벤트 포스터" class="w-full h-full object-cover">`), 'data-push-hide', u, '이 포스터 목록에서 숨기기')).join('')
+                    + (loading ? '<span class="flex-shrink-0 h-[72px] mt-1.5 flex items-center text-xs text-gray-500 px-2">포스터 찾는 중…</span>' : '');
             };
             draw([], true);
-            const urls = await loadPosterUrls();
-            draw(urls, false);
+            const { visible, hiddenCount } = await visiblePosterUrls();
+            draw(visible, false);
+            const unhide = document.getElementById('pushUnhideBtn');
+            unhide.textContent = `숨긴 포스터 ${hiddenCount}개 다시 보기`;
+            unhide.classList.toggle('hidden', !hiddenCount);
+        }
+        async function hidePoster(url) {
+            if (!(await customConfirm('이 포스터를 사진 목록에서 숨길까요?\n(명함에 있는 사진은 그대로예요)'))) return;
+            const size = await posterSize(url);
+            const list = [...hiddenPosterList().filter(x => x.url !== url), { url, size }];
+            if (pushImage === url) setPushImage('');
+            try {
+                await saveHiddenPosters(list);
+                setPushStatus('목록에서 숨겼어요. 명함에서도 빼려면 GitHub에서 그 사진 파일을 지우면 돼요.', 'gray');
+            } catch (e) { console.error(e); setPushStatus('숨기기를 저장하지 못했어요. 인터넷 연결을 확인해주세요.', 'red'); }
+            await renderPosterStrip();
+            setPushImage(pushImage);
         }
         function setPushImage(url) {
             pushImage = isHttpsUrl(url) ? String(url).trim() : '';
@@ -5243,6 +5292,8 @@
         document.getElementById('pushPosterStrip').addEventListener('click', (e) => {
             const del = e.target && e.target.closest ? e.target.closest('[data-push-delete]') : null;
             if (del) { deleteUploadedImage(del.dataset.pushDelete); return; }
+            const hide = e.target && e.target.closest ? e.target.closest('[data-push-hide]') : null;
+            if (hide) { hidePoster(hide.dataset.pushHide); return; }
             const up = e.target && e.target.closest ? e.target.closest('[data-push-upload]') : null;
             if (up) {
                 if (pushUploading) return;
@@ -5258,6 +5309,14 @@
             if (!b) return;
             setPushImage(b.dataset.poster);
             document.getElementById('pushImageUrl').value = '';
+            setPushStatus('');   // '사진을 뺐어요' 같은 이전 안내가 남아 헷갈리지 않게
+        });
+        document.getElementById('pushUnhideBtn').addEventListener('click', async () => {
+            if (!(await customConfirm('숨긴 포스터를 다시 사진 목록에 보여줄까요?'))) return;
+            try { await saveHiddenPosters([]); setPushStatus('숨긴 포스터를 다시 보여줘요.', 'green'); }
+            catch (e) { console.error(e); setPushStatus('저장하지 못했어요. 인터넷 연결을 확인해주세요.', 'red'); }
+            await renderPosterStrip();
+            setPushImage(pushImage);
         });
         document.getElementById('pushImageUrl').addEventListener('input', (e) => {
             const v = e.target.value.trim();
