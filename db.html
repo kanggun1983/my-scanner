@@ -149,7 +149,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V66</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V67</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -632,7 +632,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V66</span>
+                    <span class="text-sm text-gray-600">V67</span>
                 </div>
             </section>
         </div>
@@ -2420,6 +2420,7 @@
         function scanAiError(reason, code) { return Object.assign(new Error(reason), { reason, code }); }
         function describeScanHttpError(status, body) {
             const msg = String((body && body.error && body.error.message) || '');
+            if (/standard (api )?key|auth(orization)? key|migrate/i.test(msg)) return '구글이 예전 방식 AI 키를 더 이상 받지 않아요.\nAI Studio에서 새 키를 만들어 설정 탭 → AI 키 [변경]에 넣어주세요.';
             if (status === 400 && /api key/i.test(msg)) return 'AI 키가 올바르지 않아요.\n설정 탭 → AI 키 [변경]에서 키를 다시 넣어주세요.';
             if (status === 400 && /(image|payload|size|too large|inline)/i.test(msg)) return '사진을 AI가 받지 못했어요 (사진이 너무 크거나 형식 문제).\n화면을 다시 찍거나 캡처해서 올려주세요.';
             if (status === 400 && /location/i.test(msg)) return '지금 접속한 위치에서는 이 AI를 쓸 수 없대요.';
@@ -2474,7 +2475,8 @@
                 const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
                 let response;
                 try {
-                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
+                    // AI 키는 주소(URL)가 아니라 요청 머리글로 보냄 (구글 권장 방식 · 새 '인증 키'도 이 방식 · 키가 주소 기록에 안 남음)
+                    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey }, body: JSON.stringify(payload), signal: controller ? controller.signal : undefined });
                 } catch (netErr) {
                     if (timer) clearTimeout(timer);
                     if (netErr && netErr.name === 'AbortError') {
@@ -2499,7 +2501,7 @@
                 }
                 const status = response.status;
                 const msg = String((result && result.error && result.error.message) || '');
-                if ((status === 400 && /api key/i.test(msg)) || status === 401 || status === 403) throw aiError(describeScanHttpError(status, result), status);
+                if ((status === 400 && /api key|standard (api )?key|auth(orization)? key/i.test(msg)) || status === 401 || status === 403) throw aiError(describeScanHttpError(status, result), status);
                 if (status === 400 && /(image|payload|size|too large|inline)/i.test(msg) && !/model/i.test(msg)) throw aiError(describeScanHttpError(status, result), status);
                 const gone = status === 404 || (status === 400 && /model/i.test(msg) && /(not found|not supported|unsupported|not available|deprecated)/i.test(msg));
                 markGeminiModel(model, false, gone ? 7 * 24 * 60 * 60 * 1000 : (status === 429 ? 10 * 60 * 1000 : 3 * 60 * 1000));
