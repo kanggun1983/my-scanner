@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V76</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V77</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -635,6 +635,23 @@
                         <button type="button" id="smsCheckBtn" class="h-11 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex-shrink-0 disabled:opacity-40">연결 확인</button>
                     </div>
                     <button type="button" id="smsTestBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 disabled:opacity-40">테스트 문자 보내기</button>
+                    <div class="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 space-y-2">
+                        <p class="text-[13px] font-bold text-gray-800">🔐 종단간 암호화 <span class="font-normal text-gray-500">(문자 내용·번호를 SMSGate 서버가 못 보게)</span></p>
+                        <p id="smsE2eText" class="text-xs font-medium text-gray-600 leading-relaxed">[연결 확인]을 누르면 켜져 있는지 보여요.</p>
+                        <button type="button" id="smsE2eGenBtn" class="w-full h-11 rounded-xl border border-emerald-300 bg-white text-sm font-bold text-emerald-800">암호문 만들기</button>
+                        <div id="smsE2eBox" class="hidden space-y-2">
+                            <div class="flex items-stretch gap-2">
+                                <code id="smsE2eValue" class="flex-1 min-w-0 break-all select-all rounded-lg bg-white border border-emerald-200 px-2 py-2 text-[13px] font-bold text-gray-900"></code>
+                                <button type="button" id="smsE2eCopyBtn" class="flex-shrink-0 w-16 rounded-lg bg-emerald-600 text-white text-sm font-bold">복사</button>
+                            </div>
+                            <ol class="text-xs text-gray-700 leading-relaxed list-decimal pl-5 space-y-1">
+                                <li><b>SMSGate 앱</b> → SETTINGS → Encryption → <b>Passphrase</b>에 붙여넣고 저장</li>
+                                <li><b>Cloudflare</b> → kangcrm-push → 설정 → 변수 및 비밀 → 추가 → 유형 <b>'비밀'</b> → 이름 <b>SMSGATE_E2E_KEY</b> → 값 붙여넣기 → 배포</li>
+                                <li>위 [연결 확인] → "🔐 암호화 켜짐" 확인 → [테스트 문자 보내기]</li>
+                            </ol>
+                            <p class="text-xs font-bold text-red-700 leading-relaxed">이 암호문은 어디에도 저장되지 않아요. 두 곳에 똑같이 넣기 전에 창을 닫았으면 새로 만들어주세요. 두 값이 다르면 매장 폰에서 문자를 못 풀어서 실패해요. 캡처해서 다른 곳에 올리지 마세요.</p>
+                        </div>
+                    </div>
                     <div class="border-t border-gray-100 pt-3 space-y-3">
                         <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 space-y-2">
                             <p class="text-[13px] font-bold text-gray-800">보내는 방법 <span class="font-normal text-gray-500">(켜고 끌 수 있어요)</span></p>
@@ -678,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V76</span>
+                    <span class="text-sm text-gray-600">V77</span>
                 </div>
             </section>
         </div>
@@ -5680,11 +5697,11 @@
                     <button type="button" data-sms-cancel="${escapeHtml(x.id)}" data-sms-auto="${x.auto ? 1 : 0}" class="flex-shrink-0 h-9 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-700 bg-white">취소</button>
                 </div>`).join('') || '<p class="text-sm text-gray-500 py-2">보낼 예정인 문자가 없어요.</p>';
             const sent = (L.sent || []).slice(0, 20).map(x => `<div class="p-3 rounded-xl ${x.ok ? 'bg-gray-50' : 'bg-red-50'}">
-                    <p class="text-[13px] font-bold text-gray-900">${x.ok ? '✅' : '❌'} ${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span> ${x.channel === 'push' ? '<span class="text-[10px] font-bold text-white bg-indigo-500 rounded px-1">🔔 푸시</span>' : ''}</p>
+                    <p class="text-[13px] font-bold text-gray-900">${x.state === 'sending' ? '⏳' : (x.ok ? '✅' : '❌')} ${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span> ${x.channel === 'push' ? '<span class="text-[10px] font-bold text-white bg-indigo-500 rounded px-1">🔔 푸시</span>' : ''} ${x.encrypted ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 rounded px-1">🔐</span>' : ''}</p>
                     <p class="text-[13px] text-gray-700 truncate">${escapeHtml(x.preview || '')}</p>
-                    ${x.ok ? '' : `<p class="text-xs text-red-700">${escapeHtml(x.error || '보내지 못했어요')}</p>`}
+                    ${x.ok ? '' : (x.state === 'sending' ? '<p class="text-xs text-gray-600">보내는 중이에요. 오래 이대로면 SMSGate 앱 MESSAGES에서 확인해주세요.</p>' : `<p class="text-xs text-red-700">${escapeHtml(x.error || '보내지 못했어요')}</p>`)}
                 </div>`).join('') || '<p class="text-sm text-gray-500 py-2">아직 보낸 문자가 없어요.</p>';
-            body.innerHTML = `${L.ready === false ? '<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">매장 폰 연결이 안 돼 있어요. 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.</p>' : ''}
+            body.innerHTML = `${L.ready === false ? '<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">매장 폰 연결이 안 돼 있어요. 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.</p>' : ''}${L.e2e ? '<p class="text-xs font-bold text-emerald-800 pl-1">🔐 종단간 암호화로 보내는 중</p>' : ''}
                 <p class="text-[13px] font-bold text-gray-700 pl-1">보낼 예정</p>${q}
                 <p class="text-[13px] font-bold text-gray-700 pl-1 pt-2">최근 보낸 문자</p>${sent}`;
         }
@@ -5695,7 +5712,7 @@
             if (!smsListHistoryPushed) { history.pushState({ smsList: true }, ''); smsListHistoryPushed = true; }
             try {
                 const list = await callSms('list');
-                smsListData = { queued: list.queued || [], sent: list.sent || [], todaySent: list.todaySent || 0, ready: list.ready };
+                smsListData = { queued: list.queued || [], sent: list.sent || [], todaySent: list.todaySent || 0, ready: list.ready, e2e: !!list.e2e };
                 saveSmsStats(list);
                 renderSmsStats();
             } catch (e) { smsListData = { error: e.message }; }
@@ -5798,7 +5815,8 @@
             setSmsReadyText('확인하는 중…', 'gray');
             try {
                 const st = await callSms('status');
-                if (st.ready) setSmsReadyText('✅ 매장 폰 연결됨', 'green');
+                setSmsE2eText(st);
+                if (st.ready) setSmsReadyText(st.e2e && !st.e2eWeak ? '✅ 매장 폰 연결됨 · 🔐 암호화 켜짐' : '✅ 매장 폰 연결됨', 'green');
                 else setSmsReadyText(!st.gateway ? '❌ 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.' : '❌ 저장소(IMAGES) 연결을 확인해주세요.', 'red');
             } catch (e) { setSmsReadyText(`❌ ${e.message}`, 'red'); }
             finally { btn.disabled = false; }
@@ -5812,8 +5830,8 @@
             btn.disabled = true;
             setSmsReadyText('매장 폰으로 보내는 중…', 'gray');
             try {
-                await callSms('test', { to, text: `강CRM 자동 문자 테스트예요 ✅\n${fmtSmsWhen(Date.now())}` });
-                setSmsReadyText('✅ 보냈어요. 1~2분 안에 문자가 오면 성공이에요.', 'green');
+                const tr = await callSms('test', { to, text: `강CRM 자동 문자 테스트예요 ✅\n${fmtSmsWhen(Date.now())}` });
+                setSmsReadyText(`✅ 보냈어요${tr.encrypted ? ' (🔐 암호화됨)' : ''}. 1~2분 안에 문자가 오면 성공이에요.${tr.encrypted ? '\n안 오면 SMSGate 앱 MESSAGES에서 실패 이유를 봐주세요 (두 곳 암호문이 다르면 실패).' : ''}`, 'green');
             } catch (e) {
                 const hint = /SMSGATE/.test(e.message || '') ? '\n→ 문자 앱 화면의 Username을 SMSGATE_USER에, Password를 SMSGATE_PASS에 넣어주세요. (Device ID는 안 넣어요)' : '';
                 setSmsReadyText(`❌ ${e.message}${hint}`, 'red');
@@ -6044,6 +6062,44 @@
         document.getElementById('smsBdayImgRemove').addEventListener('click', async () => {
             try { await saveBdayImage(''); setBdayImgStatus('사진을 뺐어요. 생일 문자는 글만 보내져요.', 'gray'); }
             catch (err) { setBdayImgStatus('저장하지 못했어요. 인터넷 연결을 확인해주세요.', 'red'); }
+        });
+
+        // 🔐 종단간 암호화 암호문 만들기 — 이 폰 브라우저 안에서만 만들고 어디에도 저장하지 않음
+        //    헷갈리는 글자(0 O 1 l I) 뺀 56글자 중 40자 → 약 232비트 (추측으로 맞히는 건 불가능)
+        const E2E_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+        function makePassphrase(len = 40) {
+            const out = [];
+            while (out.length < len) {
+                const buf = new Uint8Array(len * 2);
+                crypto.getRandomValues(buf);
+                for (const b of buf) {
+                    if (b < 224 && out.length < len) out.push(E2E_CHARS[b % 56]);   // 224 = 56×4 → 치우침 없이 고름
+                }
+            }
+            return out.join('');
+        }
+        function setSmsE2eText(st) {
+            const el = document.getElementById('smsE2eText');
+            if (!st) return;
+            if (st.e2eWeak) { el.textContent = '❌ 암호문이 너무 짧아서 문자를 보내지 않고 있어요. [암호문 만들기]로 새로 만들어 두 곳에 다시 넣어주세요.'; el.className = 'text-xs font-bold text-red-700 leading-relaxed'; }
+            else if (st.e2e) { el.textContent = '🔐 암호화 켜짐 — 문자 내용과 받는 번호를 SMSGate 서버가 볼 수 없어요.'; el.className = 'text-xs font-bold text-emerald-800 leading-relaxed'; }
+            else { el.textContent = '암호화 꺼짐 — 아래 [암호문 만들기]로 켜주세요.'; el.className = 'text-xs font-medium text-gray-600 leading-relaxed'; }
+        }
+        document.getElementById('smsE2eGenBtn').addEventListener('click', () => {
+            document.getElementById('smsE2eValue').textContent = makePassphrase();
+            document.getElementById('smsE2eBox').classList.remove('hidden');
+        });
+        document.getElementById('smsE2eCopyBtn').addEventListener('click', async () => {
+            const v = document.getElementById('smsE2eValue').textContent;
+            const btn = document.getElementById('smsE2eCopyBtn');
+            try { await navigator.clipboard.writeText(v); btn.textContent = '복사됨'; }
+            catch (e) {
+                const ta = document.createElement('textarea');
+                ta.value = v; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); btn.textContent = '복사됨'; } catch (err) { btn.textContent = '길게 눌러 복사'; }
+                ta.remove();
+            }
+            setTimeout(() => { btn.textContent = '복사'; }, 2000);
         });
 
         // AI문자 창의 [예약 보내기]
@@ -6370,7 +6426,7 @@
             try {
                 const data = await callPushRelay({ test: true });
                 const photoNote = data.photo === false ? ' (사진 저장소는 아직 연결 안 됨 — Cloudflare에서 IMAGES 바인딩을 확인해주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
-                const verNote = (data.version || 0) < 6 ? ' 중계 서버 코드를 새 버전으로 바꾸면 자동 문자·명함 알림 확인·한 명 푸시도 돼요.' : '';
+                const verNote = (data.version || 0) < 7 ? ' 중계 서버 코드를 새 버전으로 바꾸면 자동 문자 암호화·명함 알림 확인·한 명 푸시도 돼요.' : '';
                 setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}${verNote}${saveWarn}`, data.photo === false || saveWarn ? 'gray' : 'green');
                 savePushStatsCache(null);
                 loadPushStats(true);
