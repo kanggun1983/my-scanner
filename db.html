@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V68</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V69</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -447,8 +447,9 @@
                 </button>
             </div>
 
-            <!-- 이달 개통 · 오늘/이번 달 연락 실적 -->
-            <div class="grid grid-cols-2 bg-white border border-gray-200 rounded-xl mb-2.5">
+            <!-- 이달 개통 · 오늘/이번 달 연락 실적 · 이달 푸시 알림 -->
+            <div class="bg-white border border-gray-200 rounded-xl mb-2.5 overflow-hidden">
+            <div class="grid grid-cols-2">
                 <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
                     <span id="monthlyActLabel" class="text-xs font-medium text-gray-600">이달 개통</span>
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
@@ -459,6 +460,12 @@
                     <span id="statsTodayText" class="text-[17px] font-bold text-gray-900 leading-snug">OB 0 / 문자 0</span>
                     <span id="statsMonthText" class="text-xs text-gray-600 truncate">이번 달 OB 0 / 문자 0</span>
                 </div>
+            </div>
+            <button type="button" id="pushStatsRow" class="hidden w-full min-h-[44px] px-3 py-2 border-t border-gray-100 items-center gap-2 text-left hover:bg-gray-50">
+                <i class="fa-solid fa-bullhorn text-indigo-600 text-sm flex-shrink-0" aria-hidden="true"></i>
+                <span id="pushStatsText" class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">푸시 알림</span>
+                <i class="fa-solid fa-chevron-right text-gray-400 text-xs flex-shrink-0" aria-hidden="true"></i>
+            </button>
             </div>
 
             <!-- 필터 (옆으로 넘겨서 더 보기) -->
@@ -616,7 +623,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V68</span>
+                    <span class="text-sm text-gray-600">V69</span>
                 </div>
             </section>
         </div>
@@ -3169,6 +3176,7 @@
             if (monthlyActTotal) monthlyActTotal.textContent = `${totalMonthlyAct}건`;
             const monthlyActLabel = document.getElementById('monthlyActLabel');
             if (monthlyActLabel) monthlyActLabel.textContent = `${t.getMonth() + 1}월 개통`;
+            loadPushStats();
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
             const listSig = `${currentFilter}|${query}|${currentSort}`;
@@ -5185,6 +5193,76 @@
             }
         }
 
+        // 📊 이달 푸시 실적 (OneSignal에서 직접 보낸 것도 포함 · 10분마다 새로 불러옴)
+        const PUSH_STATS_TTL = 10 * 60 * 1000;
+        let pushStatsLoading = false;
+        function pushRelayReady() { return isHttpsUrl(pushRelayUrl()) && !!pushRelayPw(); }
+        function loadPushStatsCache() { try { const c = JSON.parse(localStorage.getItem('pushStatsCache') || 'null'); return c && typeof c === 'object' ? c : null; } catch (e) { return null; } }
+        function savePushStatsCache(c) { try { localStorage.setItem('pushStatsCache', JSON.stringify(c)); } catch (e) { /* 무시 */ } }
+        function summarizePushItems(items, now = new Date()) {
+            const monthStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+            const nowSec = Math.floor(now.getTime() / 1000);
+            const list = (Array.isArray(items) ? items : []).filter(n => n && !n.canceled);
+            const whenOf = (n) => Number(n.sendAfter || n.queuedAt || 0);
+            const scheduledOf = (n) => Number(n.sendAfter || 0) > nowSec;
+            const month = list.filter(n => whenOf(n) >= monthStart);
+            const sent = month.filter(n => !scheduledOf(n));
+            return {
+                count: sent.length,
+                delivered: sent.reduce((a, n) => a + (Number(n.successful) || 0), 0),
+                clicks: sent.reduce((a, n) => a + (Number(n.converted) || 0), 0),
+                scheduled: month.length - sent.length,
+                recent: list.slice(0, 5).map(n => ({ title: n.heading || '(제목 없음)', at: whenOf(n), delivered: Number(n.successful) || 0, clicks: Number(n.converted) || 0, scheduled: scheduledOf(n) }))
+            };
+        }
+        function renderPushStats() {
+            const row = document.getElementById('pushStatsRow'), text = document.getElementById('pushStatsText');
+            if (!row || !text) return;
+            const ready = pushRelayReady();
+            row.classList.toggle('hidden', !ready);
+            row.classList.toggle('flex', ready);
+            if (!ready) return;
+            const cache = loadPushStatsCache();
+            const m = new Date().getMonth() + 1;
+            if (cache && cache.error === 'old') { text.textContent = '푸시 실적: 중계 서버 코드를 새 버전으로 바꾸면 보여요'; return; }
+            if (!cache || !Array.isArray(cache.items)) { text.textContent = pushStatsLoading ? '푸시 실적 불러오는 중…' : `${m}월 푸시 알림`; return; }
+            const sum = summarizePushItems(cache.items);
+            text.innerHTML = `<b class="font-bold text-gray-900">${m}월 푸시 ${sum.count}건</b> · 보냄 ${sum.delivered.toLocaleString()}명 · 클릭 ${sum.clicks.toLocaleString()}${sum.scheduled ? ` · 예약 ${sum.scheduled}건` : ''}`;
+        }
+        async function loadPushStats(force = false) {
+            if (!pushRelayReady() || pushStatsLoading || !db) return renderPushStats();
+            const cache = loadPushStatsCache();
+            if (!force && cache && Date.now() - (cache.at || 0) < PUSH_STATS_TTL) return renderPushStats();
+            pushStatsLoading = true;
+            renderPushStats();
+            try {
+                const data = await callPushRelay({ stats: true });
+                if (!Array.isArray(data.items)) throw new Error('old');
+                savePushStatsCache({ at: Date.now(), items: data.items });
+            } catch (e) {
+                // 예전 중계 서버는 '실적' 요청을 몰라서 '내용이 비어 있어요'로 거절함 (알림이 나가지는 않음)
+                if (/내용이 비어|^old$/.test(e.message || '')) savePushStatsCache({ at: Date.now(), error: 'old' });
+                else console.error('푸시 실적 불러오기 실패:', e);
+            } finally {
+                pushStatsLoading = false;
+                renderPushStats();
+            }
+        }
+        function formatPushWhen(sec) {
+            if (!sec) return '';
+            const d = new Date(sec * 1000);
+            return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+        document.getElementById('pushStatsRow').addEventListener('click', async () => {
+            await loadPushStats(true);
+            const cache = loadPushStatsCache();
+            if (cache && cache.error === 'old') return customAlert('푸시 실적을 보려면 Cloudflare의 중계 서버 코드를 새 버전으로 바꿔주세요.\n(PC에서 [</> 코드] → 전체 지우고 붙여넣기 → [배포])');
+            if (!cache || !Array.isArray(cache.items)) return customAlert('푸시 실적을 불러오지 못했어요.\n잠시 뒤 다시 눌러주세요.');
+            const sum = summarizePushItems(cache.items);
+            const lines = sum.recent.map(r => `• ${formatPushWhen(r.at)}${r.scheduled ? ' (예약)' : ''}  ${r.title}\n   보냄 ${r.delivered.toLocaleString()}명 · 클릭 ${r.clicks.toLocaleString()}`);
+            customAlert(`📣 ${new Date().getMonth() + 1}월 푸시 ${sum.count}건 · 보냄 ${sum.delivered.toLocaleString()}명 · 클릭 ${sum.clicks.toLocaleString()}${sum.scheduled ? ` · 예약 ${sum.scheduled}건` : ''}\n\n최근 보낸 알림\n${lines.join('\n') || '아직 보낸 알림이 없어요.'}\n\n※ '보냄'은 알림이 전달된 사람 수예요.`);
+        });
+
         function renderPushSendMode() {
             const connected = isHttpsUrl(pushRelayUrl()) && !!pushRelayPw();
             document.getElementById('pushSendNowBtn').classList.toggle('hidden', !connected);
@@ -5236,6 +5314,7 @@
             try {
                 const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
                 setPushStatus(sendAfter ? `예약했어요! ${sendAfter.label}에 보내져요.` : `보냈어요!${data.recipients ? ` (받는 사람 ${data.recipients}명)` : ''}`, 'green');
+                setTimeout(() => loadPushStats(true), 5000);   // OneSignal 집계가 반영될 시간을 조금 두고 대시보드 숫자 새로고침
             } catch (e) {
                 console.error('푸시 보내기 실패:', e);
                 setPushStatus(e.message, 'red');
@@ -5446,8 +5525,10 @@
             try {
                 const data = await callPushRelay({ test: true });
                 const photoNote = data.photo === false ? ' (사진 저장소는 아직 연결 안 됨 — Cloudflare에서 IMAGES 바인딩을 확인해주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
-                const verNote = (data.version || 0) < 3 ? ' 중계 서버 코드를 새 버전으로 바꾸면 사진 지우기도 돼요.' : '';
+                const verNote = (data.version || 0) < 4 ? ' 중계 서버 코드를 새 버전으로 바꾸면 사진 지우기·푸시 실적도 돼요.' : '';
                 setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}${verNote}${saveWarn}`, data.photo === false || saveWarn ? 'gray' : 'green');
+                savePushStatsCache(null);
+                loadPushStats(true);
             }
             catch (err) { setRelayStatus(`❌ ${err.message}`, 'red'); }
             finally { btn.disabled = false; }
