@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V75</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V76</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -678,7 +678,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V75</span>
+                    <span class="text-sm text-gray-600">V76</span>
                 </div>
             </section>
         </div>
@@ -1618,6 +1618,47 @@
         let dbUnsubscribe = null;
         let statsUnsubscribe = null;
         let settingsUnsubscribe = null;
+        // 🛡️ 저장 전 빈 값(undefined) 정리 — Firestore는 undefined가 한 칸이라도 있으면 저장 전체를 거절함
+        //    (예전: '명함 보내기'로 등록한 고객을 스캔해서 저장하면 법대 이름 같은 빈 칸 때문에 저장 실패)
+        function stripUndefined(v) {
+            if (Array.isArray(v)) return v.filter(x => x !== undefined).map(stripUndefined);
+            if (v && typeof v === 'object' && Object.getPrototypeOf(v) === Object.prototype) {
+                const out = {};
+                for (const [k, x] of Object.entries(v)) if (x !== undefined) out[k] = stripUndefined(x);
+                return out;
+            }
+            return v;
+        }
+        function saveDoc(ref, data, opts) { return opts ? setDoc(ref, stripUndefined(data), opts) : setDoc(ref, stripUndefined(data)); }
+        function saveUpdate(ref, data) { return updateDoc(ref, stripUndefined(data)); }
+        // ⚠️ 오류를 알아듣기 쉬운 한국어로 (영어 오류문이 그대로 뜨지 않게)
+        function koreanError(e, what = '처리') {
+            const code = String((e && (e.code || '')) || '').replace(/^(firestore|auth)\//, '');
+            const msg = String((e && e.message) || e || '');
+            const map = {
+                'permission-denied': '권한이 없어요. 매장 직원 계정으로 로그인했는지 확인해주세요.',
+                'unauthenticated': '로그인이 풀렸어요. 다시 로그인해주세요.',
+                'unavailable': '인터넷 연결이 불안정해요. 잠시 뒤 다시 해주세요.',
+                'deadline-exceeded': '인터넷이 느려서 시간이 초과됐어요. 다시 해주세요.',
+                'resource-exhausted': '사용량 한도를 넘었어요. 잠시 뒤 다시 해주세요.',
+                'invalid-argument': '저장할 내용에 비어 있는 칸이 섞여 있어서 저장하지 못했어요. 다시 저장해주세요.',
+                'not-found': '고객 정보를 찾지 못했어요. 목록을 새로고침해주세요.',
+                'already-exists': '이미 있는 고객이에요.',
+                'aborted': '다른 직원이 동시에 고쳐서 저장이 취소됐어요. 다시 해주세요.',
+                'popup-closed-by-user': '로그인 창이 닫혔어요. 다시 로그인해주세요.',
+                'cancelled-popup-request': '로그인 창이 닫혔어요. 다시 로그인해주세요.',
+                'network-request-failed': '인터넷에 연결되지 않아 로그인하지 못했어요.',
+                'too-many-requests': '시도가 너무 많아요. 잠시 뒤 다시 해주세요.',
+                'unauthorized-domain': '이 주소에서는 로그인이 허용되지 않았어요. (Firebase 허용 도메인 확인 필요)',
+                'user-disabled': '사용이 중지된 계정이에요.',
+                'web-storage-unsupported': '이 브라우저는 로그인 정보를 저장할 수 없어요. 크롬으로 열어주세요.',
+                'operation-not-allowed': '구글 로그인이 꺼져 있어요. (Firebase 설정 확인 필요)',
+                'quota-exceeded': '저장 공간이 부족해요.'
+            };
+            if (map[code]) return map[code];
+            if (/Failed to fetch|NetworkError|network/i.test(msg)) return '인터넷에 연결되지 않았어요. 연결을 확인하고 다시 해주세요.';
+            return `${what} 중 문제가 생겼어요. 잠시 뒤 다시 해주세요.${code ? ` (오류 코드: ${code})` : ''}`;
+        }
         // 📱 [뒤로가기] 관리: 창을 코드로 닫으면서 히스토리를 한 칸 되돌릴 때, 그 신호가 다른 창까지 닫지 않도록 표시
         let suppressedBacks = [];
         function historyBackSilently() { suppressedBacks.push(Date.now()); history.back(); }
@@ -1699,7 +1740,7 @@
                 // (팝업 대신 리다이렉트 방식 사용 - 모바일 브라우저에서 팝업이 조용히 막혀 무반응이 되는 문제 해결)
                 getRedirectResult(auth).catch((error) => {
                     const errMsg = document.getElementById('loginErrorMsg');
-                    errMsg.textContent = "로그인 실패: " + error.message;
+                    errMsg.textContent = "로그인 실패: " + koreanError(error, '로그인');
                     errMsg.classList.remove('hidden');
                 });
 
@@ -1733,7 +1774,7 @@
                     document.getElementById('loginBtnText').textContent = "로그인 처리 중...";
                     signInWithRedirect(auth, provider).catch((error) => {
                         const errMsg = document.getElementById('loginErrorMsg');
-                        errMsg.textContent = "로그인 실패: " + error.message;
+                        errMsg.textContent = "로그인 실패: " + koreanError(error, '로그인');
                         errMsg.classList.remove('hidden');
                         document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
                     });
@@ -1792,7 +1833,7 @@
                 const now = new Date();
                 const two = (x) => String(x).padStart(2, '0');
                 const line = `[${now.getFullYear()}.${two(now.getMonth() + 1)}.${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}] 🔄 개통완료 후 M+6이 지나 '미정'으로 자동 변경`;
-                setDoc(doc(db, 'smart_customers', c.id), {
+                saveDoc(doc(db, 'smart_customers', c.id), {
                     salesStatus: '미정', salesReleasedAt: today,
                     contactHistory: c.contactHistory ? `${c.contactHistory}\n${line}` : line,
                     updatedAt: new Date().toISOString()
@@ -1886,7 +1927,7 @@
                         monthlyOB: globalStats.month !== monthStr ? (actionType === 'tel' ? 1 : 0) : increment(actionType === 'tel' ? 1 : 0),
                         monthlySMS: globalStats.month !== monthStr ? (actionType === 'sms' ? 1 : 0) : increment(actionType === 'sms' ? 1 : 0),
                     };
-                    await setDoc(statsRef, newData, { merge: true });
+                    await saveDoc(statsRef, newData, { merge: true });
                 } else {
                     const increments = {};
                     if (actionType === 'tel') {
@@ -1897,7 +1938,7 @@
                         increments.monthlySMS = increment(1);
                     }
                     try {
-                        await updateDoc(statsRef, increments);
+                        await saveUpdate(statsRef, increments);
                     } catch (e) {
                         if (e.code === 'not-found') {
                             increments.dailyOB = actionType === 'tel' ? 1 : 0;
@@ -1906,7 +1947,7 @@
                             increments.monthlySMS = actionType === 'sms' ? 1 : 0;
                             increments.date = todayStr;
                             increments.month = monthStr;
-                            await setDoc(statsRef, increments);
+                            await saveDoc(statsRef, increments);
                         }
                     }
                 }
@@ -2731,7 +2772,7 @@
                 checkScannerExistingCustomer();
             } catch (error) { 
                 console.error('AI 스캔 실패:', error);
-                const reason = error.reason || `스캔 결과를 화면에 넣다가 문제가 생겼어요.\n(${error.message})`;
+                const reason = error.reason || '스캔 결과를 화면에 넣다가 문제가 생겼어요.\n사진을 다시 찍어 한 번 더 해주세요.';
                 customAlert(`🚨 AI 스캔 실패\n\n${reason}${error.code ? `\n\n(오류 코드: ${error.code})` : ''}`);
             } 
             finally {
@@ -2871,11 +2912,11 @@
             };
 
             try {
-                await setDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
                 customAlert((phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요.") + (restoringFromTrash ? "\n(휴지통에 있던 고객이라 함께 복구했어요)" : "")); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
                 switchTab('db');
-            } catch (error) { customAlert("저장 실패! " + error); }
+            } catch (error) { console.error(error); customAlert(`저장하지 못했어요.\n${koreanError(error, '저장')}`); }
         });
 
         window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '', smsBody = '') {
@@ -2913,7 +2954,7 @@
                 const logEntry = `[${timeStr}] ${actionName} (담당: ${managerName})`;
                 const newHistory = currentHistory ? (currentHistory + '\n' + logEntry) : logEntry;
 
-                const logWrite = setDoc(doc(db, 'smart_customers', docId), { 
+                const logWrite = saveDoc(doc(db, 'smart_customers', docId), { 
                     lastContactDate: getTodayStr(), 
                     contactManager: managerName,
                     contactHistory: newHistory,
@@ -2942,7 +2983,7 @@
         window.deleteCustomer = async function(docId) {
             if (!(await customConfirm("이 고객을 휴지통으로 옮길까요?\n30일 안에는 [설정 → 휴지통]에서 되살릴 수 있어요."))) return;
             try {
-                await setDoc(doc(db, 'smart_customers', docId), { deletedAt: new Date().toISOString(), deletedBy: getStaffName(), updatedAt: new Date().toISOString() }, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', docId), { deletedAt: new Date().toISOString(), deletedBy: getStaffName(), updatedAt: new Date().toISOString() }, { merge: true });
             } catch (e) {
                 console.error(e);
                 return customAlert('삭제하지 못했어요. 인터넷 연결을 확인해주세요.');
@@ -2953,7 +2994,7 @@
 
         async function restoreFromTrash(id) {
             try {
-                await setDoc(doc(db, 'smart_customers', id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
                 const c = trashDB.find(x => x.id === id);
                 customAlert(`${c && c.name ? c.name + ' 고객을' : '고객을'} 되살렸어요.`);
             } catch (e) { console.error(e); customAlert('복구하지 못했어요. 인터넷 연결을 확인해주세요.'); }
@@ -3334,6 +3375,7 @@
             loadPushStats();
             syncAutoSms();
             checkCardLinks();
+            checkRecentCardLinks();
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
             const listSig = `${currentFilter}|${query}|${currentSort}`;
@@ -3739,6 +3781,7 @@
             const top = tasks[0];
             const birth = parseBirth(c.dob);
             const isMinor = !!(birth && birth.age !== null && birth.age < 19);
+            const isSenior = !!(birth && birth.age !== null && birth.age >= 65);   // 만 65세 이상
             const carrier = c.carrier && c.carrier !== '미정' ? c.carrier : '';
             const hasPhone = !!(c.phone || '').replace(/[^0-9]/g, '');
             const visit = formatShortDate(c.visitDate);
@@ -3773,6 +3816,7 @@
                             <span class="text-[17px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(c.name || '이름 없음')}</span>
                             ${carrier ? `<span class="text-xs font-medium text-gray-700 bg-gray-100 rounded-md px-1.5 py-0.5">${escapeHtml(carrier)}</span>` : ''}
                             ${isMinor ? `<span class="text-xs font-bold text-orange-800 border border-orange-200 rounded-md px-1.5">미성년</span>` : ''}
+                            ${isSenior ? `<span class="text-xs font-bold text-teal-800 border border-teal-200 rounded-md px-1.5">시니어</span>` : ''}
                             ${c.marketingDeny ? `<span class="text-xs font-bold text-red-700 border border-red-200 rounded-md px-1.5">마케팅 거부</span>` : ''}
                             ${c.bizCardInstalled === true ? `<span class="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-md px-1.5 py-0.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>` : ''}
                         </span>
@@ -4096,7 +4140,7 @@
             document.getElementById('val-manager').value = v;
             if (v && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn')) && v !== appSettings.smsSenderName) {
                 appSettings = { ...appSettings, smsSenderName: v };
-                setDoc(doc(db, 'smart_global', 'settings'), { smsSenderName: v }, { merge: true }).catch(err => console.error(err));
+                saveDoc(doc(db, 'smart_global', 'settings'), { smsSenderName: v }, { merge: true }).catch(err => console.error(err));
                 if (pushRelayReady()) syncAutoSms({ force: true });
             }
             renderSmsSettings();
@@ -4152,7 +4196,7 @@
             appSettings = { ...appSettings, ...data };
             renderAutoPromiseSettings();
             try {
-                await setDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
+                await saveDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
                 const saved = document.getElementById('autoPromSaved');
                 saved.classList.remove('hidden');
                 clearTimeout(autoSavedTimer);
@@ -4454,6 +4498,7 @@
                 const decade = birth.age < 10 ? '10세 미만' : `${Math.floor(birth.age / 10) * 10}대`;
                 ageHtml = `${decade} <span class="text-gray-400 font-medium">(만 ${birth.age}세)</span>`;
                 if (birth.age < 19) ageHtml += ' <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-100 text-pink-600 align-middle">미성년</span>';
+                if (birth.age >= 65) ageHtml += ' <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-700 align-middle">시니어</span>';
             }
             let birthdayHtml = PROFILE_DASH;
             if (birth) {
@@ -4476,7 +4521,7 @@
                 headerRow('방문일', profileValue(c.visitDate)),
                 headerRow('수신동의', consentHtml),
                 headerRow('개통점', c.openStore ? e(c.openStore) : '<span class="text-gray-400">-</span>'),
-                headerRow('명함 링크', c.cardId ? `<span class="font-mono">${e(c.cardId)}</span> <span class="text-gray-400 font-medium">· ${c.pushSubscribed === true ? '알림 받는 중' : (c.bizCardInstalled === true ? '명함 열어봄 (알림은 아직)' : (c.bizCardSentAt ? `${e(formatShortDate(c.bizCardSentAt))} 보냄` : '아직 안 보냄'))}</span>` : '<span class="text-gray-400">[명함 보내기]로 개인 링크를 보내면 설치·알림을 자동으로 확인해요</span>'),
+                headerRow('명함 링크', c.cardId ? `<span class="font-mono">${e(c.cardId)}</span> <span class="text-gray-400 font-medium">· ${c.pushSubscribed === true ? '알림 받는 중' : (c.bizCardInstalled === true ? '명함 열어봄 (알림은 아직)' : (c.bizCardSentAt ? `${e(formatShortDate(c.bizCardSentAt))} 보냄` : '아직 안 보냄'))}</span> <button type="button" data-paction="cardrefresh" class="ml-1 h-8 px-2 rounded-lg border border-gray-300 bg-white text-[11px] font-bold text-gray-700 align-middle"><i class="fa-solid fa-rotate"></i> 새로고침</button>` : '<span class="text-gray-400">[명함 보내기]로 개인 링크를 보내면 설치·알림을 자동으로 확인해요</span>'),
                 headerRow('디지털 명함', c.bizCardInstalled === true ? `<span class="text-pink-600">설치함</span>${c.bizCardInstalledAt ? ` <span class="text-gray-400 font-medium">(${e(c.bizCardInstalledAt)})</span>` : ''}` : '<span class="text-gray-400">미설치</span>'),
                 legalText ? headerRow('법정대리인', e(legalText)) : '',
                 headerRow('기타 메모', c.memo && c.memo.trim() ? `<span class="font-medium whitespace-pre-wrap line-clamp-3">${e(c.memo)}</span>` : PROFILE_DASH)
@@ -4808,7 +4853,7 @@
             const ids = new Set([aId, bId]);
             [aGroup, bGroup].forEach(g => { if (g && g !== groupId) customerDB.filter(x => x.familyGroupId === g).forEach(x => ids.add(x.id)); });
             const now = new Date().toISOString();
-            await Promise.all([...ids].map(id => setDoc(doc(db, 'smart_customers', id), { familyGroupId: groupId, updatedAt: now }, { merge: true })));
+            await Promise.all([...ids].map(id => saveDoc(doc(db, 'smart_customers', id), { familyGroupId: groupId, updatedAt: now }, { merge: true })));
             ids.forEach(id => { const x = customerDB.find(y => y.id === id); if (x) x.familyGroupId = groupId; });
             return true;
         }
@@ -4819,7 +4864,7 @@
             const groupId = m.familyGroupId;
             const remaining = customerDB.filter(x => x.familyGroupId === groupId && x.id !== memberId);
             const now = new Date().toISOString();
-            const clear = (id) => setDoc(doc(db, 'smart_customers', id), { familyGroupId: '', updatedAt: now }, { merge: true });
+            const clear = (id) => saveDoc(doc(db, 'smart_customers', id), { familyGroupId: '', updatedAt: now }, { merge: true });
             await Promise.all([clear(memberId), ...(remaining.length === 1 ? [clear(remaining[0].id)] : [])]);
             m.familyGroupId = '';
             if (remaining.length === 1) remaining[0].familyGroupId = '';  // 혼자 남으면 묶음도 해제
@@ -5005,6 +5050,7 @@
             else if (action === 'edit') { closeProfileCard(); openDetailModal(id); }
             else if (action === 'bizcard') toggleBizCard(id);
             else if (action === 'sendcard') sendBizCard(customerDB.find(x => x.id === id));
+            else if (action === 'cardrefresh') { cardCheckedAt.delete(id); checkCardLinks({ ids: [id] }); }
             else if (action === 'pushone') { const cc = customerDB.find(x => x.id === id); if (cc) openPushSheet({ id: cc.id, name: cc.name || '고객', cardId: cc.cardId }); }
         });
 
@@ -5016,7 +5062,7 @@
             if (!on && !(await customConfirm(`${c.name || '이 고객'}님의 '명함 설치' 표시를 뺄까요?`))) return;
             const upd = { bizCardInstalled: on, bizCardInstalledAt: on ? getTodayStr() : '', updatedAt: new Date().toISOString() };
             try {
-                await setDoc(doc(db, 'smart_customers', id), upd, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', id), upd, { merge: true });
                 Object.assign(c, upd);
                 if (currentProfileId === id) renderProfileCard();
                 renderDB();
@@ -5156,7 +5202,7 @@
             const saveBtn = document.getElementById('callResultSave');
             saveBtn.disabled = true;
             try {
-                await setDoc(doc(db, 'smart_customers', c.id), update, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', c.id), update, { merge: true });
                 closeCallResultSheet();
                 customAlert(`📝 '${r.label}'(으)로 기록했어요.${next ? `\n재연락 약속: ${formatShortDate(next)}` : ''}`);
             } catch (e) {
@@ -5223,7 +5269,7 @@
         async function saveRelayUrl(v) {
             appSettings = { ...appSettings, pushRelayUrl: v };
             try { localStorage.setItem('pushRelayUrl', v); } catch (e) { /* 무시 */ }
-            await setDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: v }, { merge: true });
+            await saveDoc(doc(db, 'smart_global', 'settings'), { pushRelayUrl: v }, { merge: true });
         }
         function pushRelayPw() { try { return localStorage.getItem('pushRelayPw') || ''; } catch (e) { return ''; } }
         function isHttpsUrl(u) { return /^https:\/\/\S+$/.test(String(u || '').trim()); }
@@ -5259,7 +5305,7 @@
         }
         async function saveHiddenPosters(list) {
             appSettings = { ...appSettings, pushHiddenPosters: list };
-            await setDoc(doc(db, 'smart_global', 'settings'), { pushHiddenPosters: list }, { merge: true });
+            await saveDoc(doc(db, 'smart_global', 'settings'), { pushHiddenPosters: list }, { merge: true });
         }
         async function visiblePosterUrls() {
             const all = await loadPosterUrls();
@@ -5674,7 +5720,7 @@
                 if (isAuto) {   // 자동 문자는 다음 맞추기 때 다시 예약되지 않도록 매장 공용으로 기억
                     const skip = [...smsSkipIds(), id].slice(-300);
                     appSettings = { ...appSettings, smsSkipIds: skip };
-                    await setDoc(doc(db, 'smart_global', 'settings'), { smsSkipIds: skip }, { merge: true });
+                    await saveDoc(doc(db, 'smart_global', 'settings'), { smsSkipIds: skip }, { merge: true });
                 }
                 if (smsListData && smsListData.queued) smsListData.queued = smsListData.queued.filter(x => x.id !== id);
                 renderSmsList();
@@ -5714,7 +5760,7 @@
             appSettings = { ...appSettings, ...data };
             document.getElementById('autoChSummary').textContent = autoChannelSummary();
             try {
-                await setDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
+                await saveDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
                 const saved = document.getElementById('smsAutoSaved');
                 saved.classList.remove('hidden');
                 clearTimeout(smsSavedTimer);
@@ -5731,7 +5777,7 @@
             e.target.value = v;
             appSettings = { ...appSettings, smsStoreName: v };
             try {
-                await setDoc(doc(db, 'smart_global', 'settings'), { smsStoreName: v }, { merge: true });
+                await saveDoc(doc(db, 'smart_global', 'settings'), { smsStoreName: v }, { merge: true });
                 const saved = document.getElementById('settingsStoreSaved');
                 saved.classList.remove('hidden');
                 clearTimeout(storeSavedTimer);
@@ -5743,7 +5789,7 @@
         function setSmsReadyText(text, tone) {
             const el = document.getElementById('smsReadyText');
             el.textContent = text;
-            el.className = `text-[13px] font-medium min-w-0 ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
+            el.className = `text-[13px] font-medium min-w-0 whitespace-pre-line ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
         }
         document.getElementById('smsCheckBtn').addEventListener('click', async () => {
             if (!pushRelayReady()) return setSmsReadyText("먼저 위의 '바로 보내기 연결'을 해주세요.", 'red');
@@ -5768,7 +5814,10 @@
             try {
                 await callSms('test', { to, text: `강CRM 자동 문자 테스트예요 ✅\n${fmtSmsWhen(Date.now())}` });
                 setSmsReadyText('✅ 보냈어요. 1~2분 안에 문자가 오면 성공이에요.', 'green');
-            } catch (e) { setSmsReadyText(`❌ ${e.message}`, 'red'); }
+            } catch (e) {
+                const hint = /SMSGATE/.test(e.message || '') ? '\n→ 문자 앱 화면의 Username을 SMSGATE_USER에, Password를 SMSGATE_PASS에 넣어주세요. (Device ID는 안 넣어요)' : '';
+                setSmsReadyText(`❌ ${e.message}${hint}`, 'red');
+            }
             finally { btn.disabled = false; }
         });
 
@@ -5782,7 +5831,7 @@
         async function ensureCardId(c) {
             if (c.cardId) return c.cardId;
             const id = newCardId();
-            await setDoc(doc(db, 'smart_customers', c.id), { cardId: id }, { merge: true });
+            await saveDoc(doc(db, 'smart_customers', c.id), { cardId: id }, { merge: true });
             c.cardId = id;
             return id;
         }
@@ -5794,7 +5843,7 @@
             try { cardId = await ensureCardId(c); }
             catch (e) { console.error(e); return customAlert('명함 링크를 만들지 못했어요. 인터넷 연결을 확인해주세요.'); }
             const text = cardSendMessage(c.name || '', cardLinkFor(cardId));
-            setDoc(doc(db, 'smart_customers', c.id), { bizCardSentAt: getTodayStr() }, { merge: true }).catch(err => console.error(err));
+            saveDoc(doc(db, 'smart_customers', c.id), { bizCardSentAt: getTodayStr() }, { merge: true }).catch(err => console.error(err));
             logActionAndCall(c.id, 'sms', c.phone, '명함', text);
         }
         // 📇 번호를 직접 넣어 명함 보내기 (강CRM에 없는 사람도)
@@ -5850,7 +5899,7 @@
                     return;
                 }
                 if (trashed) {   // 휴지통 고객 → 목록으로 되돌리고 보냄
-                    await setDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
                     closeCardSendSheet();
                     await sendBizCard({ ...trashed, deletedAt: '' });
                     return;
@@ -5860,7 +5909,7 @@
                     // 가망고객으로 저장 + 개인 링크 (명함 설치·알림 자동 확인)
                     const cardId = newCardId();
                     const staff = getStaffName();
-                    await setDoc(doc(db, 'smart_customers', digits), {
+                    await saveDoc(doc(db, 'smart_customers', digits), {
                         name, phone, salesStatus: '가망고객', visitDate: getTodayStr(), cardId, bizCardSentAt: getTodayStr(),
                         manager: staff, contactManager: staff, memo: '명함 보내기로 등록',
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
@@ -5894,11 +5943,13 @@
         const CARD_CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
         let cardChecking = false;
         const cardCheckedAt = new Map();
+        let cardCheckQueued = null;   // 확인 중에 [새로고침]을 누르면 끝나고 바로 한 번 더
         async function checkCardLinks({ ids = null } = {}) {
-            if (!pushRelayReady() || cardChecking || !db || !dbLoaded) return;
+            if (!pushRelayReady() || !db || !dbLoaded) return;
+            if (cardChecking) { if (ids) cardCheckQueued = [...new Set([...(cardCheckQueued || []), ...ids])]; return; }
             if (!ids && Date.now() - Number(localStorage.getItem('cardCheckAt') || 0) < CARD_CHECK_EVERY_MS) return;
             if (ids) {
-                ids = ids.filter(id => Date.now() - (cardCheckedAt.get(id) || 0) > 5 * 60 * 1000);   // 같은 고객은 5분에 한 번만
+                ids = ids.filter(id => Date.now() - (cardCheckedAt.get(id) || 0) > 20 * 1000);   // 같은 고객은 20초에 한 번만 (알림 켠 뒤 바로 확인되게)
                 if (!ids.length) return;
             }
             const targets = (ids ? customerDB.filter(c => ids.includes(c.id)) : customerDB).filter(c => c.cardId).slice(0, 120);
@@ -5916,7 +5967,7 @@
                         const upd = {};
                         if (r.found && c.bizCardInstalled !== true) { upd.bizCardInstalled = true; upd.bizCardInstalledAt = c.bizCardInstalledAt || getTodayStr(); }
                         if ((c.pushSubscribed === true) !== !!r.subscribed) upd.pushSubscribed = !!r.subscribed;
-                        if (Object.keys(upd).length) await setDoc(doc(db, 'smart_customers', c.id), upd, { merge: true });
+                        if (Object.keys(upd).length) await saveDoc(doc(db, 'smart_customers', c.id), upd, { merge: true });
                     }
                 }
                 if (!ids) localStorage.setItem('cardCheckAt', String(Date.now()));
@@ -5924,7 +5975,20 @@
                 // 예전 중계 서버는 이 요청을 몰라서 '내용이 비어 있어요'로 거절 (아무것도 안 나감) → 6시간 뒤에 다시
                 if (!ids) localStorage.setItem('cardCheckAt', String(Date.now()));
                 if (!/내용이 비어|^old$/.test(e.message || '')) console.error('명함 확인 실패:', e);
-            } finally { cardChecking = false; }
+            } finally {
+                cardChecking = false;
+                if (cardCheckQueued) { const q = cardCheckQueued; cardCheckQueued = null; q.forEach(id => cardCheckedAt.delete(id)); checkCardLinks({ ids: q }); }
+            }
+        }
+
+        // 최근 7일 안에 명함을 보냈는데 아직 알림이 확인 안 된 고객은 20분마다 확인 (나머지는 6시간마다)
+        function checkRecentCardLinks() {
+            if (!pushRelayReady() || !dbLoaded) return;
+            if (Date.now() - Number(localStorage.getItem('cardCheckRecentAt') || 0) < 20 * 60 * 1000) return;
+            const weekAgo = (() => { const t = new Date(); const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+            const ids = customerDB.filter(c => c.cardId && c.pushSubscribed !== true && String(c.bizCardSentAt || '') >= weekAgo).map(c => c.id).slice(0, 40);
+            localStorage.setItem('cardCheckRecentAt', String(Date.now()));
+            if (ids.length) checkCardLinks({ ids });
         }
 
         // 🏪 개통점 추천 목록: 설정의 매장 이름 + 고객들에게 이미 적힌 개통점 (많이 쓴 순)
@@ -5952,7 +6016,7 @@
         }
         async function saveBdayImage(url) {
             appSettings = { ...appSettings, smsBdayImage: url };
-            await setDoc(doc(db, 'smart_global', 'settings'), { smsBdayImage: url }, { merge: true });
+            await saveDoc(doc(db, 'smart_global', 'settings'), { smsBdayImage: url }, { merge: true });
             renderSmsBdayImage();
             if (pushRelayReady()) syncAutoSms({ force: true });
         }
@@ -6322,7 +6386,7 @@
         document.getElementById('pushAppId').addEventListener('change', async (e) => {
             const v = e.target.value.trim() || DEFAULT_PUSH_APP_ID;
             appSettings = { ...appSettings, pushAppId: v };
-            try { await setDoc(doc(db, 'smart_global', 'settings'), { pushAppId: v }, { merge: true }); }
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), { pushAppId: v }, { merge: true }); }
             catch (err) { console.error(err); customAlert('앱 ID를 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); }
         });
 
@@ -6382,7 +6446,7 @@
             const text = document.getElementById('aiSmsDraft').value;
             if (text === (c.smsDraft || '')) return;
             c.smsDraft = text;
-            try { await setDoc(doc(db, 'smart_customers', c.id), { smsDraft: text, updatedAt: new Date().toISOString() }, { merge: true }); }
+            try { await saveDoc(doc(db, 'smart_customers', c.id), { smsDraft: text, updatedAt: new Date().toISOString() }, { merge: true }); }
             catch (e) { console.error('문자 초안 저장 실패', e); }
         }
 
@@ -6739,15 +6803,15 @@ ${AI_TONES[aiSmsTone]}
                     // 번호 변경: 예전 문서 내용을 새 번호로 옮김 (예전 id 값은 빼고 저장 → 목록에서 옛 번호로 꼬이던 문제 수정)
                     const { id: _oldId, ...oldData } = customerDB.find(x => x.id === currentDetailId) || {};
                     const finalData = { ...oldData, ...updatedData, deletedAt: '' };
-                    await setDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
                     await deleteDoc(doc(db, 'smart_customers', currentDetailId));
                 } else {
-                    await setDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
                 }
                 detailDirty = false;
                 customAlert("상세 정보 및 약속이 저장되었습니다!");
                 closeDetailModalFunc();
-            } catch (e) { customAlert("업데이트 실패!"); }
+            } catch (e) { console.error(e); customAlert(`저장하지 못했어요.\n${koreanError(e, '저장')}`); }
         };
 
         document.getElementById('printDetailBtn').addEventListener('click', () => {
@@ -7102,7 +7166,7 @@ familyStr + `\n` +
                         updateData.combination = wiredComboVal;
                         updateData.welfare = '';
                     }
-                    await setDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', currentDetailId), updateData, { merge: true });
                     
                     const idx = customerDB.findIndex(x => x.id === currentDetailId);
                     if(idx > -1) {
@@ -7564,7 +7628,7 @@ familyStr + `\n` +
                     }
                     updateData.deletedAt = '';  // 휴지통에 있던 고객이면 복구
 
-                    await setDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', targetId), updateData, { merge: true });
                     
                     const idx = customerDB.findIndex(x => x.id === targetId);
                     if(idx > -1) {
