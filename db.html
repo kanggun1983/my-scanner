@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V69</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V70</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -466,6 +466,11 @@
                 <span id="pushStatsText" class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">푸시 알림</span>
                 <i class="fa-solid fa-chevron-right text-gray-400 text-xs flex-shrink-0" aria-hidden="true"></i>
             </button>
+            <button type="button" id="smsStatsRow" class="hidden w-full min-h-[44px] px-3 py-2 border-t border-gray-100 items-center gap-2 text-left hover:bg-gray-50">
+                <i class="fa-solid fa-comment-sms text-green-600 text-sm flex-shrink-0" aria-hidden="true"></i>
+                <span id="smsStatsText" class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">자동 문자</span>
+                <i class="fa-solid fa-chevron-right text-gray-400 text-xs flex-shrink-0" aria-hidden="true"></i>
+            </button>
             </div>
 
             <!-- 필터 (옆으로 넘겨서 더 보기) -->
@@ -612,6 +617,30 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setSmsTitle">
+                <h3 id="setSmsTitle" class="text-[13px] font-bold text-gray-600 pl-1">자동 문자 <span class="font-normal">(매장 폰으로 무료 발송)</span></h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+                    <p class="text-xs text-gray-600 leading-relaxed">매장 폰의 'SMS Gateway for Android' 앱이 정해진 시간에 문자를 대신 보내요. 폰 요금제의 기본 문자로 나가서 추가 비용이 없어요. 위의 '바로 보내기 연결'이 먼저 돼 있어야 해요.</p>
+                    <div class="flex items-center justify-between gap-3">
+                        <span id="smsReadyText" role="status" class="text-[13px] font-medium text-gray-600 min-w-0">[연결 확인]을 눌러주세요</span>
+                        <button type="button" id="smsCheckBtn" class="h-11 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex-shrink-0 disabled:opacity-40">연결 확인</button>
+                    </div>
+                    <button type="button" id="smsTestBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 disabled:opacity-40">테스트 문자 보내기</button>
+                    <div class="border-t border-gray-100 pt-3 space-y-3">
+                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoPromOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>약속일 안내 문자<span class="block text-xs font-normal text-gray-500">요금제 변경·부가서비스·보험 해지 약속일 아침에 고객에게 자동 안내</span></span></label>
+                        <textarea id="smsTplProm" rows="3" aria-label="약속일 안내 문자 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
+                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoBdayOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>생일 축하 문자<span class="block text-xs font-normal text-gray-500">생일 아침에 자동 발송 (마케팅 거부 고객은 빼요)</span></span></label>
+                        <textarea id="smsTplBday" rows="3" aria-label="생일 축하 문자 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="text-xs font-bold text-gray-600">보내는 시각<input type="time" id="smsSendTime" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
+                            <label class="text-xs font-bold text-gray-600">매장 이름<input type="text" id="smsStoreName" placeholder="예: LGU+ 진천점" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
+                        </div>
+                        <p class="text-xs text-gray-500 leading-relaxed">문구에 <b>{이름} {매장} {약속} {단말기}</b>를 넣으면 고객마다 바꿔서 보내요. 행사·할인 문구를 넣으면 광고 문자라서 (광고) 표시와 수신거부 안내가 필요해요.</p>
+                        <p id="smsAutoSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
+                    </div>
+                    <button type="button" id="smsListBtn" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800">예약된 문자 보기</button>
+                </div>
+            </section>
             <section class="space-y-2" aria-labelledby="setTrashTitle">
                 <h3 id="setTrashTitle" class="text-[13px] font-bold text-gray-600 pl-1">휴지통 <span id="trashCount" class="font-medium"></span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -623,7 +652,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V69</span>
+                    <span class="text-sm text-gray-600">V70</span>
                 </div>
             </section>
         </div>
@@ -701,6 +730,28 @@
                 <button type="button" id="aiSmsCopyBtn" class="h-12 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-[15px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>복사</button>
                 <button type="button" id="aiSmsSendBtn" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>문자 보내기</button>
             </div>
+            <button type="button" id="aiSmsSchedToggle" class="hidden h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 items-center justify-center gap-1.5"><i class="fa-regular fa-clock"></i>예약 보내기 (매장 폰으로 자동 발송)</button>
+            <div id="aiSmsSchedBox" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-2">
+                <label for="aiSmsSchedAt" class="block text-[13px] font-bold text-gray-700">보낼 날짜·시간</label>
+                <input type="datetime-local" id="aiSmsSchedAt" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">
+                <p class="text-xs text-gray-600">밤 9시~아침 9시로 정하면 아침 9시 이후에 보내요.</p>
+                <button type="button" id="aiSmsSchedBtn" class="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold disabled:opacity-40">이 시간에 예약하기</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- 📨 자동 문자 목록 (보낼 예정 · 최근 보낸 문자) -->
+    <div id="smsListSheet" class="fixed inset-0 z-[65] hidden items-end sm:items-center justify-center bg-black/50">
+        <section aria-labelledby="smsListTitle" class="sheet-in w-full sm:max-w-md max-h-[88vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-3" style="padding-bottom: max(20px, env(safe-area-inset-bottom));">
+            <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 pl-1 pt-1">
+                    <h2 id="smsListTitle" class="text-lg font-bold text-gray-900">자동 문자</h2>
+                    <p id="smsListSub" class="text-sm text-gray-600">매장 폰으로 보내는 예약 문자</p>
+                </div>
+                <button type="button" id="smsListClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div id="smsListBody" class="space-y-2"></div>
         </section>
     </div>
 
@@ -3177,6 +3228,7 @@
             const monthlyActLabel = document.getElementById('monthlyActLabel');
             if (monthlyActLabel) monthlyActLabel.textContent = `${t.getMonth() + 1}월 개통`;
             loadPushStats();
+            syncAutoSms();
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
             const listSig = `${currentFilter}|${query}|${currentSort}`;
@@ -3928,6 +3980,7 @@
             if (document.activeElement !== relayEl) relayEl.value = pushRelayUrl();
             const pwEl = document.getElementById('pushRelayPw');
             if (document.activeElement !== pwEl) pwEl.value = pushRelayPw();
+            renderSmsSettings();
         }
         let staffSavedTimer = null;
         document.getElementById('settingsStaffName').addEventListener('change', (e) => {
@@ -5263,6 +5316,297 @@
             customAlert(`📣 ${new Date().getMonth() + 1}월 푸시 ${sum.count}건 · 보냄 ${sum.delivered.toLocaleString()}명 · 클릭 ${sum.clicks.toLocaleString()}${sum.scheduled ? ` · 예약 ${sum.scheduled}건` : ''}\n\n최근 보낸 알림\n${lines.join('\n') || '아직 보낸 알림이 없어요.'}\n\n※ '보냄'은 알림이 전달된 사람 수예요.`);
         });
 
+        // ═════════════════════════════════════════════
+        // 📨 자동 문자 — 매장 폰(SMS Gateway for Android 앱)으로 무료 발송
+        //   · 강CRM이 '무엇을 언제 보낼지' 정해서 중계 서버에 예약해 두면
+        //   · 중계 서버가 10분마다 확인해서 시간이 된 문자를 매장 폰으로 보내요 (강CRM을 안 켜도 발송)
+        //   · 자동 문자(약속일 안내·생일 축하)는 14일 앞까지 미리 예약하고, 약속이 바뀌거나 끝나면 알아서 취소
+        // ═════════════════════════════════════════════
+        const SMS_AUTO_DEFAULTS = {
+            smsAutoPromOn: false, smsAutoBdayOn: false, smsSendTime: '10:00', smsStoreName: '',
+            smsTplProm: '안녕하세요 {이름}님, {매장}입니다 😊\n오늘부터 {약속} 가능한 날이에요.\n편하실 때 들르시거나 연락 주시면 바로 도와드릴게요!',
+            smsTplBday: '{이름}님, 생일 진심으로 축하드려요 🎂\n행복한 하루 보내세요!\n- {매장} 드림'
+        };
+        const SMS_AUTO_WINDOW_DAYS = 14;
+        const SMS_SYNC_EVERY_MS = 3 * 60 * 60 * 1000;
+        const SMS_PROMISE_TYPES = [
+            { key: 'Plan', label: '요금제 변경' },
+            { key: 'Addon', label: '부가서비스 해지' },
+            { key: 'Ins', label: '보험 해지' }
+        ];
+        let smsSyncing = false;
+        let smsListData = null;
+        let smsListHistoryPushed = false;
+        const smsListSheet = document.getElementById('smsListSheet');
+        function smsSetting(key) { const v = appSettings[key]; return v === undefined || v === null || v === '' && key.startsWith('smsTpl') ? SMS_AUTO_DEFAULTS[key] : v; }
+        function smsMobileDigits(v) { const d = String(v || '').replace(/[^0-9]/g, ''); return /^01[016789]\d{7,8}$/.test(d) ? d : ''; }
+        function smsIntl(v) { const d = smsMobileDigits(v); return d ? '+82' + d.slice(1) : ''; }
+        function fillSmsTemplate(tpl, c, extra = {}) {
+            const map = { '이름': (c.name || '고객').trim(), '매장': String(smsSetting('smsStoreName') || '').trim() || '저희 매장', '단말기': String(c.device || '').trim(), ...extra };
+            return String(tpl || '').replace(/\{(이름|매장|약속|단말기)\}/g, (m, k) => map[k] !== undefined ? map[k] : '').trim();
+        }
+        function smsSendAt(dateStr, time) {
+            const d = parseDateString(dateStr);
+            if (!d || isNaN(d.getTime())) return 0;
+            const [hh, mm] = String(time || '10:00').split(':').map(n => parseInt(n, 10));
+            const at = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh || 10, mm || 0, 0).getTime();
+            return Math.max(at, Date.now() + 60 * 1000);   // 오늘 시간이 이미 지났으면 곧바로(다음 확인 때) 보냄
+        }
+        function smsSkipIds() { return new Set(Array.isArray(appSettings.smsSkipIds) ? appSettings.smsSkipIds : []); }
+        // 앞으로 14일 안에 보내야 할 자동 문자 목록 (고객 데이터로 계산)
+        function buildAutoSmsItems(now = new Date()) {
+            const items = [];
+            const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn');
+            if (!promOn && !bdayOn) return items;
+            const today = getTodayStr();
+            const last = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
+            const lastStr = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
+            const time = smsSetting('smsSendTime');
+            const skip = smsSkipIds();
+            customerDB.forEach(c => {
+                const phone = smsMobileDigits(c.phone);
+                if (!phone || c.deletedAt) return;
+                const safeId = String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+                if (promOn) SMS_PROMISE_TYPES.forEach(t => {
+                    const date = String(c[`prom${t.key}Date`] || '');
+                    if (date.length !== 10 || c[`prom${t.key}Chk`] || date < today || date > lastStr) return;
+                    const id = `ap-${safeId}-${t.key}-${date.replace(/-/g, '')}`;
+                    if (skip.has(id)) return;
+                    items.push({ id, to: phone, name: c.name || '', auto: true, sendAt: smsSendAt(date, time), text: fillSmsTemplate(smsSetting('smsTplProm'), c, { '약속': t.label }) });
+                });
+                if (bdayOn && !c.marketingDeny) {
+                    const left = getDaysUntilBirthday(c.dob);
+                    if (left === null || left > SMS_AUTO_WINDOW_DAYS) return;
+                    const bd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + left);
+                    const dateStr = `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, '0')}-${String(bd.getDate()).padStart(2, '0')}`;
+                    const id = `ab-${safeId}-${bd.getFullYear()}`;
+                    if (skip.has(id)) return;
+                    items.push({ id, to: phone, name: c.name || '', auto: true, sendAt: smsSendAt(dateStr, time), text: fillSmsTemplate(smsSetting('smsTplBday'), c) });
+                }
+            });
+            return items;
+        }
+        async function callSms(action, extra = {}) {
+            try { return await callPushRelay({ sms: action, ...extra }); }
+            catch (e) {
+                // 예전 중계 서버는 문자 요청을 몰라서 '내용이 비어 있어요'로 거절함 (아무것도 안 나감)
+                if (/내용이 비어/.test(e.message || '')) throw new Error('중계 서버 코드를 새 버전(5)으로 바꿔주세요. (PC에서 [</> 코드] → 붙여넣기 → [배포])');
+                throw e;
+            }
+        }
+        function saveSmsStats(list) {
+            try { localStorage.setItem('smsStatsCache', JSON.stringify({ at: Date.now(), queued: (list.queued || []).length, todaySent: list.todaySent || 0, ready: !!list.ready })); } catch (e) { /* 무시 */ }
+        }
+        function renderSmsStats() {
+            const row = document.getElementById('smsStatsRow'), text = document.getElementById('smsStatsText');
+            if (!row || !text) return;
+            let c = null;
+            try { c = JSON.parse(localStorage.getItem('smsStatsCache') || 'null'); } catch (e) { c = null; }
+            const on = pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || (c && c.queued > 0));
+            row.classList.toggle('hidden', !on);
+            row.classList.toggle('flex', !!on);
+            if (!on) return;
+            text.innerHTML = c ? `<b class="font-bold text-gray-900">예약 문자 ${c.queued}건</b> · 오늘 보냄 ${c.todaySent}건${c.ready === false ? ' · <span class="text-red-600">매장 폰 연결 확인 필요</span>' : ''}` : '자동 문자';
+        }
+        // 예약 목록을 고객 데이터와 맞추기 (없는 건 예약, 바뀐 건 다시 예약, 필요 없어진 자동 문자는 취소)
+        async function syncAutoSms({ force = false } = {}) {
+            if (!pushRelayReady() || smsSyncing || !db || !dbLoaded) return;
+            const last = Number(localStorage.getItem('smsAutoSyncAt') || 0);
+            if (!force && Date.now() - last < SMS_SYNC_EVERY_MS) return renderSmsStats();
+            const wantAny = smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn');
+            let cached = null;
+            try { cached = JSON.parse(localStorage.getItem('smsStatsCache') || 'null'); } catch (e) { cached = null; }
+            if (!wantAny && !force && !(cached && cached.queued > 0)) return renderSmsStats();   // 자동 문자를 안 쓰면 서버에 묻지 않음
+            smsSyncing = true;
+            try {
+                const list = await callSms('list');
+                const queued = Array.isArray(list.queued) ? list.queued : [];
+                const byId = new Map(queued.map(q => [q.id, q]));
+                const desired = buildAutoSmsItems();
+                const desiredIds = new Set(desired.map(d => d.id));
+                const toAdd = desired.filter(d => { const q = byId.get(d.id); return !q || q.to !== smsIntl(d.to) || q.preview !== d.text.slice(0, 40) || Number(q.sendAt) !== d.sendAt && Math.abs(Number(q.sendAt) - d.sendAt) > 5 * 60 * 1000; });
+                const toCancel = queued.filter(q => q.auto && !desiredIds.has(q.id)).map(q => q.id);
+                for (let i = 0; i < toAdd.length; i += 50) await callSms('schedule', { items: toAdd.slice(i, i + 50) });
+                if (toCancel.length) await callSms('cancel', { ids: toCancel });
+                localStorage.setItem('smsAutoSyncAt', String(Date.now()));
+                saveSmsStats({ ...list, queued: queued.filter(q => !toCancel.includes(q.id)).concat(toAdd.filter(d => !byId.has(d.id))) });
+            } catch (e) {
+                console.error('자동 문자 맞추기 실패:', e);
+            } finally {
+                smsSyncing = false;
+                renderSmsStats();
+            }
+        }
+        function fmtSmsWhen(ms) {
+            if (!ms) return '';
+            const d = new Date(Number(ms));
+            return `${d.getMonth() + 1}/${d.getDate()}(${'일월화수목금토'[d.getDay()]}) ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+        function renderSmsList() {
+            const body = document.getElementById('smsListBody');
+            const L = smsListData;
+            if (!L) { body.innerHTML = '<p class="text-sm text-gray-500 py-6 text-center">불러오는 중…</p>'; return; }
+            if (L.error) { body.innerHTML = `<p class="text-sm text-red-700 py-4">${escapeHtml(L.error)}</p>`; return; }
+            document.getElementById('smsListSub').textContent = `보낼 예정 ${L.queued.length}건 · 오늘 보냄 ${L.todaySent || 0}건`;
+            const q = L.queued.map(x => `<div class="flex items-start gap-2 p-3 rounded-xl border border-gray-200 bg-white">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[13px] font-bold text-gray-900">${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sendAt))}</span> ${x.auto ? '<span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 rounded px-1">자동</span>' : ''}</p>
+                        <p class="text-[13px] text-gray-700 truncate">${escapeHtml(x.preview || '')}</p>
+                    </div>
+                    <button type="button" data-sms-cancel="${escapeHtml(x.id)}" data-sms-auto="${x.auto ? 1 : 0}" class="flex-shrink-0 h-9 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-700 bg-white">취소</button>
+                </div>`).join('') || '<p class="text-sm text-gray-500 py-2">보낼 예정인 문자가 없어요.</p>';
+            const sent = (L.sent || []).slice(0, 20).map(x => `<div class="p-3 rounded-xl ${x.ok ? 'bg-gray-50' : 'bg-red-50'}">
+                    <p class="text-[13px] font-bold text-gray-900">${x.ok ? '✅' : '❌'} ${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span></p>
+                    <p class="text-[13px] text-gray-700 truncate">${escapeHtml(x.preview || '')}</p>
+                    ${x.ok ? '' : `<p class="text-xs text-red-700">${escapeHtml(x.error || '보내지 못했어요')}</p>`}
+                </div>`).join('') || '<p class="text-sm text-gray-500 py-2">아직 보낸 문자가 없어요.</p>';
+            body.innerHTML = `${L.ready === false ? '<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">매장 폰 연결이 안 돼 있어요. 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.</p>' : ''}
+                <p class="text-[13px] font-bold text-gray-700 pl-1">보낼 예정</p>${q}
+                <p class="text-[13px] font-bold text-gray-700 pl-1 pt-2">최근 보낸 문자</p>${sent}`;
+        }
+        async function openSmsListSheet() {
+            smsListData = null;
+            renderSmsList();
+            smsListSheet.style.display = 'flex';
+            if (!smsListHistoryPushed) { history.pushState({ smsList: true }, ''); smsListHistoryPushed = true; }
+            try {
+                const list = await callSms('list');
+                smsListData = { queued: list.queued || [], sent: list.sent || [], todaySent: list.todaySent || 0, ready: list.ready };
+                saveSmsStats(list);
+                renderSmsStats();
+            } catch (e) { smsListData = { error: e.message }; }
+            renderSmsList();
+        }
+        function closeSmsListSheet(fromPopState = false) {
+            if (smsListSheet.style.display !== 'flex') return;
+            smsListSheet.style.display = 'none';
+            if (smsListHistoryPushed) { smsListHistoryPushed = false; if (!fromPopState) historyBackSilently(); }
+        }
+        document.getElementById('smsListClose').addEventListener('click', () => closeSmsListSheet());
+        smsListSheet.addEventListener('click', (e) => { if (e.target === smsListSheet) closeSmsListSheet(); });
+        document.getElementById('smsListBtn').addEventListener('click', openSmsListSheet);
+        document.getElementById('smsStatsRow').addEventListener('click', openSmsListSheet);
+        document.getElementById('smsListBody').addEventListener('click', async (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-sms-cancel]') : null;
+            if (!b) return;
+            const id = b.dataset.smsCancel, isAuto = b.dataset.smsAuto === '1';
+            if (!(await customConfirm(isAuto ? '이 자동 문자를 취소할까요?\n(이 고객의 이번 안내는 다시 예약되지 않아요)' : '이 예약 문자를 취소할까요?'))) return;
+            try {
+                await callSms('cancel', { ids: [id] });
+                if (isAuto) {   // 자동 문자는 다음 맞추기 때 다시 예약되지 않도록 매장 공용으로 기억
+                    const skip = [...smsSkipIds(), id].slice(-300);
+                    appSettings = { ...appSettings, smsSkipIds: skip };
+                    await setDoc(doc(db, 'smart_global', 'settings'), { smsSkipIds: skip }, { merge: true });
+                }
+                if (smsListData && smsListData.queued) smsListData.queued = smsListData.queued.filter(x => x.id !== id);
+                renderSmsList();
+            } catch (err) { customAlert(err.message || '취소하지 못했어요.'); }
+        });
+
+        // 설정 화면
+        function renderSmsSettings() {
+            document.getElementById('smsAutoPromOn').checked = !!smsSetting('smsAutoPromOn');
+            document.getElementById('smsAutoBdayOn').checked = !!smsSetting('smsAutoBdayOn');
+            [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime'], ['smsStoreName', 'smsStoreName']].forEach(([id, key]) => {
+                const el = document.getElementById(id);
+                if (document.activeElement !== el) el.value = smsSetting(key) || '';
+            });
+        }
+        let smsSavedTimer = null;
+        async function saveSmsSettings() {
+            const data = {
+                smsAutoPromOn: document.getElementById('smsAutoPromOn').checked,
+                smsAutoBdayOn: document.getElementById('smsAutoBdayOn').checked,
+                smsTplProm: document.getElementById('smsTplProm').value.trim() || SMS_AUTO_DEFAULTS.smsTplProm,
+                smsTplBday: document.getElementById('smsTplBday').value.trim() || SMS_AUTO_DEFAULTS.smsTplBday,
+                smsSendTime: /^\d{2}:\d{2}$/.test(document.getElementById('smsSendTime').value) ? document.getElementById('smsSendTime').value : '10:00',
+                smsStoreName: document.getElementById('smsStoreName').value.trim()
+            };
+            appSettings = { ...appSettings, ...data };
+            try {
+                await setDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
+                const saved = document.getElementById('smsAutoSaved');
+                saved.classList.remove('hidden');
+                clearTimeout(smsSavedTimer);
+                smsSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000);
+            } catch (e) { console.error(e); customAlert('설정을 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); return; }
+            if (pushRelayReady()) syncAutoSms({ force: true });
+            renderSmsStats();
+        }
+        ['smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsStoreName'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        function setSmsReadyText(text, tone) {
+            const el = document.getElementById('smsReadyText');
+            el.textContent = text;
+            el.className = `text-[13px] font-medium min-w-0 ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
+        }
+        document.getElementById('smsCheckBtn').addEventListener('click', async () => {
+            if (!pushRelayReady()) return setSmsReadyText("먼저 위의 '바로 보내기 연결'을 해주세요.", 'red');
+            const btn = document.getElementById('smsCheckBtn');
+            btn.disabled = true;
+            setSmsReadyText('확인하는 중…', 'gray');
+            try {
+                const st = await callSms('status');
+                if (st.ready) setSmsReadyText('✅ 매장 폰 연결됨', 'green');
+                else setSmsReadyText(!st.gateway ? '❌ 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.' : '❌ 저장소(IMAGES) 연결을 확인해주세요.', 'red');
+            } catch (e) { setSmsReadyText(`❌ ${e.message}`, 'red'); }
+            finally { btn.disabled = false; }
+        });
+        document.getElementById('smsTestBtn').addEventListener('click', async () => {
+            if (!pushRelayReady()) return setSmsReadyText("먼저 위의 '바로 보내기 연결'을 해주세요.", 'red');
+            const to = prompt('테스트 문자를 받을 휴대폰 번호 (본인 번호 추천)', '');
+            if (to === null) return;
+            if (!smsMobileDigits(to)) return setSmsReadyText('❌ 휴대폰 번호(010…)를 확인해주세요.', 'red');
+            const btn = document.getElementById('smsTestBtn');
+            btn.disabled = true;
+            setSmsReadyText('매장 폰으로 보내는 중…', 'gray');
+            try {
+                await callSms('test', { to, text: `강CRM 자동 문자 테스트예요 ✅\n${fmtSmsWhen(Date.now())}` });
+                setSmsReadyText('✅ 보냈어요. 1~2분 안에 문자가 오면 성공이에요.', 'green');
+            } catch (e) { setSmsReadyText(`❌ ${e.message}`, 'red'); }
+            finally { btn.disabled = false; }
+        });
+
+        // AI문자 창의 [예약 보내기]
+        function defaultSmsSchedValue() {
+            const t = new Date();
+            const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1, 10, 0);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}T10:00`;
+        }
+        function resetAiSmsSchedule() {
+            const ready = pushRelayReady();
+            const toggle = document.getElementById('aiSmsSchedToggle');
+            toggle.classList.toggle('hidden', !ready);
+            toggle.classList.toggle('flex', ready);
+            document.getElementById('aiSmsSchedBox').classList.add('hidden');
+            document.getElementById('aiSmsSchedAt').value = defaultSmsSchedValue();
+        }
+        document.getElementById('aiSmsSchedToggle').addEventListener('click', () => {
+            document.getElementById('aiSmsSchedBox').classList.toggle('hidden');
+        });
+        document.getElementById('aiSmsSchedBtn').addEventListener('click', async () => {
+            const c = customerDB.find(x => x.id === aiSmsCustomerId);
+            if (!c) return;
+            const text = document.getElementById('aiSmsDraft').value.trim();
+            if (!text) return setAiSmsStatus('보낼 문자를 먼저 써주세요.', 'red');
+            if (!smsMobileDigits(c.phone)) return setAiSmsStatus('이 고객은 휴대폰 번호가 없어서 예약할 수 없어요.', 'red');
+            const v = document.getElementById('aiSmsSchedAt').value;
+            const at = v ? new Date(v).getTime() : 0;
+            if (!at || isNaN(at)) return setAiSmsStatus('보낼 날짜·시간을 골라주세요.', 'red');
+            if (at < Date.now() - 60 * 1000) return setAiSmsStatus('지난 시간은 고를 수 없어요.', 'red');
+            if (c.marketingDeny && !(await customConfirm('이 고객은 마케팅 수신 거부예요.\n광고가 아닌 안내 문자일 때만 보내주세요. 예약할까요?'))) return;
+            const btn = document.getElementById('aiSmsSchedBtn');
+            btn.disabled = true;
+            try {
+                const r = await callSms('schedule', { items: [{ to: c.phone, text, sendAt: Math.max(at, Date.now() + 60 * 1000), name: c.name || '' }] });
+                if (!r.added) throw new Error((r.errors && r.errors[0]) || '예약하지 못했어요.');
+                saveAiSmsDraft();
+                setAiSmsStatus(`예약했어요! ${fmtSmsWhen(at)}에 매장 폰으로 보내요.`, 'green');
+                document.getElementById('aiSmsSchedBox').classList.add('hidden');
+                localStorage.removeItem('smsAutoSyncAt');
+            } catch (e) { setAiSmsStatus(e.message || '예약하지 못했어요.', 'red'); }
+            finally { btn.disabled = false; }
+        });
+
         function renderPushSendMode() {
             const connected = isHttpsUrl(pushRelayUrl()) && !!pushRelayPw();
             document.getElementById('pushSendNowBtn').classList.toggle('hidden', !connected);
@@ -5525,7 +5869,7 @@
             try {
                 const data = await callPushRelay({ test: true });
                 const photoNote = data.photo === false ? ' (사진 저장소는 아직 연결 안 됨 — Cloudflare에서 IMAGES 바인딩을 확인해주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
-                const verNote = (data.version || 0) < 4 ? ' 중계 서버 코드를 새 버전으로 바꾸면 사진 지우기·푸시 실적도 돼요.' : '';
+                const verNote = (data.version || 0) < 5 ? ' 중계 서버 코드를 새 버전으로 바꾸면 사진 지우기·푸시 실적·자동 문자도 돼요.' : '';
                 setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}${verNote}${saveWarn}`, data.photo === false || saveWarn ? 'gray' : 'green');
                 savePushStatsCache(null);
                 loadPushStats(true);
@@ -5587,6 +5931,7 @@
             document.getElementById('aiSmsSendBtn').disabled = !hasPhone;
             aiSmsLastType = null;
             resetAiVariants();
+            resetAiSmsSchedule();
             setAiSmsStatus(geminiApiKey ? '' : '설정 탭에서 AI 키를 넣어야 AI가 문자를 써줄 수 있어요. (직접 쓰는 건 가능)', 'red');
             aiSmsSheet.style.display = 'flex';
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 이 창만 닫히도록
@@ -6919,6 +7264,7 @@ familyStr + `\n` +
             if (callResultSheet.style.display === 'flex') return closeCallResultSheet(true);
             if (aiSmsSheet.style.display === 'flex') return closeAiSmsSheet(true);
             if (pushSheet.style.display === 'flex') return closePushSheet(true);
+            if (smsListSheet.style.display === 'flex') return closeSmsListSheet(true);
             if (actionSheet.style.display === 'flex') return closeActionSheet(true);
             for (const id of BACK_MODALS) {
                 const el = document.getElementById(id);
