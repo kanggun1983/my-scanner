@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V77</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V78</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -695,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V77</span>
+                    <span class="text-sm text-gray-600">V78</span>
                 </div>
             </section>
         </div>
@@ -5434,6 +5434,7 @@
         // 📊 이달 푸시 실적 (OneSignal에서 직접 보낸 것도 포함 · 10분마다 새로 불러옴)
         const PUSH_STATS_TTL = 10 * 60 * 1000;
         let pushStatsLoading = false;
+        let pushStatsFailAt = 0;
         function pushRelayReady() { return isHttpsUrl(pushRelayUrl()) && !!pushRelayPw(); }
         function loadPushStatsCache() { try { const c = JSON.parse(localStorage.getItem('pushStatsCache') || 'null'); return c && typeof c === 'object' ? c : null; } catch (e) { return null; } }
         function savePushStatsCache(c) { try { localStorage.setItem('pushStatsCache', JSON.stringify(c)); } catch (e) { /* 무시 */ } }
@@ -5471,6 +5472,7 @@
             if (!pushRelayReady() || pushStatsLoading || !db) return renderPushStats();
             const cache = loadPushStatsCache();
             if (!force && cache && Date.now() - (cache.at || 0) < PUSH_STATS_TTL) return renderPushStats();
+            if (!force && Date.now() - pushStatsFailAt < 10 * 60 * 1000) return renderPushStats();   // 방금 실패했으면 10분 쉬기
             pushStatsLoading = true;
             renderPushStats();
             try {
@@ -5480,7 +5482,7 @@
             } catch (e) {
                 // 예전 중계 서버는 '실적' 요청을 몰라서 '내용이 비어 있어요'로 거절함 (알림이 나가지는 않음)
                 if (/내용이 비어|^old$/.test(e.message || '')) savePushStatsCache({ at: Date.now(), error: 'old' });
-                else console.error('푸시 실적 불러오기 실패:', e);
+                else { console.error('푸시 실적 불러오기 실패:', e); pushStatsFailAt = Date.now(); }
             } finally {
                 pushStatsLoading = false;
                 renderPushStats();
@@ -5654,6 +5656,7 @@
             if (!pushRelayReady() || smsSyncing || !db || !dbLoaded) return;
             const last = Number(localStorage.getItem('smsAutoSyncAt') || 0);
             if (!force && Date.now() - last < SMS_SYNC_EVERY_MS) return renderSmsStats();
+            if (!force && Date.now() - Number(localStorage.getItem('smsAutoSyncFailAt') || 0) < 10 * 60 * 1000) return renderSmsStats();   // 방금 실패했으면 10분 쉬기
             const wantAny = smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn');
             let cached = null;
             try { cached = JSON.parse(localStorage.getItem('smsStatsCache') || 'null'); } catch (e) { cached = null; }
@@ -5670,9 +5673,11 @@
                 for (let i = 0; i < toAdd.length; i += 50) await callSms('schedule', { items: toAdd.slice(i, i + 50) });
                 if (toCancel.length) await callSms('cancel', { ids: toCancel });
                 localStorage.setItem('smsAutoSyncAt', String(Date.now()));
+                localStorage.removeItem('smsAutoSyncFailAt');
                 saveSmsStats({ ...list, queued: queued.filter(q => !toCancel.includes(q.id)).concat(toAdd.filter(d => !byId.has(d.id))) });
             } catch (e) {
                 console.error('자동 문자 맞추기 실패:', e);
+                localStorage.setItem('smsAutoSyncFailAt', String(Date.now()));
             } finally {
                 smsSyncing = false;
                 renderSmsStats();
