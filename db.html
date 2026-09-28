@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V83</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V84</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -457,7 +457,7 @@
                     <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
                 </div>
                 <div class="px-3 py-2 flex flex-col min-w-0">
-                    <span class="text-xs font-medium text-gray-600">오늘 연락</span>
+                    <span class="text-xs font-medium text-gray-600 leading-snug">오늘 연락<span id="statsCallRes" class="font-bold text-indigo-700"></span></span>
                     <span id="statsTodayText" class="text-[17px] font-bold text-gray-900 leading-snug">OB 0 / 문자 0</span>
                     <span id="statsMonthText" class="text-xs text-gray-600 truncate">이번 달 OB 0 / 문자 0</span>
                 </div>
@@ -695,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V83</span>
+                    <span class="text-sm text-gray-600">V84</span>
                 </div>
             </section>
         </div>
@@ -784,6 +784,7 @@
     </div>
 
     <datalist id="openStoreList"></datalist>
+    <datalist id="visitPurposeList"><option value="단순CS"></option><option value="휴대폰문의"></option><option value="변경업무"></option><option value="요금수납"></option></datalist>
 
     <!-- 📇 번호를 직접 넣어 명함 보내기 (등록 안 된 사람도) -->
     <div id="cardSendSheet" class="fixed inset-0 z-[65] hidden items-end sm:items-center justify-center bg-black/50">
@@ -803,6 +804,10 @@
             <div>
                 <label for="cardSendName" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">이름 <span class="font-normal text-gray-500">(선택)</span></label>
                 <input type="text" id="cardSendName" autocomplete="off" placeholder="예: 홍길동" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-300">
+            </div>
+            <div>
+                <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">방문 목적 <span class="font-normal text-gray-500">(선택 · 여러 개 가능)</span></p>
+                <div id="cardSendPurposes" class="flex flex-wrap gap-2"></div>
             </div>
             <p id="cardSendMatch" class="hidden text-[13px] font-medium text-indigo-800 bg-indigo-50 rounded-xl px-3 py-2"></p>
             <label id="cardSendSaveRow" class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="cardSendSave" checked class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>강CRM에 고객으로 저장 <span class="font-normal text-gray-500">(영업상태: 미정)</span><span class="block text-xs font-normal text-gray-500">저장하면 개인 링크로 보내서, 명함을 열었는지·알림을 켰는지 자동으로 확인돼요</span></span></label>
@@ -1145,6 +1150,10 @@
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">방문/스캔일</span>
                         <input type="date" id="modalVisitDate" class="modal-input text-xs sm:text-sm">
+                    </div>
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
+                        <label for="modalVisitPurpose" class="block text-[10px] sm:text-xs text-gray-500 mb-1">방문 목적</label>
+                        <input type="text" id="modalVisitPurpose" list="visitPurposeList" autocomplete="off" class="modal-input text-xs sm:text-sm" placeholder="예: 요금수납">
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500 relative">
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">모바일 개통일 (D+일)</span>
@@ -1973,9 +1982,35 @@
             const todayEl = document.getElementById('statsTodayText');
             const monthEl = document.getElementById('statsMonthText');
             if (todayEl) todayEl.textContent = `OB ${dOB} / 문자 ${dSMS}`;
+            // 📞 오늘 통화 결과 (통화 결과 창에서 고른 것) → '오늘 연락' 옆에 '· 부재 2 · 통화 1'처럼
+            const resEl = document.getElementById('statsCallRes');
+            if (resEl) {
+                const today = globalStats.resDate === todayStr;
+                const parts = CALL_RESULT_STAT_KEYS.map(([key, field, short]) => [short, today ? (Number(globalStats[field]) || 0) : 0]).filter(([, n]) => n > 0);
+                resEl.textContent = parts.length ? ' · ' + parts.map(([short, n]) => `${short} ${n}`).join(' · ') : '';
+            }
             if (monthEl) monthEl.textContent = `${now.getMonth() + 1}월 OB ${mOB} / 문자 ${mSMS}`;
         }
 
+        // 통화 결과별 오늘 숫자 (매장 공용 · 날이 바뀌면 0부터)
+        const CALL_RESULT_STAT_KEYS = [['missed', 'resMissed', '부재'], ['done', 'resDone', '통화'], ['interest', 'resInterest', '관심'], ['visit', 'resVisit', '방문약속'], ['refuse', 'resRefuse', '거부']];
+        async function saveCallResultStat(key) {
+            if (!db) return;
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const row = CALL_RESULT_STAT_KEYS.find(r => r[0] === key);
+            if (!row) return;
+            const statsRef = doc(db, 'smart_global', 'stats');
+            try {
+                if (globalStats.resDate !== todayStr) {
+                    const fresh = { resDate: todayStr };
+                    CALL_RESULT_STAT_KEYS.forEach(([k, f]) => { fresh[f] = k === key ? 1 : 0; });
+                    await saveDoc(statsRef, fresh, { merge: true });
+                } else {
+                    await saveDoc(statsRef, { [row[1]]: increment(1) }, { merge: true });
+                }
+            } catch (e) { console.error('통화 결과 숫자 저장 실패:', e); }
+        }
         async function updateAndRenderStats(actionType = null) {
             if (!actionType) {
                 renderGlobalStatsUI();
@@ -3170,7 +3205,7 @@
             }
 
             let csv = '\uFEFF';
-            csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일,할부기준일,잔여할부(오늘기준),명함설치,개통점\n";
+            csv += "고객명,연락처,생년월일,통신사,단말기(상품),모바일개통일,요금제,할인유형,할부정보,월청구금액,결합/복지정보,가족정보,인터넷/TV,유선월요금,유선약정일,법정대리인,법대연락처,영업상태,담당자,스캔/방문일,할부기준일,잔여할부(오늘기준),명함설치,개통점,방문목적\n";
 
             // 엑셀이 수식으로 읽지 않게: '- 메모', '=…', '+…', '@…' 로 시작하면 앞에 공백 한 칸
             //   (예전엔 '- 요금제 변경 예정' 같은 메모가 엑셀에서 #NAME? 오류로 보였음)
@@ -3205,7 +3240,8 @@
                     escapeCSV(c.installment ? getInstallmentBaseDate(c) : ''),
                     escapeCSV(getDynamicInstallment(c.installment, getInstallmentBaseDate(c))),
                     escapeCSV(c.bizCardInstalled === true ? 'O' : ''),
-                    escapeCSV(c.openStore || '')
+                    escapeCSV(c.openStore || ''),
+                    escapeCSV(c.visitPurpose || '')
                 ];
                 csv += row.join(",") + "\n";
             });
@@ -3387,7 +3423,7 @@
                 // 이름·번호·법대·담당자 + 단말기·요금제·메모·가족정보·결합·인터넷/TV로도 검색
                 const qDigits = query.replace(/-/g, '');
                 const matchSearch = !query
-                    || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.cardId]
+                    || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.cardId, c.visitPurpose]
                         .some(v => String(v || '').toLowerCase().includes(query))
                     || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)));
                 
@@ -3885,7 +3921,7 @@
             const visit = formatShortDate(c.visitDate);
             const contact = formatShortDate(c.lastContactDate);
             const missed = parseInt(c.missedCalls, 10) || 0;
-            const meta = (visit ? `<span>방문 ${visit}</span>` : '') + (contact ? `<span>최근 연락 ${contact}${c.contactManager ? ' ' + escapeHtml(c.contactManager) : ''}</span>` : '')
+            const meta = (visit ? `<span>방문 ${visit}${c.visitPurpose ? ` · ${escapeHtml(c.visitPurpose)}` : ''}</span>` : '') + (contact ? `<span>최근 연락 ${contact}${c.contactManager ? ' ' + escapeHtml(c.contactManager) : ''}</span>` : '')
                 + (missed > 0 ? `<span class="font-bold text-amber-700">부재 ${missed}회</span>` : '');
 
             const { facts, warn } = getCardFacts(c);
@@ -4399,6 +4435,7 @@
                 legalCallBtn.classList.add('hidden');
             }
             
+            document.getElementById('modalVisitPurpose').value = c.visitPurpose || '';
             document.getElementById('modalVisitDate').value = c.visitDate || '';
             document.getElementById('modalManager').value = c.manager || '';
             document.getElementById('modalActivation').value = c.activationDate || '';
@@ -4616,6 +4653,7 @@
                 headerRow('생일', birthdayHtml),
                 headerRow('통신사', carrierHtml),
                 headerRow('담당자', profileValue(c.manager)),
+                headerRow('방문 목적', c.visitPurpose ? e(c.visitPurpose) : '<span class="text-gray-400">-</span>'),
                 headerRow('방문일', profileValue(c.visitDate)),
                 headerRow('수신동의', consentHtml),
                 headerRow('개통점', c.openStore ? e(c.openStore) : '<span class="text-gray-400">-</span>'),
@@ -5301,6 +5339,7 @@
             saveBtn.disabled = true;
             try {
                 await saveDoc(doc(db, 'smart_customers', c.id), update, { merge: true });
+                saveCallResultStat(callResultChoice);   // 대시보드 '오늘 연락' 옆 숫자
                 closeCallResultSheet();
                 customAlert(`📝 '${r.label}'(으)로 기록했어요.${next ? `\n재연락 약속: ${formatShortDate(next)}` : ''}`);
             } catch (e) {
@@ -5975,7 +6014,24 @@
             else matchEl.classList.add('hidden');
             return { digits, found, trashed };
         }
+        const VISIT_PURPOSES = ['단순CS', '휴대폰문의', '변경업무', '요금수납'];
+        const cardSendPicked = new Set();
+        function renderCardSendPurposes() {
+            document.getElementById('cardSendPurposes').innerHTML = VISIT_PURPOSES.map(v => {
+                const on = cardSendPicked.has(v);
+                return `<button type="button" data-purpose="${v}" aria-pressed="${on}" class="h-10 px-3.5 rounded-full border-2 text-sm font-bold ${on ? 'border-pink-600 bg-pink-50 text-pink-700' : 'border-gray-200 bg-white text-gray-700'}">${v}</button>`;
+            }).join('');
+        }
+        document.getElementById('cardSendPurposes').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-purpose]') : null;
+            if (!b) return;
+            const v = b.dataset.purpose;
+            if (cardSendPicked.has(v)) cardSendPicked.delete(v); else cardSendPicked.add(v);
+            renderCardSendPurposes();
+        });
         function openCardSendSheet() {
+            cardSendPicked.clear();
+            renderCardSendPurposes();
             document.getElementById('cardSendPhone').value = '';
             document.getElementById('cardSendName').value = '';
             document.getElementById('cardSendSave').checked = true;
@@ -5994,16 +6050,18 @@
             const { digits, found, trashed } = renderCardSendMatch();
             if (!digits) return setCardSendStatus('휴대폰 번호(010…)를 확인해주세요.', 'red');
             const name = document.getElementById('cardSendName').value.trim();
+            const purpose = VISIT_PURPOSES.filter(v => cardSendPicked.has(v)).join(', ');
             const btn = document.getElementById('cardSendBtn');
             btn.disabled = true;
             try {
-                if (found) {   // 이미 있는 고객 → 그 고객 개인 링크로
+                if (found) {   // 이미 있는 고객 → 그 고객 개인 링크로 (방문 목적을 골랐으면 오늘 방문으로 기록)
+                    if (purpose) await saveDoc(doc(db, 'smart_customers', found.id), { visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true });
                     closeCardSendSheet();
                     await sendBizCard(found);
                     return;
                 }
                 if (trashed) {   // 휴지통 고객 → 목록으로 되돌리고 보냄
-                    await saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
+                    await saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true });
                     closeCardSendSheet();
                     await sendBizCard({ ...trashed, deletedAt: '' });
                     return;
@@ -6014,7 +6072,7 @@
                     const cardId = newCardId();
                     const staff = getStaffName();
                     await saveDoc(doc(db, 'smart_customers', digits), {
-                        name, phone, salesStatus: '미정', visitDate: getTodayStr(), cardId, bizCardSentAt: getTodayStr(),
+                        name, phone, salesStatus: '미정', visitDate: getTodayStr(), visitPurpose: purpose, cardId, bizCardSentAt: getTodayStr(),
                         manager: staff, contactManager: staff, memo: '명함 보내기로 등록',
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true });
@@ -6871,6 +6929,7 @@ ${AI_TONES[aiSmsTone]}
             const updatedData = {
                 name: newName,
                 phone: newPhone,
+                visitPurpose: document.getElementById('modalVisitPurpose').value.trim(),
                 visitDate: document.getElementById('modalVisitDate').value,
                 manager: document.getElementById('modalManager').value,
                 activationDate: newActDate,
