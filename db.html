@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V78</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V79</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -695,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V78</span>
+                    <span class="text-sm text-gray-600">V79</span>
                 </div>
             </section>
         </div>
@@ -805,7 +805,7 @@
                 <input type="text" id="cardSendName" autocomplete="off" placeholder="예: 홍길동" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-300">
             </div>
             <p id="cardSendMatch" class="hidden text-[13px] font-medium text-indigo-800 bg-indigo-50 rounded-xl px-3 py-2"></p>
-            <label id="cardSendSaveRow" class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="cardSendSave" checked class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>강CRM에 가망고객으로 저장<span class="block text-xs font-normal text-gray-500">저장하면 개인 링크로 보내서, 명함을 열었는지·알림을 켰는지 자동으로 확인돼요</span></span></label>
+            <label id="cardSendSaveRow" class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="cardSendSave" checked class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>강CRM에 고객으로 저장 <span class="font-normal text-gray-500">(영업상태: 미정)</span><span class="block text-xs font-normal text-gray-500">저장하면 개인 링크로 보내서, 명함을 열었는지·알림을 켰는지 자동으로 확인돼요</span></span></label>
             <p id="cardSendStatus" role="status" class="hidden text-[13px] font-medium pl-1"></p>
             <button type="button" id="cardSendBtn" class="h-12 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-[15px] font-bold flex items-center justify-center gap-2 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>문자로 명함 보내기</button>
         </section>
@@ -1837,6 +1837,19 @@
             const base = [valid(c.activationDate), valid(c.salesStatusAt)].filter(Boolean).sort().pop() || valid(c.visitDate);
             return base ? computeKeepDate(base, 'M6') : '';
         }
+        // '명함 보내기'로 가망고객이 됐던 고객을 미정으로 (V79, 매장에서 딱 한 번)
+        let cardSendMigrating = false;
+        let settingsLoaded = false;   // 매장 공용 설정(Firebase)이 한 번이라도 도착했는지
+        function migrateCardSendStatus() {
+            if (!db || !dbLoaded || !settingsLoaded || cardSendMigrating || appSettings.cardSendStatusMigrated === true) return;   // 고객·매장 설정이 둘 다 도착한 뒤에만
+            cardSendMigrating = true;
+            const targets = customerDB.filter(c => c.salesStatus === '가망고객' && String(c.memo || '').includes('명함 보내기로 등록'));
+            Promise.all(targets.map(c => saveDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true })))
+                .then(() => saveDoc(doc(db, 'smart_global', 'settings'), { cardSendStatusMigrated: true }, { merge: true }))
+                .then(() => { appSettings = { ...appSettings, cardSendStatusMigrated: true }; })
+                .catch(e => console.error('명함 보내기 고객 상태 바꾸기 실패:', e))
+                .finally(() => { cardSendMigrating = false; });
+        }
         function autoReleaseSales() {
             if (!db) return;
             const today = getTodayStr();
@@ -1874,6 +1887,7 @@
                 autoReleaseSales();
                 renderOpenStoreList();
                 dbLoaded = true;
+                migrateCardSendStatus();
                 dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
@@ -1889,6 +1903,8 @@
             
             settingsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'settings'), (docSnap) => {
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
+                settingsLoaded = true;
+                migrateCardSendStatus();
                 if (typeof appSettings.pushRelayUrl === 'string') { try { localStorage.setItem('pushRelayUrl', appSettings.pushRelayUrl); } catch (e) { /* 무시 */ } }
                 // 예전: 여기서 자동 약속 칸만 다시 그려서, 설정 탭에서 새로고침하면 중계 서버 주소 칸이 빈 채로 남았음
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
@@ -5929,11 +5945,11 @@
                 }
                 const phone = formatPhone(digits);
                 if (document.getElementById('cardSendSave').checked) {
-                    // 가망고객으로 저장 + 개인 링크 (명함 설치·알림 자동 확인)
+                    // 미정 고객으로 저장 + 개인 링크 (명함 설치·알림 자동 확인)
                     const cardId = newCardId();
                     const staff = getStaffName();
                     await saveDoc(doc(db, 'smart_customers', digits), {
-                        name, phone, salesStatus: '가망고객', visitDate: getTodayStr(), cardId, bizCardSentAt: getTodayStr(),
+                        name, phone, salesStatus: '미정', visitDate: getTodayStr(), cardId, bizCardSentAt: getTodayStr(),
                         manager: staff, contactManager: staff, memo: '명함 보내기로 등록',
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true });
