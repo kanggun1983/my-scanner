@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V82</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V83</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -695,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V82</span>
+                    <span class="text-sm text-gray-600">V83</span>
                 </div>
             </section>
         </div>
@@ -1852,6 +1852,42 @@
                 .catch(e => console.error('명함 보내기 고객 상태 바꾸기 실패:', e))
                 .finally(() => { cardSendMigrating = false; });
         }
+        // 연락 기록에서 명함 보내기를 뺀 '진짜 마지막 연락' (전화·문자)
+        function lastRealContact(history) {
+            const lines = String(history || '').split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const m = lines[i].match(/^\[(\d{4})\.(\d{2})\.(\d{2})[^\]]*\]\s*(.*)$/);
+                if (!m || !/📞|💬/.test(m[4]) || m[4].includes('[명함]')) continue;
+                return { date: `${m[1]}-${m[2]}-${m[3]}`, manager: ((m[4].match(/\(담당:\s*([^)]+)\)/) || [])[1] || '').trim() };
+            }
+            return null;
+        }
+        function lastCardSendDate(history) {
+            const lines = String(history || '').split('\n');
+            for (let i = lines.length - 1; i >= 0; i--) {
+                const m = lines[i].match(/^\[(\d{4})\.(\d{2})\.(\d{2})[^\]]*\]\s*\[명함\]/);
+                if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+            }
+            return '';
+        }
+        let cardContactMigrating = false;
+        function migrateCardContact() {
+            if (!db || !dbLoaded || !settingsLoaded || cardContactMigrating || appSettings.cardContactMigrated === true) return;
+            cardContactMigrating = true;
+            const jobs = [];
+            customerDB.forEach(c => {
+                const cardDate = lastCardSendDate(c.contactHistory);
+                if (!cardDate || c.lastContactDate !== cardDate) return;   // 명함 때문에 바뀐 게 아니면 그대로
+                const real = lastRealContact(c.contactHistory);
+                if (real && real.date >= cardDate) return;                   // 같은 날 진짜 연락도 있었으면 그대로
+                jobs.push(saveDoc(doc(db, 'smart_customers', c.id), { lastContactDate: real ? real.date : '', contactManager: real ? real.manager : '', updatedAt: new Date().toISOString() }, { merge: true }));
+            });
+            Promise.all(jobs)
+                .then(() => saveDoc(doc(db, 'smart_global', 'settings'), { cardContactMigrated: true }, { merge: true }))
+                .then(() => { appSettings = { ...appSettings, cardContactMigrated: true }; })
+                .catch(e => console.error('명함 보내기 최근 연락 정리 실패:', e))
+                .finally(() => { cardContactMigrating = false; });
+        }
         function autoReleaseSales() {
             if (!db) return;
             const today = getTodayStr();
@@ -1890,6 +1926,7 @@
                 renderOpenStoreList();
                 dbLoaded = true;
                 migrateCardSendStatus();
+                migrateCardContact();
                 dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
@@ -1907,6 +1944,7 @@
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
                 settingsLoaded = true;
                 migrateCardSendStatus();
+                migrateCardContact();
                 if (typeof appSettings.pushRelayUrl === 'string') { try { localStorage.setItem('pushRelayUrl', appSettings.pushRelayUrl); } catch (e) { /* 무시 */ } }
                 // 예전: 여기서 자동 약속 칸만 다시 그려서, 설정 탭에서 새로고침하면 중계 서버 주소 칸이 빈 채로 남았음
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
@@ -3008,7 +3046,12 @@
                 const logEntry = `[${timeStr}] ${actionName} (담당: ${managerName})`;
                 const newHistory = currentHistory ? (currentHistory + '\n' + logEntry) : logEntry;
 
-                const logWrite = saveDoc(doc(db, 'smart_customers', docId), { 
+                // 📇 명함 보내기(명함 뿌리기)는 기록에만 남기고 '최근 연락'으로는 치지 않음
+                const isCardSend = targetLabel === '명함';
+                const logWrite = saveDoc(doc(db, 'smart_customers', docId), isCardSend ? {
+                    contactHistory: newHistory,
+                    updatedAt: new Date().toISOString()
+                } : {
                     lastContactDate: getTodayStr(), 
                     contactManager: managerName,
                     contactHistory: newHistory,
@@ -3017,7 +3060,7 @@
                 // 인터넷이 느려도 전화·문자앱이 늦게(또는 아예 안) 열리지 않도록 최대 1.5초만 기다림 (저장은 계속 진행)
                 await Promise.race([logWrite, new Promise(r => setTimeout(r, 1500))]);
                 
-                if(currentDetailId === docId) {
+                if(currentDetailId === docId && !isCardSend) {
                     document.getElementById('modalContactDate').value = getTodayStr();
                     document.getElementById('modalContactManager').value = managerName;
                     
