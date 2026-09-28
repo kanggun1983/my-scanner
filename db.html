@@ -133,7 +133,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V84</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V85</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -695,7 +695,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V84</span>
+                    <span class="text-sm text-gray-600">V85</span>
                 </div>
             </section>
         </div>
@@ -5971,10 +5971,14 @@
             crypto.getRandomValues(a);
             return Array.from(a, b => CARD_ID_CHARS[b % CARD_ID_CHARS.length]).join('');
         }
+        // 문자앱을 여는 흐름에서는 저장을 최대 2.5초만 기다림 (인터넷이 느리면 예전엔 문자앱이 안 열렸음 · 저장은 뒤에서 계속)
+        function waitAtMost(promise, ms = 2500) {
+            return Promise.race([promise, new Promise(r => setTimeout(r, ms))]);
+        }
         async function ensureCardId(c) {
             if (c.cardId) return c.cardId;
             const id = newCardId();
-            await saveDoc(doc(db, 'smart_customers', c.id), { cardId: id }, { merge: true });
+            await waitAtMost(saveDoc(doc(db, 'smart_customers', c.id), { cardId: id }, { merge: true }));
             c.cardId = id;
             return id;
         }
@@ -5982,6 +5986,8 @@
         async function sendBizCard(c) {
             if (!c) return;
             if (!smsMobileDigits(c.phone)) return customAlert('휴대폰 번호가 있어야 명함을 보낼 수 있어요.');
+            // 명함 문자에는 '혜택 알림받기' 안내가 들어가서 광고로 볼 수 있음 → 수신 거부·고객거부 고객은 한 번 더 확인
+            if ((c.marketingDeny || c.salesStatus === '고객거부') && !(await customConfirm(`이 고객은 ${c.marketingDeny ? '마케팅 수신 거부' : '고객거부'} 상태예요.\n명함 문자에는 '혜택 알림받기' 안내가 있어서 광고로 볼 수 있어요.\n그래도 보낼까요?`))) return;
             let cardId;
             try { cardId = await ensureCardId(c); }
             catch (e) { console.error(e); return customAlert('명함 링크를 만들지 못했어요. 인터넷 연결을 확인해주세요.'); }
@@ -6055,13 +6061,13 @@
             btn.disabled = true;
             try {
                 if (found) {   // 이미 있는 고객 → 그 고객 개인 링크로 (방문 목적을 골랐으면 오늘 방문으로 기록)
-                    if (purpose) await saveDoc(doc(db, 'smart_customers', found.id), { visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true });
+                    if (purpose) await waitAtMost(saveDoc(doc(db, 'smart_customers', found.id), { visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true }));
                     closeCardSendSheet();
                     await sendBizCard(found);
                     return;
                 }
                 if (trashed) {   // 휴지통 고객 → 목록으로 되돌리고 보냄
-                    await saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true });
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true }));
                     closeCardSendSheet();
                     await sendBizCard({ ...trashed, deletedAt: '' });
                     return;
@@ -6071,11 +6077,11 @@
                     // 미정 고객으로 저장 + 개인 링크 (명함 설치·알림 자동 확인)
                     const cardId = newCardId();
                     const staff = getStaffName();
-                    await saveDoc(doc(db, 'smart_customers', digits), {
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), {
                         name, phone, salesStatus: '미정', visitDate: getTodayStr(), visitPurpose: purpose, cardId, bizCardSentAt: getTodayStr(),
                         manager: staff, contactManager: staff, memo: '명함 보내기로 등록',
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-                    }, { merge: true });
+                    }, { merge: true }));
                     closeCardSendSheet();
                     logActionAndCall(digits, 'sms', phone, '명함', cardSendMessage(name, cardLinkFor(cardId)));
                 } else {
