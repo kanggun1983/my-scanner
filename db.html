@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V88</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V89</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -725,7 +725,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V88</span>
+                    <span class="text-sm text-gray-600">V89</span>
                 </div>
             </section>
         </div>
@@ -951,6 +951,12 @@
                 <button type="button" id="pushUnhideBtn" class="hidden mt-1 h-9 px-1 text-xs font-bold text-gray-500 underline underline-offset-2"></button>
                 <input type="url" id="pushImageUrl" inputmode="url" placeholder="다른 사진 주소 붙여넣기 (https://…)" class="mt-2 w-full h-11 px-3 border border-gray-300 rounded-xl text-[13px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
             </div>
+            <div>
+                <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">제목 옆 아이콘 <span class="font-normal text-gray-500">(선택 · 작은 동그란 사진)</span></p>
+                <div id="pushIconStrip" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
+                <input type="file" id="pushIconFile" accept="image/*" class="hidden">
+                <p id="pushIconNote" class="hidden text-xs font-medium text-amber-800 mt-1 pl-1"></p>
+            </div>
             <button type="button" id="pushAiBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-wand-magic-sparkles"></i>AI로 다듬기 (3가지)</button>
             <div id="pushVariantsBox" class="hidden space-y-2">
                 <p class="text-[13px] font-bold text-gray-700 pl-1">AI가 다듬은 문구 <span class="font-normal text-gray-500">(눌러서 고르기)</span></p>
@@ -961,7 +967,11 @@
             <div class="rounded-2xl bg-gray-100 p-3">
                 <p class="text-[11px] font-bold text-gray-500 mb-1.5">이렇게 보여요</p>
                 <div class="bg-white rounded-xl p-3 shadow-sm">
-                    <p id="pushPreviewHeading" class="text-[14px] font-bold text-gray-900 break-words">제목</p>
+                    <div class="flex items-start gap-2">
+                        <p id="pushPreviewHeading" class="flex-1 min-w-0 text-[14px] font-bold text-gray-900 break-words">제목</p>
+                        <img id="pushPreviewIcon" alt="제목 옆 아이콘 미리보기" class="hidden w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-200">
+                        <span id="pushPreviewIconDefault" class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-[10px] font-bold text-gray-500 flex items-center justify-center flex-shrink-0">기본</span>
+                    </div>
                     <p id="pushPreviewBody" class="text-[13px] text-gray-700 whitespace-pre-wrap break-words mt-0.5">내용</p>
                     <div id="pushPreviewImageWrap" class="hidden relative mt-2">
                         <img id="pushPreviewImage" alt="알림에 붙일 사진 미리보기" class="w-full rounded-lg object-cover" style="aspect-ratio: 2 / 1;">
@@ -6610,7 +6620,7 @@
                 btn1.disabled = true;
                 setPushStatus('보내는 중…');
                 try {
-                    await callPushRelay({ pushTo: [pushTarget.cardId], heading: t.heading, content: t.body, image: pushImage || undefined, url: DEFAULT_CARD_URL });
+                    await callPushRelay({ pushTo: [pushTarget.cardId], heading: t.heading, content: t.body, image: pushImage || undefined, icon: pushIcon || undefined, url: DEFAULT_CARD_URL });
                     setPushStatus(`${pushTarget.name}님에게 보냈어요!`, 'green');
                 } catch (e) {
                     setPushStatus(/내용이 비어/.test(e.message || '') ? '중계 서버 코드를 새 버전(6)으로 바꿔주세요.' : e.message, 'red');
@@ -6625,7 +6635,7 @@
             btn.disabled = true;
             setPushStatus(sendAfter ? '예약하는 중…' : '보내는 중…');
             try {
-                const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
+                const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, icon: pushIcon || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
                 setPushStatus(sendAfter ? `예약했어요! ${sendAfter.label}에 보내져요.` : `보냈어요!${data.recipients ? ` (받는 사람 ${data.recipients}명)` : ''}`, 'green');
                 setTimeout(() => loadPushStats(true), 5000);   // OneSignal 집계가 반영될 시간을 조금 두고 대시보드 숫자 새로고침
             } catch (e) {
@@ -6651,7 +6661,96 @@
             const t = pushFinalTexts();
             document.getElementById('pushPreviewHeading').textContent = t.heading || '제목';
             document.getElementById('pushPreviewBody').textContent = t.body || '내용';
+            const ic = document.getElementById('pushPreviewIcon');
+            if (pushIcon) { ic.src = pushIcon; ic.classList.remove('hidden'); } else { ic.classList.add('hidden'); }
+            document.getElementById('pushPreviewIconDefault').classList.toggle('hidden', !!pushIcon);
         }
+
+        // 🖼️ 제목 옆 아이콘 (알림마다 바꾸기) — 매장 공용 목록(최대 12개) · 안 고르면 OneSignal 기본 아이콘(프로필 사진)
+        let pushIcon = '';
+        let pushIconUploading = false;
+        function pushIconList() { return (Array.isArray(appSettings.pushIcons) ? appSettings.pushIcons : []).filter(u => /^https:\/\//.test(String(u || ''))).slice(0, 12); }
+        function renderPushIconStrip() {
+            const strip = document.getElementById('pushIconStrip');
+            const tile = (inner, attrs, on) => `<button type="button" ${attrs} aria-pressed="${on}" class="relative flex-shrink-0 w-16 h-16 rounded-full border-2 ${on ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-gray-200'} bg-white overflow-hidden flex items-center justify-center">${inner}</button>`;
+            const icons = pushIconList();
+            strip.innerHTML = tile('<span class="text-[11px] font-bold text-gray-600 leading-tight">기본<br>(프로필)</span>', 'data-push-icon=""', !pushIcon)
+                + icons.map(u => `<span class="relative flex-shrink-0">${tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, `data-push-icon="${escapeHtml(u)}"`, pushIcon === u)}<button type="button" data-push-icon-del="${escapeHtml(u)}" aria-label="이 아이콘 지우기" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center justify-center">×</button></span>`).join('')
+                + tile(pushIconUploading ? '<i class="fa-solid fa-spinner fa-spin text-gray-500"></i>' : '<span class="text-[11px] font-bold text-indigo-700 leading-tight">+ 아이콘<br>올리기</span>', 'data-push-icon-add="1"', false);
+            const ver = Number(localStorage.getItem('relayVersion') || 0);
+            const note = document.getElementById('pushIconNote');
+            const old = pushIcon && ver && ver < 8;
+            note.textContent = old ? '⚠️ 중계 서버를 8번 버전으로 바꿔야 아이콘이 적용돼요. (지금은 기본 아이콘으로 나가요)' : '';
+            note.classList.toggle('hidden', !old);
+        }
+        // 아이콘용: 가운데를 정사각형으로 잘라 256×256 (작게 보이는 자리라 이 정도면 선명해요)
+        function squareIconImage(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onerror = () => reject(new Error('사진을 읽지 못했어요.'));
+                r.onload = e => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('이 사진 형식은 열 수 없어요. (아이폰 HEIC 사진이면 스크린샷으로 올려주세요)'));
+                    img.onload = () => {
+                        const side = Math.min(img.width, img.height);
+                        const canvas = document.createElement('canvas');
+                        canvas.width = canvas.height = 256;
+                        const ctx = canvas.getContext('2d');
+                        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, 256, 256);
+                        ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 256, 256);
+                        resolve(canvas.toDataURL('image/jpeg', 0.9));
+                    };
+                    img.src = e.target.result;
+                };
+                r.readAsDataURL(file);
+            });
+        }
+        async function uploadPushIcon(file) {
+            if (!file) return;
+            if (!/^image\//.test(file.type || '')) return setPushStatus('사진 파일만 올릴 수 있어요.', 'red');
+            pushIconUploading = true; renderPushIconStrip();
+            setPushStatus('아이콘을 동그랗게 맞춰 올리는 중…');
+            try {
+                const dataUrl = await squareIconImage(file);
+                const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' }, keep: true });   // 계속 쓰는 아이콘이라 오래 보관
+                const list = [data.url, ...pushIconList().filter(u => u !== data.url)].slice(0, 12);
+                appSettings = { ...appSettings, pushIcons: list };
+                await saveDoc(doc(db, 'smart_global', 'settings'), { pushIcons: list }, { merge: true });
+                pushIcon = data.url;
+                setPushStatus('아이콘을 올렸어요. 미리보기에서 확인하세요.', 'green');
+            } catch (e) {
+                console.error('아이콘 올리기 실패:', e);
+                setPushStatus(e.message || '아이콘을 올리지 못했어요.', 'red');
+            } finally {
+                pushIconUploading = false;
+                renderPushIconStrip(); renderPushPreview();
+            }
+        }
+        document.getElementById('pushIconStrip').addEventListener('click', async (e) => {
+            const t = e.target && e.target.closest ? e.target : null;
+            if (!t) return;
+            const del = t.closest('[data-push-icon-del]');
+            if (del) {
+                const url = del.dataset.pushIconDel;
+                if (!(await customConfirm('이 아이콘을 목록에서 지울까요?'))) return;
+                const list = pushIconList().filter(u => u !== url);
+                appSettings = { ...appSettings, pushIcons: list };
+                if (pushIcon === url) pushIcon = '';
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { pushIcons: list }, { merge: true }); } catch (err) { console.error(err); }
+                const key = (String(url).match(/\/img\/([a-z0-9-]+\.(?:jpg|png|webp))$/) || [])[1];
+                if (key) callPushRelay({ deleteImage: key }).catch(() => {});   // 중계 서버 사진도 정리 (안 돼도 괜찮음)
+                renderPushIconStrip(); renderPushPreview();
+                return;
+            }
+            if (t.closest('[data-push-icon-add]')) { if (!pushIconUploading) document.getElementById('pushIconFile').click(); return; }
+            const pick = t.closest('[data-push-icon]');
+            if (pick) { pushIcon = pick.dataset.pushIcon || ''; renderPushIconStrip(); renderPushPreview(); }
+        });
+        document.getElementById('pushIconFile').addEventListener('change', (e) => {
+            const f = e.target.files && e.target.files[0];
+            e.target.value = '';
+            uploadPushIcon(f);
+        });
         function setPushStatus(text, tone = 'gray') {
             const el = document.getElementById('pushStatus');
             if (!text) { el.textContent = ''; el.classList.add('hidden'); return; }
@@ -6667,6 +6766,7 @@
             renderPushSendMode();
             document.getElementById('pushManualBox').classList.toggle('hidden', !!pushTarget);   // 한 명 보내기는 OneSignal 화면에서 못 해서 숨김
             renderPosterStrip().then(() => setPushImage(pushImage));
+            renderPushIconStrip();
             document.getElementById('pushAdOn').checked = !pushTarget;   // 전체 발송은 광고 표시 켜고 시작, 한 명 안내는 끄고 시작
             pushVariantList = [];
             document.getElementById('pushVariantsBox').classList.add('hidden');
@@ -6841,8 +6941,9 @@
             setRelayStatus('확인하는 중…', 'gray');
             try {
                 const data = await callPushRelay({ test: true });
+                if (data.version) localStorage.setItem('relayVersion', String(data.version));
                 const photoNote = data.photo === false ? ' (사진 저장소는 아직 연결 안 됨 — Cloudflare에서 IMAGES 바인딩을 확인해주세요)' : (data.photo ? ' 사진 올리기도 준비됐어요.' : '');
-                const verNote = (data.version || 0) < 7 ? ' 중계 서버 코드를 새 버전으로 바꾸면 자동 문자 암호화·명함 알림 확인·한 명 푸시도 돼요.' : '';
+                const verNote = (data.version || 0) < 8 ? ' 중계 서버 코드를 새 버전으로 바꾸면 알림 아이콘·자동 문자 암호화·명함 알림 확인도 돼요.' : '';
                 setRelayStatus(`✅ ${data.message || '연결 성공!'}${photoNote}${verNote}${saveWarn}`, data.photo === false || saveWarn ? 'gray' : 'green');
                 savePushStatsCache(null);
                 loadPushStats(true);
