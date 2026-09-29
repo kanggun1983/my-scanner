@@ -92,6 +92,11 @@
             @page { margin: 1cm; }
         }
     </style>
+    <style>
+        .scan-blank { background-color: #fffbeb !important; box-shadow: inset 0 0 0 2px #fcd34d; border-radius: 6px; }
+        .req-missing { box-shadow: 0 0 0 2px #ef4444 !important; background-color: #fef2f2 !important; }
+        body.has-scan-bar #scannerView { padding-bottom: 96px; }
+    </style>
 </head>
 <body class="min-h-screen text-gray-800">
 
@@ -133,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V85</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V86</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -201,6 +206,11 @@
                         <i class="fa-solid fa-address-card text-indigo-500"></i> 추출된 고객 정보
                     </h2>
                     
+                    <p id="scanBlankHint" class="hidden mb-3 text-[13px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2"></p>
+                    <div class="mb-3">
+                        <p class="text-xs font-bold text-gray-600 mb-1.5">방문 목적 <span class="font-normal text-gray-500">(선택 · 여러 개 가능)</span></p>
+                        <div id="scanPurposes" class="flex flex-wrap gap-2"></div>
+                    </div>
                     <div id="infoGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div class="p-3 bg-gray-50 rounded-xl border border-gray-200 flex items-center justify-between">
                             <p class="text-xs text-gray-500 font-semibold">방문일 (스캔 일자)</p>
@@ -684,6 +694,14 @@
                     <button type="button" id="smsListBtn" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800">예약된 문자 보기</button>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setPrivacyTitle">
+                <h3 id="setPrivacyTitle" class="text-[13px] font-bold text-gray-600 pl-1">개인정보 보호</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2">
+                    <p class="text-[13px] text-gray-700 leading-relaxed">주민번호는 이제 <b>앞 7자리(생년월일+성별)만</b> 저장돼요. 보고서 복사에는 입력한 번호 전체가 그대로 들어가요.</p>
+                    <p id="juminCleanInfo" class="text-xs font-medium text-gray-600"></p>
+                    <button type="button" id="juminCleanBtn" class="hidden w-full h-11 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-sm font-bold text-red-700">예전에 저장된 주민번호 뒷자리 지우기</button>
+                </div>
+            </section>
             <section class="space-y-2" aria-labelledby="setTrashTitle">
                 <h3 id="setTrashTitle" class="text-[13px] font-bold text-gray-600 pl-1">휴지통 <span id="trashCount" class="font-medium"></span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -695,9 +713,14 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V85</span>
+                    <span class="text-sm text-gray-600">V86</span>
                 </div>
             </section>
+        </div>
+
+        <!-- 📷 스캔 화면: 폰에서 [DB 저장]을 아래에 고정 (긴 폼 끝까지 안 내려도 됨) -->
+        <div id="scanSaveBar" class="hidden lg:hidden fixed inset-x-0 z-30 px-4 pt-2 pb-2 bg-gradient-to-t from-white via-white/95 to-white/0" style="bottom: calc(64px + env(safe-area-inset-bottom));">
+            <button type="button" id="scanSaveBarBtn" class="w-full h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold shadow-lg flex items-center justify-center gap-2"><i class="fa-solid fa-cloud-arrow-up"></i> DB 저장</button>
         </div>
 
         <!-- 📱 폰 아래 탭 (엄지로 누르기 쉬운 위치) -->
@@ -784,6 +807,8 @@
     </div>
 
     <datalist id="openStoreList"></datalist>
+    <datalist id="planList"></datalist>
+    <datalist id="deviceList"></datalist>
     <datalist id="visitPurposeList"><option value="단순CS"></option><option value="휴대폰문의"></option><option value="변경업무"></option><option value="요금수납"></option></datalist>
 
     <!-- 📇 번호를 직접 넣어 명함 보내기 (등록 안 된 사람도) -->
@@ -1463,10 +1488,16 @@
 
                     <input type="text" id="rep-usim" placeholder="유심 일련" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-usim-pay" placeholder="유심 선납(금액)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-type" placeholder="유형(신규/기변/번이)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    <div class="col-span-2 flex flex-col gap-1.5">
+                        <div id="repTypeChips" class="flex flex-wrap gap-1.5"></div>
+                        <input type="text" id="rep-type" placeholder="유형(신규/기변/번이)" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    </div>
                     <input type="text" id="rep-addons" placeholder="부가서비스" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
                     <input type="text" id="rep-insurance" placeholder="보험" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
-                    <input type="text" id="rep-discount" placeholder="공시/선약" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    <div class="col-span-2 flex flex-col gap-1.5">
+                        <div id="repDiscountChips" class="flex flex-wrap gap-1.5"></div>
+                        <input type="text" id="rep-discount" placeholder="공시/선약" class="border border-gray-300 p-2 rounded focus:ring-1 focus:ring-green-500 outline-none">
+                    </div>
                     <div id="repKeepBox" class="col-span-2 rounded-lg border border-purple-200 bg-purple-50/60 p-2 space-y-1.5">
                         <p class="text-[11px] font-bold text-purple-800">유지 조건 <span class="font-medium text-purple-700">· 저장하면 이 날짜로 약속 자동 등록 (부가·보험은 칸에 적었을 때만)</span></p>
                         <div id="repKeepRow_plan" class="space-y-1.5">
@@ -1933,6 +1964,7 @@
                 purgeOldTrash();
                 autoReleaseSales();
                 renderOpenStoreList();
+                renderPlanDeviceLists();
                 dbLoaded = true;
                 migrateCardSendStatus();
                 migrateCardContact();
@@ -2405,6 +2437,7 @@
         const TOP_TAB_OFF = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
         window.switchTab = function(tabId) {
             if (!['scanner', 'db', 'settings'].includes(tabId)) tabId = 'db';
+            setTimeout(() => { try { syncScanSaveBar(); } catch (e) { /* 준비 전 */ } }, 0);
             if (tabId !== 'db' && selectionMode) setSelectionMode(false);
             const views = { scanner: 'scannerView', db: 'dbView', settings: 'settingsView' };
             const tops = { scanner: 'tabScanner', db: 'tabDB', settings: 'tabSettings' };
@@ -2702,6 +2735,161 @@
             if (dateEl && !valDateTouched && formEmpty) dateEl.value = today;   // 쓰던 내용이 있으면 날짜는 그대로
             if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
         });
+        // ═════════════════════════════════════════════
+        // ⌨️ 실무 입력 편의 (V86)
+        // ═════════════════════════════════════════════
+        // 숫자 칸은 숫자 키패드 · 전화번호는 치는 대로 010-1234-5678 · 금액은 1,200,000
+        const TEL_FIELDS = ['val-phone', 'val-legal-phone', 'rep-phone', 'rep-legal-phone', 'wired-rep-phone'];
+        const NUM_FIELDS = ['val-dob', 'val-legal-dob', 'val-fee', 'val-wired-fee', 'rep-jumin', 'rep-usim', 'rep-installment', 'rep-legal-dob', 'rep-wired-account', 'rep-usim-pay', 'rep-principal', 'rep-subsidy', 'rep-wired-subsidy', 'rep-wired-fee', 'wired-rep-jumin', 'wired-rep-account', 'wired-rep-subsidy', 'wired-rep-fee'];
+        // 전화번호는 원래 있던 자동 하이픈(커서 위치 유지)을 스캔 칸 말고 다른 연락처 칸에도 · 금액 쉼표는 아래 moneyFields에서
+        TEL_FIELDS.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.setAttribute('inputmode', 'tel'); el.setAttribute('autocomplete', 'off');
+            if (id !== 'val-phone') el.addEventListener('input', applyPhoneFormat);   // val-phone은 원래 걸려 있음
+        });
+        NUM_FIELDS.forEach(id => { const el = document.getElementById(id); if (el) el.setAttribute('inputmode', 'numeric'); });
+
+        // 🟨 AI가 못 읽은 칸 표시 (스캔 뒤 비어 있는 중요한 칸만)
+        const SCAN_CHECK_FIELDS = [['val-name', '이름'], ['val-phone', '연락처'], ['val-dob', '생년월일'], ['val-carrier', '통신사'], ['val-device', '단말기'], ['val-plan', '요금제'], ['val-fee', '월 요금'], ['val-activation', '개통일']];
+        function markScanBlanks() {
+            const blanks = [];
+            SCAN_CHECK_FIELDS.forEach(([id, label]) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const v = String(el.value || '').trim();
+                const empty = !v || v === '-' || v === '미정';
+                el.classList.toggle('scan-blank', empty);
+                if (empty) blanks.push(label);
+            });
+            const hint = document.getElementById('scanBlankHint');
+            hint.textContent = blanks.length ? `🟨 노란 칸 ${blanks.length}개(${blanks.join('·')})는 AI가 못 읽었어요. 확인해서 채워주세요.` : '';
+            hint.classList.toggle('hidden', !blanks.length);
+        }
+        function clearScanBlanks() {
+            SCAN_CHECK_FIELDS.forEach(([id]) => { const el = document.getElementById(id); if (el) el.classList.remove('scan-blank'); });
+            document.getElementById('scanBlankHint').classList.add('hidden');
+        }
+        SCAN_CHECK_FIELDS.forEach(([id]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const off = () => { if (String(el.value || '').trim() && el.value !== '미정') el.classList.remove('scan-blank'); };
+            el.addEventListener('input', off); el.addEventListener('change', off);
+        });
+
+        // 🏷️ 스캔 화면 방문 목적
+        const SCAN_PURPOSES = ['단순CS', '휴대폰문의', '변경업무', '요금수납'];
+        const scanPicked = new Set();
+        function renderScanPurposes() {
+            const box = document.getElementById('scanPurposes');
+            if (!box) return;
+            box.innerHTML = SCAN_PURPOSES.map(v => {
+                const on = scanPicked.has(v);
+                return `<button type="button" data-scan-purpose="${v}" aria-pressed="${on}" class="h-10 px-3.5 rounded-full border-2 text-sm font-bold ${on ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-700'}">${v}</button>`;
+            }).join('');
+        }
+        document.getElementById('scanPurposes').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-scan-purpose]') : null;
+            if (!b) return;
+            const v = b.dataset.scanPurpose;
+            if (scanPicked.has(v)) scanPicked.delete(v); else scanPicked.add(v);
+            renderScanPurposes();
+            document.getElementById('saveDbBtn').classList.remove('hidden');
+        });
+        renderScanPurposes();
+
+        // 📌 폰에서 [DB 저장] 아래 고정 바 (스캔 화면에서 저장 버튼이 보일 때만)
+        function syncScanSaveBar() {
+            const onScanner = !document.getElementById('scannerView').classList.contains('hidden');
+            const show = onScanner && !document.getElementById('saveDbBtn').classList.contains('hidden');
+            document.getElementById('scanSaveBar').classList.toggle('hidden', !show);
+            document.body.classList.toggle('has-scan-bar', show);
+        }
+        document.getElementById('scanSaveBarBtn').addEventListener('click', () => document.getElementById('saveDbBtn').click());
+        if (typeof MutationObserver !== 'undefined') {
+            const mo = new MutationObserver(syncScanSaveBar);
+            mo.observe(document.getElementById('saveDbBtn'), { attributes: true, attributeFilter: ['class'] });
+            mo.observe(document.getElementById('scannerView'), { attributes: true, attributeFilter: ['class'] });
+        }
+
+        // 📝 개통보고 가입유형·할인 버튼 (누르면 칸에 채움 · 직접 써도 됨)
+        const REP_TYPE_CHOICES = ['신규', '기변', '번이'];
+        const REP_DISCOUNT_CHOICES = [['공시지원금', '공시지원'], ['선택약정 12개월', '선약 12'], ['선택약정 24개월', '선약 24'], ['무약정', '무약정']];
+        function renderRepChips() {
+            const t = document.getElementById('rep-type').value.trim();
+            const dsc = document.getElementById('rep-discount').value.trim();
+            const chip = (attr, val, label, on) => `<button type="button" ${attr}="${val}" aria-pressed="${on}" class="h-9 px-3 rounded-full border-2 text-[13px] font-bold ${on ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 bg-white text-gray-700'}">${label}</button>`;
+            document.getElementById('repTypeChips').innerHTML = '<span class="text-[11px] font-bold text-gray-500 self-center mr-0.5">가입유형</span>' + REP_TYPE_CHOICES.map(v => chip('data-rep-type', v, v, t === v)).join('');
+            document.getElementById('repDiscountChips').innerHTML = '<span class="text-[11px] font-bold text-gray-500 self-center mr-0.5">할인</span>' + REP_DISCOUNT_CHOICES.map(([v, label]) => chip('data-rep-discount', v, label, dsc === v)).join('');
+        }
+        document.getElementById('repTypeChips').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-rep-type]') : null;
+            if (!b) return;
+            const el = document.getElementById('rep-type');
+            el.value = el.value.trim() === b.dataset.repType ? '' : b.dataset.repType;   // 한 번 더 누르면 지움
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            renderRepChips();
+        });
+        document.getElementById('repDiscountChips').addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-rep-discount]') : null;
+            if (!b) return;
+            const el = document.getElementById('rep-discount');
+            el.value = el.value.trim() === b.dataset.repDiscount ? '' : b.dataset.repDiscount;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            renderRepChips();
+        });
+        ['rep-type', 'rep-discount'].forEach(id => document.getElementById(id).addEventListener('input', renderRepChips));
+
+        // 🔴 필수 칸 표시 (비었으면 빨갛게 + 그 칸으로)
+        function markRequired(ids) {
+            let first = null;
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                const empty = !String(el.value || '').trim();
+                el.classList.toggle('req-missing', empty);
+                if (empty && !first) first = el;
+            });
+            if (first) { try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); first.focus(); } catch (e) { /* 무시 */ } }
+            return !first;
+        }
+        ['rep-name', 'rep-phone'].forEach(id => document.getElementById(id).addEventListener('input', (e) => { if (String(e.target.value).trim()) e.target.classList.remove('req-missing'); }));
+
+        // 📋 요금제·단말기 추천 목록 (매장에서 많이 쓴 순서 30개)
+        function renderPlanDeviceLists() {
+            const count = (vals) => { const m = new Map(); vals.forEach(v => { const k = String(v || '').trim(); if (k && k !== '-' && k.length <= 40) m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k]) => k); };
+            document.getElementById('planList').innerHTML = count(customerDB.map(c => c.plan)).map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+            document.getElementById('deviceList').innerHTML = count(customerDB.map(c => c.repDevice || c.device)).map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+        }
+        ['val-plan', 'rep-plan'].forEach(id => document.getElementById(id).setAttribute('list', 'planList'));
+        ['val-device', 'rep-device'].forEach(id => document.getElementById(id).setAttribute('list', 'deviceList'));
+
+        // 🔒 주민번호는 앞 7자리(생년월일+성별)만 저장 · 보고서 복사에는 입력한 전체가 그대로
+        function maskJumin(v) {
+            const d = String(v || '').replace(/[^0-9]/g, '');
+            if (d.length < 7) return String(v || '');
+            return `${d.slice(0, 6)}-${d.slice(6, 7)}******`;
+        }
+
+        // 예전에 저장된 주민번호(뒷자리까지) → 직접 눌렀을 때만 앞 7자리로 (되돌릴 수 없어서 한 번 더 확인)
+        function fullJuminTargets() { return customerDB.concat(trashDB).filter(c => String(c.repJumin || '').replace(/[^0-9]/g, '').length > 7); }
+        function renderJuminClean() {
+            const n = fullJuminTargets().length;
+            document.getElementById('juminCleanInfo').textContent = n ? `뒷자리까지 저장된 고객이 ${n}명 있어요.` : '뒷자리까지 저장된 주민번호가 없어요. ✅';
+            document.getElementById('juminCleanBtn').classList.toggle('hidden', !n);
+        }
+        document.getElementById('juminCleanBtn').addEventListener('click', async () => {
+            const targets = fullJuminTargets();
+            if (!targets.length) return renderJuminClean();
+            if (!(await customConfirm(`${targets.length}명의 주민번호 뒷자리를 지울까요?\n앞 7자리(생년월일+성별)만 남고, 지운 뒷자리는 되돌릴 수 없어요.`))) return;
+            const btn = document.getElementById('juminCleanBtn');
+            btn.disabled = true;
+            try {
+                await Promise.all(targets.map(c => saveDoc(doc(db, 'smart_customers', c.id), { repJumin: maskJumin(c.repJumin), updatedAt: new Date().toISOString() }, { merge: true })));
+                customAlert(`🔒 ${targets.length}명의 주민번호 뒷자리를 지웠어요.`);
+            } catch (e) { customAlert(`지우지 못했어요.\n${koreanError(e, '저장')}`); }
+            finally { btn.disabled = false; }
+        });
+
         document.getElementById('cameraUpload').onchange = handleFile; 
         document.getElementById('galleryUpload').onchange = handleFile;
 
@@ -2713,6 +2901,8 @@
             document.getElementById('saveDbBtn').classList.add('hidden');
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
+            clearScanBlanks();
+            scanPicked.clear(); renderScanPurposes();
             
             if(document.getElementById('val-marketing-deny')) document.getElementById('val-marketing-deny').checked = false;
 
@@ -2876,6 +3066,7 @@
                 document.getElementById('val-internet').value = data.internetProd || '';
                 document.getElementById('val-tv').value = data.tvProd || '';
                 document.getElementById('val-wired-fee').value = '';
+                setTimeout(markScanBlanks, 0);   // 🟨 AI가 못 읽은 칸 표시 (개통일 등 아래에서 채운 뒤)
 
                 let actDate = data.activationDate || '';
                 if(actDate && actDate.length === 10) {
@@ -2999,6 +3190,7 @@
             const savedData = {
                 deletedAt: '',  // 휴지통에 있던 고객이면 복구
                 visitDate: document.getElementById('val-date').value,
+                ...(scanPicked.size ? { visitPurpose: SCAN_PURPOSES.filter(v => scanPicked.has(v)).join(', ') } : {}),
                 manager: (existingCustomer && existingCustomer.manager) ? existingCustomer.manager : (document.getElementById('val-manager').value || ''), // 최초 등록 담당자는 유지
                 name: keepIfBlank('name', document.getElementById('val-name').value),
                 phone: phoneDigits ? phoneVal : '',
@@ -3042,6 +3234,8 @@
                 await saveDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
                 customAlert((phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요.") + (restoringFromTrash ? "\n(휴지통에 있던 고객이라 함께 복구했어요)" : "")); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
+                clearScanBlanks();
+                scanPicked.clear(); renderScanPurposes();
                 switchTab('db');
             } catch (error) { console.error(error); customAlert(`저장하지 못했어요.\n${koreanError(error, '저장')}`); }
         });
@@ -5884,6 +6078,7 @@
             if (document.activeElement !== storeEl) storeEl.value = msgStoreName();
             renderSmsBdayImage();
             renderOpenStoreList();
+            renderJuminClean();
             const sender = msgStaffName({ auto: true });
             document.getElementById('smsSenderInfo').textContent = `보내는 사람: ${msgStoreName()}${sender ? ' ' + sender : ''}${sender ? '' : ' (담당자 이름은 내 정보의 직원 이름)'}`;
         }
@@ -7358,7 +7553,7 @@ familyStr + `\n` +
                         salesStatus: '판매성공',
                         wiredDate: recentOrToday(cur.wiredDate),
                         repManager: document.getElementById('wired-rep-manager').value,
-                        repJumin: document.getElementById('wired-rep-jumin').value,
+                        repJumin: maskJumin(document.getElementById('wired-rep-jumin').value),   // 🔒 앞 7자리만 저장
                         repAddress: document.getElementById('wired-rep-address').value,
                         internetProd: document.getElementById('wired-rep-internet').value,
                         tvProd: document.getElementById('wired-rep-tv').value,
@@ -7439,6 +7634,8 @@ familyStr + `\n` +
             document.getElementById('rep-open-store').value = msgStoreName();
             document.getElementById('rep-manager').value = getStaffName() || document.getElementById('val-manager').value || '';
             switchReportTab('mobile');
+            renderRepChips();
+            ['rep-name', 'rep-phone'].forEach(id => document.getElementById(id).classList.remove('req-missing'));
             reportModal.style.display = 'flex';
         });
 
@@ -7553,6 +7750,8 @@ familyStr + `\n` +
             };
 
             switchReportTab('mobile');
+            renderRepChips();
+            ['rep-name', 'rep-phone'].forEach(id => document.getElementById(id).classList.remove('req-missing'));
             reportModal.style.display = 'flex';
         });
 
@@ -7658,7 +7857,8 @@ familyStr + `\n` +
                     const inputName = document.getElementById('rep-name').value.trim();
                     targetId = inputPhone.replace(/[^0-9]/g, '');
                     if (!targetId || !inputName) {
-                        customAlert("신규 등록 시 이름과 연락처는 필수 입력 사항입니다!");
+                        markRequired(['rep-name', 'rep-phone']);
+                        customAlert("신규 등록할 때는 이름과 연락처가 꼭 필요해요. 빨간 칸을 채워주세요.");
                         return false;
                     }
                     const existing = customerDB.find(x => x.id === targetId) || trashDB.find(x => x.id === targetId);
@@ -7713,7 +7913,7 @@ familyStr + `\n` +
                             salesStatus: '판매성공',
                             salesStatusAt: getTodayStr(),   // M+6 뒤 '미정'으로 풀리는 기준
                             activationDate: finalActDate, 
-                            repJumin: document.getElementById('rep-jumin').value, 
+                            repJumin: maskJumin(document.getElementById('rep-jumin').value),   // 🔒 앞 7자리만 저장
                             repInternetTv: document.getElementById('rep-internet-tv').value,
                             repCombination: document.getElementById('rep-combination').value,
                             repFamily: document.getElementById('rep-family').value, // 모바일보고 가족정보
@@ -7785,7 +7985,7 @@ familyStr + `\n` +
                             ...updateData,
                             salesStatus: '판매성공',
                             wiredDate: recentOrToday(reportCustomerData ? reportCustomerData.wiredDate : ''), 
-                            repJumin: document.getElementById('rep-jumin').value,
+                            repJumin: maskJumin(document.getElementById('rep-jumin').value),   // 🔒 앞 7자리만 저장
                             repAddress: document.getElementById('rep-address').value,
                             internetProd: document.getElementById('rep-wired-internet').value,
                             tvProd: document.getElementById('rep-wired-tv').value,
@@ -7930,7 +8130,7 @@ familyStr + `\n` +
             }
         });
 
-        const moneyFields = ['val-installment', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'pros-pay', 'detailProsPay'];
+        const moneyFields = ['val-installment', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'rep-wired-fee', 'pros-pay', 'detailProsPay'];   // rep-wired-fee 추가 (V86)
         moneyFields.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
