@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V89</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V90</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -678,6 +678,10 @@
                         <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 space-y-2">
                             <p class="text-[13px] font-bold text-gray-800">보내는 방법 <span class="font-normal text-gray-500">(켜고 끌 수 있어요)</span></p>
                             <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="autoChPush" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>🔔 자동 푸시<span class="block text-xs font-normal text-gray-500">명함 알림을 켠 고객에게 · 무료 · 생일 사진이 알림에 크게</span></span></label>
+                            <div class="pl-7">
+                                <p class="text-xs font-bold text-gray-600 mb-1">자동 푸시 제목 옆 아이콘</p>
+                                <div id="autoPushIconStrip" class="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
+                            </div>
                             <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="autoChSms" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>💬 자동 문자<span class="block text-xs font-normal text-gray-500">휴대폰 번호가 있는 모든 고객에게 · 매장 폰으로</span></span></label>
                             <p id="autoChSummary" class="text-xs font-medium text-indigo-800 leading-relaxed"></p>
                         </div>
@@ -725,7 +729,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V89</span>
+                    <span class="text-sm text-gray-600">V90</span>
                 </div>
             </section>
         </div>
@@ -2011,6 +2015,7 @@
             settingsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'settings'), (docSnap) => {
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
                 settingsLoaded = true;
+                if (document.getElementById('pushSheet').style.display === 'flex') { try { renderPushIconStrip(); } catch (e) { /* 준비 전 */ } }
                 migrateCardSendStatus();
                 migrateCardContact();
                 if (typeof appSettings.pushRelayUrl === 'string') { try { localStorage.setItem('pushRelayUrl', appSettings.pushRelayUrl); } catch (e) { /* 무시 */ } }
@@ -5974,10 +5979,29 @@
             if (autoSmsOn() && base.to) out.push(base);   // 문자는 휴대폰 번호가 있을 때만
             if (autoPushOn() && c.pushSubscribed === true && c.cardId) {
                 // 문자를 따로 보내므로 푸시에는 번호를 안 넣음 (푸시가 안 돼도 문자로 한 번 더 가지 않게)
-                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '' });
+                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl() });
             }
             return out;
         }
+        // 자동 푸시 아이콘 (매장 공용 · 푸시 창에서 올린 아이콘 중에서 고름 · 없으면 OneSignal 기본)
+        function autoPushIconUrl() { const u = String(appSettings.autoPushIcon || ''); return /^https:\/\//.test(u) && pushIconList().includes(u) ? u : ''; }
+        function renderAutoPushIconStrip() {
+            const box = document.getElementById('autoPushIconStrip');
+            if (!box) return;
+            const icons = pushIconList();
+            const cur = autoPushIconUrl();
+            if (!icons.length) { box.innerHTML = '<p class="text-xs text-gray-500">푸시 창에서 아이콘을 올리면 여기서 고를 수 있어요. (지금은 기본 프로필 사진)</p>'; return; }
+            const tile = (inner, val, on) => `<button type="button" data-auto-icon="${escapeHtml(val)}" aria-pressed="${on}" class="flex-shrink-0 w-12 h-12 rounded-full border-2 ${on ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-gray-200'} bg-white overflow-hidden flex items-center justify-center">${inner}</button>`;
+            box.innerHTML = tile('<span class="text-[10px] font-bold text-gray-600">기본</span>', '', !cur) + icons.map(u => tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, u, cur === u)).join('');
+        }
+        document.getElementById('autoPushIconStrip').addEventListener('click', async (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-auto-icon]') : null;
+            if (!b) return;
+            const v = b.dataset.autoIcon || '';
+            appSettings = { ...appSettings, autoPushIcon: v };
+            renderAutoPushIconStrip();
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), { autoPushIcon: v }, { merge: true }); } catch (err) { console.error(err); }
+        });
         function autoChannelSummary() {
             const p = autoPushOn(), m = autoSmsOn();
             if (p && m) return '지금: 알림 켠 고객은 푸시와 문자 둘 다, 나머지 고객은 문자로 보내요.';
@@ -6148,6 +6172,7 @@
             document.getElementById('autoChPush').checked = autoPushOn();
             document.getElementById('autoChSms').checked = autoSmsOn();
             document.getElementById('autoChSummary').textContent = autoChannelSummary();
+            renderAutoPushIconStrip();
             document.getElementById('smsAutoPromOn').checked = !!smsSetting('smsAutoPromOn');
             document.getElementById('smsAutoBdayOn').checked = !!smsSetting('smsAutoBdayOn');
             [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime']].forEach(([id, key]) => {
@@ -6606,6 +6631,7 @@
             let data = null;
             try { data = await res.json(); } catch (e) { data = null; }
             if (!res.ok || !data || !data.ok) throw new Error((data && data.error) || `중계 서버가 응답하지 않아요 (${res.status}). 주소를 확인해주세요.`);
+            if (data.version) { try { localStorage.setItem('relayVersion', String(data.version)); } catch (e) { /* 무시 */ } }
             return data;
         }
         async function sendPushNow() {
@@ -6734,9 +6760,10 @@
                 const url = del.dataset.pushIconDel;
                 if (!(await customConfirm('이 아이콘을 목록에서 지울까요?'))) return;
                 const list = pushIconList().filter(u => u !== url);
-                appSettings = { ...appSettings, pushIcons: list };
+                const autoCleared = appSettings.autoPushIcon === url;
+                appSettings = { ...appSettings, pushIcons: list, ...(autoCleared ? { autoPushIcon: '' } : {}) };
                 if (pushIcon === url) pushIcon = '';
-                try { await saveDoc(doc(db, 'smart_global', 'settings'), { pushIcons: list }, { merge: true }); } catch (err) { console.error(err); }
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { pushIcons: list, ...(autoCleared ? { autoPushIcon: '' } : {}) }, { merge: true }); } catch (err) { console.error(err); }
                 const key = (String(url).match(/\/img\/([a-z0-9-]+\.(?:jpg|png|webp))$/) || [])[1];
                 if (key) callPushRelay({ deleteImage: key }).catch(() => {});   // 중계 서버 사진도 정리 (안 돼도 괜찮음)
                 renderPushIconStrip(); renderPushPreview();
@@ -6767,6 +6794,10 @@
             document.getElementById('pushManualBox').classList.toggle('hidden', !!pushTarget);   // 한 명 보내기는 OneSignal 화면에서 못 해서 숨김
             renderPosterStrip().then(() => setPushImage(pushImage));
             renderPushIconStrip();
+            // 중계 서버 버전을 모르거나 예전 버전으로 기억돼 있으면 조용히 다시 확인 (코드를 바꾼 뒤 경고가 남지 않게)
+            if (pushRelayReady() && Number(localStorage.getItem('relayVersion') || 0) < 8) {
+                callPushRelay({ test: true }).then(() => renderPushIconStrip()).catch(() => {});
+            }
             document.getElementById('pushAdOn').checked = !pushTarget;   // 전체 발송은 광고 표시 켜고 시작, 한 명 안내는 끄고 시작
             pushVariantList = [];
             document.getElementById('pushVariantsBox').classList.add('hidden');
