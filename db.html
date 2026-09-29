@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V87</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V88</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -725,7 +725,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V87</span>
+                    <span class="text-sm text-gray-600">V88</span>
                 </div>
             </section>
         </div>
@@ -2929,7 +2929,7 @@
             customerDB.forEach(c => { const k = managerKey(c.manager); if (k) counts.set(k, (counts.get(k) || 0) + 1); else none++; });
             const opts = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
             sel.innerHTML = `<option value="">👤 담당자 전체</option>` + opts.map(([k, n]) => `<option value="${escapeHtml(k)}">${escapeHtml(k)} (${n})</option>`).join('') + (none ? `<option value="__none">미지정 (${none})</option>` : '');
-            if (managerFilter && managerFilter !== '__none' && !counts.has(managerFilter)) managerFilter = '';   // 없어진 담당자면 전체로
+            if ((managerFilter && managerFilter !== '__none' && !counts.has(managerFilter)) || (managerFilter === '__none' && !none)) managerFilter = '';   // 없어진 담당자·미지정 0명이면 전체로
             sel.value = managerFilter;
             const banner = document.getElementById('managerBanner');
             banner.classList.toggle('hidden', !managerFilter);
@@ -2949,7 +2949,9 @@
         document.getElementById('clearManagerBtn').addEventListener('click', () => setManagerFilter(''));
 
         // 🏪 스캔 화면 등록점 기본값 = 설정의 매장 이름 (매장 이름 상수가 준비된 뒤에 · 스캔 탭 열 때 비어 있으면 다시)
-        function fillRegStoreDefault() { const el = document.getElementById('val-reg-store'); if (el && !el.value.trim()) el.value = msgStoreName(); }
+        let regStoreAuto = true;   // 직원이 직접 고치기 전까지는 설정의 매장 이름을 따라감
+        function fillRegStoreDefault() { const el = document.getElementById('val-reg-store'); if (el && (regStoreAuto || !el.value.trim())) { el.value = msgStoreName(); regStoreAuto = true; } }
+        document.getElementById('val-reg-store').addEventListener('input', () => { regStoreAuto = false; });
         setTimeout(fillRegStoreDefault, 0);
 
         document.getElementById('cameraUpload').onchange = handleFile; 
@@ -2963,7 +2965,7 @@
             document.getElementById('saveDbBtn').classList.add('hidden');
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
-            document.getElementById('val-reg-store').value = msgStoreName();
+            document.getElementById('val-reg-store').value = msgStoreName(); regStoreAuto = true;
             clearScanBlanks();
             scanPicked.clear(); renderScanPurposes();
             
@@ -6147,6 +6149,7 @@
             renderSmsBdayImage();
             renderOpenStoreList();
             renderJuminClean();
+            fillRegStoreDefault();   // 매장 이름이 도착·변경되면 스캔 화면 등록점도 (직접 고친 게 아니면)
             const sender = msgStaffName({ auto: true });
             document.getElementById('smsSenderInfo').textContent = `보내는 사람: ${msgStoreName()}${sender ? ' ' + sender : ''}${sender ? '' : ' (담당자 이름은 내 정보의 직원 이름)'}`;
         }
