@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V90</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V91</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -729,7 +729,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V90</span>
+                    <span class="text-sm text-gray-600">V91</span>
                 </div>
             </section>
         </div>
@@ -826,6 +826,23 @@
     <datalist id="planList"></datalist>
     <datalist id="deviceList"></datalist>
     <datalist id="visitPurposeList"><option value="단순CS"></option><option value="휴대폰문의"></option><option value="변경업무"></option><option value="요금수납"></option></datalist>
+
+    <!-- 📇 인사말 다음에 '명함 링크만' 따로 보내기 (받는 폰에 명함 카드로 보이게) -->
+    <div id="cardLinkSheet" class="fixed inset-0 z-[66] hidden items-end sm:items-center justify-center bg-black/50">
+        <section aria-labelledby="cardLinkTitle" class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-3" style="padding-bottom: max(20px, env(safe-area-inset-bottom));">
+            <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+            <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 pl-1 pt-1">
+                    <h2 id="cardLinkTitle" class="text-lg font-bold text-gray-900">📇 이어서 명함 카드 보내기</h2>
+                    <p class="text-sm text-gray-600">인사말 문자를 보냈다면, 이번엔 <b>명함 링크만</b> 보내주세요. 받는 폰에 명함 카드로 보여요.</p>
+                </div>
+                <button type="button" id="cardLinkClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <p id="cardLinkTo" class="text-[14px] font-bold text-gray-800 bg-pink-50 border border-pink-100 rounded-xl px-3 py-2"></p>
+            <button type="button" id="cardLinkSendBtn" class="h-12 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-address-card"></i>명함 카드 보내기</button>
+            <button type="button" id="cardLinkSkipBtn" class="h-11 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-600">이번엔 안 보낼게요</button>
+        </section>
+    </div>
 
     <!-- 📇 번호를 직접 넣어 명함 보내기 (등록 안 된 사람도) -->
     <div id="cardSendSheet" class="fixed inset-0 z-[65] hidden items-end sm:items-center justify-center bg-black/50">
@@ -6292,17 +6309,44 @@
             let cardId;
             try { cardId = await ensureCardId(c); }
             catch (e) { console.error(e); return customAlert('명함 링크를 만들지 못했어요. 인터넷 연결을 확인해주세요.'); }
-            const text = cardSendMessage(c.name || '', cardLinkFor(cardId));
             saveDoc(doc(db, 'smart_customers', c.id), { bizCardSentAt: getTodayStr() }, { merge: true }).catch(err => console.error(err));
-            logActionAndCall(c.id, 'sms', c.phone, '명함', text);
+            openCardLinkSheet(c.phone, c.name || '', cardLinkFor(cardId));   // 문자앱에서 돌아오면 바로 '명함 카드 보내기'
+            logActionAndCall(c.id, 'sms', c.phone, '명함', cardIntroMessage(c.name || ''));
         }
         // 📇 번호를 직접 넣어 명함 보내기 (강CRM에 없는 사람도)
         const cardSendSheet = document.getElementById('cardSendSheet');
         let cardSendHistoryPushed = false;
-        function cardSendMessage(name, link) {
+        // 명함은 두 통으로: ① 인사말(링크 없음) ② 링크만 → 받는 폰에 '인사말 + 명함 카드'로 깔끔하게 보임
+        function cardIntroMessage(name) {
             const staff = getStaffName();
-            return `${name ? name + '님, ' : '안녕하세요, '}${msgStoreName()}${staff ? ' ' + staff : ''}입니다 😊\n제 디지털 명함이에요. 저장해두시고 [이벤트 혜택 알림받기]를 눌러주시면 혜택 소식을 가장 먼저 알려드릴게요!\n${link}`;
+            return `${name ? name + '님, ' : '안녕하세요, '}${msgStoreName()}${staff ? ' ' + staff : ''}입니다 😊\n바로 이어서 제 디지털 명함을 보내드려요. 저장해두시고 [이벤트 혜택 알림받기]를 눌러주시면 혜택 소식을 가장 먼저 알려드릴게요!`;
         }
+        // 문자에 보일 링크는 https:// 없이 짧게 (눌러도 똑같이 열리고 미리보기 카드도 붙어요)
+        function shortCardLink(url) { return String(url || '').replace(/^https?:\/\//, ''); }
+        const cardLinkSheet = document.getElementById('cardLinkSheet');
+        let cardLinkHistoryPushed = false;
+        let cardLinkPending = null;   // { phone, link }
+        function openCardLinkSheet(phone, name, link) {
+            cardLinkPending = { phone: String(phone || '').replace(/[^0-9]/g, ''), link: shortCardLink(link) };
+            document.getElementById('cardLinkTo').textContent = `받는 사람: ${name ? name + ' · ' : ''}${formatPhone(cardLinkPending.phone)}`;
+            cardLinkSheet.style.display = 'flex';
+            if (!cardLinkHistoryPushed) { history.pushState({ cardLink: true }, ''); cardLinkHistoryPushed = true; }
+        }
+        function closeCardLinkSheet(fromPopState = false) {
+            if (cardLinkSheet.style.display !== 'flex') return;
+            cardLinkSheet.style.display = 'none';
+            if (cardLinkHistoryPushed) { cardLinkHistoryPushed = false; if (!fromPopState) historyBackSilently(); }
+        }
+        document.getElementById('cardLinkSendBtn').addEventListener('click', () => {
+            if (!cardLinkPending) return closeCardLinkSheet();
+            const { phone, link } = cardLinkPending;
+            cardLinkPending = null;
+            closeCardLinkSheet();
+            setTimeout(() => { window.location.href = `sms:${phone}?body=${encodeURIComponent(link)}`; }, 120);
+        });
+        document.getElementById('cardLinkSkipBtn').addEventListener('click', () => { cardLinkPending = null; closeCardLinkSheet(); });
+        document.getElementById('cardLinkClose').addEventListener('click', () => { cardLinkPending = null; closeCardLinkSheet(); });
+        cardLinkSheet.addEventListener('click', (e) => { if (e.target === cardLinkSheet) { cardLinkPending = null; closeCardLinkSheet(); } });
         function setCardSendStatus(text, tone) {
             const el = document.getElementById('cardSendStatus');
             if (!text) { el.classList.add('hidden'); return; }
@@ -6384,12 +6428,14 @@
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true }));
                     closeCardSendSheet();
-                    logActionAndCall(digits, 'sms', phone, '명함', cardSendMessage(name, cardLinkFor(cardId)));
+                    openCardLinkSheet(digits, name, cardLinkFor(cardId));
+                    logActionAndCall(digits, 'sms', phone, '명함', cardIntroMessage(name));
                 } else {
                     // 저장 안 함 → 누구나 쓰는 명함 주소로 (누가 열었는지는 알 수 없음)
                     closeCardSendSheet();
                     updateAndRenderStats('sms');
-                    const body = encodeURIComponent(cardSendMessage(name, DEFAULT_CARD_URL));
+                    const body = encodeURIComponent(cardIntroMessage(name));
+                    openCardLinkSheet(digits, name, DEFAULT_CARD_URL);
                     window.location.href = `sms:${digits}?body=${body}`;
                 }
             } catch (e) {
@@ -8393,6 +8439,7 @@ familyStr + `\n` +
             if (pushSheet.style.display === 'flex') return closePushSheet(true);
             if (smsListSheet.style.display === 'flex') return closeSmsListSheet(true);
             if (cardSendSheet.style.display === 'flex') return closeCardSendSheet(true);
+            if (cardLinkSheet.style.display === 'flex') { cardLinkPending = null; return closeCardLinkSheet(true); }
             if (actionSheet.style.display === 'flex') return closeActionSheet(true);
             for (const id of BACK_MODALS) {
                 const el = document.getElementById(id);
