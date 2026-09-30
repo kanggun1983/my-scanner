@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V92</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V93</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -468,7 +468,7 @@
             <div class="bg-white border border-gray-200 rounded-xl mb-2.5 overflow-hidden">
             <div class="grid grid-cols-2">
                 <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
-                    <span id="monthlyActLabel" class="text-xs font-medium text-gray-600">이달 개통</span>
+                    <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><span id="todayActText" class="text-gray-500"></span></span>
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
                     <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
                 </div>
@@ -729,7 +729,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V92</span>
+                    <span class="text-sm text-gray-600">V93</span>
                 </div>
             </section>
         </div>
@@ -3779,6 +3779,8 @@
             let wirelessCount = 0;
             let wiredCount = 0;
             let bothCount = 0;
+            const todayStrAct = getTodayStr();
+            let todayActCount = 0;   // 📅 당일 개통 (무선·유선·동시 합계 · 월 개통과 같은 기준)
 
             customerDB.filter(matchesManagerFilter).forEach(c => {   // 👤 담당자별
                 if (c.salesStatus === '판매성공') {
@@ -3793,8 +3795,16 @@
                         if (isM) wirelessCount++;
                         if (isW) wiredCount++;
                     }
+                    // 오늘 개통: 무선·유선이 같은 날이면 동시 1건, 따로면 각각
+                    const tM = actD === todayStrAct, tW = wireD === todayStrAct;
+                    todayActCount += (tM && tW) ? 1 : (tM ? 1 : 0) + (tW ? 1 : 0);
                 }
             });
+            const todayActEl = document.getElementById('todayActText');
+            if (todayActEl) {
+                todayActEl.textContent = ` · 오늘 ${todayActCount}건`;
+                todayActEl.className = todayActCount > 0 ? 'font-bold text-green-700' : 'text-gray-500';
+            }
             const totalMonthlyAct = wirelessCount + wiredCount + bothCount;
 
             const monthlyActTotal = document.getElementById('monthlyActTotal');
