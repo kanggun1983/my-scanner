@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V97</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V98</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -576,7 +576,7 @@
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
                     <div class="min-h-[56px] px-4 py-2 flex items-center justify-between gap-3 border-b border-gray-100">
                         <span class="text-[15px] font-medium text-gray-900 flex-shrink-0">로그인 계정</span>
-                        <span id="settingsEmail" class="text-sm text-gray-600 truncate">-</span>
+                        <span class="min-w-0 flex items-center gap-1.5 justify-end"><span id="settingsRoleBadge" class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5"></span><span id="settingsEmail" class="text-sm text-gray-600 truncate">-</span></span>
                     </div>
                     <button type="button" id="settingsLogoutBtn" class="w-full h-14 px-4 text-left text-[15px] font-medium text-red-700 hover:bg-red-50">로그아웃</button>
                 </div>
@@ -729,7 +729,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V97</span>
+                    <span class="text-sm text-gray-600">V98</span>
                 </div>
             </section>
         </div>
@@ -1712,7 +1712,8 @@
         // 보안 규칙(Rules)에서 걸어야 합니다 - 여기서 막아도 Rules가 열려있으면
         // 개발자도구/API로 우회해 DB에 직접 접근할 수 있습니다.
         // 배열이 비어있으면(기본값) 기존과 동일하게 전원 접근 허용 상태입니다.
-        const ALLOWED_EMAILS = []; // 예: ['staff1@gmail.com', 'staff2@gmail.com']
+        const ALLOWED_EMAILS = ['hogyu0921@gmail.com', 'a44443353@gmail.com'];   // 로그인할 수 있는 계정 (이 목록 밖은 바로 로그아웃)
+        const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com'];   // 👑 총관리자 — 매장 공용 설정을 바꿀 수 있음
 
         let db, auth, customerDB = [], currentFilter = 'all';
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
@@ -1881,13 +1882,15 @@
                 });
 
                 onAuthStateChanged(auth, (user) => {
-                    if (user && (ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.includes(user.email))) {
+                    const emailLc = String((user && user.email) || '').trim().toLowerCase();
+                    if (user && (ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.includes(emailLc))) {
+                        isSuperAdmin = SUPER_ADMIN_EMAILS.includes(emailLc);
                         document.getElementById('loginOverlay').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
                         document.getElementById('userEmailDisplay').textContent = user.email;
                         document.getElementById('settingsEmail').textContent = user.email;
                         switchTab(localStorage.getItem('lastTab') || 'db');
-                        
+                        applyAdminLocks();
                         attachDBListeners(); 
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
@@ -2936,6 +2939,32 @@
             return !first;
         }
         ['rep-name', 'rep-phone'].forEach(id => document.getElementById(id).addEventListener('input', (e) => { if (String(e.target.value).trim()) e.target.classList.remove('req-missing'); }));
+
+        // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
+        let isSuperAdmin = false;
+        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle'];
+        const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
+        function applyAdminLocks() {
+            ADMIN_LOCK_SECTIONS.forEach(tid => {
+                const sec = document.querySelector(`section[aria-labelledby="${tid}"]`);
+                if (!sec) return;
+                sec.querySelectorAll('input, select, textarea, button').forEach(el => { if (!ADMIN_LOCK_ALLOW.has(el.id)) el.disabled = !isSuperAdmin; });
+                let note = sec.querySelector('.admin-lock-note');
+                if (!isSuperAdmin && !note) {
+                    note = document.createElement('p');
+                    note.className = 'admin-lock-note text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2';
+                    note.textContent = '🔒 매장 공용 설정이라 총관리자만 바꿀 수 있어요. (보기는 가능)';
+                    const h = sec.querySelector('h3'); if (h) h.insertAdjacentElement('afterend', note);
+                }
+                if (isSuperAdmin && note) note.remove();
+            });
+            ['settingsStoreName', 'pushRelayUrl'].forEach(id => { const el = document.getElementById(id); if (el) { el.disabled = !isSuperAdmin; el.title = isSuperAdmin ? '' : '총관리자만 바꿀 수 있어요'; } });
+            const badge = document.getElementById('settingsRoleBadge');
+            if (badge) {
+                badge.textContent = isSuperAdmin ? '👑 총관리자' : '직원';
+                badge.className = `flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isSuperAdmin ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`;
+            }
+        }
 
         // 📋 요금제·단말기 추천 목록 (매장에서 많이 쓴 순서 30개)
         function renderPlanDeviceLists() {
@@ -4626,6 +4655,7 @@
             const pwEl = document.getElementById('pushRelayPw');
             if (document.activeElement !== pwEl) pwEl.value = pushRelayPw();
             renderSmsSettings();
+            applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
         let staffSavedTimer = null;
         document.getElementById('settingsStaffName').addEventListener('change', (e) => {
@@ -6090,6 +6120,7 @@
             if (!icons.length) { box.innerHTML = '<p class="text-xs text-gray-500">푸시 창에서 아이콘을 올리면 여기서 고를 수 있어요. (지금은 기본 프로필 사진)</p>'; return; }
             const tile = (inner, val, on) => `<button type="button" data-auto-icon="${escapeHtml(val)}" aria-pressed="${on}" class="flex-shrink-0 w-12 h-12 rounded-full border-2 ${on ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-gray-200'} bg-white overflow-hidden flex items-center justify-center">${inner}</button>`;
             box.innerHTML = tile('<span class="text-[10px] font-bold text-gray-600">기본</span>', '', !cur) + icons.map(u => tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, u, cur === u)).join('');
+            if (!isSuperAdmin) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
         }
         document.getElementById('autoPushIconStrip').addEventListener('click', async (e) => {
             const b = e.target && e.target.closest ? e.target.closest('[data-auto-icon]') : null;
@@ -6837,7 +6868,7 @@
             const tile = (inner, attrs, on) => `<button type="button" ${attrs} aria-pressed="${on}" class="relative flex-shrink-0 w-16 h-16 rounded-full border-2 ${on ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-gray-200'} bg-white overflow-hidden flex items-center justify-center">${inner}</button>`;
             const icons = pushIconList();
             strip.innerHTML = tile('<span class="text-[11px] font-bold text-gray-600 leading-tight">기본<br>(프로필)</span>', 'data-push-icon=""', !pushIcon)
-                + icons.map(u => `<span class="relative flex-shrink-0">${tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, `data-push-icon="${escapeHtml(u)}"`, pushIcon === u)}<button type="button" data-push-icon-del="${escapeHtml(u)}" aria-label="이 아이콘 지우기" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center justify-center">×</button></span>`).join('')
+                + icons.map(u => `<span class="relative flex-shrink-0">${tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, `data-push-icon="${escapeHtml(u)}"`, pushIcon === u)}${isSuperAdmin ? `<button type="button" data-push-icon-del="${escapeHtml(u)}" aria-label="이 아이콘 지우기" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center justify-center">×</button>` : ''}</span>`).join('')
                 + tile(pushIconUploading ? '<i class="fa-solid fa-spinner fa-spin text-gray-500"></i>' : '<span class="text-[11px] font-bold text-indigo-700 leading-tight">+ 아이콘<br>올리기</span>', 'data-push-icon-add="1"', false);
             const ver = Number(localStorage.getItem('relayVersion') || 0);
             const note = document.getElementById('pushIconNote');
