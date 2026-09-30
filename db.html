@@ -138,7 +138,7 @@
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <i class="fa-solid fa-robot text-indigo-500"></i> 스마트 전산 스캐너 
-                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V95</span>
+                    <span class="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full ml-1 font-bold">V97</span>
                 </h1>
                 <p class="text-[10px] sm:text-sm text-gray-500 mt-1 flex items-center gap-1">
                     <i class="fa-solid fa-lock text-green-500"></i> <span id="userEmailDisplay" class="font-bold text-gray-700"></span> 님 접속 중
@@ -468,7 +468,7 @@
             <div class="bg-white border border-gray-200 rounded-xl mb-2.5 overflow-hidden">
             <div class="grid grid-cols-2">
                 <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
-                    <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><button type="button" id="todayActBtn" data-dash-filter="today_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="오늘 개통 고객 점검하기"><span id="todayActText" class="text-gray-500"></span></button></span>
+                    <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><button type="button" id="ydayActBtn" data-dash-filter="yday_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="전일 개통 고객 점검하기"><span id="ydayActText" class="text-gray-500"></span></button><button type="button" id="todayActBtn" data-dash-filter="today_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="오늘 개통 고객 점검하기"><span id="todayActText" class="text-gray-500"></span></button></span>
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
                     <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
                 </div>
@@ -729,7 +729,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V95</span>
+                    <span class="text-sm text-gray-600">V97</span>
                 </div>
             </section>
         </div>
@@ -1765,7 +1765,33 @@
         }
         // 📱 [뒤로가기] 관리: 창을 코드로 닫으면서 히스토리를 한 칸 되돌릴 때, 그 신호가 다른 창까지 닫지 않도록 표시
         let suppressedBacks = [];
-        function historyBackSilently() { suppressedBacks.push(Date.now()); history.back(); }
+        // 🔙 뒤로가기 기록 관리 — 창 하나가 닫히면서 곧바로 다른 창이 열릴 때 기록이 꼬이지 않게
+        //   (예전: + 메뉴 → 신규 개통보고 → 닫기 하면 뒤로가기가 한 번 더 돼서 앱이 닫히거나 이전 페이지로 나갔음)
+        //   · 닫힌 창의 '뒤로'는 바로 하지 않고 잠깐 미뤄둠 → 그 사이 새 창이 열리면 그 기록을 그대로 이어받음 (뒤로·넣기 둘 다 안 함)
+        //   · 이미 뒤로가는 중에 새 창이 열리면, 뒤로가 끝난 뒤에 넣음
+        let pendingBack = 0, backInFlight = 0, deferredPushes = [], backGuardTimer = null;
+        function flushDeferredPushes() { while (deferredPushes.length) history.pushState(deferredPushes.shift(), ''); }
+        function historyBackSilently() {
+            pendingBack++;
+            setTimeout(() => {
+                if (pendingBack <= 0) return;   // 그사이 새 창이 기록을 이어받음
+                pendingBack--;
+                backInFlight++;
+                suppressedBacks.push(Date.now());
+                history.back();
+                clearTimeout(backGuardTimer);
+                backGuardTimer = setTimeout(() => { if (backInFlight > 0) { backInFlight = 0; flushDeferredPushes(); } }, 1200);   // 뒤로 갈 곳이 없을 때 대비
+            }, 0);
+        }
+        function pushAppState(state) {
+            if (pendingBack > 0) {   // 방금 닫힌 창의 기록을 새 창이 이어받음
+                pendingBack--;
+                if (typeof history.replaceState === 'function') history.replaceState(state, '');
+                return;
+            }
+            if (backInFlight > 0) { deferredPushes.push(state); return; }   // 뒤로가기가 끝난 뒤에
+            history.pushState(state, '');
+        }
         // 문자앱 열기 주소 — 아이폰은 '&body=', 안드로이드는 '?body='
         function smsHref(num, body) {
             const sep = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? '&' : '?';
@@ -3624,6 +3650,7 @@
             visit_promise: (n) => `방문약속 고객만 보는 중 (${n}명)`,
             today_promise: (n) => `지연·오늘·${PROMISE_DAYS_AHEAD}일 안 약속 고객만 보는 중 (${n}명)`,
             today_act: (n) => { if (!n) return '🔍 오늘 개통한 고객이 아직 없어요'; const need = globalFilteredDB.filter(c => actCheckSummary(c).problems > 0).length; return `🔍 오늘 개통 ${n}명 점검 중${need ? ` · 확인 필요 ${need}명` : ' · 모두 확인 완료 ✅'}`; },
+            yday_act: (n) => { if (!n) return '🔍 전일 개통한 고객이 없어요'; const need = globalFilteredDB.filter(c => actCheckSummary(c).problems > 0).length; return `🔍 전일 개통 ${n}명 점검 중${need ? ` · 확인 필요 ${need}명` : ' · 모두 확인 완료 ✅'}`; },
             target_dashboard: (n) => `무선 만료타겟만 보는 중 (${n}명)`,
             wired_target: (n) => `유선 만료타겟만 보는 중 (${n}명)`,
             birthday: (n) => `생일 ${BIRTHDAY_DAYS_AHEAD}일 안 고객만 보는 중 (${n}명)`
@@ -3739,6 +3766,7 @@
                     return p.today || p.overdue || p.soon;
                 }
                 if (currentFilter === 'today_act') return isTodayActivation(c);   // 🔍 오늘 개통 점검
+                if (currentFilter === 'yday_act') return isYesterdayActivation(c);   // 🔍 전일 개통 점검
                 if (currentFilter === 'target_dashboard') return isMobileExpiryTarget(c);
                 if (currentFilter === 'wired_target') return isWiredExpiryTarget(c);
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
@@ -3782,7 +3810,9 @@
             let wiredCount = 0;
             let bothCount = 0;
             const todayStrAct = getTodayStr();
+            const ydayStrAct = yesterdayStr();
             let todayActCount = 0;   // 📅 당일 개통 (무선·유선·동시 합계 · 월 개통과 같은 기준)
+            let ydayActCount = 0;    // 📅 전일 개통 (같은 기준)
 
             customerDB.filter(matchesManagerFilter).forEach(c => {   // 👤 담당자별
                 if (c.salesStatus === '판매성공') {
@@ -3800,8 +3830,15 @@
                     // 오늘 개통: 무선·유선이 같은 날이면 동시 1건, 따로면 각각
                     const tM = actD === todayStrAct, tW = wireD === todayStrAct;
                     todayActCount += (tM && tW) ? 1 : (tM ? 1 : 0) + (tW ? 1 : 0);
+                    const yM = actD === ydayStrAct, yW = wireD === ydayStrAct;
+                    ydayActCount += (yM && yW) ? 1 : (yM ? 1 : 0) + (yW ? 1 : 0);
                 }
             });
+            const ydayActEl = document.getElementById('ydayActText');
+            if (ydayActEl) {
+                ydayActEl.textContent = ` · 전일 ${ydayActCount}건`;
+                ydayActEl.className = ydayActCount > 0 ? 'font-bold text-gray-800' : 'text-gray-500';
+            }
             const todayActEl = document.getElementById('todayActText');
             if (todayActEl) {
                 todayActEl.textContent = ` · 오늘 ${todayActCount}건`;
@@ -3830,7 +3867,7 @@
             if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
 
             // 정렬: 기본(최근 방문순)일 때는 필터마다 맞는 순서, 직접 고른 정렬이 있으면 그걸로
-            const FILTER_SORTS = ['promise', 'today_promise', 'today_act', 'wired_target', 'birthday'];
+            const FILTER_SORTS = ['promise', 'today_promise', 'today_act', 'yday_act', 'wired_target', 'birthday'];
             const useFilterSort = currentSort === 'visit' && FILTER_SORTS.includes(currentFilter);
             const sortLabelEl = document.getElementById('sortLabel');
             if (sortLabelEl) sortLabelEl.textContent = useFilterSort ? '급한 순' : (SORT_OPTIONS.find(o => o.key === currentSort) || SORT_OPTIONS[0]).label;
@@ -3856,7 +3893,7 @@
                 // 아직 처리 안 된 약속 중 가장 빠른 날짜 순 (밀린 약속이 맨 위, 전부 완료한 고객은 맨 아래)
                 const minOpenDate = (c) => { const d = getOpenPromiseDates(c).sort(); return d.length ? d[0] : '9999-12-31'; };
                 globalFilteredDB.sort((a, b) => minOpenDate(a).localeCompare(minOpenDate(b)));
-            } else if (currentFilter === 'today_act') {
+            } else if (currentFilter === 'today_act' || currentFilter === 'yday_act') {
                 // 빠진 게 많은 고객부터 (다 채운 고객은 아래로)
                 const score = new Map(globalFilteredDB.map(c => { const r = actCheckSummary(c); return [c.id, r.miss.length * 10 + r.check.length]; }));
                 globalFilteredDB.sort((a, b) => (score.get(b.id) - score.get(a.id)) || (a.name || '').localeCompare(b.name || '', 'ko'));
@@ -4258,7 +4295,7 @@
             }
 
             const callCls = refused ? 'border border-gray-300 bg-white text-gray-700' : 'bg-green-700 hover:bg-green-800 text-white';
-            if (currentFilter === 'today_act') {
+            if (currentFilter === 'today_act' || currentFilter === 'yday_act') {
                 const r = actCheckSummary(c);
                 const chipsHtml = [...r.miss.map(i => `<span class="text-xs font-bold text-red-800 bg-red-50 border border-red-200 rounded-md px-1.5 py-0.5">빠짐 · ${escapeHtml(i.label)}</span>`),
                                    ...r.check.map(i => `<span class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">확인 · ${escapeHtml(i.label)}</span>`)].join(' ');
@@ -4462,7 +4499,7 @@
             });
             actionSheet.style.display = 'flex';
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 메뉴만 닫히도록
-            if (!actionSheetHistoryPushed) { history.pushState({ actionSheet: true }, ''); actionSheetHistoryPushed = true; }
+            if (!actionSheetHistoryPushed) { pushAppState({ actionSheet: true }); actionSheetHistoryPushed = true; }
         }
         function closeActionSheet(fromPopState = false) {
             if (actionSheet.style.display !== 'flex') return;
@@ -4543,7 +4580,7 @@
             header.classList.toggle('flex', on);
             document.getElementById('selectBar').classList.toggle('hidden', !on);
             document.getElementById('bottomNav').classList.toggle('hidden', on);
-            if (on && !selectionHistoryPushed) { history.pushState({ selection: true }, ''); selectionHistoryPushed = true; }
+            if (on && !selectionHistoryPushed) { pushAppState({ selection: true }); selectionHistoryPushed = true; }
             if (!on) {
                 selectedIds.clear();
                 if (selectionHistoryPushed) { selectionHistoryPushed = false; if (!fromPopState) historyBackSilently(); }
@@ -4902,7 +4939,7 @@
             document.getElementById('profileBody').scrollTop = 0;
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 카드만 닫히도록 히스토리 한 칸 추가
             if (!profileHistoryPushed) {
-                history.pushState({ profileCard: true }, '');
+                pushAppState({ profileCard: true });
                 profileHistoryPushed = true;
             }
         };
@@ -5357,7 +5394,7 @@
             document.getElementById('familyPickerSearch').value = '';
             renderFamilyPickerResults();
             familyPickerSheet.style.display = 'flex';
-            if (!familyPickerHistoryPushed) { history.pushState({ familyPicker: true }, ''); familyPickerHistoryPushed = true; }
+            if (!familyPickerHistoryPushed) { pushAppState({ familyPicker: true }); familyPickerHistoryPushed = true; }
         }
         function closeFamilyPicker(fromPopState = false) {
             if (familyPickerSheet.style.display !== 'flex') return;
@@ -5607,7 +5644,7 @@
             document.getElementById('callResultHint').textContent = '결과를 고르면 영업상태와 연락 기록에 바로 반영돼요.';
             updateCallResultButtons();
             callResultSheet.style.display = 'flex';
-            if (!callResultHistoryPushed) { history.pushState({ callResult: true }, ''); callResultHistoryPushed = true; }
+            if (!callResultHistoryPushed) { pushAppState({ callResult: true }); callResultHistoryPushed = true; }
         }
         function closeCallResultSheet(fromPopState = false) {
             if (callResultSheet.style.display !== 'flex') return;
@@ -6192,7 +6229,7 @@
             smsListData = null;
             renderSmsList();
             smsListSheet.style.display = 'flex';
-            if (!smsListHistoryPushed) { history.pushState({ smsList: true }, ''); smsListHistoryPushed = true; }
+            if (!smsListHistoryPushed) { pushAppState({ smsList: true }); smsListHistoryPushed = true; }
             try {
                 const list = await callSms('list');
                 smsListData = { queued: list.queued || [], sent: list.sent || [], todaySent: list.todaySent || 0, ready: list.ready, e2e: !!list.e2e };
@@ -6375,7 +6412,7 @@
             cardLinkSheet.style.display = 'flex';
             if (!cardLinkHistoryPushed) {
                 if (historyHandoff) historyHandoff = false;   // 명함 보내기 창의 기록을 그대로 씀
-                else history.pushState({ cardLink: true }, '');
+                else pushAppState({ cardLink: true });
                 cardLinkHistoryPushed = true;
             }
         }
@@ -6436,7 +6473,7 @@
             renderCardSendMatch();
             setCardSendStatus('');
             cardSendSheet.style.display = 'flex';
-            if (!cardSendHistoryPushed) { history.pushState({ cardSend: true }, ''); cardSendHistoryPushed = true; }
+            if (!cardSendHistoryPushed) { pushAppState({ cardSend: true }); cardSendHistoryPushed = true; }
             setTimeout(() => { try { document.getElementById('cardSendPhone').focus(); } catch (e) { /* 무시 */ } }, 50);
         }
         let historyHandoff = false;   // 명함 보내기 창의 뒤로가기 기록을 '이어서 명함 카드' 창이 그대로 넘겨받음
@@ -6903,7 +6940,7 @@
             setPushStatus('');
             renderPushPreview();
             pushSheet.style.display = 'flex';
-            if (!pushHistoryPushed) { history.pushState({ push: true }, ''); pushHistoryPushed = true; }
+            if (!pushHistoryPushed) { pushAppState({ push: true }); pushHistoryPushed = true; }
         }
         function closePushSheet(fromPopState = false) {
             if (pushSheet.style.display !== 'flex') return;
@@ -7139,7 +7176,7 @@
             setAiSmsStatus(geminiApiKey ? '' : '설정 탭에서 AI 키를 넣어야 AI가 문자를 써줄 수 있어요. (직접 쓰는 건 가능)', 'red');
             aiSmsSheet.style.display = 'flex';
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 이 창만 닫히도록
-            if (!aiSmsHistoryPushed) { history.pushState({ aiSms: true }, ''); aiSmsHistoryPushed = true; }
+            if (!aiSmsHistoryPushed) { pushAppState({ aiSms: true }); aiSmsHistoryPushed = true; }
         };
 
         // 문자 초안이 바뀌었으면 고객 정보에 저장 (다음에 열면 이어서 볼 수 있게)
@@ -7730,6 +7767,15 @@ ${AI_TONES[aiSmsTone]}
         //    (개통보고의 자동 약속 규칙과 같은 기준: 요금제는 항상, 부가·보험은 적혀 있을 때)
         // ═════════════════════════════════════════════
         function actCheckMeaningful(v) { const t = String(v || '').trim(); return !!t && !['-', 'x', 'X', '없음', '무', '해당없음', 'no', 'NO', '미정'].includes(t); }
+        function yesterdayStr() {
+            const t = new Date(); const d = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        }
+        function isYesterdayActivation(c) {
+            if (c.salesStatus !== '판매성공') return false;
+            const y = yesterdayStr();
+            return c.activationDate === y || c.wiredDate === y;
+        }
         function isTodayActivation(c) {
             if (c.salesStatus !== '판매성공') return false;
             const today = getTodayStr();
@@ -8526,12 +8572,18 @@ familyStr + `\n` +
                 const el = document.getElementById(id);
                 new MutationObserver(() => {
                     const open = el.style.display === 'flex';
-                    if (open && !backModalPushed[id]) { backModalPushed[id] = true; history.pushState({ modal: id }, ''); }
+                    if (open && !backModalPushed[id]) { backModalPushed[id] = true; pushAppState({ modal: id }); }
                     else if (!open && backModalPushed[id]) { backModalPushed[id] = false; historyBackSilently(); }
                 }).observe(el, { attributes: true, attributeFilter: ['style'] });
             });
         }
         window.addEventListener('popstate', () => {
+            if (backInFlight > 0) {   // 우리가 부른 뒤로가기가 도착 → 조용히 넘기고, 기다리던 새 창 기록을 넣음
+                backInFlight--;
+                suppressedBacks.shift();
+                if (!backInFlight) { clearTimeout(backGuardTimer); flushDeferredPushes(); }
+                return;
+            }
             const nowMs = Date.now();
             suppressedBacks = suppressedBacks.filter(t => nowMs - t < 1500);   // 오래된 표시는 버림 (사용자 뒤로가기를 삼키지 않게)
             if (suppressedBacks.length) { suppressedBacks.shift(); return; }
@@ -8540,7 +8592,7 @@ familyStr + `\n` +
             const confirmOpen = document.getElementById('customConfirm').style.display === 'flex';
             if (alertOpen || confirmOpen) {
                 if (confirmOpen) document.getElementById('customConfirmCancel').click(); else closeCustomAlert();
-                history.pushState({ reArm: true }, '');
+                pushAppState({ reArm: true });
                 return;
             }
             if (familyPickerSheet.style.display === 'flex') return closeFamilyPicker(true);
@@ -8558,7 +8610,7 @@ familyStr + `\n` +
                 if (id === 'detailModal') {
                     if (!detailDirty) { closeDetailModalFunc(); return; }
                     // 확인창이 떠 있는 동안 한 번 더 뒤로가기를 눌러도 앱이 꺼지지 않게 한 칸 미리 넣어둠
-                    history.pushState({ modal: id }, '');
+                    pushAppState({ modal: id });
                     customConfirm('저장하지 않은 변경사항이 있어요.\n저장하지 않고 닫을까요?').then(ok => {
                         if (ok) { closeDetailModalFunc(); historyBackSilently(); }
                         else backModalPushed[id] = true;   // 계속 편집 (넣어둔 한 칸이 상세카드 몫)
