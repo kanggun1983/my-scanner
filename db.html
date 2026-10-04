@@ -437,6 +437,11 @@
 
             <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌 · 화면이 좁으면 옆으로 넘겨서 보기) -->
             <div id="alertDashboard" class="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-hide">
+                <button type="button" id="dashCalc" aria-label="명함 상담요청 보기" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600 truncate">명함상담</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashCalcCount">0</span><span class="text-sm">건</span></span>
+                    <span id="dashCalcSub" class="text-xs text-gray-600 truncate">새 요청 없음</span>
+                </button>
                 <button type="button" id="dashVisit" data-dash-filter="visit_promise" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
                     <span class="text-xs font-medium text-gray-600 truncate">방문약속</span>
                     <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashVisitCount">0</span><span class="text-sm">명</span></span>
@@ -648,6 +653,30 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setCalcTitle">
+                <h3 id="setCalcTitle" class="text-[13px] font-bold text-gray-600 pl-1">명함 폰값계산</h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-4">
+                    <p class="text-xs text-gray-600 leading-relaxed">통신사 공통지원금 엑셀을 올리면 명함 [폰값계산] 금액이 바로 바뀌어요. 고객이 명함에서 [상담 받기]를 누르면 고객 화면 '명함상담'에 떠요.</p>
+                    <button type="button" id="calcOpenReqBtn" class="w-full h-12 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-inbox"></i>명함 상담요청 보기</button>
+                    <div class="space-y-2">
+                        <p class="text-[14px] font-bold text-gray-900">통신사별 지원금</p>
+                        <div id="calcCarrierList" class="space-y-2"></div>
+                        <input type="file" id="calcExcelFile" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden">
+                        <p id="calcStatus" role="status" class="hidden"></p>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <p class="text-[14px] font-bold text-gray-900">요금제 낮출 때 위약금 기준</p>
+                        <p class="text-xs text-gray-600 leading-relaxed -mt-1">이 금액 <b>미만</b> 요금제로 바꾸면 명함에 위약금 경고가 떠요. LTE 기준은 LTE폰을 고르면 적용돼요.</p>
+                        <div id="calcRuleGrid" class="space-y-2"></div>
+                        <div class="flex items-center justify-between gap-3 pt-1">
+                            <label for="calcDistKeep" class="text-sm font-bold text-gray-900 leading-snug">공통지원금·유통망지원금<br><span class="text-xs font-medium text-gray-600">받으면 요금제 유지</span></label>
+                            <span class="flex items-center gap-1 flex-shrink-0"><input type="number" id="calcDistKeep" inputmode="numeric" min="1" max="730" class="w-20 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-right text-gray-900 bg-white disabled:bg-gray-50"><span class="text-sm text-gray-700">일</span></span>
+                        </div>
+                        <p id="calcSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
+                    </div>
+                    <a href="https://kanggun1983.github.io/" target="_blank" rel="noopener" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800 flex items-center justify-center gap-2"><i class="fa-solid fa-arrow-up-right-from-square"></i>명함에서 확인하기</a>
+                </div>
+            </section>
             <section class="space-y-2" aria-labelledby="setSmsTitle">
                 <h3 id="setSmsTitle" class="text-[13px] font-bold text-gray-600 pl-1">자동 문자 <span class="font-normal">(매장 폰으로 무료 발송)</span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
@@ -729,7 +758,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V99</span>
+                    <span class="text-sm text-gray-600">V101</span>
                 </div>
             </section>
         </div>
@@ -1712,8 +1741,8 @@
         // 보안 규칙(Rules)에서 걸어야 합니다 - 여기서 막아도 Rules가 열려있으면
         // 개발자도구/API로 우회해 DB에 직접 접근할 수 있습니다.
         // 배열이 비어있으면(기본값) 기존과 동일하게 전원 접근 허용 상태입니다.
-        const ALLOWED_EMAILS = ['hogyu0921@gmail.com', 'a44443353@gmail.com'];   // 로그인할 수 있는 계정 (이 목록 밖은 바로 로그아웃)
-        const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com'];   // 👑 총관리자 — 매장 공용 설정을 바꿀 수 있음
+        const ALLOWED_EMAILS = ['hogyu0921@gmail.com', 'a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 로그인할 수 있는 계정 (이 목록 밖은 바로 로그아웃)
+        const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 👑 총관리자 — 매장 공용 설정을 바꿀 수 있음
 
         let db, auth, customerDB = [], currentFilter = 'all';
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
@@ -1892,6 +1921,7 @@
                         switchTab(localStorage.getItem('lastTab') || 'db');
                         applyAdminLocks();
                         attachDBListeners(); 
+                        attachCalcListeners();   // 📱 명함 폰값계산 · 상담요청
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
                         const errMsg = document.getElementById('loginErrorMsg');
@@ -1905,6 +1935,7 @@
                         if(dbUnsubscribe) dbUnsubscribe();
                         if(statsUnsubscribe) statsUnsubscribe();
                         if(settingsUnsubscribe) settingsUnsubscribe();
+                        detachCalcListeners();
                         customerDB = [];
                     }
                 });
@@ -2942,8 +2973,8 @@
 
         // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
         let isSuperAdmin = false;
-        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle'];
-        const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
+        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setCalcTitle'];
+        const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn', 'calcOpenReqBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
         // 잠금은 '잠금이 한 것'만 풀어요 — 원래 기능 때문에 꺼둔 칸(예: 자동 약속을 끄면 유지 조건 칸이 흐려짐)은 그대로
         function setAdminLock(el, lock) {
             if (lock) { if (!el.disabled) { el.disabled = true; el.dataset.adminLocked = '1'; } }
@@ -4660,6 +4691,7 @@
             const pwEl = document.getElementById('pushRelayPw');
             if (document.activeElement !== pwEl) pwEl.value = pushRelayPw();
             renderSmsSettings();
+            renderCalcSettings();
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
         let staffSavedTimer = null;
@@ -8639,6 +8671,7 @@ familyStr + `\n` +
             if (cardSendSheet.style.display === 'flex') return closeCardSendSheet(true);
             if (cardLinkSheet.style.display === 'flex') { cardLinkPending = null; return closeCardLinkSheet(true); }
             if (actionSheet.style.display === 'flex') return closeActionSheet(true);
+            if (window.__calcSheetBack && window.__calcSheetBack()) return;
             for (const id of BACK_MODALS) {
                 const el = document.getElementById(id);
                 if (el.style.display !== 'flex' || !backModalPushed[id]) continue;
@@ -8667,6 +8700,563 @@ familyStr + `\n` +
             if (e.target.id === 'prospectModal') document.getElementById('prospectModal').style.display = 'none';
             if (e.target.id === 'apiModal') document.getElementById('apiModal').style.display = 'none';
         });
+
+    
+        /* =====================================================================
+           📱 명함 폰값계산 ↔ 강CRM
+           · card_public/phonecalc : 명함 [폰값계산]이 읽는 지원금·요금제·위약금 기준 (누구나 읽기 · 직원만 바꾸기)
+           · card_requests         : 명함에서 들어온 상담요청·계산 기록 (누구나 보내기 · 직원만 보기)
+           ===================================================================== */
+        const CALC_CARRIERS = ['SKT', 'KT', 'LG U+'];
+        const CALC_KEEP_OPTIONS = ['M1', 'M2', 'M3', 'M4', 'D62', 'D93', 'D96', 'D126', 'D129', 'D183', 'D186', 'D189'];
+        const CALC_RULE_DEFAULTS = {
+            'SKT':   { keep: 'M3',   lim5G: 42000, limLTE: 20000, ex: '5G 요금제에서 LTE 요금제로 바꾸면 금액과 관계없이 위약금이 발생할 수 있어요' },
+            'KT':    { keep: 'D126', lim5G: 47000, limLTE: 20000, ex: '5G 시니어 A·B·C형 요금제는 예외예요' },
+            'LG U+': { keep: 'D96',  lim5G: 45000, limLTE: 26400, ex: '5G 시니어 B·C형 요금제는 예외예요' }
+        };
+        const CALC_CARD_URL = 'https://kanggun1983.github.io/';
+        let calcData = null, calcLoadError = null;
+        let calcUnsub = null, calcReqUnsub = null;
+        let calcRequests = [], calcReqFirstLoad = true, calcReqError = null, calcPurged = false;
+        let calcSheetMode = 'requests', calcReqTab = 'open', calcDraft = null, calcSheetPushed = false, calcUploadCarrier = null;
+
+        const calcTxt = v => v == null ? '' : String(v).replace(/\s+/g, ' ').trim();
+        const calcNum = v => {
+            if (typeof v === 'number') return v;
+            const s = String(v ?? '').replace(/[,원\s]/g, '');
+            if (!s) return NaN;
+            const n = Number(s);
+            return isFinite(n) ? n : NaN;
+        };
+        const calcWon = n => Math.round(Number(n) || 0).toLocaleString('ko-KR') + '원';
+        function calcClone(o) { return JSON.parse(JSON.stringify(o)); }
+        function calcNormalize(d) {
+            const out = { updated: '', distKeep: 186, carriers: {}, rules: {}, mvno: [], ...(d || {}) };
+            out.carriers = { ...(out.carriers || {}) };
+            out.rules = { ...(out.rules || {}) };
+            CALC_CARRIERS.forEach(k => {
+                const r = out.rules[k] || {};
+                // 예전 형식(subsidy.json: keep {type,v} · lim {'5G','LTE'})도 읽기
+                let keep = r.keep;
+                if (keep && typeof keep === 'object') keep = (keep.type === 'M' ? 'M' : 'D') + keep.v;
+                const lim = r.lim || {};
+                out.rules[k] = {
+                    ...CALC_RULE_DEFAULTS[k],
+                    ...(keep ? { keep } : {}),
+                    ...(r.lim5G || lim['5G'] ? { lim5G: Number(r.lim5G || lim['5G']) } : {}),
+                    ...(r.limLTE || lim['LTE'] ? { limLTE: Number(r.limLTE || lim['LTE']) } : {}),
+                    ...(typeof r.ex === 'string' ? { ex: r.ex } : {})
+                };
+                if (!out.carriers[k]) out.carriers[k] = { ready: false };
+            });
+            out.distKeep = Number(out.distKeep) || 186;
+            return out;
+        }
+
+        /* ---------- 실시간 연결 ---------- */
+        function attachCalcListeners() {
+            detachCalcListeners();
+            calcUnsub = onSnapshot(doc(db, 'card_public', 'phonecalc'), snap => {
+                let d = null;
+                try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
+                calcData = calcNormalize(d);
+                calcLoadError = null;
+                if (!document.getElementById('settingsView').classList.contains('hidden')) renderCalcSettings();
+                if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'plans' && !calcDraft) renderCalcSheet();
+            }, err => {
+                console.error('폰값계산 설정 불러오기 실패:', err);
+                calcLoadError = err;
+                calcData = calcData || calcNormalize(null);
+                renderCalcSettings();
+            });
+            calcReqFirstLoad = true;
+            calcReqUnsub = onSnapshot(collection(db, 'card_requests'), snap => {
+                const list = [];
+                snap.forEach(d => list.push({ ...d.data(), id: d.id }));
+                list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+                if (!calcReqFirstLoad) snap.docChanges().forEach(ch => { if (ch.type === 'added') calcNotify(ch.doc.data()); });
+                calcReqFirstLoad = false;
+                calcRequests = list;
+                calcReqError = null;
+                calcPurgeOld();
+                renderCalcDash();
+                if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'requests') renderCalcSheet();
+            }, err => {
+                console.error('명함 상담요청 불러오기 실패:', err);
+                calcReqError = err;
+                renderCalcDash();
+            });
+        }
+        function detachCalcListeners() {
+            if (calcUnsub) { calcUnsub(); calcUnsub = null; }
+            if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
+        }
+        // 처리 끝난 지 30일 지난 요청, 60일 지난 기록은 자동 정리 (하루 한 번 아님 · 앱 열 때 한 번)
+        function calcPurgeOld() {
+            if (calcPurged || !calcRequests.length) return;
+            calcPurged = true;
+            const now = Date.now(), DAY = 86400000;
+            calcRequests.forEach(r => {
+                const at = Date.parse(r.at || '') || now, doneAt = Date.parse(r.doneAt || '') || at;
+                if ((r.done === 'Y' && now - doneAt > 30 * DAY) || now - at > 60 * DAY) deleteDoc(doc(db, 'card_requests', r.id)).catch(() => {});
+            });
+        }
+
+        /* ---------- 고객 찾기 · 표시 ---------- */
+        function calcFindCustomer(r) {
+            if (r.cid) { const c = customerDB.find(x => x.cardId === r.cid); if (c) return c; }
+            const p = String(r.phone || '').replace(/\D/g, '');
+            if (p.length >= 10) return customerDB.find(x => String(x.phone || '').replace(/\D/g, '') === p) || null;
+            return null;
+        }
+        function calcAgo(iso) {
+            const t = Date.parse(iso || '');
+            if (!t) return '';
+            const m = Math.round((Date.now() - t) / 60000);
+            if (m < 1) return '방금';
+            if (m < 60) return `${m}분 전`;
+            if (m < 60 * 24) return `${Math.round(m / 60)}시간 전`;
+            const d = new Date(t);
+            return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+
+        /* ---------- 고객 화면 '명함상담' 타일 ---------- */
+        function renderCalcDash() {
+            const tile = document.getElementById('dashCalc');
+            if (!tile) return;
+            const open = calcRequests.filter(r => r.done !== 'Y');
+            const asks = open.filter(r => r.kind === 'ask').length;
+            const calcs = open.length - asks;
+            document.getElementById('dashCalcCount').textContent = open.length;
+            document.getElementById('dashCalcSub').textContent = calcReqError ? '연결 확인 필요' : (open.length ? `요청 ${asks} · 계산 ${calcs}` : '새 요청 없음');
+            const hot = asks > 0;
+            tile.classList.toggle('border-pink-500', hot);
+            tile.classList.toggle('bg-pink-50', hot);
+            tile.classList.toggle('border-2', hot);
+            tile.classList.toggle('border-gray-200', !hot);
+            tile.classList.toggle('bg-white', !hot);
+        }
+
+        /* ---------- 새 요청 알림 (앱이 열려 있을 때) ---------- */
+        let calcToastTimer = null;
+        function calcNotify(r) {
+            const c = calcFindCustomer(r);
+            const who = c ? (c.name || '고객') : (r.name || '새 고객');
+            const isAsk = r.kind === 'ask';
+            let t = document.getElementById('calcToast');
+            if (!t) {
+                t = document.createElement('div');
+                t.id = 'calcToast';
+                t.setAttribute('role', 'status');
+                t.className = 'fixed left-1/2 -translate-x-1/2 z-[80] w-[calc(100%-24px)] max-w-md bg-gray-900 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-3';
+                t.style.top = 'calc(12px + env(safe-area-inset-top, 0px))';
+                document.body.appendChild(t);
+            }
+            t.innerHTML = `<span class="text-xl flex-shrink-0">${isAsk ? '📱' : '🧮'}</span>
+                <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold truncate">${escapeHtml(who)}님 ${isAsk ? '상담요청' : '폰값 계산'}</span>
+                <span class="block text-[13px] text-gray-300 truncate">${escapeHtml(r.summary || '')}</span></span>
+                <button type="button" class="flex-shrink-0 h-10 px-3 rounded-xl bg-pink-600 text-sm font-bold">보기</button>`;
+            t.querySelector('button').onclick = () => { t.style.display = 'none'; openCalcSheet('requests'); };
+            t.style.display = 'flex';
+            clearTimeout(calcToastTimer);
+            calcToastTimer = setTimeout(() => { t.style.display = 'none'; }, isAsk ? 12000 : 6000);
+            try { if (navigator.vibrate) navigator.vibrate(isAsk ? [200, 100, 200] : 80); } catch (e) { /* 무시 */ }
+        }
+
+        /* ---------- 아래에서 올라오는 창 (상담요청 목록 · 요금제 고르기) ---------- */
+        const calcSheetEl = document.createElement('div');
+        calcSheetEl.id = 'calcSheet';
+        calcSheetEl.className = 'fixed inset-0 z-[65] hidden items-end sm:items-center justify-center bg-black/50';
+        calcSheetEl.innerHTML = `
+            <section aria-labelledby="calcSheetTitle" class="sheet-in w-full sm:max-w-md max-h-[92vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-2.5 flex flex-col gap-3" style="padding-bottom: max(20px, env(safe-area-inset-bottom));">
+                <div class="self-center w-10 h-1 rounded-full bg-gray-300 sm:hidden"></div>
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 pl-1 pt-1">
+                        <h2 id="calcSheetTitle" class="text-lg font-bold text-gray-900"></h2>
+                        <p id="calcSheetSub" class="text-sm text-gray-600"></p>
+                    </div>
+                    <button type="button" id="calcSheetClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div id="calcSheetBody" class="flex flex-col gap-3"></div>
+            </section>`;
+        document.body.appendChild(calcSheetEl);
+        calcSheetEl.querySelector('#calcSheetClose').addEventListener('click', () => closeCalcSheet());
+        calcSheetEl.addEventListener('click', e => { if (e.target === calcSheetEl) closeCalcSheet(); });
+        function openCalcSheet(mode) {
+            calcSheetMode = mode;
+            renderCalcSheet();
+            calcSheetEl.style.display = 'flex';
+            if (!calcSheetPushed) { pushAppState({ calcSheet: true }); calcSheetPushed = true; }
+        }
+        function closeCalcSheet(fromPopState = false) {
+            if (calcSheetEl.style.display !== 'flex') return;
+            calcSheetEl.style.display = 'none';
+            calcDraft = null;
+            if (calcSheetPushed) { calcSheetPushed = false; if (!fromPopState) historyBackSilently(); }
+        }
+        // [뒤로가기] → 이 창만 닫기
+        window.__calcSheetBack = () => { if (calcSheetEl.style.display === 'flex') { closeCalcSheet(true); return true; } return false; };
+        function renderCalcSheet() {
+            if (calcSheetMode === 'requests') renderCalcRequests();
+            else renderCalcPlans();
+        }
+
+        /* ---------- 상담요청 목록 ---------- */
+        function renderCalcRequests() {
+            document.getElementById('calcSheetTitle').textContent = '명함 상담요청';
+            document.getElementById('calcSheetSub').textContent = '명함 [폰값계산]에서 들어온 요청이에요';
+            const open = calcRequests.filter(r => r.done !== 'Y');
+            const done = calcRequests.filter(r => r.done === 'Y');
+            const list = calcReqTab === 'open' ? open : done;
+            const tabBtn = (key, label, n) => `<button type="button" data-calc-tab="${key}" class="flex-1 h-11 rounded-xl text-sm font-bold ${calcReqTab === key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${label} ${n}</button>`;
+            let html = `<div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tabBtn('open', '새 요청', open.length)}${tabBtn('done', '처리 완료', done.length)}</div>`;
+            if (calcReqError) html += `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">요청 목록을 못 불러왔어요. Firebase 보안 규칙에 card_requests 칸이 들어갔는지 확인해주세요.</p>`;
+            if (!list.length) {
+                html += `<p class="text-sm text-gray-600 text-center py-8">${calcReqTab === 'open' ? '새 요청이 없어요.<br>고객이 명함에서 [상담 받기]를 누르면 여기에 떠요.' : '처리한 요청이 없어요.'}</p>`;
+            }
+            list.forEach(r => {
+                const c = calcFindCustomer(r);
+                const isAsk = r.kind === 'ask';
+                const name = c ? (c.name || '이름 없음') : (r.name || '이름 미입력');
+                const phone = (c && c.phone) || r.phone || '';
+                const digits = String(phone).replace(/\D/g, '');
+                html += `<article class="rounded-2xl border ${isAsk && r.done !== 'Y' ? 'border-pink-300 bg-pink-50/40' : 'border-gray-200 bg-white'} p-3 space-y-2">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(name)} <span class="text-xs font-medium text-gray-500">${c ? '등록 고객' : '새 고객'}</span></p>
+                            <p class="text-xs text-gray-600">${escapeHtml(phone ? formatPhone(phone) : '연락처 없음')} · ${escapeHtml(calcAgo(r.at))}</p>
+                        </div>
+                        <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-700'}">${isAsk ? '상담요청' : '계산만 해봄'}</span>
+                    </div>
+                    <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(r.detail || r.summary || '')}</p>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        ${digits ? `<a href="tel:${digits}" data-calc-contact="${r.id}" class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-phone"></i>전화</a>
+                        <a href="${smsHref(digits, `${name}님, ${msgStoreName()} ${getStaffName() || ''}입니다. 명함에서 계산해 보신 조건으로 안내드릴게요.`)}" data-calc-contact="${r.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
+                        ${c ? `<button type="button" data-calc-open="${c.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">고객</button>` : '<span></span>'}
+                        <button type="button" data-calc-done="${r.id}" class="h-11 rounded-xl ${r.done === 'Y' ? 'border border-gray-300 bg-white text-gray-700' : 'bg-emerald-600 text-white'} text-sm font-bold">${r.done === 'Y' ? '되돌리기' : '완료'}</button>
+                    </div>
+                </article>`;
+            });
+            const body = document.getElementById('calcSheetBody');
+            body.innerHTML = html;
+            body.querySelectorAll('[data-calc-tab]').forEach(b => b.onclick = () => { calcReqTab = b.dataset.calcTab; renderCalcRequests(); });
+            body.querySelectorAll('[data-calc-open]').forEach(b => b.onclick = () => { const id = b.dataset.calcOpen; closeCalcSheet(); setTimeout(() => window.openProfileCard(id), 0); });
+            body.querySelectorAll('[data-calc-done]').forEach(b => b.onclick = async () => {
+                const r = calcRequests.find(x => x.id === b.dataset.calcDone);
+                if (!r) return;
+                b.disabled = true;
+                const undo = r.done === 'Y';
+                try {
+                    await saveUpdate(doc(db, 'card_requests', r.id), undo ? { done: '', doneAt: '', doneBy: '' } : { done: 'Y', doneAt: new Date().toISOString(), doneBy: getStaffName() || '' });
+                } catch (e) { b.disabled = false; customAlert(koreanError(e, '처리')); }
+            });
+        }
+
+        /* ---------- 설정: 명함 폰값계산 ---------- */
+        function renderCalcSettings() {
+            const box = document.getElementById('calcCarrierList');
+            if (!box) return;
+            const d = calcData || calcNormalize(null);
+            const locked = !isSuperAdmin;
+            box.innerHTML = CALC_CARRIERS.map(k => {
+                const C = d.carriers[k] || {};
+                const has = !!(C.models && C.models.length);
+                const live = has && C.ready && !C.hidden;
+                const status = has
+                    ? `${C.date ? escapeHtml(C.date) + ' 기준 · ' : ''}기종 ${C.models.length}개 · 명함에 요금제 ${(C.show || []).length}개`
+                    : '아직 엑셀을 안 올렸어요 · 명함엔 "업데이트 중"으로 보여요';
+                return `<div class="rounded-xl border border-gray-200 p-3 space-y-2">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0">
+                            <p class="text-[15px] font-bold text-gray-900">${k}</p>
+                            <p class="text-xs text-gray-600 leading-snug">${status}</p>
+                            ${C.uploadedAt ? `<p class="text-xs text-gray-500">${escapeHtml(C.uploadedAt)} 올림${C.by ? ' · ' + escapeHtml(C.by) : ''}</p>` : ''}
+                        </div>
+                        <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${live ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">${live ? '명함에 보임' : (has ? '숨김' : '준비 중')}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-calc-up="${k}" ${locked ? 'disabled' : ''} class="h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-file-arrow-up"></i>엑셀 올리기</button>
+                        <button type="button" data-calc-plans="${k}" ${has && !locked ? '' : 'disabled'} class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40">요금제 고르기</button>
+                    </div>
+                    ${has ? `<button type="button" data-calc-hide="${k}" ${locked ? 'disabled' : ''} class="text-xs font-bold text-gray-600 underline underline-offset-2 disabled:opacity-40">${live ? '명함에서 잠깐 숨기기' : '명함에 다시 보이기'}</button>` : ''}
+                </div>`;
+            }).join('') + (calcLoadError ? `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">저장된 지원금을 못 불러왔어요. Firebase 보안 규칙에 card_public 칸이 들어갔는지 확인해주세요.</p>` : '');
+
+            box.querySelectorAll('[data-calc-up]').forEach(b => b.onclick = () => { calcUploadCarrier = b.dataset.calcUp; const f = document.getElementById('calcExcelFile'); f.value = ''; f.click(); });
+            box.querySelectorAll('[data-calc-plans]').forEach(b => b.onclick = () => {
+                const k = b.dataset.calcPlans, C = d.carriers[k];
+                calcDraft = { carrier: k, isNew: false, date: C.date || '', plans: calcClone(C.plans || []), show: new Set(C.show || []), models: C.models, file: C.file || '' };
+                openCalcSheet('plans');
+            });
+            box.querySelectorAll('[data-calc-hide]').forEach(b => b.onclick = async () => {
+                const k = b.dataset.calcHide, next = calcNormalize(calcData);
+                const cur = next.carriers[k], live = cur.ready && !cur.hidden;
+                next.carriers[k] = { ...cur, ready: true, hidden: live };
+                await calcSave(next);
+            });
+
+            // 위약금·유지 기준
+            const grid = document.getElementById('calcRuleGrid');
+            const field = 'w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50';
+            grid.innerHTML = CALC_CARRIERS.map(k => {
+                const R = d.rules[k];
+                const opts = CALC_KEEP_OPTIONS.includes(R.keep) ? CALC_KEEP_OPTIONS : [...CALC_KEEP_OPTIONS, R.keep];
+                return `<div class="rounded-xl bg-gray-50 p-3 space-y-2">
+                    <p class="text-sm font-bold text-gray-900">${k}</p>
+                    <div class="grid grid-cols-3 gap-2">
+                        <label class="text-xs font-bold text-gray-600">5G 기준<input type="number" inputmode="numeric" step="100" data-calc-rule="${k}|lim5G" value="${R.lim5G}" ${locked ? 'disabled' : ''} class="mt-1 ${field} text-right"></label>
+                        <label class="text-xs font-bold text-gray-600">LTE 기준<input type="number" inputmode="numeric" step="100" data-calc-rule="${k}|limLTE" value="${R.limLTE}" ${locked ? 'disabled' : ''} class="mt-1 ${field} text-right"></label>
+                        <label class="text-xs font-bold text-gray-600">선택약정 유지<select data-calc-rule="${k}|keep" ${locked ? 'disabled' : ''} class="mt-1 ${field}">${opts.map(o => `<option value="${o}" ${o === R.keep ? 'selected' : ''}>${keepLabel(o)}</option>`).join('')}</select></label>
+                    </div>
+                    <label class="block text-xs font-bold text-gray-600">예외 안내 <span class="font-normal text-gray-500">(명함 경고 아래에 나와요)</span><input type="text" data-calc-rule="${k}|ex" value="${escapeHtml(R.ex)}" ${locked ? 'disabled' : ''} class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50"></label>
+                </div>`;
+            }).join('');
+            grid.querySelectorAll('[data-calc-rule]').forEach(el => el.onchange = () => {
+                const [k, key] = el.dataset.calcRule.split('|');
+                const next = calcNormalize(calcData);
+                next.rules[k][key] = (key === 'lim5G' || key === 'limLTE') ? Math.max(0, Math.round(Number(el.value) || 0)) : el.value;
+                calcSave(next, true);
+            });
+            const dk = document.getElementById('calcDistKeep');
+            if (document.activeElement !== dk) dk.value = d.distKeep;
+            dk.disabled = locked;
+        }
+        document.getElementById('calcDistKeep').addEventListener('change', e => {
+            const v = Math.round(Number(e.target.value) || 0);
+            if (v < 1 || v > 730) { customAlert('유지 일수는 1~730 사이로 넣어주세요.'); e.target.value = (calcData || {}).distKeep || 186; return; }
+            const next = calcNormalize(calcData); next.distKeep = v; calcSave(next, true);
+        });
+        document.getElementById('calcOpenReqBtn').addEventListener('click', () => openCalcSheet('requests'));
+        document.getElementById('dashCalc').addEventListener('click', () => openCalcSheet('requests'));
+
+        let calcSavedTimer = null;
+        async function calcSave(next, quiet) {
+            next.updated = getTodayStr();
+            const json = JSON.stringify(next);
+            if (json.length > 900000) { customAlert('지원금 내용이 너무 커서 저장할 수 없어요. (통신사 하나에 기종이 너무 많아요)'); return false; }
+            try {
+                await saveDoc(doc(db, 'card_public', 'phonecalc'), { json, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+                calcData = next;
+                const s = document.getElementById('calcSaved');
+                s.classList.remove('hidden');
+                clearTimeout(calcSavedTimer);
+                calcSavedTimer = setTimeout(() => s.classList.add('hidden'), 2000);
+                if (!quiet) renderCalcSettings();
+                return true;
+            } catch (e) {
+                customAlert(koreanError(e, '저장'));
+                return false;
+            }
+        }
+
+        /* ---------- 엑셀 읽기 ---------- */
+        async function loadSheetJS() {
+            if (window.XLSX) return window.XLSX;
+            await new Promise((res, rej) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                s.onload = res;
+                s.onerror = () => rej(new Error('엑셀 도구를 못 불러왔어요'));
+                document.head.appendChild(s);
+            });
+            return window.XLSX;
+        }
+        function calcTypeOf(v) {
+            const s = calcTxt(v).toUpperCase();
+            if (!s || s.length > 10) return '';   // 'AIP18P-256MNP' 같은 모델 코드 칸은 무시
+            if (/MNP|번호\s*이동|통신사\s*이동|이동/.test(s)) return 'mnp';
+            if (/기변|기기\s*변경/.test(s)) return 'chg';
+            if (/^010$|신규/.test(s)) return 'new';
+            return '';
+        }
+        // 통신사마다 엑셀 모양이 달라서 '출고가'·'모델' 칸이 있는 머리줄을 찾아 그 아래 표를 읽음
+        function calcParseRows(rows) {
+            let h = -1;
+            for (let i = 0; i < Math.min(rows.length, 60); i++) {
+                const cells = (rows[i] || []).map(calcTxt);
+                if (cells.some(c => /출고가/.test(c)) && cells.some(c => /모델|펫네임|단말|기종/.test(c))) { h = i; break; }
+            }
+            if (h < 0) return null;
+            const head = rows[h].map(calcTxt);
+            const priceCol = head.findIndex(c => /출고가/.test(c));
+            const petCol = head.findIndex(c => /펫네임|기종명|단말명|모델명\s*\(?한글/.test(c));
+            const modelCol = head.findIndex(c => /모델/.test(c) && !/펫/.test(c));
+            const nameCol = petCol >= 0 ? petCol : modelCol;
+            const genCol = head.findIndex(c => /5G|LTE|세대/.test(c));
+            const width = Math.max(...rows.slice(h, h + 30).map(r => (r || []).length), head.length);
+            const scan = (test, need) => {
+                for (let c = 0; c < width; c++) {
+                    let hit = 0;
+                    for (let i = h + 1; i < Math.min(rows.length, h + 40); i++) if (test(calcTxt((rows[i] || [])[c]))) hit++;
+                    if (hit >= need) return c;
+                }
+                return -1;
+            };
+            const typeCol = scan(s => !!calcTypeOf(s), 3);
+            const kindCol = scan(s => /공통지원금|공시지원금/.test(s), 2);   // '공통지원금/판매가' 줄이 번갈아 나오는 양식
+            const startCol = Math.max(priceCol, typeCol, kindCol, nameCol, modelCol) + 1;
+            let planRow = -1, planCols = [];
+            for (let i = h; i <= Math.min(h + 3, rows.length - 1); i++) {
+                const r = rows[i] || [], cols = [];
+                for (let c = startCol; c < r.length; c++) { const s = calcTxt(r[c]); if (s && isNaN(calcNum(s)) && !/요금제별|지원금|판매가/.test(s)) cols.push(c); }
+                if (cols.length >= 3) { planRow = i; planCols = cols; break; }
+            }
+            if (planRow < 0) return null;
+            const plans = planCols.map(c => ({ name: calcTxt(rows[planRow][c]), fee: 0 }));
+            let dataStart = planRow + 1;
+            for (let i = planRow + 1; i <= Math.min(planRow + 4, rows.length - 1); i++) {
+                const r = rows[i] || [];
+                const label = r.slice(0, startCol).map(calcTxt).join(' ');
+                if (/요금할인|25%|할인액|월정액|기본료/.test(label)) {
+                    planCols.forEach((c, j) => {
+                        const v = calcNum(r[c]);
+                        if (v > 0 && !plans[j].fee) {
+                            const fee = /월정액|기본료/.test(label) ? v : (v >= 60000 ? v / 6 : v * 4);   // 24개월 할인액 ÷ 6 = 월정액 · 한 달 할인액 × 4
+                            plans[j].fee = Math.round(fee / 100) * 100;
+                        }
+                    });
+                    dataStart = i + 1;
+                }
+            }
+            const models = [];
+            let cur = null, blank = 0;
+            for (let i = dataStart; i < rows.length; i++) {
+                const r = rows[i] || [];
+                const cells = r.map(calcTxt);
+                if (cells.some(c => /출고가/.test(c)) || cells.some(c => /^■/.test(c))) break;   // 다음 표(태블릿 등)
+                if (!cells.some(Boolean)) { if (++blank > 3 && models.length) break; continue; }
+                blank = 0;
+                const nm = nameCol >= 0 ? cells[nameCol] : '';
+                const pr = calcNum(r[priceCol]);
+                if (nm && pr > 0) {
+                    const genText = genCol >= 0 ? cells[genCol] : '';
+                    cur = { name: nm, code: modelCol >= 0 && modelCol !== nameCol ? cells[modelCol] : '', gen: /LTE|3G/i.test(genText) || (!genText && /LTE/i.test(nm)) ? 'LTE' : '5G', price: Math.round(pr), sup: {} };
+                    models.push(cur);
+                }
+                if (!cur) continue;
+                if (kindCol >= 0 && !/공통지원금|공시지원금/.test(cells[kindCol])) continue;
+                const t = typeCol >= 0 ? calcTypeOf(r[typeCol]) : 'new';
+                if (!t || cur.sup[t]) continue;
+                cur.sup[t] = planCols.map(c => { const v = calcNum(r[c]); return v > 0 ? Math.round(v) : 0; });
+            }
+            models.forEach(m => {
+                const any = m.sup.new || m.sup.chg || m.sup.mnp || planCols.map(() => 0);
+                ['new', 'chg', 'mnp'].forEach(t => { if (!m.sup[t]) m.sup[t] = any; });
+            });
+            if (models.length < 3) return null;
+            let date = '';
+            for (let i = 0; i < Math.min(rows.length, 8) && !date; i++) {
+                for (const c of (rows[i] || [])) {
+                    const s = calcTxt(c), m = s.match(/(\d{1,2})\s*[.\/월]\s*(\d{1,2})\s*일?/);
+                    if (m && /지원금|기준|~|일/.test(s) && +m[1] >= 1 && +m[1] <= 12) { date = `${+m[1]}월 ${+m[2]}일`; break; }
+                }
+            }
+            return { plans, models, date, score: models.length * (plans.some(p => p.fee > 0) ? 10 : 1) };
+        }
+        function calcDateFromName(n) {
+            const m = String(n || '').match(/(\d{2})[_.\-](\d{2})[_.\-](\d{2})/);
+            return m && +m[2] >= 1 && +m[2] <= 12 ? `${+m[2]}월 ${+m[3]}일` : '';
+        }
+        document.getElementById('calcExcelFile').addEventListener('change', async e => {
+            const file = e.target.files && e.target.files[0];
+            const k = calcUploadCarrier;
+            if (!file || !k) return;
+            const status = document.getElementById('calcStatus');
+            status.className = 'text-[13px] font-medium text-indigo-700';
+            status.textContent = `${k} 엑셀 읽는 중…`;
+            try {
+                const XLSX = await loadSheetJS();
+                const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+                let best = null;
+                wb.SheetNames.forEach(sn => {
+                    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null, blankrows: true });
+                    const r = calcParseRows(rows);
+                    if (r && (!best || r.score > best.score)) best = r;
+                });
+                status.className = 'hidden';
+                if (!best) {
+                    customAlert(`이 엑셀은 표 모양을 못 찾았어요.\n'출고가'와 '모델' 칸이 있는 공통지원금 표인지 확인해주세요.\n\n그래도 안 되면 엑셀 파일을 개발 담당에게 보내주세요.`);
+                    return;
+                }
+                const prev = (calcData && calcData.carriers[k]) || {};
+                const prevShow = new Set(prev.show || []);
+                const show = new Set(best.plans.filter(p => prevShow.size ? prevShow.has(p.name) : (!/키즈|주니어/.test(p.name) && p.fee >= 55000)).map(p => p.name));
+                // 예전에 직접 넣은 요금은 이름이 같으면 이어받기
+                const prevFee = new Map((prev.plans || []).map(p => [p.name, p.fee]));
+                best.plans.forEach(p => { if (!p.fee && prevFee.get(p.name)) p.fee = prevFee.get(p.name); });
+                calcDraft = { carrier: k, isNew: true, date: best.date || calcDateFromName(file.name), plans: best.plans, show, models: best.models, file: file.name };
+                openCalcSheet('plans');
+            } catch (err) {
+                console.error(err);
+                status.className = 'hidden';
+                customAlert('엑셀을 읽지 못했어요. 파일이 열리는지 확인하고 다시 해주세요.');
+            }
+        });
+
+        /* ---------- 요금제 고르기 (엑셀 올린 뒤 확인 · 나중에 바꾸기) ---------- */
+        function renderCalcPlans() {
+            const D = calcDraft;
+            if (!D) { closeCalcSheet(); return; }
+            document.getElementById('calcSheetTitle').textContent = `${D.carrier} ${D.isNew ? '지원금 확인' : '요금제 고르기'}`;
+            document.getElementById('calcSheetSub').textContent = D.isNew ? `기종 ${D.models.length}개를 읽었어요. 확인하고 저장하면 명함에 바로 반영돼요` : '체크한 요금제만 명함에 보여요';
+            const sample = D.models.slice(0, 3).map(m => `${m.name} ${calcWon(m.price)}`).join(' · ');
+            const body = document.getElementById('calcSheetBody');
+            body.innerHTML = `
+                ${D.isNew ? `<p class="text-xs text-gray-600 bg-gray-50 rounded-xl px-3 py-2 leading-relaxed">${escapeHtml(D.file)}<br>예) ${escapeHtml(sample)}</p>` : ''}
+                <label class="text-xs font-bold text-gray-600">지원금 기준일 <span class="font-normal text-gray-500">(명함에 "○월 ○일 기준"으로 나와요)</span>
+                    <input type="text" id="calcDraftDate" value="${escapeHtml(D.date)}" placeholder="예) 9월 22일" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900"></label>
+                <div class="flex items-center justify-between">
+                    <p class="text-sm font-bold text-gray-900">명함에 보일 요금제</p>
+                    <span id="calcDraftCount" class="text-xs font-bold text-indigo-700"></span>
+                </div>
+                <p class="text-xs text-gray-600 leading-relaxed -mt-2">체크 안 한 요금제도 '유지 기간 후 바꿀 요금제'에는 나와요. 월정액이 비어 있으면 넣어주세요.</p>
+                <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
+                    ${D.plans.map((p, i) => `<div class="flex items-center gap-2 px-3 py-2">
+                        <input type="checkbox" id="calcPlanChk${i}" data-calc-pchk="${i}" ${D.show.has(p.name) ? 'checked' : ''} class="w-5 h-5 accent-indigo-600 flex-shrink-0">
+                        <label for="calcPlanChk${i}" class="flex-1 min-w-0 text-[15px] font-medium text-gray-900 truncate">${escapeHtml(p.name)}</label>
+                        <input type="number" inputmode="numeric" step="100" data-calc-pfee="${i}" value="${p.fee || ''}" placeholder="월정액" aria-label="${escapeHtml(p.name)} 월정액" class="w-28 h-10 px-2 border ${p.fee ? 'border-gray-300' : 'border-red-300 bg-red-50'} rounded-lg text-[14px] text-right text-gray-900">
+                    </div>`).join('')}
+                </div>
+                <p id="calcDraftErr" role="alert" class="hidden text-[13px] font-bold text-red-700"></p>
+                <button type="button" id="calcDraftSave" class="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-check"></i>${D.isNew ? '저장하고 명함에 반영' : '저장'}</button>`;
+            const count = () => { document.getElementById('calcDraftCount').textContent = `${D.show.size}개 선택`; };
+            count();
+            body.querySelectorAll('[data-calc-pchk]').forEach(el => el.onchange = () => {
+                const p = D.plans[+el.dataset.calcPchk];
+                if (el.checked) D.show.add(p.name); else D.show.delete(p.name);
+                count();
+            });
+            body.querySelectorAll('[data-calc-pfee]').forEach(el => el.oninput = () => {
+                const p = D.plans[+el.dataset.calcPfee];
+                p.fee = Math.max(0, Math.round(Number(el.value) || 0));
+                el.classList.toggle('border-red-300', !p.fee); el.classList.toggle('bg-red-50', !p.fee); el.classList.toggle('border-gray-300', !!p.fee);
+            });
+            document.getElementById('calcDraftDate').oninput = e => { D.date = e.target.value.trim(); };
+            document.getElementById('calcDraftSave').onclick = async () => {
+                const err = document.getElementById('calcDraftErr');
+                const shown = D.plans.filter(p => D.show.has(p.name));
+                if (!shown.length) { err.textContent = '명함에 보일 요금제를 하나 이상 체크해주세요.'; err.classList.remove('hidden'); return; }
+                const noFee = shown.filter(p => !p.fee);
+                if (noFee.length) { err.textContent = `월정액을 넣어주세요: ${noFee.map(p => p.name).join(', ')}`; err.classList.remove('hidden'); return; }
+                err.classList.add('hidden');
+                const next = calcNormalize(calcData);
+                next.carriers[D.carrier] = {
+                    ...(next.carriers[D.carrier] || {}),
+                    ready: true,
+                    hidden: D.isNew ? false : !!(next.carriers[D.carrier] || {}).hidden,
+                    date: D.date,
+                    plans: D.plans.map(p => ({ name: p.name, fee: p.fee || 0, kids: /키즈|주니어/.test(p.name) })),
+                    show: D.plans.filter(p => D.show.has(p.name)).map(p => p.name),
+                    models: D.models,
+                    file: D.file,
+                    ...(D.isNew ? { uploadedAt: getTodayStr(), by: getStaffName() || '' } : {})
+                };
+                const btn = document.getElementById('calcDraftSave');
+                btn.disabled = true;
+                if (await calcSave(next)) { closeCalcSheet(); customAlert(`${D.carrier} ${D.isNew ? '지원금을 명함에 반영했어요.' : '요금제를 저장했어요.'}`); }
+                else btn.disabled = false;
+            };
+        }
 
     </script>
 </body>
