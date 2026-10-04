@@ -779,7 +779,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V108</span>
+                    <span class="text-sm text-gray-600">V109</span>
                 </div>
             </section>
         </div>
@@ -8833,6 +8833,7 @@ familyStr + `\n` +
         /* ---------- 실시간 연결 ---------- */
         function attachCalcListeners() {
             detachCalcListeners();
+            setTimeout(refreshStaffAlert, 1500);
             calcUnsub = onSnapshot(doc(db, 'card_public', 'phonecalc'), snap => {
                 let d = null;
                 try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
@@ -9004,7 +9005,7 @@ familyStr + `\n` +
                 if (!OS.Notifications.permission) throw new Error('denied');
                 await OS.User.PushSubscription.optIn();
                 const email = (auth && auth.currentUser && auth.currentUser.email) || '';
-                if (email) await OS.login('staff-' + email.split('@')[0].replace(/[^A-Za-z0-9_-]/g, ''));
+                if (email) await OS.login(staffOneSignalId());
                 await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()) });
                 localStorage.setItem('kcrmStaffAlert', 'on');
                 const d = calcData || calcNormalize(null);
@@ -9014,6 +9015,47 @@ familyStr + `\n` +
                 customAlert(String(e && e.message) === 'denied' ? '알림이 차단돼 있어요.\n크롬 주소창 왼쪽 아이콘 → 권한 → 알림을 허용으로 바꾼 뒤 다시 눌러주세요.' : '알림 설정에 실패했어요. 잠시 후 다시 해주세요.');
             }
             renderCalcRequests();
+        }
+
+        // 강CRM 열 때마다 이 폰을 다시 '직원'으로 확인 (같은 폰에서 명함을 열어보면 고객으로 바뀌는 걸 되돌림)
+        function staffOneSignalId() {
+            const email = (auth && auth.currentUser && auth.currentUser.email) || '';
+            return email ? 'staff-' + email.split('@')[0].replace(/[^A-Za-z0-9_-]/g, '') : '';
+        }
+        async function refreshStaffAlert() {
+            if (staffAlertState() !== 'on') return;
+            try {
+                const OS = await loadOneSignalForStaff();
+                if (!OS.User.PushSubscription.optedIn) await OS.User.PushSubscription.optIn();
+                const id = staffOneSignalId();
+                if (id) await OS.login(id);
+                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()) });
+            } catch (e) { console.error('직원 알림 다시 연결 실패:', e); }
+        }
+        // [테스트] 알림 서버 → 직원 폰으로 진짜 푸시 한 번 보내보기 (안 오면 이유를 알려줌)
+        async function testStaffAlert(btn) {
+            const d = calcData || calcNormalize(null);
+            const url = d.alert && d.alert.url;
+            if (!url) return customAlert('상담 알림 서버 주소가 아직 없어요.\n총관리자가 설정 → 명함 폰값계산 → 상담 알림 서버에 주소를 넣어야 해요.');
+            btn.disabled = true; btn.textContent = '보내는 중…';
+            await refreshStaffAlert();
+            let msg;
+            try {
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ who: staffKeyName(getStaffName()) || '직원', summary: '알림 테스트예요. 이게 보이면 성공!', crm: location.origin + location.pathname }) });
+                const data = await res.json().catch(() => ({}));
+                const detail = JSON.stringify(data.detail || data.error || '');
+                if (res.ok && data.ok) msg = data.recipients ? `보냈어요! 받는 폰 ${data.recipients}대.\n강CRM을 닫고 기다려 보세요. 안 오면 폰 설정 → 알림에서 크롬 알림이 켜져 있는지 확인해 주세요.` : '보냈는데 받는 폰이 0대예요. 아래 [이 폰은 알림 받는 중]을 한 번 껐다가 다시 켜주세요.';
+                else if (/not subscribed|No recipients|no_recipients/i.test(detail)) msg = '알림 서버는 정상인데 알림 받기로 등록된 폰이 없어요.\n[이 폰은 알림 받는 중]을 눌러 껐다가 다시 켜주세요.';
+                else if (res.status === 403) msg = '알림 서버가 이 주소를 막았어요. (주소 확인 필요)';
+                else if (res.status === 429) msg = '테스트를 너무 자주 했어요. 10분 뒤에 다시 해주세요.';
+                else if (/설정 필요/.test(detail)) msg = '알림 서버에 ONESIGNAL_APP_ID / ONESIGNAL_REST_KEY가 안 들어가 있어요.';
+                else if (/auth|key|403|401/i.test(detail)) msg = 'OneSignal 키가 틀렸어요. Cloudflare의 ONESIGNAL_REST_KEY를 다시 넣어주세요.\n' + detail;
+                else msg = `알림 서버 오류 (${res.status})\n${detail}`;
+            } catch (e) {
+                msg = '알림 서버에 연결하지 못했어요. 주소가 맞는지 확인해 주세요.\n' + url;
+            }
+            btn.disabled = false; btn.textContent = '테스트';
+            customAlert(msg);
         }
 
         /* ---------- 새 요청 알림 (앱이 열려 있을 때) ---------- */
@@ -9301,6 +9343,7 @@ familyStr + `\n` +
                 <div class="flex items-center gap-2">
                     <button type="button" id="calcAlertBtn" class="flex-1 min-w-0 h-11 px-3 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 ${alertOn === 'on' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-pink-600 text-white'}">
                         <i class="fa-solid ${alertOn === 'on' ? 'fa-bell' : 'fa-bell-slash'}"></i><span class="truncate">${alertOn === 'on' ? '이 폰은 알림 받는 중' : '이 폰으로 알림 받기'}</span></button>
+                    ${alertOn === 'on' ? '<button type="button" id="calcAlertTest" class="flex-shrink-0 h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">테스트</button>' : ''}
                     ${list.length ? `<button type="button" id="calcSelToggle" class="flex-shrink-0 h-11 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">${calcSelMode ? '선택 취소' : '선택'}</button>` : ''}
                 </div>`;
             if (calcReqError) html += `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">요청 목록을 못 불러왔어요. Firebase 보안 규칙에 card_requests 칸이 들어갔는지 확인해주세요.</p>`;
@@ -9343,6 +9386,8 @@ familyStr + `\n` +
             body.innerHTML = html;
             body.querySelectorAll('[data-calc-tab]').forEach(b => b.onclick = () => { calcReqTab = b.dataset.calcTab; calcSel.clear(); renderCalcRequests(); });
             document.getElementById('calcAlertBtn').onclick = () => toggleStaffAlert();
+            const tBtn = document.getElementById('calcAlertTest');
+            if (tBtn) tBtn.onclick = () => testStaffAlert(tBtn);
             const selT = document.getElementById('calcSelToggle');
             if (selT) selT.onclick = () => { calcSelMode = !calcSelMode; calcSel.clear(); renderCalcRequests(); };
             body.querySelectorAll('[data-calc-pick]').forEach(el => {
