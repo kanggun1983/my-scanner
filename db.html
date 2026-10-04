@@ -479,6 +479,7 @@
                     <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><button type="button" id="ydayActBtn" data-dash-filter="yday_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="전일 개통 고객 점검하기"><span id="ydayActText" class="text-gray-500"></span></button><button type="button" id="todayActBtn" data-dash-filter="today_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="오늘 개통 고객 점검하기"><span id="todayActText" class="text-gray-500"></span></button></span>
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
                     <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
+                    <button type="button" id="actStaffBtn" class="self-start min-h-[28px] -mb-1 text-xs font-bold text-indigo-700" aria-label="담당자별 개통 실적 보기">담당자별 개통 <i class="fa-solid fa-chevron-right text-[10px]"></i></button>
                 </div>
                 <button type="button" id="statsStaffCell" aria-label="담당자별 실적 보기 (OB·문자·푸시·자동)" class="px-3 py-2 flex flex-col min-w-0 text-left hover:bg-gray-50">
                     <span class="text-xs font-medium text-gray-600 leading-snug">오늘 연락<span id="statsCallRes" class="font-bold text-indigo-700"></span></span>
@@ -487,6 +488,12 @@
                     <span class="text-xs font-bold text-indigo-700">담당자별 · 전일·푸시·자동 <i class="fa-solid fa-chevron-right text-[10px]"></i></span>
                 </button>
             </div>
+            <button type="button" id="regStatsRow" class="w-full min-h-[44px] px-3 py-2 border-t border-gray-100 flex items-center gap-2 text-left hover:bg-gray-50" aria-label="신규 등록 고객 담당자별 보기">
+                <i class="fa-solid fa-user-plus text-pink-600 text-sm flex-shrink-0" aria-hidden="true"></i>
+                <span id="regStatsText" class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">신규 등록</span>
+                <span class="text-xs font-bold text-indigo-700 flex-shrink-0">담당자별</span>
+                <i class="fa-solid fa-chevron-right text-gray-400 text-xs flex-shrink-0" aria-hidden="true"></i>
+            </button>
             <button type="button" id="pushStatsRow" class="hidden w-full min-h-[44px] px-3 py-2 border-t border-gray-100 items-center gap-2 text-left hover:bg-gray-50">
                 <i class="fa-solid fa-bullhorn text-indigo-600 text-sm flex-shrink-0" aria-hidden="true"></i>
                 <span id="pushStatsText" class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">푸시 알림</span>
@@ -767,7 +774,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V105</span>
+                    <span class="text-sm text-gray-600">V107</span>
                 </div>
             </section>
         </div>
@@ -2120,7 +2127,7 @@
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
                 checkPendingCallResult();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
-                try { renderCalcStrip(); } catch (e) { /* 준비 전 */ }
+                try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); } catch (e) { /* 준비 전 */ }
             }, (error) => {
                 // 예전엔 오류가 나도 아무 표시 없이 빈 목록/불러오는 중으로 남았음
                 console.error('고객 목록 불러오기 실패:', error);
@@ -2612,6 +2619,11 @@
             const t = new Date();
             return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
         }
+        // 👤 고객 등록일·등록한 직원 (예전 고객은 등록일 칸이 없어서 처음 방문일로 대신 · 다음 저장 때 고정됨)
+        function regDateOf(c) { return String((c && (c.regDate || String(c.createdAt || '').slice(0, 10) || c.visitDate)) || ''); }
+        function regByOf(c) { return (c && (c.regBy || c.manager || c.contactManager)) || ''; }
+        // 기존 고객을 다시 저장할 때 등록일이 '오늘 방문일'로 바뀌지 않게 지금 값으로 고정
+        function keepRegFields(c) { return (c && !c.regDate && regDateOf(c)) ? { regDate: regDateOf(c), regBy: regByOf(c) } : {}; }
         document.getElementById('val-date').value = getTodayStr();
 
         // 📅 앱을 켜둔 채 날짜가 바뀌어도 첫 스캔이 '어제'로 저장되지 않도록 (직접 바꾼 날짜는 존중)
@@ -3460,6 +3472,8 @@
             };
 
             try {
+                if (existingCustomer) Object.assign(savedData, keepRegFields(existingCustomer));
+                else { savedData.regDate = getTodayStr(); savedData.regBy = savedData.manager || getStaffName(); }
                 await saveDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
                 customAlert((phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요.") + (restoringFromTrash ? "\n(휴지통에 있던 고객이라 함께 복구했어요)" : "")); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
@@ -6600,13 +6614,13 @@
             btn.disabled = true;
             try {
                 if (found) {   // 이미 있는 고객 → 그 고객 개인 링크로 (방문 목적을 골랐으면 오늘 방문으로 기록)
-                    if (purpose) await waitAtMost(saveDoc(doc(db, 'smart_customers', found.id), { visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true }));
+                    if (purpose) await waitAtMost(saveDoc(doc(db, 'smart_customers', found.id), { ...keepRegFields(found), visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true }));
                     closeCardSendSheet(false, true);
                     await sendBizCard(found);
                     return;
                 }
                 if (trashed) {   // 휴지통 고객 → 목록으로 되돌리고 보냄
-                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true }));
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...keepRegFields(trashed), ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true }));
                     closeCardSendSheet(false, true);
                     await sendBizCard({ ...trashed, deletedAt: '' });
                     return;
@@ -6618,7 +6632,7 @@
                     const staff = getStaffName();
                     await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), {
                         name, phone, salesStatus: '미정', visitDate: getTodayStr(), visitPurpose: purpose, regStore: msgStoreName(), cardId, bizCardSentAt: getTodayStr(),
-                        manager: staff, contactManager: staff, memo: '명함 보내기로 등록',
+                        manager: staff, contactManager: staff, memo: '명함 보내기로 등록', regDate: getTodayStr(), regBy: staff,
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true }));
                     closeCardSendSheet(false, true);
@@ -7578,6 +7592,7 @@ ${AI_TONES[aiSmsTone]}
                 visitPurpose: document.getElementById('modalVisitPurpose').value.trim(),
                 regStore: document.getElementById('modalRegStore').value.trim(),
                 visitDate: document.getElementById('modalVisitDate').value,
+                ...keepRegFields(prevSales),
                 manager: document.getElementById('modalManager').value,
                 activationDate: newActDate,
                 openStore: document.getElementById('modalOpenStore').value.trim(),
@@ -8408,7 +8423,8 @@ familyStr + `\n` +
                             visitDate: getTodayStr(),
                             manager: getStaffName() || document.getElementById('val-manager').value || '',
                             carrier: document.getElementById('rep-carrier').value || '미정',
-                            regStore: msgStoreName()   // 🏪 개통보고로 새로 등록 → 등록점 = 설정의 매장 이름
+                            regStore: msgStoreName(),   // 🏪 개통보고로 새로 등록 → 등록점 = 설정의 매장 이름
+                            regDate: getTodayStr(), regBy: getStaffName() || document.getElementById('val-manager').value || ''
                         };
                     }
                 }
@@ -8985,7 +9001,9 @@ familyStr + `\n` +
         // 설정에 있던 관리 칸을 창 안으로 옮김 (설정 화면에는 한 줄만)
         (() => { const inner = document.getElementById('calcManageInner'); inner.classList.remove('hidden'); calcSheetEl.querySelector('#calcManageBox').appendChild(inner); })();
         document.getElementById('calcManageBtn').addEventListener('click', () => openCalcSheet('manage'));
-        document.getElementById('statsStaffCell').addEventListener('click', () => openCalcSheet('staff'));
+        document.getElementById('statsStaffCell').addEventListener('click', () => { staffView = 'contact'; staffPeriod = 'today'; openCalcSheet('staff'); });
+        document.getElementById('actStaffBtn').addEventListener('click', () => { staffView = 'act'; staffPeriod = 'month'; openCalcSheet('staff'); });
+        document.getElementById('regStatsRow').addEventListener('click', () => { staffView = 'reg'; staffPeriod = 'today'; openCalcSheet('staff'); });
         calcSheetEl.addEventListener('click', e => { if (e.target === calcSheetEl) closeCalcSheet(); });
         function openCalcSheet(mode) {
             calcSheetMode = mode;
@@ -9020,7 +9038,8 @@ familyStr + `\n` +
         //  · 푸시: 강CRM에서 보낼 때 보낸 직원 이름으로 기록 (smart_global/staff_stats)
         //  · 자동: 고객 약속일·생일로 나가는 자동 문자·푸시를 고객 담당자 기준으로 셈
         let staffStatsDoc = {}, staffStatsUnsub = null, staffPeriod = 'today';
-        function staffKeyName(n) { return String(n || '').replace(/[|.\/\[\]`*~]/g, '').trim() || '담당자미상'; }
+        function staffKeyName(n) { return managerKey(String(n || '').replace(/[|.\/\[\]`*~]/g, '')) || '담당자미상'; }
+        let staffView = 'contact';   // 'contact' 연락 실적 · 'act' 개통 실적
         function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
         async function logStaffPush() {
             if (!db) return;
@@ -9085,6 +9104,82 @@ familyStr + `\n` +
             return [...map.entries()].filter(([, o]) => o.ob + o.sms + o.push + o.auto > 0)
                 .sort((a, b) => (b[1].ob + b[1].sms + b[1].push + b[1].auto) - (a[1].ob + a[1].sms + a[1].push + a[1].auto));
         }
+        // 개통 실적: 고객 화면 '○월 개통'과 같은 기준 (판매성공 · 무선/유선 같은 날이면 동시 1건) · 개통자(개통보고) 기준, 없으면 담당자
+        function computeStaffActs(period) {
+            const r = staffPeriodRange(period);
+            const from = r.from, to = period === 'month' ? `${r.from.slice(0, 7)}-31` : r.to;
+            const map = new Map();
+            customerDB.forEach(c => {
+                if (c.salesStatus !== '판매성공') return;
+                const a = c.activationDate || '', w = c.wiredDate || '';
+                const M = a >= from && a <= to, W = w >= from && w <= to;
+                if (!M && !W) return;
+                const k = staffKeyName(c.repManager || c.manager || c.contactManager);
+                const o = map.get(k) || { m: 0, w: 0, both: 0 };
+                if (M && W && a === w) o.both++; else { if (M) o.m++; if (W) o.w++; }
+                map.set(k, o);
+            });
+            return [...map.entries()].sort((x, y) => (y[1].m + y[1].w + y[1].both) - (x[1].m + x[1].w + x[1].both));
+        }
+        function renderStaffActs() {
+            const rows = computeStaffActs(staffPeriod);
+            const sum = rows.reduce((t, [, o]) => ({ m: t.m + o.m, w: t.w + o.w, both: t.both + o.both }), { m: 0, w: 0, both: 0 });
+            const me = staffKeyName(getStaffName());
+            const grid = 'grid grid-cols-[minmax(0,1fr)_44px_44px_44px_52px] items-center gap-1.5';
+            const num = (n, strong) => `<span class="text-right text-[15px] ${n ? (strong ? 'font-bold text-indigo-700' : 'font-bold text-gray-900') : 'text-gray-300'}">${n}</span>`;
+            const row = (name, o, strong) => `<div class="${grid} px-3 py-3 ${strong ? 'bg-gray-50' : ''}">
+                    <span class="text-[15px] ${strong ? 'font-bold' : 'font-medium'} text-gray-900 truncate">${escapeHtml(name)}${!strong && name === me ? ' <span class="text-xs font-bold text-indigo-700">나</span>' : ''}</span>
+                    ${num(o.m)}${num(o.w)}${num(o.both)}${num(o.m + o.w + o.both, true)}
+                </div>`;
+            return `<div class="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                    <div class="${grid} px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
+                        <span>개통자</span><span class="text-right">무선</span><span class="text-right">유선</span><span class="text-right">동시</span><span class="text-right">합계</span>
+                    </div>
+                    ${rows.length ? rows.map(([n, o]) => row(n, o, false)).join('') + row('합계', sum, true) : '<p class="text-sm text-gray-600 text-center py-8">이 기간 개통이 없어요.</p>'}
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed pl-1">고객 화면 '개통' 숫자와 같은 기준이에요. 개통보고의 <b class="text-gray-700">개통자</b> 이름으로 나누고, 개통자가 비어 있으면 고객 담당자로 셌어요. '과장'·'님' 같은 직함은 빼고 같은 사람으로 묶어요.</p>`;
+        }
+        // 👤 신규 등록: 등록한 직원 기준 (예전 고객은 담당자) · 그중 개통(판매성공)까지 간 고객
+        function computeStaffRegs(period) {
+            const r = staffPeriodRange(period);
+            const from = r.from, to = period === 'month' ? `${r.from.slice(0, 7)}-31` : r.to;
+            const map = new Map();
+            customerDB.forEach(c => {
+                const d = regDateOf(c);
+                if (!d || d < from || d > to) return;
+                const k = staffKeyName(regByOf(c));
+                const o = map.get(k) || { reg: 0, sold: 0 };
+                o.reg++;
+                if (c.salesStatus === '판매성공') o.sold++;
+                map.set(k, o);
+            });
+            return [...map.entries()].sort((x, y) => y[1].reg - x[1].reg);
+        }
+        function renderRegStatsRow() {
+            const el = document.getElementById('regStatsText');
+            if (!el) return;
+            const n = (p) => computeStaffRegs(p).reduce((t, [, o]) => t + o.reg, 0);
+            const yd = n('yday'), td = n('today'), mo = n('month');
+            el.innerHTML = `<b class="font-bold text-gray-900">신규 등록</b> · 전일 <b class="${yd ? 'text-gray-900' : 'text-gray-500'}">${yd}</b> · 오늘 <b class="${td ? 'text-green-700' : 'text-gray-500'}">${td}</b> · ${new Date().getMonth() + 1}월 <b class="text-gray-900">${mo}</b>명`;
+        }
+        function renderStaffRegs() {
+            const rows = computeStaffRegs(staffPeriod);
+            const sum = rows.reduce((t, [, o]) => ({ reg: t.reg + o.reg, sold: t.sold + o.sold }), { reg: 0, sold: 0 });
+            const me = staffKeyName(getStaffName());
+            const grid = 'grid grid-cols-[minmax(0,1fr)_56px_64px] items-center gap-2';
+            const num = (n, cls) => `<span class="text-right text-[15px] ${n ? cls : 'text-gray-300'}">${n}</span>`;
+            const row = (name, o, strong) => `<div class="${grid} px-3 py-3 ${strong ? 'bg-gray-50' : ''}">
+                    <span class="text-[15px] ${strong ? 'font-bold' : 'font-medium'} text-gray-900 truncate">${escapeHtml(name)}${!strong && name === me ? ' <span class="text-xs font-bold text-indigo-700">나</span>' : ''}</span>
+                    ${num(o.reg, 'font-bold text-gray-900')}${num(o.sold, 'font-bold text-green-700')}
+                </div>`;
+            return `<div class="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
+                    <div class="${grid} px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
+                        <span>등록한 직원</span><span class="text-right">등록</span><span class="text-right">그중 개통</span>
+                    </div>
+                    ${rows.length ? rows.map(([n, o]) => row(n, o, false)).join('') + row('합계', sum, true) : '<p class="text-sm text-gray-600 text-center py-8">이 기간 새로 등록한 고객이 없어요.</p>'}
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed pl-1">스캔·개통보고·명함 보내기로 <b class="text-gray-700">처음 저장한 날</b> 기준이에요. 이번 버전 전에 등록한 고객은 등록일 칸이 없어서 방문일로 셌어요 (다시 방문해도 등록일은 안 바뀌어요). 휴지통 고객은 빠져요.</p>`;
+        }
         function renderStaffStats() {
             document.getElementById('calcSheetTitle').textContent = '담당자별 실적';
             const range = staffPeriodRange(staffPeriod);
@@ -9099,8 +9194,20 @@ familyStr + `\n` +
                     ${num(o.ob)}${num(o.sms)}${num(o.push)}${num(o.auto)}
                 </div>`;
             const tab = (k, label) => `<button type="button" data-staff-period="${k}" class="flex-1 h-11 rounded-xl text-sm font-bold ${staffPeriod === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${label}</button>`;
-            document.getElementById('calcSheetBody').innerHTML = `
-                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tab('yday', '전일')}${tab('today', '당일')}${tab('month', '이번 달')}</div>
+            const vtab = (k, label) => `<button type="button" data-staff-view="${k}" class="flex-1 h-11 rounded-xl text-sm font-bold ${staffView === k ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-700'}">${label}</button>`;
+            const head = `<div class="flex gap-2">${vtab('act', '개통')}${vtab('reg', '신규 등록')}${vtab('contact', '연락')}</div>
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tab('yday', '전일')}${tab('today', '당일')}${tab('month', '이번 달')}</div>`;
+            const bind = () => {
+                const body = document.getElementById('calcSheetBody');
+                body.querySelectorAll('[data-staff-period]').forEach(b => b.onclick = () => { staffPeriod = b.dataset.staffPeriod; renderStaffStats(); });
+                body.querySelectorAll('[data-staff-view]').forEach(b => b.onclick = () => { staffView = b.dataset.staffView; renderStaffStats(); });
+            };
+            if (staffView === 'act' || staffView === 'reg') {
+                document.getElementById('calcSheetBody').innerHTML = head + (staffView === 'act' ? renderStaffActs() : renderStaffRegs());
+                bind();
+                return;
+            }
+            document.getElementById('calcSheetBody').innerHTML = head + `
                 <div class="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
                     <div class="${grid} px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
                         <span>담당자</span><span class="text-right">OB</span><span class="text-right">문자</span><span class="text-right">푸시</span><span class="text-right">자동</span>
@@ -9112,7 +9219,7 @@ familyStr + `\n` +
                     <li><b class="text-gray-700">푸시</b> 강CRM에서 보낸 직원 기준 · 이번 버전부터 쌓여요</li>
                     <li><b class="text-gray-700">자동</b> 약속일·생일 자동 문자·푸시를 고객 담당자 기준으로 센 거예요${staffPeriod !== 'yday' ? ' (오늘 보낼 예정 포함)' : ''}</li>
                 </ul>`;
-            document.getElementById('calcSheetBody').querySelectorAll('[data-staff-period]').forEach(b => b.onclick = () => { staffPeriod = b.dataset.staffPeriod; renderStaffStats(); });
+            bind();
         }
 
         /* ---------- 상담요청 목록 ---------- */
