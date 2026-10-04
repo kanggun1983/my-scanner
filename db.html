@@ -480,11 +480,11 @@
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
                     <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
                 </div>
-                <button type="button" id="statsStaffCell" aria-label="담당자별 연락 실적 보기" class="px-3 py-2 flex flex-col min-w-0 text-left hover:bg-gray-50">
+                <button type="button" id="statsStaffCell" aria-label="담당자별 실적 보기 (OB·문자·푸시·자동)" class="px-3 py-2 flex flex-col min-w-0 text-left hover:bg-gray-50">
                     <span class="text-xs font-medium text-gray-600 leading-snug">오늘 연락<span id="statsCallRes" class="font-bold text-indigo-700"></span></span>
                     <span id="statsTodayText" class="text-[17px] font-bold text-gray-900 leading-snug">OB 0 / 문자 0</span>
                     <span id="statsMonthText" class="text-xs text-gray-600 truncate">이번 달 OB 0 / 문자 0</span>
-                    <span class="text-xs font-bold text-indigo-700">담당자별 보기 <i class="fa-solid fa-chevron-right text-[10px]"></i></span>
+                    <span class="text-xs font-bold text-indigo-700">담당자별 · 전일·푸시·자동 <i class="fa-solid fa-chevron-right text-[10px]"></i></span>
                 </button>
             </div>
             <button type="button" id="pushStatsRow" class="hidden w-full min-h-[44px] px-3 py-2 border-t border-gray-100 items-center gap-2 text-left hover:bg-gray-50">
@@ -767,7 +767,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V103</span>
+                    <span class="text-sm text-gray-600">V105</span>
                 </div>
             </section>
         </div>
@@ -1742,7 +1742,7 @@
         };
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
@@ -1959,13 +1959,28 @@
                     }
                 });
 
+                // 🔑 로그인: 창(팝업) 방식 먼저 → 막히면 페이지 이동 방식
+                //   (예전: 페이지 이동 방식만 써서, 크롬의 새 보안 정책 때문에 '새 계정'은 구글에서 돌아와도 로그인이 안 됐음
+                //    이미 로그인돼 있던 계정만 계속 쓸 수 있었고, 새로 추가한 계정은 Firebase 사용자 목록에도 안 생겼음)
+                const showLoginError = (error) => {
+                    const errMsg = document.getElementById('loginErrorMsg');
+                    errMsg.textContent = "로그인 실패: " + koreanError(error, '로그인');
+                    errMsg.classList.remove('hidden');
+                    document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
+                };
                 document.getElementById('googleLoginBtn').onclick = () => {
                     document.getElementById('loginBtnText').textContent = "로그인 처리 중...";
-                    signInWithRedirect(auth, provider).catch((error) => {
-                        const errMsg = document.getElementById('loginErrorMsg');
-                        errMsg.textContent = "로그인 실패: " + koreanError(error, '로그인');
-                        errMsg.classList.remove('hidden');
-                        document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
+                    document.getElementById('loginErrorMsg').classList.add('hidden');
+                    signInWithPopup(auth, provider).catch((error) => {
+                        const code = String((error && error.code) || '');
+                        if (/popup-blocked|operation-not-supported|web-storage-unsupported/.test(code)) {
+                            return signInWithRedirect(auth, provider).catch(showLoginError);
+                        }
+                        if (/popup-closed-by-user|cancelled-popup-request/.test(code)) {
+                            document.getElementById('loginBtnText').textContent = "Google 계정으로 로그인";
+                            return;
+                        }
+                        showLoginError(error);
                     });
                 };
 
@@ -6872,6 +6887,7 @@
                 try {
                     await callPushRelay({ pushTo: [pushTarget.cardId], heading: t.heading, content: t.body, image: pushImage || undefined, icon: pushIcon || undefined, url: DEFAULT_CARD_URL });
                     setPushStatus(`${pushTarget.name}님에게 보냈어요!`, 'green');
+                    logStaffPush();
                 } catch (e) {
                     setPushStatus(/내용이 비어/.test(e.message || '') ? '중계 서버 코드를 새 버전(6)으로 바꿔주세요.' : e.message, 'red');
                 } finally { btn1.disabled = false; }
@@ -6887,6 +6903,7 @@
             try {
                 const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, icon: pushIcon || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
                 setPushStatus(sendAfter ? `예약했어요! ${sendAfter.label}에 보내져요.` : `보냈어요!${data.recipients ? ` (받는 사람 ${data.recipients}명)` : ''}`, 'green');
+                logStaffPush();
                 setTimeout(() => loadPushStats(true), 5000);   // OneSignal 집계가 반영될 시간을 조금 두고 대시보드 숫자 새로고침
             } catch (e) {
                 console.error('푸시 보내기 실패:', e);
@@ -8808,6 +8825,10 @@ familyStr + `\n` +
                 calcData = calcData || calcNormalize(null);
                 renderCalcSettings();
             });
+            staffStatsUnsub = onSnapshot(doc(db, 'smart_global', 'staff_stats'), snap => {
+                staffStatsDoc = snap.exists() ? snap.data() : {};
+                if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats();
+            }, err => console.error('담당자별 푸시 실적 불러오기 실패:', err));
             calcReqFirstLoad = true;
             calcReqUnsub = onSnapshot(collection(db, 'card_requests'), snap => {
                 const list = [];
@@ -8827,6 +8848,7 @@ familyStr + `\n` +
             });
         }
         function detachCalcListeners() {
+            if (staffStatsUnsub) { staffStatsUnsub(); staffStatsUnsub = null; }
             if (calcUnsub) { calcUnsub(); calcUnsub = null; }
             if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
         }
@@ -8993,40 +9015,104 @@ familyStr + `\n` +
             else renderCalcPlans();
         }
 
-        /* ---------- 👥 담당자별 연락 실적 (고객 연락 기록에서 바로 셈 · 예전 기록도 포함) ---------- */
-        function renderStaffStats() {
-            document.getElementById('calcSheetTitle').textContent = '담당자별 연락 실적';
-            document.getElementById('calcSheetSub').textContent = '고객카드의 연락 기록(📞 전화발신 · 💬 문자발송)으로 셌어요';
-            const today = getTodayStr().replace(/-/g, '.'), month = today.slice(0, 7);
+        /* ---------- 👥 담당자별 실적 (전일 · 당일 · 이번 달 / OB · 문자 · 푸시 · 자동) ---------- */
+        //  · OB·문자: 고객카드 연락 기록(📞 전화발신 · 💬 문자발송)에서 셈 → 예전 기록도 포함
+        //  · 푸시: 강CRM에서 보낼 때 보낸 직원 이름으로 기록 (smart_global/staff_stats)
+        //  · 자동: 고객 약속일·생일로 나가는 자동 문자·푸시를 고객 담당자 기준으로 셈
+        let staffStatsDoc = {}, staffStatsUnsub = null, staffPeriod = 'today';
+        function staffKeyName(n) { return String(n || '').replace(/[|.\/\[\]`*~]/g, '').trim() || '담당자미상'; }
+        function ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
+        async function logStaffPush() {
+            if (!db) return;
+            const key = `push|${staffKeyName(getStaffName())}|${getTodayStr()}`;
+            try { await saveDoc(doc(db, 'smart_global', 'staff_stats'), { [key]: increment(1) }, { merge: true }); } catch (e) { console.error('푸시 실적 저장 실패:', e); }
+        }
+        function staffPeriodRange(period) {
+            const now = new Date();
+            const today = ymd(now);
+            const y = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+            if (period === 'yday') return { from: ymd(y), to: ymd(y), label: `어제 (${y.getMonth() + 1}/${y.getDate()})` };
+            if (period === 'month') return { from: `${today.slice(0, 7)}-01`, to: today, label: `${now.getMonth() + 1}월 (1일~오늘)` };
+            return { from: today, to: today, label: `오늘 (${now.getMonth() + 1}/${now.getDate()})` };
+        }
+        function computeStaffStats(period) {
+            const { from, to } = staffPeriodRange(period);
             const map = new Map();
-            const re = /^\[(\d{4}\.\d{2}\.\d{2})[^\]]*\].*?(📞 전화발신|💬 문자발송).*?\(담당:\s*([^)]*)\)\s*$/;
+            const get = (who) => { const k = staffKeyName(who); if (!map.has(k)) map.set(k, { ob: 0, sms: 0, push: 0, auto: 0 }); return map.get(k); };
+            // OB·문자
+            const re = /^\[(\d{4})\.(\d{2})\.(\d{2})[^\]]*\].*?(📞 전화발신|💬 문자발송).*?\(담당:\s*([^)]*)\)\s*$/;
             [...customerDB, ...trashDB].forEach(c => String(c.contactHistory || '').split('\n').forEach(line => {
                 const m = line.trim().match(re);
-                if (!m || !m[1].startsWith(month)) return;
-                const who = m[3].trim() || '담당자미상';
-                const o = map.get(who) || { dOB: 0, dSMS: 0, mOB: 0, mSMS: 0 };
-                const ob = m[2].includes('전화');
-                if (ob) o.mOB++; else o.mSMS++;
-                if (m[1] === today) { if (ob) o.dOB++; else o.dSMS++; }
-                map.set(who, o);
+                if (!m) return;
+                const d = `${m[1]}-${m[2]}-${m[3]}`;
+                if (d < from || d > to) return;
+                const o = get(m[5]);
+                if (m[4].includes('전화')) o.ob++; else o.sms++;
             }));
-            const rows = [...map.entries()].sort((a, b) => (b[1].mOB + b[1].mSMS) - (a[1].mOB + a[1].mSMS));
-            const sum = rows.reduce((t, [, o]) => ({ dOB: t.dOB + o.dOB, dSMS: t.dSMS + o.dSMS, mOB: t.mOB + o.mOB, mSMS: t.mSMS + o.mSMS }), { dOB: 0, dSMS: 0, mOB: 0, mSMS: 0 });
-            const me = getStaffName();
-            const cell = (ob, sms) => `<span class="font-bold text-gray-900">${ob}</span><span class="text-gray-400"> / </span><span class="font-bold text-gray-900">${sms}</span>`;
-            const row = (name, o, strong) => `<div class="grid grid-cols-[minmax(0,1fr)_76px_92px] items-center gap-2 px-3 py-3 ${strong ? 'bg-gray-50' : ''}">
-                    <span class="text-[15px] ${strong ? 'font-bold' : 'font-medium'} text-gray-900 truncate">${escapeHtml(name)}${name === me ? ' <span class="text-xs font-bold text-indigo-700">나</span>' : ''}</span>
-                    <span class="text-sm text-right">${cell(o.dOB, o.dSMS)}</span>
-                    <span class="text-sm text-right">${cell(o.mOB, o.mSMS)}</span>
+            // 푸시
+            Object.entries(staffStatsDoc || {}).forEach(([k, v]) => {
+                const [type, who, d] = k.split('|');
+                if (type !== 'push' || !d || d < from || d > to) return;
+                get(who).push += Number(v) || 0;
+            });
+            // 자동 문자·푸시 (그날 약속일 · 생일인 고객 → 고객 담당자)
+            const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn');
+            if (pushRelayReady() && (promOn || bdayOn)) {
+                const skip = smsSkipIds();
+                customerDB.forEach(c => {
+                    if (c.deletedAt) return;
+                    const smsCh = autoSmsOn() && !!smsMobileDigits(c.phone);
+                    const pushCh = autoPushOn() && c.pushSubscribed === true && !!c.cardId;
+                    if (!smsCh && !pushCh) return;
+                    const who = c.manager || c.contactManager;
+                    const safeId = String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+                    const add = (id) => { let n = 0; if (smsCh && !skip.has(id)) n++; if (pushCh && !skip.has(`${id}-p`)) n++; if (n) get(who).auto += n; };
+                    if (promOn) SMS_PROMISE_TYPES.forEach(t => {
+                        const date = String(c[`prom${t.key}Date`] || '');
+                        if (date.length !== 10 || date < from || date > to) return;
+                        add(`ap-${safeId}-${t.key}-${date.replace(/-/g, '')}`);
+                    });
+                    if (bdayOn && !c.marketingDeny) {
+                        const b = parseBirth(c.dob);
+                        if (!b) return;
+                        for (let yr = Number(from.slice(0, 4)); yr <= Number(to.slice(0, 4)); yr++) {
+                            const d = `${yr}-${String(b.m).padStart(2, '0')}-${String(b.d).padStart(2, '0')}`;
+                            if (d >= from && d <= to) add(`ab-${safeId}-${yr}`);
+                        }
+                    }
+                });
+            }
+            return [...map.entries()].filter(([, o]) => o.ob + o.sms + o.push + o.auto > 0)
+                .sort((a, b) => (b[1].ob + b[1].sms + b[1].push + b[1].auto) - (a[1].ob + a[1].sms + a[1].push + a[1].auto));
+        }
+        function renderStaffStats() {
+            document.getElementById('calcSheetTitle').textContent = '담당자별 실적';
+            const range = staffPeriodRange(staffPeriod);
+            document.getElementById('calcSheetSub').textContent = range.label;
+            const rows = computeStaffStats(staffPeriod);
+            const sum = rows.reduce((t, [, o]) => ({ ob: t.ob + o.ob, sms: t.sms + o.sms, push: t.push + o.push, auto: t.auto + o.auto }), { ob: 0, sms: 0, push: 0, auto: 0 });
+            const me = staffKeyName(getStaffName());
+            const grid = 'grid grid-cols-[minmax(0,1fr)_44px_44px_44px_44px] items-center gap-1.5';
+            const num = (n) => `<span class="text-right text-[15px] ${n ? 'font-bold text-gray-900' : 'text-gray-300'}">${n}</span>`;
+            const row = (name, o, strong) => `<div class="${grid} px-3 py-3 ${strong ? 'bg-gray-50' : ''}">
+                    <span class="text-[15px] ${strong ? 'font-bold' : 'font-medium'} text-gray-900 truncate">${escapeHtml(name)}${!strong && name === me ? ' <span class="text-xs font-bold text-indigo-700">나</span>' : ''}</span>
+                    ${num(o.ob)}${num(o.sms)}${num(o.push)}${num(o.auto)}
                 </div>`;
+            const tab = (k, label) => `<button type="button" data-staff-period="${k}" class="flex-1 h-11 rounded-xl text-sm font-bold ${staffPeriod === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${label}</button>`;
             document.getElementById('calcSheetBody').innerHTML = `
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tab('yday', '전일')}${tab('today', '당일')}${tab('month', '이번 달')}</div>
                 <div class="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
-                    <div class="grid grid-cols-[minmax(0,1fr)_76px_92px] gap-2 px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
-                        <span>담당자</span><span class="text-right">오늘<br><span class="font-medium">OB / 문자</span></span><span class="text-right">${Number(month.slice(5))}월<br><span class="font-medium">OB / 문자</span></span>
+                    <div class="${grid} px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
+                        <span>담당자</span><span class="text-right">OB</span><span class="text-right">문자</span><span class="text-right">푸시</span><span class="text-right">자동</span>
                     </div>
-                    ${rows.length ? rows.map(([n, o]) => row(n, o, false)).join('') + row('합계', sum, true) : '<p class="text-sm text-gray-600 text-center py-8">이번 달 연락 기록이 아직 없어요.</p>'}
+                    ${rows.length ? rows.map(([n, o]) => row(n, o, false)).join('') + row('합계', sum, true) : '<p class="text-sm text-gray-600 text-center py-8">이 기간 기록이 없어요.</p>'}
                 </div>
-                <p class="text-xs text-gray-500 leading-relaxed">위쪽 '오늘 연락' 숫자와 조금 다를 수 있어요. 고객으로 저장하지 않고 보낸 명함 문자는 기록이 없어서 빠져요. 담당자 이름은 설정 → 직원 이름 기준이에요.</p>`;
+                <ul class="text-xs text-gray-500 leading-relaxed space-y-1 pl-1">
+                    <li><b class="text-gray-700">OB·문자</b> 고객카드 연락 기록 기준 (고객으로 저장 안 하고 보낸 명함 문자는 빠져요)</li>
+                    <li><b class="text-gray-700">푸시</b> 강CRM에서 보낸 직원 기준 · 이번 버전부터 쌓여요</li>
+                    <li><b class="text-gray-700">자동</b> 약속일·생일 자동 문자·푸시를 고객 담당자 기준으로 센 거예요${staffPeriod !== 'yday' ? ' (오늘 보낼 예정 포함)' : ''}</li>
+                </ul>`;
+            document.getElementById('calcSheetBody').querySelectorAll('[data-staff-period]').forEach(b => b.onclick = () => { staffPeriod = b.dataset.staffPeriod; renderStaffStats(); });
         }
 
         /* ---------- 상담요청 목록 ---------- */
