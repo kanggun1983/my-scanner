@@ -521,7 +521,7 @@
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="m6">6~17개월</button>
             </div>
 
-            <!-- 🔎 기간·개통종류 · 몇 명씩 보기 (폰클처럼) -->
+            <!-- 🔎 기간·개통종류 · 몇 명씩 보기 -->
             <div id="listToolsRow" class="flex items-center gap-2 mb-2.5">
                 <button type="button" id="rangeBtn" class="flex-1 min-w-0 h-11 pl-3 pr-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center gap-2" aria-label="기간과 개통종류로 거르기"><i class="fa-regular fa-calendar text-indigo-600" aria-hidden="true"></i><span id="rangeLabel" class="truncate">기간 · 개통종류 전체</span><i class="fa-solid fa-chevron-down text-[11px] text-gray-500 ml-auto" aria-hidden="true"></i></button>
                 <button type="button" id="rangeClear" class="hidden flex-shrink-0 w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-200/60 flex items-center justify-center" aria-label="기간 조건 지우기"><i class="fa-solid fa-xmark"></i></button>
@@ -674,6 +674,10 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setDriveTitle">
+                <h3 id="setDriveTitle" class="text-[13px] font-bold text-gray-600 pl-1">서류 클라우드 백업 <span class="font-normal text-gray-500">(구글 드라이브)</span></h3>
+                <div id="driveSetBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-2"></div>
+            </section>
             <section class="space-y-2" aria-labelledby="setSettleTitle">
                 <h3 id="setSettleTitle" class="text-[13px] font-bold text-gray-600 pl-1">개통 정산정보</h3>
                 <label for="hideSettleChk" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 flex items-center justify-between gap-3 cursor-pointer">
@@ -801,7 +805,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V114</span>
+                    <span class="text-sm text-gray-600">V115</span>
                 </div>
             </section>
         </div>
@@ -1777,7 +1781,7 @@
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -1931,7 +1935,7 @@
         let selectionMode = false;             // 폰: [선택] 눌러 엑셀로 내보낼 고객 고르는 중
         let currentSort = localStorage.getItem('listSort') || 'visit';
         let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
-        let listRange = { base: 'act', key: 'all', from: '', to: '', label: '전체' };   // 🔎 목록 기간 (폰클처럼)
+        let listRange = { base: 'act', key: 'all', from: '', to: '', label: '전체' };   // 🔎 목록 기간
         let listActType = '', listCarrier = '';
         let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
@@ -4671,7 +4675,7 @@
 
         function openAddMenu() {
             openActionSheet('추가하기', [
-                { icon: 'fa-solid fa-file-signature', label: '개통등록 (폰클식)', sub: '무선·홈상품 개통을 할부원금·정산까지 한 번에 등록해요', onClick: () => setTimeout(() => openActReg(null, 'mobile'), 0) },
+                { icon: 'fa-solid fa-file-signature', label: '개통등록', sub: '무선·홈상품 개통을 할부원금·정산까지 한 번에 등록해요', onClick: () => setTimeout(() => openActReg(null, 'mobile'), 0) },
                 { icon: 'fa-solid fa-file-lines', label: '신규 개통보고', sub: '개통한 고객을 보고서로 쓰고 바로 저장해요', onClick: () => document.getElementById('newReportBtn').click() },
                 { icon: 'fa-solid fa-camera', label: '사진으로 고객 등록', sub: '전산 화면을 찍으면 AI가 칸을 채워줘요', onClick: async () => {
                     const ready = await prepareScannerForNew();
@@ -4688,7 +4692,7 @@
                     nameEl.focus();
                 } },
                 { icon: 'fa-solid fa-address-card', label: '명함 보내기 (번호 입력)', sub: '등록 안 된 사람에게도 디지털 명함을 문자로 보내요', onClick: () => openCardSendSheet() },
-                { icon: 'fa-solid fa-file-import', label: '폰클 엑셀 가져오기', sub: '폰클 모바일개통 엑셀을 올리면 고객카드가 자동으로 생겨요', onClick: () => setTimeout(openPoncleImport, 0) },
+                { icon: 'fa-solid fa-file-import', label: '개통 엑셀 가져오기', sub: '전산에서 받은 모바일개통 엑셀을 올리면 고객카드가 자동으로 생겨요', onClick: () => setTimeout(openPoncleImport, 0) },
                 { icon: 'fa-regular fa-calendar-plus', label: '약속 추가', sub: '고객을 골라 요금제 변경·재연락 같은 약속을 넣어요', onClick: () => { promAdd = { cid: '', key: 'Call', date: getTodayStr(), memo: '', q: '' }; setTimeout(() => openCalcSheet('promAdd'), 0); } }
             ]);
         }
@@ -4775,6 +4779,7 @@
             renderSmsSettings();
             renderCalcManageSub();
             { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
+            try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
         let staffSavedTimer = null;
@@ -8863,6 +8868,7 @@ familyStr + `\n` +
         /* ---------- 실시간 연결 ---------- */
         function attachCalcListeners() {
             detachCalcListeners();
+            try { attachDocFilesListener(); } catch (e) { console.error(e); }
             setTimeout(refreshStaffAlert, 1500);
             calcUnsub = onSnapshot(doc(db, 'card_public', 'phonecalc'), snap => {
                 let d = null;
@@ -8900,6 +8906,7 @@ familyStr + `\n` +
             });
         }
         function detachCalcListeners() {
+            if (typeof docFilesUnsub === 'function') { try { docFilesUnsub(); } catch (e) {} }
             if (staffStatsUnsub) { staffStatsUnsub(); staffStatsUnsub = null; }
             if (calcUnsub) { calcUnsub(); calcUnsub = null; }
             if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
@@ -10005,7 +10012,7 @@ familyStr + `\n` +
 
     
         /* =====================================================================
-           📥 폰클 엑셀 가져오기 (모바일개통 .xls) → 고객카드 자동 등록·업데이트
+           📥 개통 엑셀 가져오기 (모바일개통 .xls) → 고객카드 자동 등록·업데이트
            · 번호(개통번호)로 같은 고객을 찾아서 합치고, 같은 줄을 두 번 가져오지 않음
            ===================================================================== */
         let poncleDraft = null;
@@ -10132,7 +10139,7 @@ familyStr + `\n` +
                 const bits = [pcStr(o['개통종류']), pcStr(o['통신사']), model || pcStr(o['유심모델명']), pcStr(o['요금제'])].filter(Boolean);
                 const extra = [['부가', o['부가서비스']], ['보험', o['단말기보험']], ['할인카드', o['할인카드']], ['미비서류', o['미비서류']], ['메모', [pcStr(o['메모1']), pcStr(o['메모2'])].filter(Boolean).join(' ')]]
                     .filter(([, v]) => pcStr(v)).map(([k, v]) => `${k}: ${pcStr(v)}`);
-                notes.push(`[폰클 ${date.slice(5).replace('-', '/')}] ${bits.join(' · ')}${extra.length ? ' / ' + extra.join(' · ') : ''}`);
+                notes.push(`[개통 ${date.slice(5).replace('-', '/')}] ${bits.join(' · ')}${extra.length ? ' / ' + extra.join(' · ') : ''}`);
             });
             const first = item.fresh[0];
             if (!item.cur) {
@@ -10173,46 +10180,59 @@ familyStr + `\n` +
                     rows = poncleRowsFromSheet(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' }));
                     if (rows) break;
                 }
-                if (!rows || !rows.length) return customAlert("폰클 '모바일개통' 엑셀이 아닌 것 같아요.\n'개통일 · 고객명 · 개통번호' 칸이 있는 파일을 골라주세요.");
+                if (!rows || !rows.length) return customAlert("'모바일개통' 엑셀이 아닌 것 같아요.\n'개통일 · 고객명 · 개통번호' 칸이 있는 파일을 골라주세요.");
                 poncleDraft = { file: file.name, ...buildPonclePlan(rows), total: rows.length };
                 openCalcSheet('poncle');
             } catch (err) {
                 console.error(err);
-                customAlert('엑셀을 읽지 못했어요. 폰클에서 받은 파일이 맞는지 확인해 주세요.');
+                customAlert('엑셀을 읽지 못했어요. 전산에서 받은 모바일개통 엑셀이 맞는지 확인해 주세요.');
             }
         });
         function renderPoncleImport() {
             const D = poncleDraft;
-            document.getElementById('calcSheetTitle').textContent = '폰클 엑셀 가져오기';
+            document.getElementById('calcSheetTitle').textContent = '개통 엑셀 가져오기';
             if (!D) { document.getElementById('calcSheetBody').innerHTML = ''; return; }
             const n = (k) => D.items.filter(x => x.kind === k).length;
+            if (!D.sel) D.sel = new Set(D.items.filter(x => x.kind !== 'dup').map(x => x.digits));
+            const pickable = D.items.filter(x => x.kind !== 'dup');
             document.getElementById('calcSheetSub').textContent = `${D.file} · ${D.total}줄`;
             const badge = { new: ['새 고객', 'bg-green-100 text-green-800'], update: ['업데이트', 'bg-indigo-100 text-indigo-800'], dup: ['이미 가져옴', 'bg-gray-100 text-gray-600'] };
             let html = `<div class="grid grid-cols-4 gap-1.5 text-center">
                     ${[['새 고객', n('new'), 'text-green-700'], ['업데이트', n('update'), 'text-indigo-700'], ['이미 가져옴', n('dup'), 'text-gray-500'], ['건너뜀', D.skipped.length, 'text-amber-700']].map(([l, v, c]) => `<div class="rounded-xl bg-gray-50 py-2"><span class="block text-xl font-bold ${c}">${v}</span><span class="block text-[11px] text-gray-600">${l}</span></div>`).join('')}
                 </div>
-                <p class="text-xs text-gray-600 leading-relaxed">개통번호로 같은 고객을 찾아요. 더 최근 개통이면 단말기·요금제·개통일·할부를 새로 바꾸고, 기존 메모와 약속은 그대로 두고 아래에 '[폰클 날짜]' 기록을 덧붙여요. 같은 줄은 두 번 들어가지 않아요.</p>
+                <p class="text-xs text-gray-600 leading-relaxed">개통번호로 같은 고객을 찾아요. 더 최근 개통이면 단말기·요금제·개통일·할부를 새로 바꾸고, 기존 메모와 약속은 그대로 두고 아래에 '[개통 날짜]' 기록을 덧붙여요. 같은 줄은 두 번 들어가지 않아요.</p>
                 <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` +
+                `<div class="flex items-center justify-between px-3 py-2 bg-gray-50"><span class="text-sm font-bold text-gray-800">가져올 고객 ${D.sel.size}명 선택</span>
+                    <button type="button" id="poncleAll" class="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">${D.sel.size === pickable.length ? '전체 해제' : '전체 선택'}</button></div>` +
                 D.items.map(it => {
                     const o = it.rows[it.rows.length - 1];
-                    return `<div class="px-3 py-2 ${it.kind === 'dup' ? 'opacity-60' : ''}">
+                    const can = it.kind !== 'dup', on = D.sel.has(it.digits);
+                    return `<div ${can ? `data-pc-pick="${it.digits}" role="checkbox" aria-checked="${on}" tabindex="0"` : ''} class="px-3 py-2 flex items-start gap-2.5 ${can ? 'cursor-pointer' : 'opacity-60'} ${can && !on ? 'bg-gray-50/70' : ''}">
+                        <span class="flex-shrink-0 mt-0.5 w-6 h-6 rounded-md border-2 ${!can ? 'border-gray-200 bg-gray-100' : (on ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white')} flex items-center justify-center text-xs">${can && on ? '<i class="fa-solid fa-check"></i>' : ''}</span>
+                        <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2"><span class="text-[11px] font-bold rounded px-1.5 ${badge[it.kind][1]}">${badge[it.kind][0]}</span>
                         <span class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(pcStr(o['고객명']) || (it.cur && it.cur.name) || '')}</span>
                         <span class="text-xs text-gray-500 ml-auto flex-shrink-0">${escapeHtml(o['개통일'].slice(5))}</span></div>
                         <p class="text-xs text-gray-600 truncate">${escapeHtml(formatPhone(it.digits))} · ${escapeHtml([pcStr(o['개통종류']), pcStr(o['통신사']), pcStr(o['단말기모델명']) || pcStr(o['유심모델명'])].filter(Boolean).join(' · '))}${it.rows.length > 1 ? ` · ${it.rows.length}건` : ''}</p>
-                    </div>`;
+                    </div></div>`;
                 }).join('') +
                 D.skipped.map(sk => `<div class="px-3 py-2 bg-amber-50/50"><div class="flex items-center gap-2"><span class="text-[11px] font-bold rounded px-1.5 bg-amber-100 text-amber-800">건너뜀</span><span class="text-[15px] font-bold text-gray-700 truncate">${escapeHtml(pcStr(sk.o['고객명']))}</span><span class="text-xs text-amber-800 ml-auto flex-shrink-0">${escapeHtml(sk.why)}</span></div><p class="text-xs text-gray-500 truncate">${escapeHtml(pcStr(sk.o['개통번호']))} · ${escapeHtml(pcStr(sk.o['개통종류']))}</p></div>`).join('') +
                 `</div>
                 <p id="poncleProg" class="hidden text-sm font-bold text-indigo-700" role="status"></p>
                 <div class="sticky bottom-0 -mx-4 px-4 pt-2 pb-1 bg-white border-t border-gray-200 grid grid-cols-2 gap-2">
                     <button type="button" id="poncleCancel" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">취소</button>
-                    <button type="button" id="poncleGo" ${n('new') + n('update') ? '' : 'disabled'} class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold disabled:opacity-40"><i class="fa-solid fa-file-import"></i> ${n('new') + n('update')}명 가져오기</button>
+                    <button type="button" id="poncleGo" ${D.sel.size ? '' : 'disabled'} class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold disabled:opacity-40"><i class="fa-solid fa-file-import"></i> ${D.sel.size}명 가져오기</button>
                 </div>`;
             document.getElementById('calcSheetBody').innerHTML = html;
             document.getElementById('poncleCancel').onclick = () => { poncleDraft = null; closeCalcSheet(); };
+            document.getElementById('calcSheetBody').querySelectorAll('[data-pc-pick]').forEach(el => {
+                const flip = () => { const k = el.dataset.pcPick; if (D.sel.has(k)) D.sel.delete(k); else D.sel.add(k); const top = document.getElementById('calcSheetBody').parentElement.scrollTop; renderPoncleImport(); document.getElementById('calcSheetBody').parentElement.scrollTop = top; };
+                el.onclick = flip;
+                el.onkeydown = (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(); } };
+            });
+            document.getElementById('poncleAll').onclick = () => { if (D.sel.size === pickable.length) D.sel.clear(); else pickable.forEach(x => D.sel.add(x.digits)); renderPoncleImport(); };
             document.getElementById('poncleGo').onclick = async () => {
-                const todo = D.items.filter(x => x.kind !== 'dup');
+                const todo = D.items.filter(x => x.kind !== 'dup' && D.sel.has(x.digits));
                 const btn = document.getElementById('poncleGo'), prog = document.getElementById('poncleProg');
                 btn.disabled = true; prog.classList.remove('hidden');
                 let ok = 0, fail = 0;
@@ -10223,7 +10243,7 @@ familyStr + `\n` +
                 }
                 poncleDraft = null;
                 closeCalcSheet();
-                customAlert(`폰클 엑셀 가져오기 완료\n새 고객·업데이트 ${ok}명${fail ? `\n${fail}명은 저장하지 못했어요. 다시 올리면 빠진 것만 들어가요.` : ''}${D.skipped.length ? `\n건너뜀 ${D.skipped.length}줄 (번호 없음·취소 등)` : ''}`);
+                customAlert(`개통 엑셀 가져오기 완료\n새 고객·업데이트 ${ok}명${fail ? `\n${fail}명은 저장하지 못했어요. 다시 올리면 빠진 것만 들어가요.` : ''}${D.skipped.length ? `\n건너뜀 ${D.skipped.length}줄 (번호 없음·취소 등)` : ''}`);
             };
         }
 
@@ -10274,7 +10294,7 @@ familyStr + `\n` +
         function applyListTools() { cardPage = 1; currentPage = 1; updateListToolsUI(); renderDB(); }
         function renderRangeSheet() {
             document.getElementById('calcSheetTitle').textContent = '목록 기간·조건';
-            document.getElementById('calcSheetSub').textContent = '폰클처럼 날짜와 개통종류로 걸러 봐요';
+            document.getElementById('calcSheetSub').textContent = '날짜와 개통종류로 걸러 봐요';
             const types = [...new Set(customerDB.map(c => pcStr(c.actType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
             const carriers = [...new Set(customerDB.map(c => c.carrier).filter(v => v && v !== '미정'))].sort();
             const chip = (attr, val, label, on) => `<button type="button" ${attr}="${escapeHtml(val)}" class="h-10 px-3 rounded-full border text-sm font-bold ${on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700'}">${escapeHtml(label)}</button>`;
@@ -10288,7 +10308,7 @@ familyStr + `\n` +
                         <input type="date" id="rangeFrom" value="${escapeHtml(listRange.from)}" aria-label="시작일" class="${field}"><span class="text-gray-500">~</span><input type="date" id="rangeTo" value="${escapeHtml(listRange.to)}" aria-label="종료일" class="${field}">
                     </div>
                     <button type="button" id="rangeApply" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">이 날짜로 보기</button></div>
-                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">개통종류 <span class="font-normal text-xs text-gray-500">(폰클 엑셀로 가져온 고객)</span></p>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">개통종류 <span class="font-normal text-xs text-gray-500">(엑셀·개통등록으로 넣은 고객)</span></p>
                     <div class="flex flex-wrap gap-1.5">${chip('data-rtype', '', '전체', !listActType)}${types.map(t => chip('data-rtype', t, t, listActType === t)).join('')}</div></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">통신사</p>
                     <div class="flex flex-wrap gap-1.5">${chip('data-rcar', '', '전체', !listCarrier)}${carriers.map(t => chip('data-rcar', t, t, listCarrier === t)).join('')}</div></div>
@@ -10330,7 +10350,7 @@ familyStr + `\n` +
 
     
         /* =====================================================================
-           📝 개통등록 (폰클식) — 무선 개통 · 홈상품
+           📝 개통등록 — 무선 개통 · 홈상품
            · 고객카드에 개통 정보 + 할부원금 + 정산정보 + 자동 약속을 한 번에 저장
            · 정산정보: 기본은 모두 보임 / 설정에서 '직원에게 숨기기'를 켜면 총관리자만
            ===================================================================== */
@@ -10451,7 +10471,8 @@ familyStr + `\n` +
                     </div><p id="ar-k-dates" class="text-xs text-indigo-700 font-bold"></p>`, '<span class="text-xs text-gray-500">통신사를 고르면 기본값이 맞춰져요</span>');
                 html += arSec('기타정보', `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
                     ${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}
-                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>`);
+                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>
+                    ${driveMode() !== 'off' ? `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`);
             } else {
                 html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
                     ${arSel('hr-kind', '구분', ['단품판매', '결합판매', '동시판매'], '단품판매', { req: true })}
@@ -10557,6 +10578,12 @@ familyStr + `\n` +
         };
 
         document.getElementById('arSave').onclick = async () => {
+            // 서류 첨부 + 각자 드라이브인데 아직 구글 연결 전이면, 누른 그 순간 연결 창부터 (나중엔 폰이 창을 막음)
+            { const fEl = document.getElementById('ar-files');
+              if (fEl && fEl.files && fEl.files.length && driveMode() === 'self' && !driveTokenValid()) {
+                  try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요. [저장]을 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); }
+                  return;
+              } }
             const err = document.getElementById('arErr');
             const fail = (m, id) => { err.textContent = m; err.classList.remove('hidden'); const el = id && document.getElementById(id); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } };
             err.classList.add('hidden');
@@ -10633,8 +10660,15 @@ familyStr + `\n` +
             btn.disabled = true;
             try {
                 await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
+                const fEl = document.getElementById('ar-files');
+                const files = fEl ? [...(fEl.files || [])] : [];
                 closeActReg();
-                customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.`);
+                if (files.length) {
+                    showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
+                    const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
+                    hideUploadToast();
+                    customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n서류 ${ur.ok}개 업로드${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}`);
+                } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.`);
             } catch (e) { fail(koreanError(e, '저장')); }
             btn.disabled = false;
         };
@@ -10653,7 +10687,8 @@ familyStr + `\n` +
                 h += `<div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2"><p class="text-xs font-bold text-amber-800 mb-1">정산정보${isSuperAdmin && appSettings.hideSettleFromStaff ? ' · 🔒 직원에게 숨김' : ''}</p>
                     ${[['기본정책', S.기본정책], ['추가정책', S.추가정책], ['정산금액', S.정산금액], ['판매마진', S.판매마진], ['실판매마진', S.실판매마진]].filter(([, v]) => v || v === 0).map(([l, v]) => `<div class="flex justify-between text-[13px] py-0.5"><span class="text-amber-900/70">${l}</span><b class="text-amber-950">${arWon(v)}원</b></div>`).join('')}</div>`;
             }
-            h += `<button type="button" data-paction="actreg" class="mt-3 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-signature"></i>개통등록 (폰클식)</button>`;
+            h += buildDocFilesHtml(c);
+            h += `<button type="button" data-paction="actreg" class="mt-3 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-signature"></i>개통등록</button>`;
             return h;
         }
         profileModal.addEventListener('click', (ev) => {
@@ -10674,6 +10709,221 @@ familyStr + `\n` +
                 catch (e) { el.checked = !el.checked; customAlert(koreanError(e, '저장')); }
             });
         })();
+
+    
+        /* =====================================================================
+           ☁️ 서류 클라우드 백업 (구글 드라이브)
+           · 방식(총관리자가 설정): 끄기 / 각자 본인 드라이브 / 관리자 드라이브로 모으기
+           · 기록(doc_files): 직원은 본인이 올린 것만, 총관리자는 전체가 보여요 (Firebase 규칙으로 막음)
+           ===================================================================== */
+        const DRIVE_ROOT = '강CRM 서류';
+        let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0;
+        function driveMode() { return appSettings.driveMode || 'off'; }
+        function driveTokenValid() { return !!gisToken && Date.now() < gisTokenExp - 60000; }
+        function myEmail() { return (auth && auth.currentUser && auth.currentUser.email) || ''; }
+
+        function attachDocFilesListener() {
+            if (docFilesUnsub) { docFilesUnsub(); docFilesUnsub = null; }
+            const ref = isSuperAdmin ? collection(db, 'doc_files') : query(collection(db, 'doc_files'), where('uploader', '==', myEmail()));
+            docFilesUnsub = onSnapshot(ref, snap => {
+                const list = [];
+                snap.forEach(d => list.push({ ...d.data(), id: d.id }));
+                list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+                docFiles = list;
+                if (currentProfileId) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
+            }, err => console.error('서류 기록 불러오기 실패:', err));
+        }
+
+        // 사진은 크기를 줄여서 (2000px · JPEG) — PDF 등은 그대로
+        async function prepUploadFile(file) {
+            if (!/^image\//.test(file.type) || /gif|svg/.test(file.type)) return file;
+            try {
+                const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); });
+                const scale = Math.min(1, 2000 / Math.max(img.width, img.height));
+                const cv = document.createElement('canvas');
+                cv.width = Math.round(img.width * scale); cv.height = Math.round(img.height * scale);
+                cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+                URL.revokeObjectURL(img.src);
+                const blob = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.85));
+                return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : file;
+            } catch (e) { return file; }
+        }
+        const fileToB64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+
+        // ① 관리자 드라이브로 모으기: 대표님 계정에 설치한 업로드 창구(앱스 스크립트)로 보냄
+        async function uploadViaScript(file, name, month, custFolder) {
+            const url = String(appSettings.driveScriptUrl || '').trim();
+            if (!url) throw new Error('관리자 드라이브 업로드 주소가 설정되지 않았어요.');
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ secret: appSettings.driveSecret || '', data: await fileToB64(file), mime: file.type || 'application/octet-stream', name, month, customer: custFolder, uploader: myEmail() }) });
+            const data = await res.json().catch(() => ({}));
+            if (!data.ok) throw new Error(data.error === 'secret' ? '업로드 비밀번호가 맞지 않아요. 설정을 확인해 주세요.' : ('업로드 실패: ' + (data.error || res.status)));
+            return { id: data.id, url: data.url, owner: 'admin' };
+        }
+
+        // ② 각자 본인 드라이브: 구글 로그인으로 '강CRM 서류' 폴더에 올리고, 총관리자에게 보기 권한
+        async function loadGis() {
+            if (window.google && google.accounts && google.accounts.oauth2) return;
+            await new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.onload = res; s.onerror = () => rej(new Error('구글 연결 도구를 못 불러왔어요.')); document.head.appendChild(s); });
+        }
+        async function getDriveToken(interactive) {
+            if (gisToken && Date.now() < gisTokenExp - 60000) return gisToken;
+            const cid = String(appSettings.driveClientId || '').trim();
+            if (!cid) throw new Error('구글 클라이언트 ID가 설정되지 않았어요. 총관리자에게 문의해 주세요.');
+            await loadGis();
+            return new Promise((resolve, reject) => {
+                const tc = google.accounts.oauth2.initTokenClient({
+                    client_id: cid, scope: 'https://www.googleapis.com/auth/drive.file', login_hint: myEmail(),
+                    callback: (r) => { if (r && r.access_token) { gisToken = r.access_token; gisTokenExp = Date.now() + (Number(r.expires_in) || 3600) * 1000; try { localStorage.setItem('kcrmDriveOk', '1'); } catch (e) {} resolve(gisToken); } else reject(new Error('구글 드라이브 연결을 허락하지 않았어요.')); },
+                    error_callback: () => reject(new Error('구글 드라이브 연결 창이 닫혔어요.'))
+                });
+                tc.requestAccessToken({ prompt: interactive || !localStorage.getItem('kcrmDriveOk') ? 'consent' : '' });
+            });
+        }
+        async function gapi(path, opt = {}) {
+            const t = await getDriveToken(false);
+            const res = await fetch('https://www.googleapis.com' + path, { ...opt, headers: { Authorization: 'Bearer ' + t, ...(opt.headers || {}) } });
+            if (res.status === 401) { gisToken = null; throw new Error('구글 연결이 끊겼어요. 다시 시도해 주세요.'); }
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error('구글 드라이브 오류: ' + ((data.error && data.error.message) || res.status));
+            return data;
+        }
+        async function driveFolder(name, parentId) {
+            const key = 'kcrmDF:' + (parentId || 'root') + '/' + name;
+            const cached = localStorage.getItem(key);
+            if (cached) return cached;
+            const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false and '${parentId || 'root'}' in parents`);
+            const found = await gapi(`/drive/v3/files?q=${q}&fields=files(id)&spaces=drive`);
+            let id = found.files && found.files[0] && found.files[0].id;
+            if (!id) id = (await gapi('/drive/v3/files?fields=id', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId || 'root'] }) })).id;
+            try { localStorage.setItem(key, id); } catch (e) {}
+            return id;
+        }
+        async function uploadViaGis(file, name, month, custFolder) {
+            await getDriveToken(false);
+            const root = await driveFolder(DRIVE_ROOT, null);
+            const mf = await driveFolder(month, root);
+            const cf = await driveFolder(custFolder, mf);
+            const form = new FormData();
+            form.append('metadata', new Blob([JSON.stringify({ name, parents: [cf] })], { type: 'application/json' }));
+            form.append('file', file);
+            const up = await gapi('/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', { method: 'POST', body: form });
+            // 총관리자에게 보기 권한 (알림 메일 없이)
+            const me = myEmail();
+            for (const em of SUPER_ADMIN_EMAILS.filter(e => e !== me)) {
+                try { await gapi(`/drive/v3/files/${up.id}/permissions?sendNotificationEmail=false`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'reader', type: 'user', emailAddress: em }) }); } catch (e) { console.warn('권한 추가 실패', em, e); }
+            }
+            return { id: up.id, url: up.webViewLink, owner: me };
+        }
+
+        async function uploadDocFiles(cust, files, onProgress) {
+            const mode = driveMode();
+            if (mode === 'off') throw new Error('서류 백업이 꺼져 있어요. 총관리자가 설정 → 서류 클라우드 백업에서 켜야 해요.');
+            const today = getTodayStr();
+            const custFolder = `${(cust.name || '고객').replace(/[\\/:*?"<>|]/g, '')}_${String(cust.phone || cust.id || '').replace(/\D/g, '').slice(-4)}`;
+            let ok = 0; const errs = [];
+            for (let i = 0; i < files.length; i++) {
+                if (onProgress) onProgress(i + 1, files.length);
+                try {
+                    const f = await prepUploadFile(files[i]);
+                    if (f.size > 20 * 1024 * 1024) throw new Error(`${files[i].name}: 20MB가 넘어요`);
+                    const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
+                    const r = mode === 'admin' ? await uploadViaScript(f, name, today.slice(0, 7), custFolder) : await uploadViaGis(f, name, today.slice(0, 7), custFolder);
+                    const rid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString() });
+                    ok++;
+                } catch (e) { console.error(e); errs.push(e.message || String(e)); }
+            }
+            return { ok, errs };
+        }
+
+        // 고객카드 안 '서류' 칸
+        function buildDocFilesHtml(c) {
+            const list = docFiles.filter(f => f.customerId === c.id);
+            const mode = driveMode();
+            let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2">
+                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
+                <button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div>`;
+            h += list.length ? list.map(f => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
+                    <i class="fa-regular ${/pdf/.test(f.mime) ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
+                    <a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>
+                    <span class="text-[11px] text-gray-500 flex-shrink-0">${escapeHtml(String(f.at || '').slice(5, 10).replace('-', '/'))} · ${escapeHtml(managerKey(f.uploaderName || '') || '')}</span>
+                    <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
+                </div>`).join('') : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}</p>`;
+            return h + '</div>';
+        }
+        const docInput = document.createElement('input');
+        docInput.type = 'file'; docInput.multiple = true; docInput.accept = 'image/*,application/pdf'; docInput.className = 'hidden';
+        document.body.appendChild(docInput);
+        let docTarget = null;
+        docInput.addEventListener('change', async () => {
+            const files = [...(docInput.files || [])];
+            docInput.value = '';
+            if (!files.length || !docTarget) return;
+            showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
+            const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
+            hideUploadToast();
+            customAlert(r.errs.length ? `${r.ok}개 올렸어요.\n못 올린 것: ${r.errs.slice(0, 3).join('\n')}` : `서류 ${r.ok}개를 구글 드라이브에 올렸어요.`);
+        });
+        function showUploadToast(t) {
+            let el = document.getElementById('uploadToast');
+            if (!el) { el = document.createElement('div'); el.id = 'uploadToast'; el.setAttribute('role', 'status'); el.className = 'fixed left-1/2 -translate-x-1/2 z-[9998] bg-gray-900 text-white text-sm font-bold rounded-2xl px-4 py-3 shadow-xl'; el.style.bottom = 'calc(90px + env(safe-area-inset-bottom, 0px))'; document.body.appendChild(el); }
+            el.textContent = t; el.style.display = 'block';
+        }
+        function hideUploadToast() { const el = document.getElementById('uploadToast'); if (el) el.style.display = 'none'; }
+        profileModal.addEventListener('click', async (ev) => {
+            const up = ev.target.closest('[data-paction="docup"]');
+            const del = ev.target.closest('[data-docdel]');
+            if (up && currentProfileId) {
+                if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
+                docTarget = customerDB.find(x => x.id === currentProfileId);
+                // 각자 드라이브: 구글 연결이 안 돼 있으면 먼저 연결 (연결 창 뒤엔 폰이 파일 선택을 막아서 한 번 더 누르게)
+                if (driveMode() === 'self' && !driveTokenValid()) {
+                    try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[서류 올리기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); }
+                    return;
+                }
+                docInput.click();
+            }
+            if (del) {
+                const f = docFiles.find(x => x.id === del.dataset.docdel);
+                if (!f) return;
+                if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)`))) return;
+                try { await deleteDoc(doc(db, 'doc_files', f.id)); } catch (e) { customAlert(koreanError(e, '삭제')); }
+            }
+        });
+
+        // 설정: 서류 클라우드 백업 (총관리자만 바꿈)
+        function renderDriveSettings() {
+            const box = document.getElementById('driveSetBox');
+            if (!box) return;
+            const mode = driveMode(), locked = !isSuperAdmin;
+            const radio = (v, title, sub) => `<label class="flex items-start gap-3 rounded-xl border ${mode === v ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'} px-3 py-2.5 cursor-pointer"><input type="radio" name="driveMode" value="${v}" ${mode === v ? 'checked' : ''} ${locked ? 'disabled' : ''} class="mt-1 w-5 h-5 accent-indigo-600"><span class="min-w-0"><span class="block text-[15px] font-bold text-gray-900">${title}</span><span class="block text-xs text-gray-600 leading-snug">${sub}</span></span></label>`;
+            const field = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50';
+            box.innerHTML = `
+                ${radio('off', '끄기', '서류 올리기를 쓰지 않아요')}
+                ${radio('self', '각자 본인 구글 드라이브', '올린 직원의 드라이브 \'강CRM 서류\' 폴더에 저장 · 총관리자에게 자동으로 보기 권한')}
+                ${radio('admin', '관리자 구글 드라이브로 모으기', '모든 서류가 대표님 드라이브 한 곳에 저장 · 올린 직원은 본인 것만 볼 수 있어요')}
+                ${mode === 'self' ? `<label class="block text-xs font-bold text-gray-600">구글 클라이언트 ID<input id="driveClientId" ${locked ? 'disabled' : ''} value="${escapeHtml(appSettings.driveClientId || '')}" placeholder="○○○.apps.googleusercontent.com" class="mt-1 ${field}"></label>
+                    <button type="button" id="driveConnectBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">${localStorage.getItem('kcrmDriveOk') ? '✅ 이 폰은 구글 드라이브 연결됨 · 다시 연결' : '이 폰을 구글 드라이브에 연결하기'}</button>` : ''}
+                ${mode === 'admin' ? `<label class="block text-xs font-bold text-gray-600">업로드 주소 (앱스 스크립트)<input id="driveScriptUrl" ${locked ? 'disabled' : ''} value="${escapeHtml(appSettings.driveScriptUrl || '')}" placeholder="https://script.google.com/macros/s/…/exec" class="mt-1 ${field}"></label>
+                    <label class="block text-xs font-bold text-gray-600">업로드 비밀번호<input id="driveSecret" ${locked ? 'disabled' : ''} value="${escapeHtml(isSuperAdmin ? (appSettings.driveSecret || '') : (appSettings.driveSecret ? '••••••' : ''))}" placeholder="앱스 스크립트에 넣은 SECRET과 같게" class="mt-1 ${field}"></label>
+                    <button type="button" id="driveTestBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">연결 확인</button>` : ''}
+                <p class="text-xs text-gray-500 leading-relaxed">서류 기록은 직원은 본인이 올린 것만, 👑 총관리자는 전체가 보여요. 신분증 등 민감한 서류라 드라이브 폴더는 공유하지 말고, 보관 기간이 지나면 드라이브에서 지워주세요.</p>`;
+            box.querySelectorAll('input[name="driveMode"]').forEach(r => r.onchange = () => saveDriveSetting({ driveMode: r.value }));
+            const ci = document.getElementById('driveClientId'); if (ci) ci.onchange = () => saveDriveSetting({ driveClientId: ci.value.trim() });
+            const su = document.getElementById('driveScriptUrl'); if (su) su.onchange = () => saveDriveSetting({ driveScriptUrl: su.value.trim() });
+            const sc = document.getElementById('driveSecret'); if (sc && isSuperAdmin) sc.onchange = () => saveDriveSetting({ driveSecret: sc.value.trim() });
+            const cb = document.getElementById('driveConnectBtn'); if (cb) cb.onclick = async () => { try { gisToken = null; await getDriveToken(true); customAlert('이 폰을 구글 드라이브에 연결했어요.'); renderDriveSettings(); } catch (e) { customAlert(e.message); } };
+            const tb = document.getElementById('driveTestBtn'); if (tb) tb.onclick = async () => {
+                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? '✅ 업로드 창구가 정상이에요.' : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
+                catch (e) { customAlert('업로드 주소에 연결하지 못했어요. 주소와 배포 설정(액세스: 모든 사용자)을 확인해 주세요.'); }
+            };
+        }
+        async function saveDriveSetting(patch) {
+            if (!isSuperAdmin) return;
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderDriveSettings(); }
+            catch (e) { customAlert(koreanError(e, '저장')); }
+        }
 
     </script>
 </body>
