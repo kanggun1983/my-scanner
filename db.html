@@ -521,6 +521,15 @@
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="m6">6~17개월</button>
             </div>
 
+            <!-- 🔎 기간·개통종류 · 몇 명씩 보기 (폰클처럼) -->
+            <div id="listToolsRow" class="flex items-center gap-2 mb-2.5">
+                <button type="button" id="rangeBtn" class="flex-1 min-w-0 h-11 pl-3 pr-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center gap-2" aria-label="기간과 개통종류로 거르기"><i class="fa-regular fa-calendar text-indigo-600" aria-hidden="true"></i><span id="rangeLabel" class="truncate">기간 · 개통종류 전체</span><i class="fa-solid fa-chevron-down text-[11px] text-gray-500 ml-auto" aria-hidden="true"></i></button>
+                <button type="button" id="rangeClear" class="hidden flex-shrink-0 w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-200/60 flex items-center justify-center" aria-label="기간 조건 지우기"><i class="fa-solid fa-xmark"></i></button>
+                <select id="pageSizeSel" aria-label="한 번에 볼 고객 수" class="flex-shrink-0 h-11 pl-2 pr-1 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">
+                    <option value="3">3명씩</option><option value="5">5명씩</option><option value="10">10명씩</option><option value="15">15명씩</option><option value="20">20명씩</option><option value="50">50명씩</option><option value="100">100명씩</option>
+                </select>
+            </div>
+
             <!-- 담당자별로 보는 중일 때 안내 -->
             <div id="managerBanner" class="hidden mb-2.5 flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-xl pl-3.5 pr-1 py-1">
                 <span class="min-w-0"><span id="managerBannerText" class="block text-sm font-bold text-indigo-900 truncate"></span><span class="block text-[11px] text-indigo-700">대시보드 타일·월 개통도 이 담당자 기준 · 오늘 연락은 매장 전체</span></span>
@@ -678,6 +687,7 @@
                     <div class="space-y-2">
                         <p class="text-[14px] font-bold text-gray-900">통신사별 지원금</p>
                         <div id="calcCarrierList" class="space-y-2"></div>
+                        <input type="file" id="poncleFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
                         <input type="file" id="calcExcelFile" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden">
                         <p id="calcStatus" role="status" class="hidden"></p>
                     </div>
@@ -784,7 +794,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V112</span>
+                    <span class="text-sm text-gray-600">V113</span>
                 </div>
             </section>
         </div>
@@ -1905,15 +1915,17 @@
         
         // 페이징 처리 변수
         let currentPage = 1;
-        const itemsPerPage = 15;
+        let itemsPerPage = Number(localStorage.getItem('listPageSize')) || 15;
         let dbLoaded = false;                  // 첫 고객 데이터가 도착했는지 (도착 전엔 '불러오는 중' 표시)
         let dbLoadError = null;                // 고객 목록을 못 불러왔을 때의 오류 (권한·연결 문제)
-        const CARD_PAGE_SIZE = 10;             // 폰 카드 목록: 한 페이지 10명
+        let CARD_PAGE_SIZE = Number(localStorage.getItem('listPageSize')) || 10;   // 폰 카드 목록: 한 페이지 몇 명 (목록 위에서 고름)
         let cardPage = 1;
         let lastListSig = '';
         let selectionMode = false;             // 폰: [선택] 눌러 엑셀로 내보낼 고객 고르는 중
         let currentSort = localStorage.getItem('listSort') || 'visit';
         let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
+        let listRange = { base: 'act', key: 'all', from: '', to: '', label: '전체' };   // 🔎 목록 기간 (폰클처럼)
+        let listActType = '', listCarrier = '';
         let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
         // 📊 대시보드 타겟 기준 (매장 방침에 맞게 숫자만 바꾸면 대시보드/필터/배지에 모두 반영됨)
@@ -3871,6 +3883,7 @@
             
             globalFilteredDB = customerDB.filter(c => {
                 if (!matchesManagerFilter(c)) return false;   // 👤 담당자별 보기
+                if (!matchesListRange(c)) return false;      // 🔎 기간 · 개통종류 · 통신사
                 // 이름·번호·법대·담당자 + 단말기·요금제·메모·가족정보·결합·인터넷/TV로도 검색
                 const qDigits = query.replace(/-/g, '');
                 const matchSearch = !query
@@ -3984,7 +3997,7 @@
             checkRecentCardLinks();
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
-            const listSig = `${currentFilter}|${query}|${currentSort}`;
+            const listSig = `${currentFilter}|${query}|${currentSort}|${listRange.from}|${listRange.to}|${listRange.base}|${listActType}|${listCarrier}|${CARD_PAGE_SIZE}`;
             if (listSig !== lastListSig) { cardPage = 1; lastListSig = listSig; }
             if (monthlyActWireless) monthlyActWireless.textContent = wirelessCount;
             if (monthlyActWired) monthlyActWired.textContent = wiredCount;
@@ -4667,6 +4680,7 @@
                     nameEl.focus();
                 } },
                 { icon: 'fa-solid fa-address-card', label: '명함 보내기 (번호 입력)', sub: '등록 안 된 사람에게도 디지털 명함을 문자로 보내요', onClick: () => openCardSendSheet() },
+                { icon: 'fa-solid fa-file-import', label: '폰클 엑셀 가져오기', sub: '폰클 모바일개통 엑셀을 올리면 고객카드가 자동으로 생겨요', onClick: () => setTimeout(openPoncleImport, 0) },
                 { icon: 'fa-regular fa-calendar-plus', label: '약속 추가', sub: '고객을 골라 요금제 변경·재연락 같은 약속을 넣어요', onClick: () => { promAdd = { cid: '', key: 'Call', date: getTodayStr(), memo: '', q: '' }; setTimeout(() => openCalcSheet('promAdd'), 0); } }
             ]);
         }
@@ -9136,6 +9150,8 @@ familyStr + `\n` +
             document.getElementById('calcSheetBody').classList.toggle('hidden', manage);
             if (calcSheetMode === 'requests') renderCalcRequests();
             else if (calcSheetMode === 'cal') renderPromCalendar();
+            else if (calcSheetMode === 'poncle') renderPoncleImport();
+            else if (calcSheetMode === 'range') renderRangeSheet();
             else if (calcSheetMode === 'promAdd') renderPromAdd();
             else if (calcSheetMode === 'staff') renderStaffStats();
             else if (manage) {
@@ -9976,6 +9992,331 @@ familyStr + `\n` +
             };
         }
         document.getElementById('calOpenBtn').addEventListener('click', () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); calSel = getTodayStr(); openCalcSheet('cal'); });
+
+    
+        /* =====================================================================
+           📥 폰클 엑셀 가져오기 (모바일개통 .xls) → 고객카드 자동 등록·업데이트
+           · 번호(개통번호)로 같은 고객을 찾아서 합치고, 같은 줄을 두 번 가져오지 않음
+           ===================================================================== */
+        let poncleDraft = null;
+        const pcNumv = (v) => { const n = Number(String(v ?? '').replace(/[,원\s]/g, '')); return isFinite(n) ? n : 0; };
+        const pcStr = (v) => String(v ?? '').replace(/\s+/g, ' ').trim();
+        function poncleCarrier(t) {
+            const s = pcStr(t).replace(/\s/g, '').toUpperCase();
+            if (!s) return '';
+            if (/^(SKT|SK텔레콤|SKTELECOM)$/.test(s)) return 'SKT';
+            if (/^KT$/.test(s)) return 'KT';
+            if (/^(LGU\+|LG유플러스|LG U\+|유플러스|LGT|LG)$/.test(s.replace(/\s/g, ''))) return 'LG U+';
+            if (/SK|세븐|7MOBILE|스노우맨|프리티/.test(s)) return '알뜰폰(SK)';
+            if (/KT|M모바일|엠모바일|스카이라이프|에넥스|위너스|티플러스/.test(s)) return '알뜰폰(KT)';
+            if (/LG|U\+|유플|헬로|미디어로그|인스|이야기/.test(s)) return '알뜰폰(LG)';
+            return '알뜰폰';
+        }
+        function poncleRowsFromSheet(rows) {
+            let h = -1;
+            for (let i = 0; i < Math.min(rows.length, 10); i++) {
+                const cells = (rows[i] || []).map(pcStr);
+                if (cells.includes('개통일') && cells.includes('고객명') && cells.includes('개통번호')) { h = i; break; }
+            }
+            if (h < 0) return null;
+            const head = rows[h].map(pcStr);
+            const out = [];
+            for (let i = h + 1; i < rows.length; i++) {
+                const r = rows[i] || [];
+                if (!r.some(v => pcStr(v))) continue;
+                const o = {};
+                head.forEach((k, j) => { if (k) o[k] = r[j]; });
+                if (!pcStr(o['고객명']) && !pcStr(o['개통번호'])) continue;
+                // 날짜가 엑셀 숫자로 오면 바꿔줌
+                ['개통일', '등록일'].forEach(k => {
+                    if (typeof o[k] === 'number') { const d = new Date(Math.round((o[k] - 25569) * 86400000)); o[k] = d.toISOString().slice(0, 10); }
+                    o[k] = pcStr(o[k]).slice(0, 10);
+                });
+                out.push(o);
+            }
+            return out;
+        }
+        function poncleKeyOf(o) { return [o['개통일'], pcStr(o['개통종류']), pcStr(o['단말기일련번호']) || pcStr(o['유심일련번호']) || pcStr(o['요금제'])].join('|'); }
+
+        // 엑셀 줄들 → 고객별 저장 계획
+        function buildPonclePlan(rows) {
+            const groups = new Map(), skipped = [];
+            rows.forEach(o => {
+                const digits = String(o['개통번호'] || '').replace(/\D/g, '');
+                const status = pcStr(o['상태']);
+                if (status && status !== '개통') return skipped.push({ o, why: `상태 '${status}'` });
+                if (!/^01\d{8,9}$/.test(digits) || /^010(0{8}|1{8}|1234\d{4})$/.test(digits)) return skipped.push({ o, why: '개통번호 없음' });
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(o['개통일'])) return skipped.push({ o, why: '개통일 없음' });
+                if (!groups.has(digits)) groups.set(digits, []);
+                groups.get(digits).push(o);
+            });
+            const items = [];
+            groups.forEach((list, digits) => {
+                list.sort((a, b) => a['개통일'].localeCompare(b['개통일']));
+                const cur = customerDB.find(c => c.id === digits) || trashDB.find(c => c.id === digits) || null;
+                const doneKeys = new Set((cur && cur.poncleKeys) || []);
+                const fresh = list.filter(o => !doneKeys.has(poncleKeyOf(o)));
+                if (!fresh.length) { items.push({ digits, cur, rows: list, fresh, kind: 'dup' }); return; }
+                items.push({ digits, cur, rows: list, fresh, kind: cur ? 'update' : 'new' });
+            });
+            const order = { new: 0, update: 1, dup: 2 };
+            items.sort((a, b) => order[a.kind] - order[b.kind]);
+            return { items, skipped };
+        }
+
+        // 한 고객에 넣을 내용 만들기 (기존 값은 최대한 살림)
+        function buildPoncleUpdate(item) {
+            const cur = item.cur || {};
+            const upd = {};
+            const setIfBlank = (k, v) => { if (v && !pcStr(cur[k]) ) upd[k] = v; };
+            let latestAct = String(cur.activationDate || '');
+            const notes = [];
+            item.fresh.forEach(o => {
+                const date = o['개통일'];
+                const newer = !latestAct || date >= latestAct;
+                const model = pcStr(o['단말기모델명']);
+                const fields = {
+                    carrier: poncleCarrier(o['통신사']),
+                    plan: pcStr(o['요금제']),
+                    combination: pcStr(o['결합상품']),
+                    welfare: pcStr(o['복지할인']),
+                    actType: pcStr(o['개통종류']),
+                    prevCarrier: pcStr(o['전통신사']),
+                    openStore: pcStr(o['거래처']),
+                    repManager: pcStr(o['직원']),
+                    usimModel: pcStr(o['유심모델명']),
+                    usimSerial: pcStr(o['유심일련번호'])
+                };
+                if (model) Object.assign(fields, {
+                    device: [model, pcStr(o['단말기색상'])].filter(Boolean).join(' '),
+                    deviceSerial: pcStr(o['단말기일련번호']),
+                    devicePrice: pcNumv(o['출고가']),
+                    loanPrincipal: pcNumv(o['할부원금']),
+                    publicSupport: pcNumv(o['이통사지원금']),
+                    distSupport: pcNumv(o['유통망지원금']),
+                    switchSupport: pcNumv(o['전환지원금'])
+                });
+                const sup = pcStr(o['지원유형']), term = pcStr(o['약정개월']);
+                if (/요금/.test(sup)) fields.discountType = /\d/.test(term) ? `선택약정(${term})` : '선택약정(기본)';
+                else if (/단말|공시/.test(sup)) fields.discountType = '공시지원금';
+                if (model) {
+                    const loan = pcNumv(o['할부원금']), months = parseInt(pcStr(o['단말기할부']), 10);
+                    if (loan > 0 && months > 0) { fields.installment = `${loan.toLocaleString('ko-KR')}원 / ${months}개월`; fields.installmentBaseDate = date; }
+                    else if (loan === 0) { fields.installment = '완납'; fields.installmentBaseDate = date; }
+                }
+                Object.keys(fields).forEach(k => { if (fields[k] === '' || fields[k] === undefined) delete fields[k]; });
+                if (newer) {
+                    Object.assign(upd, fields);
+                    upd.activationDate = date;
+                    upd.salesStatus = '판매성공';
+                    upd.salesStatusAt = date;
+                    upd.poncle = {
+                        정책번호: pcStr(o['정책번호']), 기본정책: pcNumv(o['기본정책']), 추가정책: pcNumv(o['추가정책']),
+                        정산금액: pcNumv(o['정산금액']), 판매마진: pcNumv(o['판매마진']), 실판매마진: pcNumv(o['실판매마진']),
+                        미비서류: pcStr(o['미비서류']), 가져온날: getTodayStr()
+                    };
+                    latestAct = date;
+                } else {
+                    Object.keys(fields).forEach(k => setIfBlank(k, fields[k]));
+                }
+                const bits = [pcStr(o['개통종류']), pcStr(o['통신사']), model || pcStr(o['유심모델명']), pcStr(o['요금제'])].filter(Boolean);
+                const extra = [['부가', o['부가서비스']], ['보험', o['단말기보험']], ['할인카드', o['할인카드']], ['미비서류', o['미비서류']], ['메모', [pcStr(o['메모1']), pcStr(o['메모2'])].filter(Boolean).join(' ')]]
+                    .filter(([, v]) => pcStr(v)).map(([k, v]) => `${k}: ${pcStr(v)}`);
+                notes.push(`[폰클 ${date.slice(5).replace('-', '/')}] ${bits.join(' · ')}${extra.length ? ' / ' + extra.join(' · ') : ''}`);
+            });
+            const first = item.fresh[0];
+            if (!item.cur) {
+                Object.assign(upd, {
+                    name: pcStr(first['고객명']) || '이름 없음',
+                    phone: formatPhone(item.digits),
+                    manager: pcStr(first['직원']) || getStaffName() || '',
+                    regStore: pcStr(first['매장']) || msgStoreName(),
+                    regDate: /^\d{4}-\d{2}-\d{2}$/.test(first['등록일']) ? first['등록일'] : first['개통일'],
+                    regBy: pcStr(first['직원']) || getStaffName() || '',
+                    visitDate: first['개통일'],
+                    createdAt: new Date().toISOString()
+                });
+            } else {
+                setIfBlank('name', pcStr(first['고객명']));
+                Object.assign(upd, keepRegFields(cur));
+                if (cur.deletedAt) upd.deletedAt = '';
+            }
+            upd.memo = [pcStr(cur.memo), ...notes].filter(Boolean).join('\n');
+            upd.poncleKeys = [...new Set([...(cur.poncleKeys || []), ...item.fresh.map(poncleKeyOf)])].slice(-40);
+            upd.updatedAt = new Date().toISOString();
+            return upd;
+        }
+
+        function openPoncleImport() {
+            const f = document.getElementById('poncleFile');
+            f.value = '';
+            f.click();
+        }
+        document.getElementById('poncleFile').addEventListener('change', async (e) => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            try {
+                const XLSX = await loadSheetJS();
+                const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: false });
+                let rows = null;
+                for (const sn of wb.SheetNames) {
+                    rows = poncleRowsFromSheet(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '' }));
+                    if (rows) break;
+                }
+                if (!rows || !rows.length) return customAlert("폰클 '모바일개통' 엑셀이 아닌 것 같아요.\n'개통일 · 고객명 · 개통번호' 칸이 있는 파일을 골라주세요.");
+                poncleDraft = { file: file.name, ...buildPonclePlan(rows), total: rows.length };
+                openCalcSheet('poncle');
+            } catch (err) {
+                console.error(err);
+                customAlert('엑셀을 읽지 못했어요. 폰클에서 받은 파일이 맞는지 확인해 주세요.');
+            }
+        });
+        function renderPoncleImport() {
+            const D = poncleDraft;
+            document.getElementById('calcSheetTitle').textContent = '폰클 엑셀 가져오기';
+            if (!D) { document.getElementById('calcSheetBody').innerHTML = ''; return; }
+            const n = (k) => D.items.filter(x => x.kind === k).length;
+            document.getElementById('calcSheetSub').textContent = `${D.file} · ${D.total}줄`;
+            const badge = { new: ['새 고객', 'bg-green-100 text-green-800'], update: ['업데이트', 'bg-indigo-100 text-indigo-800'], dup: ['이미 가져옴', 'bg-gray-100 text-gray-600'] };
+            let html = `<div class="grid grid-cols-4 gap-1.5 text-center">
+                    ${[['새 고객', n('new'), 'text-green-700'], ['업데이트', n('update'), 'text-indigo-700'], ['이미 가져옴', n('dup'), 'text-gray-500'], ['건너뜀', D.skipped.length, 'text-amber-700']].map(([l, v, c]) => `<div class="rounded-xl bg-gray-50 py-2"><span class="block text-xl font-bold ${c}">${v}</span><span class="block text-[11px] text-gray-600">${l}</span></div>`).join('')}
+                </div>
+                <p class="text-xs text-gray-600 leading-relaxed">개통번호로 같은 고객을 찾아요. 더 최근 개통이면 단말기·요금제·개통일·할부를 새로 바꾸고, 기존 메모와 약속은 그대로 두고 아래에 '[폰클 날짜]' 기록을 덧붙여요. 같은 줄은 두 번 들어가지 않아요.</p>
+                <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` +
+                D.items.map(it => {
+                    const o = it.rows[it.rows.length - 1];
+                    return `<div class="px-3 py-2 ${it.kind === 'dup' ? 'opacity-60' : ''}">
+                        <div class="flex items-center gap-2"><span class="text-[11px] font-bold rounded px-1.5 ${badge[it.kind][1]}">${badge[it.kind][0]}</span>
+                        <span class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(pcStr(o['고객명']) || (it.cur && it.cur.name) || '')}</span>
+                        <span class="text-xs text-gray-500 ml-auto flex-shrink-0">${escapeHtml(o['개통일'].slice(5))}</span></div>
+                        <p class="text-xs text-gray-600 truncate">${escapeHtml(formatPhone(it.digits))} · ${escapeHtml([pcStr(o['개통종류']), pcStr(o['통신사']), pcStr(o['단말기모델명']) || pcStr(o['유심모델명'])].filter(Boolean).join(' · '))}${it.rows.length > 1 ? ` · ${it.rows.length}건` : ''}</p>
+                    </div>`;
+                }).join('') +
+                D.skipped.map(sk => `<div class="px-3 py-2 bg-amber-50/50"><div class="flex items-center gap-2"><span class="text-[11px] font-bold rounded px-1.5 bg-amber-100 text-amber-800">건너뜀</span><span class="text-[15px] font-bold text-gray-700 truncate">${escapeHtml(pcStr(sk.o['고객명']))}</span><span class="text-xs text-amber-800 ml-auto flex-shrink-0">${escapeHtml(sk.why)}</span></div><p class="text-xs text-gray-500 truncate">${escapeHtml(pcStr(sk.o['개통번호']))} · ${escapeHtml(pcStr(sk.o['개통종류']))}</p></div>`).join('') +
+                `</div>
+                <p id="poncleProg" class="hidden text-sm font-bold text-indigo-700" role="status"></p>
+                <div class="sticky bottom-0 -mx-4 px-4 pt-2 pb-1 bg-white border-t border-gray-200 grid grid-cols-2 gap-2">
+                    <button type="button" id="poncleCancel" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">취소</button>
+                    <button type="button" id="poncleGo" ${n('new') + n('update') ? '' : 'disabled'} class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold disabled:opacity-40"><i class="fa-solid fa-file-import"></i> ${n('new') + n('update')}명 가져오기</button>
+                </div>`;
+            document.getElementById('calcSheetBody').innerHTML = html;
+            document.getElementById('poncleCancel').onclick = () => { poncleDraft = null; closeCalcSheet(); };
+            document.getElementById('poncleGo').onclick = async () => {
+                const todo = D.items.filter(x => x.kind !== 'dup');
+                const btn = document.getElementById('poncleGo'), prog = document.getElementById('poncleProg');
+                btn.disabled = true; prog.classList.remove('hidden');
+                let ok = 0, fail = 0;
+                for (let i = 0; i < todo.length; i++) {
+                    prog.textContent = `가져오는 중… ${i + 1} / ${todo.length}`;
+                    try { await saveDoc(doc(db, 'smart_customers', todo[i].digits), buildPoncleUpdate(todo[i]), { merge: true }); ok++; }
+                    catch (err) { console.error(err); fail++; }
+                }
+                poncleDraft = null;
+                closeCalcSheet();
+                customAlert(`폰클 엑셀 가져오기 완료\n새 고객·업데이트 ${ok}명${fail ? `\n${fail}명은 저장하지 못했어요. 다시 올리면 빠진 것만 들어가요.` : ''}${D.skipped.length ? `\n건너뜀 ${D.skipped.length}줄 (번호 없음·취소 등)` : ''}`);
+            };
+        }
+
+        /* =====================================================================
+           🔎 목록: 기간(오늘·전일·1주일·당월·전월·전전월·직접) · 개통종류 · 통신사 · 몇 명씩 보기
+           ===================================================================== */
+        function listRangeDateOf(c) {
+            if (listRange.base === 'reg') return regDateOf(c).slice(0, 10);
+            if (listRange.base === 'visit') return String(c.visitDate || '').slice(0, 10);
+            return String(c.activationDate || '').slice(0, 10);
+        }
+        function matchesListRange(c) {
+            if (listRange.from || listRange.to) {
+                const d = listRangeDateOf(c);
+                if (!d || (listRange.from && d < listRange.from) || (listRange.to && d > listRange.to)) return false;
+            }
+            if (listActType && pcStr(c.actType) !== listActType) return false;
+            if (listCarrier && (c.carrier || '') !== listCarrier) return false;
+            return true;
+        }
+        const LIST_BASES = [['act', '개통일'], ['reg', '등록일'], ['visit', '방문일']];
+        function quickRange(key) {
+            const t = new Date(); const y = t.getFullYear(), m = t.getMonth(), d = t.getDate();
+            const f = (yy, mm, dd) => calYmd(new Date(yy, mm, dd).getFullYear(), new Date(yy, mm, dd).getMonth(), new Date(yy, mm, dd).getDate());
+            if (key === 'today') return [f(y, m, d), f(y, m, d)];
+            if (key === 'yday') return [f(y, m, d - 1), f(y, m, d - 1)];
+            if (key === 'week') return [f(y, m, d - 6), f(y, m, d)];
+            if (key === 'month') return [f(y, m, 1), f(y, m + 1, 0)];
+            if (key === 'prev') return [f(y, m - 1, 1), f(y, m, 0)];
+            if (key === 'prev2') return [f(y, m - 2, 1), f(y, m - 1, 0)];
+            return ['', ''];
+        }
+        const QUICK_RANGES = [['all', '전체'], ['today', '오늘'], ['yday', '전일'], ['week', '1주일'], ['month', '당월'], ['prev', '전월'], ['prev2', '전전월']];
+        function updateListToolsUI() {
+            const lab = document.getElementById('rangeLabel');
+            if (!lab) return;
+            const baseName = LIST_BASES.find(b => b[0] === listRange.base)[1];
+            const parts = [];
+            if (listRange.from || listRange.to) parts.push(`${baseName} ${listRange.label}`);
+            if (listActType) parts.push(listActType);
+            if (listCarrier) parts.push(listCarrier);
+            const on = parts.length > 0;
+            lab.textContent = on ? parts.join(' · ') : '기간 · 개통종류 전체';
+            const btn = document.getElementById('rangeBtn');
+            btn.classList.toggle('border-indigo-500', on); btn.classList.toggle('bg-indigo-50', on); btn.classList.toggle('border-gray-300', !on); btn.classList.toggle('bg-white', !on);
+            document.getElementById('rangeClear').classList.toggle('hidden', !on);
+        }
+        function applyListTools() { cardPage = 1; currentPage = 1; updateListToolsUI(); renderDB(); }
+        function renderRangeSheet() {
+            document.getElementById('calcSheetTitle').textContent = '목록 기간·조건';
+            document.getElementById('calcSheetSub').textContent = '폰클처럼 날짜와 개통종류로 걸러 봐요';
+            const types = [...new Set(customerDB.map(c => pcStr(c.actType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
+            const carriers = [...new Set(customerDB.map(c => c.carrier).filter(v => v && v !== '미정'))].sort();
+            const chip = (attr, val, label, on) => `<button type="button" ${attr}="${escapeHtml(val)}" class="h-10 px-3 rounded-full border text-sm font-bold ${on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700'}">${escapeHtml(label)}</button>`;
+            const field = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            document.getElementById('calcSheetBody').innerHTML = `
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기준 날짜</p>
+                    <div class="grid grid-cols-3 gap-1.5">${LIST_BASES.map(([k, l]) => `<button type="button" data-rbase="${k}" class="h-11 rounded-xl border text-sm font-bold ${listRange.base === k ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-gray-300 bg-white text-gray-700'}">${l}</button>`).join('')}</div></div>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기간</p>
+                    <div class="flex flex-wrap gap-1.5">${QUICK_RANGES.map(([k, l]) => chip('data-rquick', k, l, listRange.key === k || (k === 'all' && !listRange.from && !listRange.to))).join('')}</div>
+                    <div class="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 pt-1">
+                        <input type="date" id="rangeFrom" value="${escapeHtml(listRange.from)}" aria-label="시작일" class="${field}"><span class="text-gray-500">~</span><input type="date" id="rangeTo" value="${escapeHtml(listRange.to)}" aria-label="종료일" class="${field}">
+                    </div>
+                    <button type="button" id="rangeApply" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">이 날짜로 보기</button></div>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">개통종류 <span class="font-normal text-xs text-gray-500">(폰클 엑셀로 가져온 고객)</span></p>
+                    <div class="flex flex-wrap gap-1.5">${chip('data-rtype', '', '전체', !listActType)}${types.map(t => chip('data-rtype', t, t, listActType === t)).join('')}</div></div>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">통신사</p>
+                    <div class="flex flex-wrap gap-1.5">${chip('data-rcar', '', '전체', !listCarrier)}${carriers.map(t => chip('data-rcar', t, t, listCarrier === t)).join('')}</div></div>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button type="button" id="rangeReset" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">초기화</button>
+                    <button type="button" id="rangeDone" class="h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">보기</button>
+                </div>`;
+            const body = document.getElementById('calcSheetBody');
+            body.querySelectorAll('[data-rbase]').forEach(b => b.onclick = () => { listRange.base = b.dataset.rbase; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-rquick]').forEach(b => b.onclick = () => {
+                const [from, to] = quickRange(b.dataset.rquick);
+                listRange = { ...listRange, key: b.dataset.rquick, from, to, label: QUICK_RANGES.find(q => q[0] === b.dataset.rquick)[1] };
+                applyListTools(); renderRangeSheet();
+            });
+            document.getElementById('rangeApply').onclick = () => {
+                const from = document.getElementById('rangeFrom').value, to = document.getElementById('rangeTo').value;
+                if (from && to && from > to) return customAlert('시작일이 종료일보다 늦어요.');
+                listRange = { ...listRange, key: 'custom', from, to, label: `${from ? from.slice(5).replace('-', '/') : '처음'}~${to ? to.slice(5).replace('-', '/') : '오늘'}` };
+                applyListTools(); renderRangeSheet();
+            };
+            body.querySelectorAll('[data-rtype]').forEach(b => b.onclick = () => { listActType = b.dataset.rtype; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-rcar]').forEach(b => b.onclick = () => { listCarrier = b.dataset.rcar; applyListTools(); renderRangeSheet(); });
+            document.getElementById('rangeReset').onclick = () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; applyListTools(); renderRangeSheet(); };
+            document.getElementById('rangeDone').onclick = () => closeCalcSheet();
+        }
+        document.getElementById('rangeBtn').addEventListener('click', () => openCalcSheet('range'));
+        document.getElementById('rangeClear').addEventListener('click', () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; applyListTools(); });
+        (() => {
+            const sel = document.getElementById('pageSizeSel');
+            sel.value = String(CARD_PAGE_SIZE);
+            sel.addEventListener('change', () => {
+                const v = Number(sel.value) || 10;
+                CARD_PAGE_SIZE = v; itemsPerPage = v;
+                try { localStorage.setItem('listPageSize', String(v)); } catch (e) { /* 무시 */ }
+                applyListTools();
+            });
+            updateListToolsUI();
+        })();
 
     </script>
 </body>
