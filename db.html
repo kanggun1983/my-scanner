@@ -674,6 +674,13 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setSettleTitle">
+                <h3 id="setSettleTitle" class="text-[13px] font-bold text-gray-600 pl-1">개통 정산정보</h3>
+                <label for="hideSettleChk" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 flex items-center justify-between gap-3 cursor-pointer">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">직원에게 정산정보 숨기기</span><span class="text-[13px] text-gray-600 leading-snug">켜면 정책·정산금액·마진이 👑 총관리자에게만 보여요</span></span>
+                    <input type="checkbox" id="hideSettleChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                </label>
+            </section>
             <section class="space-y-2" aria-labelledby="setCalcTitle">
                 <h3 id="setCalcTitle" class="text-[13px] font-bold text-gray-600 pl-1">명함 폰값계산</h3>
                 <button type="button" id="calcManageBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
@@ -794,7 +801,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V113</span>
+                    <span class="text-sm text-gray-600">V114</span>
                 </div>
             </section>
         </div>
@@ -3042,7 +3049,7 @@
 
         // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
         let isSuperAdmin = false;
-        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle'];
+        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle'];
         const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn', 'calcOpenReqBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
         // 잠금은 '잠금이 한 것'만 풀어요 — 원래 기능 때문에 꺼둔 칸(예: 자동 약속을 끄면 유지 조건 칸이 흐려짐)은 그대로
         function setAdminLock(el, lock) {
@@ -4664,6 +4671,7 @@
 
         function openAddMenu() {
             openActionSheet('추가하기', [
+                { icon: 'fa-solid fa-file-signature', label: '개통등록 (폰클식)', sub: '무선·홈상품 개통을 할부원금·정산까지 한 번에 등록해요', onClick: () => setTimeout(() => openActReg(null, 'mobile'), 0) },
                 { icon: 'fa-solid fa-file-lines', label: '신규 개통보고', sub: '개통한 고객을 보고서로 쓰고 바로 저장해요', onClick: () => document.getElementById('newReportBtn').click() },
                 { icon: 'fa-solid fa-camera', label: '사진으로 고객 등록', sub: '전산 화면을 찍으면 AI가 칸을 채워줘요', onClick: async () => {
                     const ready = await prepareScannerForNew();
@@ -4766,6 +4774,7 @@
             if (document.activeElement !== pwEl) pwEl.value = pushRelayPw();
             renderSmsSettings();
             renderCalcManageSub();
+            { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
         let staffSavedTimer = null;
@@ -5275,7 +5284,7 @@
         function buildProfileMobileTab(c) {
             const filled = (v) => v && String(v).trim() && String(v).trim() !== '-';
             if (!hasMobileInfo(c)) {
-                return profileEmpty('fa-mobile-screen', '등록된 모바일 정보가 없어요.\n[수정]에서 입력하거나 전산 화면을 스캔해주세요.');
+                return profileEmpty('fa-mobile-screen', '등록된 모바일 정보가 없어요.\n[수정]에서 입력하거나 전산 화면을 스캔해주세요.') + buildActDetailHtml(c);
             }
             const act = getDdayAndMonths(c.activationDate);
             const actHtml = c.activationDate ? `${escapeHtml(c.activationDate)} <span class="text-[11px] text-red-400 ml-1">D+${act.days}</span>` : PROFILE_DASH;
@@ -5298,7 +5307,7 @@
                 profileKV('가족결합', profileValue(c.combination)),
                 profileKV('복지할인', profileValue(c.welfare)),
                 profileKV('가족 정보', c.repFamily && c.repFamily.trim() ? `<span class="font-medium whitespace-pre-wrap">${escapeHtml(c.repFamily)}</span>` : PROFILE_DASH)
-            ].join('');
+            ].join('') + buildActDetailHtml(c);
         }
 
         function buildProfileWiredTab(c) {
@@ -8769,6 +8778,7 @@ familyStr + `\n` +
             if (cardLinkSheet.style.display === 'flex') { cardLinkPending = null; return closeCardLinkSheet(true); }
             if (actionSheet.style.display === 'flex') return closeActionSheet(true);
             if (window.__calcSheetBack && window.__calcSheetBack()) return;
+            if (window.__actRegBack && window.__actRegBack()) return;
             for (const id of BACK_MODALS) {
                 const el = document.getElementById(id);
                 if (el.style.display !== 'flex' || !backModalPushed[id]) continue;
@@ -10316,6 +10326,353 @@ familyStr + `\n` +
                 applyListTools();
             });
             updateListToolsUI();
+        })();
+
+    
+        /* =====================================================================
+           📝 개통등록 (폰클식) — 무선 개통 · 홈상품
+           · 고객카드에 개통 정보 + 할부원금 + 정산정보 + 자동 약속을 한 번에 저장
+           · 정산정보: 기본은 모두 보임 / 설정에서 '직원에게 숨기기'를 켜면 총관리자만
+           ===================================================================== */
+        function canSeeSettle() { return isSuperAdmin || appSettings.hideSettleFromStaff !== true; }
+        const AR_CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
+        const AR_ACT_TYPES = ['신규', '번호이동', '기변', '에이징', '가개통', '유심신규', '유심MNP'];
+        const AR_HOME_ITEMS = ['인터넷', 'TV', '집전화', '인터넷전화', '와이파이', '홈IoT', '인공지능AI', '신용카드', '기타'];
+        const arWon = (n) => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
+        const arNum = (id) => { const el = document.getElementById(id); return el ? (Number(String(el.value).replace(/[^\d-]/g, '')) || 0) : 0; };
+        const arVal = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
+        let arMode = 'mobile', arCust = null, arPushed = false;
+
+        const arEl = document.createElement('div');
+        arEl.id = 'actRegModal';
+        arEl.className = 'fixed inset-0 z-[66] hidden flex-col bg-gray-50';
+        arEl.innerHTML = `
+            <header class="flex-shrink-0 bg-white border-b border-gray-200 px-2 flex items-center gap-1" style="padding-top: env(safe-area-inset-top, 0px);">
+                <button type="button" id="arClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h2 id="arTitle" class="flex-1 text-[17px] font-bold text-gray-900 truncate">개통등록</h2>
+                <button type="button" id="arCopy" class="h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700"><i class="fa-regular fa-copy"></i> 보고서</button>
+                <button type="button" id="arSave" class="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold"><i class="fa-solid fa-check"></i> 저장</button>
+            </header>
+            <div class="flex-shrink-0 bg-white px-3 pb-2">
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl" role="tablist">
+                    <button type="button" data-ar-mode="mobile" role="tab" class="flex-1 h-10 rounded-xl text-sm font-bold">📱 무선 개통</button>
+                    <button type="button" data-ar-mode="home" role="tab" class="flex-1 h-10 rounded-xl text-sm font-bold">🏠 홈상품</button>
+                </div>
+            </div>
+            <div id="arBody" class="flex-1 overflow-y-auto px-3 pt-3 space-y-3" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
+        document.body.appendChild(arEl);
+
+        function openActReg(c, mode) {
+            arCust = c || null;
+            arMode = mode || 'mobile';
+            arEl.style.display = 'flex';
+            if (!arPushed) { pushAppState({ actReg: true }); arPushed = true; }
+            renderActReg();
+        }
+        function closeActReg(fromPop = false) {
+            if (arEl.style.display !== 'flex') return;
+            arEl.style.display = 'none';
+            if (arPushed) { arPushed = false; if (!fromPop) historyBackSilently(); }
+        }
+        window.__actRegBack = () => { if (arEl.style.display === 'flex') { closeActReg(true); return true; } return false; };
+        arEl.querySelector('#arClose').onclick = async () => { if (await customConfirm('저장하지 않고 닫을까요?')) closeActReg(); };
+        arEl.querySelectorAll('[data-ar-mode]').forEach(b => b.onclick = () => { arMode = b.dataset.arMode; renderActReg(); });
+
+        // 공통 칸 만들기
+        const arCls = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+        const arIn = (id, label, val, opt = {}) => `<label class="block min-w-0 ${opt.span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${opt.req ? '<span class="text-red-600">*</span> ' : ''}${label}</span>
+            <input id="${id}" type="${opt.type || 'text'}" ${opt.num ? 'inputmode="numeric"' : ''} ${opt.ro ? 'readonly tabindex="-1"' : ''} value="${escapeHtml(val ?? '')}" placeholder="${escapeHtml(opt.ph || '')}" ${opt.list ? `list="${opt.list}"` : ''} class="${arCls} ${opt.ro ? 'bg-gray-100 font-bold' : ''} ${opt.num ? 'text-right' : ''}"></label>`;
+        const arSel = (id, label, opts, val, opt = {}) => `<label class="block min-w-0 ${opt.span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${opt.req ? '<span class="text-red-600">*</span> ' : ''}${label}</span>
+            <select id="${id}" class="${arCls}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${escapeHtml(v)}" ${String(v) === String(val ?? '') ? 'selected' : ''}>${escapeHtml(l)}</option>`; }).join('')}</select></label>`;
+        const arSec = (title, inner, extra = '') => `<section class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2.5"><div class="flex items-center justify-between"><h3 class="text-[15px] font-bold text-gray-900">${title}</h3>${extra}</div>${inner}</section>`;
+        const arMoney = (id, label, val) => arIn(id, label + ' (원)', val ? arWon(val) : '', { num: true, ph: '0' });
+
+        function renderActReg() {
+            const c = arCust || {};
+            arEl.querySelectorAll('[data-ar-mode]').forEach(b => b.className = `flex-1 h-10 rounded-xl text-sm font-bold ${b.dataset.arMode === arMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`);
+            document.getElementById('arTitle').textContent = arCust ? `${c.name || '고객'} · 개통등록` : '새 개통등록';
+            document.getElementById('arCopy').classList.toggle('hidden', arMode !== 'mobile');
+            const stores = [...new Set(customerDB.map(x => pcStr(x.openStore)).filter(Boolean))];
+            const dl = `<datalist id="arStores">${stores.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
+            const S = c.poncle || {};
+            const showSettle = canSeeSettle();
+            const today = getTodayStr();
+            let html = dl;
+            if (arMode === 'mobile') {
+                html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arIn('ar-date', '개통일', today, { type: 'date', req: true })}
+                    ${arSel('ar-type', '개통종류', [['', '- 선택 -'], ...AR_ACT_TYPES], '', { req: true })}
+                    ${arIn('ar-name', '고객명', c.name || '', { req: true })}
+                    ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
+                    ${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], AR_CARRIERS.includes(c.carrier) ? c.carrier : '', { req: true })}
+                    ${arSel('ar-prev', '전통신사 (이동일 때)', [['', '-'], 'SKT', 'KT', 'LG U+', '알뜰폰'], '')}
+                    ${arIn('ar-store', '거래처', '', { list: 'arStores', ph: '예) LG 뉴에이스' })}
+                    ${arIn('ar-manager', '개통직원', getStaffName() || '')}
+                    ${arIn('ar-plan', '요금제', '', { span: true, ph: '예) 5G 프리미어 에센셜' })}
+                    ${arSel('ar-term', '약정개월', ['24개월', '12개월', '무약정'], '24개월')}
+                    ${arSel('ar-inst', '단말기할부', ['24개월', '36개월', '30개월', '48개월', '12개월', '일시불'], '24개월')}
+                    ${arIn('ar-addon', '부가서비스', '', { ph: '예) 캐치콜플러스' })}
+                    ${arIn('ar-ins', '단말기보험', '', { ph: '예) 폰 안심패스' })}
+                    ${arIn('ar-comb', '결합상품', '', {})}
+                    ${arIn('ar-welfare', '복지할인', '', {})}
+                    ${arIn('ar-card', '할인카드', '', {})}
+                    ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
+                    </div>`);
+                html += arSec('단말기 · 유심', `<div class="grid grid-cols-2 gap-2">
+                    ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
+                    ${arIn('ar-color', '색상', '', {})}
+                    ${arIn('ar-serial', '단말기 일련번호', '', { span: true })}
+                    ${arIn('ar-usim', '유심 모델명', '', {})}
+                    ${arIn('ar-usimserial', '유심 일련번호', '', {})}
+                    </div>`, '<span class="text-xs text-gray-500">유심만 개통이면 단말기는 비워두세요</span>');
+                html += arSec('할부원금', `<div class="flex gap-1.5">${[['공시', '단말할인 (공시지원)'], ['선약', '요금할인 (선택약정)']].map(([v, l]) => `<label class="flex-1 h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1.5 text-sm font-bold cursor-pointer has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-800"><input type="radio" name="ar-sup" value="${v}" ${v === '선약' ? 'checked' : ''} class="accent-indigo-600">${l}</label>`).join('')}</div>
+                    <div class="grid grid-cols-2 gap-2">
+                    ${arMoney('ar-price', '출고가')}${arMoney('ar-pub', '공통지원금')}
+                    ${arMoney('ar-switch', '전환지원금')}${arMoney('ar-dist', '유통망지원금')}
+                    ${arMoney('ar-prepay', '선납금')}${arMoney('ar-cash', '현금납부')}
+                    ${arMoney('ar-cardpay', '카드납부')}${arMoney('ar-unpaid', '미수금')}
+                    </div>
+                    <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between"><span class="text-sm font-bold text-indigo-900">할부원금</span><span><b id="ar-loan" class="text-xl text-indigo-900">0</b><span class="text-sm text-indigo-900">원</span></span></div>
+                    <p id="ar-loan-sub" class="text-xs text-gray-600 text-right -mt-1"></p>`);
+                if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arMoney('ar-base', '기본정책')}${arMoney('ar-add', '추가정책')}
+                    ${arMoney('ar-fee', '수수료 (MNP 대납 등)')}${arMoney('ar-disc', '할인금액')}
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        ${[['정산금액', 'ar-settle'], ['판매마진', 'ar-margin'], ['정산부가세', 'ar-vat'], ['실판매마진', 'ar-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-3 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[17px] text-gray-900">0</b>원</div>`).join('')}
+                    </div>
+                    <p class="text-xs text-gray-500 leading-relaxed">정산금액 = 기본정책 + 추가정책 − 유통망지원금 − 수수료 · 판매마진 = 정산금액 − 할인금액 · 부가세 = 정산금액 ÷ 11 · 실판매마진 = 판매마진 − 부가세</p>`,
+                    isSuperAdmin && appSettings.hideSettleFromStaff ? '<span class="text-xs font-bold text-amber-700">🔒 직원에게 숨김</span>' : '');
+                const pc = planChoicesFor(c.carrier || '');
+                html += arSec('자동 약속', `<div class="grid grid-cols-1 gap-2">
+                    ${arSel('ar-k-plan', '요금제 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], appSettings.autoPlanOn === false ? 'NONE' : (pc[0] || 'NONE'))}
+                    ${arSel('ar-k-addon', '부가서비스 해지', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
+                    ${arSel('ar-k-ins', '보험 해지', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
+                    </div><p id="ar-k-dates" class="text-xs text-indigo-700 font-bold"></p>`, '<span class="text-xs text-gray-500">통신사를 고르면 기본값이 맞춰져요</span>');
+                html += arSec('기타정보', `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
+                    ${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}
+                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>`);
+            } else {
+                html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arSel('hr-kind', '구분', ['단품판매', '결합판매', '동시판매'], '단품판매', { req: true })}
+                    ${arSel('hr-status', '상태', ['예약', '신청', '완료'], '신청', { req: true })}
+                    ${arIn('hr-store', '거래처', '', { list: 'arStores', req: true })}
+                    ${arIn('hr-manager', '개통직원', getStaffName() || '')}
+                    ${arIn('hr-apply', '신청일', today, { type: 'date', req: true })}
+                    ${arIn('hr-date', '개통일 (완료 시)', '', { type: 'date' })}
+                    ${arIn('hr-name', '고객명', c.name || '', { req: true })}
+                    ${arIn('hr-phone', '연락처', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
+                    ${arIn('hr-addr', '주소', c.address || '', { span: true })}
+                    </div>`);
+                html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
+                    <div class="grid grid-cols-2 gap-2">${arIn('hr-internet', '인터넷 상품', c.internetProd || '', { ph: '예) 기가 500M' })}${arIn('hr-tv', 'TV 상품', c.tvProd || '', { ph: '예) 베이직' })}${arMoney('hr-fee', '월 요금')}</div>`);
+                if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">${arMoney('hr-base', '정책금액')}${arMoney('hr-add', '추가정책')}${arMoney('hr-dist', '유통지원 (사은품 등)')}${arMoney('hr-disc', '할인금액')}</div>
+                    <div class="grid grid-cols-3 gap-2 text-sm">${[['정산금액', 'hr-settle'], ['판매마진', 'hr-margin'], ['실판매마진', 'hr-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-2 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[15px] text-gray-900">0</b>원</div>`).join('')}</div>
+                    <p class="text-xs text-gray-500">정산금액 = 정책 + 추가정책 − 유통지원 · 판매마진 = 정산금액 − 할인 · 실판매마진 = 판매마진 − 부가세(÷11)</p>`);
+                html += arSec('기타정보', `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="hr-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>`);
+            }
+            html += `<p id="arErr" role="alert" class="hidden text-[13px] font-bold text-red-700 px-1"></p>`;
+            const body = document.getElementById('arBody');
+            body.innerHTML = html;
+            body.scrollTop = 0;
+            // 금액 칸: 입력하면 쉼표 + 다시 계산
+            body.querySelectorAll('input[inputmode="numeric"]').forEach(el => el.addEventListener('input', () => {
+                const neg = String(el.value).trim().startsWith('-');
+                const n = String(el.value).replace(/[^\d]/g, '');
+                el.value = n ? (neg ? '-' : '') + Number(n).toLocaleString('ko-KR') : (neg ? '-' : '');
+                arRecalc();
+            }));
+            body.querySelectorAll('input, select').forEach(el => el.addEventListener('change', arRecalc));
+            const carEl = document.getElementById('ar-carrier');
+            if (carEl) carEl.addEventListener('change', () => {
+                const pcs = planChoicesFor(carEl.value);
+                const kp = document.getElementById('ar-k-plan');
+                if (kp && appSettings.autoPlanOn !== false && pcs[0]) kp.value = pcs[0];
+                arRecalc();
+            });
+            ['ar-addon', 'ar-ins'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => {
+                const k = document.getElementById(id === 'ar-addon' ? 'ar-k-addon' : 'ar-k-ins');
+                const def = id === 'ar-addon' ? (appSettings.addonDefault || 'M2') : (appSettings.insDefault || 'M2');
+                const on = id === 'ar-addon' ? appSettings.autoAddonOn !== false : appSettings.autoInsOn !== false;
+                if (k && k.value === 'NONE' && el.value.trim() && on) k.value = def;
+                arRecalc();
+            }); });
+            arRecalc();
+        }
+
+        function arCalc() {
+            if (arMode === 'mobile') {
+                const sup = (document.querySelector('input[name="ar-sup"]:checked') || {}).value || '선약';
+                const price = arNum('ar-price');
+                const loan = Math.max(0, price - (sup === '공시' ? arNum('ar-pub') : 0) - arNum('ar-switch') - arNum('ar-dist') - arNum('ar-prepay') - arNum('ar-cash') - arNum('ar-cardpay'));
+                const settle = arNum('ar-base') + arNum('ar-add') - arNum('ar-dist') - arNum('ar-fee');
+                const margin = settle - arNum('ar-disc');
+                const vat = Math.round(settle / 11);
+                return { sup, price, loan, settle, margin, vat, real: margin - vat };
+            }
+            const settle = arNum('hr-base') + arNum('hr-add') - arNum('hr-dist');
+            const margin = settle - arNum('hr-disc');
+            const vat = Math.round(settle / 11);
+            return { settle, margin, vat, real: margin - vat };
+        }
+        function arRecalc() {
+            const r = arCalc();
+            const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = arWon(v); };
+            if (arMode === 'mobile') {
+                set('ar-loan', r.loan);
+                const n = parseInt(arVal('ar-inst'), 10);
+                const sub = document.getElementById('ar-loan-sub');
+                if (sub) sub.textContent = r.loan > 0 && n > 0 ? `월 할부금 약 ${arWon(r.loan * (0.059 / 12) / (1 - Math.pow(1 + 0.059 / 12, -n)))}원 (${n}개월 · 연 5.9%)` : (r.price ? '할부 없음 (완납)' : '');
+                set('ar-settle', r.settle); set('ar-margin', r.margin); set('ar-vat', r.vat); set('ar-real', r.real);
+                const d = arVal('ar-date');
+                const dates = [['요금제', 'ar-k-plan'], ['부가', 'ar-k-addon'], ['보험', 'ar-k-ins']].map(([l, id]) => { const dt = computeKeepDate(d, arVal(id)); return dt ? `${l} ${formatShortDate(dt)}` : ''; }).filter(Boolean);
+                const kd = document.getElementById('ar-k-dates');
+                if (kd) kd.textContent = dates.length ? '→ ' + dates.join(' · ') : '';
+            } else {
+                set('hr-settle', r.settle); set('hr-margin', r.margin); set('hr-real', r.real);
+            }
+        }
+
+        function arReportText() {
+            const r = arCalc();
+            const lines = [
+                `[개통보고] ${arVal('ar-date')} ${arVal('ar-type')}`,
+                `고객: ${arVal('ar-name')} (${arVal('ar-phone')})`,
+                `통신사: ${arVal('ar-carrier')}${arVal('ar-prev') ? ` (전 ${arVal('ar-prev')})` : ''} · 거래처: ${arVal('ar-store') || '-'}`,
+                `단말기: ${[arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' ') || '-'}${arVal('ar-serial') ? ` / ${arVal('ar-serial')}` : ''}`,
+                arVal('ar-usim') || arVal('ar-usimserial') ? `유심: ${[arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / ')}` : '',
+                `요금제: ${arVal('ar-plan') || '-'} · 약정 ${arVal('ar-term')} · ${r.sup === '공시' ? '공시지원' : '선택약정'}`,
+                `출고가 ${arWon(r.price)} → 할부원금 ${arWon(r.loan)} (${arVal('ar-inst')})`,
+                arVal('ar-addon') ? `부가: ${arVal('ar-addon')}` : '', arVal('ar-ins') ? `보험: ${arVal('ar-ins')}` : '',
+                document.getElementById('ar-missing') && document.getElementById('ar-missing').checked ? `미비서류: ${arVal('ar-missing-text') || '있음'}` : '',
+                `개통직원: ${arVal('ar-manager')}`,
+                arVal('ar-memo') ? `메모: ${arVal('ar-memo')}` : ''
+            ];
+            return lines.filter(Boolean).join('\n');
+        }
+        document.getElementById('arCopy').onclick = async () => {
+            const t = arReportText();
+            try { await navigator.clipboard.writeText(t); customAlert('보고서 문구를 복사했어요. 단톡방에 붙여넣기 하세요.'); }
+            catch (e) { customAlert(t); }
+        };
+
+        document.getElementById('arSave').onclick = async () => {
+            const err = document.getElementById('arErr');
+            const fail = (m, id) => { err.textContent = m; err.classList.remove('hidden'); const el = id && document.getElementById(id); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } };
+            err.classList.add('hidden');
+            const isM = arMode === 'mobile';
+            const p = (k) => arVal((isM ? 'ar-' : 'hr-') + k);
+            const digits = p('phone').replace(/\D/g, '');
+            if (!p('name')) return fail('고객명을 넣어주세요.', isM ? 'ar-name' : 'hr-name');
+            if (!/^01\d{8,9}$/.test(digits)) return fail('번호를 정확히 넣어주세요. (010-0000-0000)', isM ? 'ar-phone' : 'hr-phone');
+            if (isM) {
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(arVal('ar-date'))) return fail('개통일을 골라주세요.', 'ar-date');
+                if (!arVal('ar-type')) return fail('개통종류를 골라주세요.', 'ar-type');
+                if (!arVal('ar-carrier')) return fail('통신사를 골라주세요.', 'ar-carrier');
+            } else {
+                if (!arVal('hr-store')) return fail('거래처를 넣어주세요.', 'hr-store');
+                if (!document.querySelector('input[name="hr-item"]:checked')) return fail('상품을 하나 이상 골라주세요.');
+                if (arVal('hr-status') === '완료' && !arVal('hr-date')) return fail('완료면 개통일을 넣어주세요.', 'hr-date');
+            }
+            const cur = customerDB.find(x => x.id === digits) || trashDB.find(x => x.id === digits) || (arCust && arCust.id === digits ? arCust : null);
+            if (arCust && arCust.id !== digits && !(await customConfirm('번호가 처음과 달라요. 이 번호로 따로 저장할까요?'))) return;
+            const r = arCalc();
+            const now = new Date().toISOString(), today = getTodayStr();
+            const upd = { updatedAt: now };
+            let note;
+            if (isM) {
+                const d = arVal('ar-date'), model = arVal('ar-model');
+                const n = parseInt(arVal('ar-inst'), 10);
+                Object.assign(upd, {
+                    name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), activationDate: d,
+                    actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-store'), repManager: arVal('ar-manager'),
+                    plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: arVal('ar-addon'), insurance: arVal('ar-ins'),
+                    combination: arVal('ar-comb'), welfare: arVal('ar-welfare'), discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
+                    usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
+                    discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
+                    salesStatus: '판매성공', salesStatusAt: d,
+                    missingDocs: document.getElementById('ar-missing').checked ? (arVal('ar-missing-text') || '있음') : ''
+                });
+                if (model) Object.assign(upd, {
+                    device: [model, arVal('ar-color')].filter(Boolean).join(' '), deviceSerial: arVal('ar-serial'),
+                    devicePrice: r.price, publicSupport: r.sup === '공시' ? arNum('ar-pub') : 0, switchSupport: arNum('ar-switch'), distSupport: arNum('ar-dist'),
+                    prepay: arNum('ar-prepay'), cashPay: arNum('ar-cash'), cardPay: arNum('ar-cardpay'), unpaid: arNum('ar-unpaid'),
+                    loanPrincipal: r.loan,
+                    installment: r.loan > 0 && n > 0 ? `${arWon(r.loan)}원 / ${n}개월` : '완납', installmentBaseDate: d
+                });
+                if (canSeeSettle()) upd.poncle = { 기본정책: arNum('ar-base'), 추가정책: arNum('ar-add'), 수수료: arNum('ar-fee'), 할인금액: arNum('ar-disc'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 미비서류: upd.missingDocs, 등록: '개통등록' };
+                [['Plan', 'ar-k-plan', '요금제 유지 끝'], ['Addon', 'ar-k-addon', '부가서비스 해지'], ['Ins', 'ar-k-ins', '보험 해지']].forEach(([k, id, memo]) => {
+                    const dt = computeKeepDate(d, arVal(id));
+                    if (dt) Object.assign(upd, { [`prom${k}Date`]: dt, [`prom${k}Memo`]: `자동: ${memo} (${keepLabel(arVal(id))})`, [`prom${k}Chk`]: false });
+                });
+                note = `[개통등록 ${d.slice(5).replace('-', '/')}] ${[arVal('ar-type'), arVal('ar-carrier'), model || arVal('ar-usim'), arVal('ar-plan')].filter(Boolean).join(' · ')}${arVal('ar-memo') ? ' / ' + arVal('ar-memo') : ''}`;
+            } else {
+                const items = [...document.querySelectorAll('input[name="hr-item"]:checked')].map(x => x.value);
+                const done = arVal('hr-status') === '완료';
+                Object.assign(upd, {
+                    name: arVal('hr-name'), phone: formatPhone(digits), address: arVal('hr-addr'),
+                    wiredKind: arVal('hr-kind'), wiredStatus: arVal('hr-status'), wiredItems: items, wiredOpenStore: arVal('hr-store'), wiredApplyDate: arVal('hr-apply'),
+                    internetProd: items.includes('인터넷') ? (arVal('hr-internet') || '인터넷') : (cur ? cur.internetProd || '' : ''),
+                    tvProd: items.includes('TV') ? (arVal('hr-tv') || 'TV') : (cur ? cur.tvProd || '' : ''),
+                    ...(arNum('hr-fee') ? { wiredFee: `${arWon(arNum('hr-fee'))}원` } : {}),
+                    ...(done ? { wiredDate: arVal('hr-date'), salesStatus: '판매성공', salesStatusAt: arVal('hr-date') } : {}),
+                    wiredRepManager: arVal('hr-manager')
+                });
+                if (canSeeSettle()) upd.wiredSettle = { 정책금액: arNum('hr-base'), 추가정책: arNum('hr-add'), 유통지원: arNum('hr-dist'), 할인금액: arNum('hr-disc'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real };
+                note = `[홈상품 ${arVal('hr-status')} ${(arVal('hr-date') || arVal('hr-apply')).slice(5).replace('-', '/')}] ${arVal('hr-kind')} · ${items.join('+')} · ${arVal('hr-store')}${arVal('hr-memo') ? ' / ' + arVal('hr-memo') : ''}`;
+            }
+            if (cur) {
+                Object.assign(upd, keepRegFields(cur));
+                if (cur.deletedAt) upd.deletedAt = '';
+                if (cur.name && cur.name !== upd.name && !(await customConfirm(`기존 이름 '${cur.name}'을(를) '${upd.name}'(으)로 바꿀까요?`))) upd.name = cur.name;
+            } else {
+                Object.assign(upd, { manager: (isM ? arVal('ar-manager') : arVal('hr-manager')) || getStaffName() || '', regStore: msgStoreName(), regDate: today, regBy: getStaffName() || '', visitDate: today, createdAt: now });
+            }
+            upd.memo = [pcStr(cur && cur.memo), note].filter(Boolean).join('\n');
+            const btn = document.getElementById('arSave');
+            btn.disabled = true;
+            try {
+                await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
+                closeActReg();
+                customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.`);
+            } catch (e) { fail(koreanError(e, '저장')); }
+            btn.disabled = false;
+        };
+
+        // 고객카드(모바일 탭) 아래: 개통 상세 + 정산 + [개통등록] 버튼
+        function buildActDetailHtml(c) {
+            const kv = (l, v) => v || v === 0 ? profileKV(l, escapeHtml(String(v))) : '';
+            const won = (v) => (Number(v) ? `${arWon(v)}원` : '');
+            const S = c.poncle || {};
+            let h = '';
+            const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
+                kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('할부원금', won(c.loanPrincipal)),
+                kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('미비서류', c.missingDocs)].join('');
+            if (rows) h += `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
+            if (canSeeSettle() && (S.정산금액 || S.판매마진 || S.실판매마진)) {
+                h += `<div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2"><p class="text-xs font-bold text-amber-800 mb-1">정산정보${isSuperAdmin && appSettings.hideSettleFromStaff ? ' · 🔒 직원에게 숨김' : ''}</p>
+                    ${[['기본정책', S.기본정책], ['추가정책', S.추가정책], ['정산금액', S.정산금액], ['판매마진', S.판매마진], ['실판매마진', S.실판매마진]].filter(([, v]) => v || v === 0).map(([l, v]) => `<div class="flex justify-between text-[13px] py-0.5"><span class="text-amber-900/70">${l}</span><b class="text-amber-950">${arWon(v)}원</b></div>`).join('')}</div>`;
+            }
+            h += `<button type="button" data-paction="actreg" class="mt-3 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-signature"></i>개통등록 (폰클식)</button>`;
+            return h;
+        }
+        profileModal.addEventListener('click', (ev) => {
+            const b = ev.target.closest('[data-paction="actreg"]');
+            if (!b || !currentProfileId) return;
+            const c = customerDB.find(x => x.id === currentProfileId);
+            closeProfileCard();
+            setTimeout(() => openActReg(c, 'mobile'), 0);
+        });
+
+        // 설정: 정산정보 직원에게 숨기기 (총관리자만 바꿈)
+        (() => {
+            const el = document.getElementById('hideSettleChk');
+            if (!el) return;
+            el.addEventListener('change', async () => {
+                if (!isSuperAdmin) { el.checked = appSettings.hideSettleFromStaff === true; return; }
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { hideSettleFromStaff: el.checked }, { merge: true }); appSettings.hideSettleFromStaff = el.checked; }
+                catch (e) { el.checked = !el.checked; customAlert(koreanError(e, '저장')); }
+            });
         })();
 
     </script>
