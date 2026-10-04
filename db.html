@@ -690,6 +690,11 @@
                         </div>
                         <p id="calcSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                     </div>
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <p class="text-[14px] font-bold text-gray-900">상담 알림 서버 <span class="text-xs font-medium text-gray-500">(강CRM을 닫아놔도 직원 폰으로 알림)</span></p>
+                        <input type="url" id="calcAlertUrl" inputmode="url" autocomplete="off" placeholder="https://kangcrm-alert.○○.workers.dev" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50">
+                        <p class="text-xs text-gray-600 leading-relaxed">Cloudflare에 만든 상담 알림 서버 주소를 넣으면, 명함 상담요청이 들어올 때 '이 폰으로 알림 받기'를 켠 직원 폰에 푸시가 가요.</p>
+                    </div>
                     <a href="https://kanggun1983.github.io/" target="_blank" rel="noopener" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800 flex items-center justify-center gap-2"><i class="fa-solid fa-arrow-up-right-from-square"></i>명함에서 확인하기</a>
                 </div>
             </section>
@@ -774,7 +779,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V107</span>
+                    <span class="text-sm text-gray-600">V108</span>
                 </div>
             </section>
         </div>
@@ -8953,6 +8958,64 @@ familyStr + `\n` +
             });
         }
 
+        /* ---------- 🔔 이 폰으로 상담요청 알림 받기 (강CRM을 닫아놔도 오게) ----------
+           · 명함과 같은 OneSignal 앱에 이 폰을 '직원(kcrm_staff=1)'으로 등록
+           · 명함에서 상담요청이 들어오면 '상담 알림 서버'가 직원 폰에만 푸시를 보냄 */
+        function staffAlertState() {
+            try { return localStorage.getItem('kcrmStaffAlert') === 'on' && 'Notification' in window && Notification.permission === 'granted' ? 'on' : 'off'; } catch (e) { return 'off'; }
+        }
+        let oneSignalReady = null;
+        function loadOneSignalForStaff() {
+            if (oneSignalReady) return oneSignalReady;
+            oneSignalReady = new Promise((resolve, reject) => {
+                window.OneSignalDeferred = window.OneSignalDeferred || [];
+                window.OneSignalDeferred.push(async (OneSignal) => {
+                    try {
+                        await OneSignal.init({ appId: pushAppId(), serviceWorkerPath: 'OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/' } });
+                        resolve(OneSignal);
+                    } catch (e) { reject(e); }
+                });
+                const sc = document.createElement('script');
+                sc.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+                sc.defer = true;
+                sc.onerror = () => reject(new Error('알림 도구를 못 불러왔어요'));
+                document.head.appendChild(sc);
+            });
+            oneSignalReady.catch(() => { oneSignalReady = null; });
+            return oneSignalReady;
+        }
+        async function toggleStaffAlert() {
+            if (staffAlertState() === 'on') {
+                if (!(await customConfirm('이 폰에서 상담요청 알림을 그만 받을까요?'))) return;
+                try { const OS = await loadOneSignalForStaff(); await OS.User.removeTag('kcrm_staff'); } catch (e) { /* 무시 */ }
+                try { localStorage.removeItem('kcrmStaffAlert'); } catch (e) { /* 무시 */ }
+                renderCalcRequests();
+                return;
+            }
+            const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+            if (isIOSDevice && !standalone) return customAlert('아이폰은 강CRM을 [공유 → 홈 화면에 추가]한 뒤, 홈 화면 아이콘으로 열어서 다시 눌러주세요.');
+            if (!('Notification' in window)) return customAlert('이 브라우저는 알림을 지원하지 않아요. 크롬으로 열어주세요.');
+            const btn = document.getElementById('calcAlertBtn');
+            if (btn) { btn.disabled = true; btn.querySelector('span').textContent = '설정하는 중…'; }
+            try {
+                const OS = await loadOneSignalForStaff();
+                await OS.Notifications.requestPermission();
+                if (!OS.Notifications.permission) throw new Error('denied');
+                await OS.User.PushSubscription.optIn();
+                const email = (auth && auth.currentUser && auth.currentUser.email) || '';
+                if (email) await OS.login('staff-' + email.split('@')[0].replace(/[^A-Za-z0-9_-]/g, ''));
+                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()) });
+                localStorage.setItem('kcrmStaffAlert', 'on');
+                const d = calcData || calcNormalize(null);
+                customAlert(d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 상담요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.');
+            } catch (e) {
+                console.error(e);
+                customAlert(String(e && e.message) === 'denied' ? '알림이 차단돼 있어요.\n크롬 주소창 왼쪽 아이콘 → 권한 → 알림을 허용으로 바꾼 뒤 다시 눌러주세요.' : '알림 설정에 실패했어요. 잠시 후 다시 해주세요.');
+            }
+            renderCalcRequests();
+        }
+
         /* ---------- 새 요청 알림 (앱이 열려 있을 때) ---------- */
         let calcToastTimer = null;
         function calcNotify(r) {
@@ -9223,14 +9286,23 @@ familyStr + `\n` +
         }
 
         /* ---------- 상담요청 목록 ---------- */
+        let calcSelMode = false;
+        const calcSel = new Set();
         function renderCalcRequests() {
             document.getElementById('calcSheetTitle').textContent = '명함 상담요청';
             document.getElementById('calcSheetSub').textContent = '명함 [폰값계산]에서 들어온 요청이에요';
             const open = calcRequests.filter(r => r.done !== 'Y');
             const done = calcRequests.filter(r => r.done === 'Y');
             const list = calcReqTab === 'open' ? open : done;
+            [...calcSel].forEach(id => { if (!list.some(r => r.id === id)) calcSel.delete(id); });
             const tabBtn = (key, label, n) => `<button type="button" data-calc-tab="${key}" class="flex-1 h-11 rounded-xl text-sm font-bold ${calcReqTab === key ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${label} ${n}</button>`;
-            let html = `<div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tabBtn('open', '새 요청', open.length)}${tabBtn('done', '처리 완료', done.length)}</div>`;
+            const alertOn = staffAlertState();
+            let html = `<div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${tabBtn('open', '새 요청', open.length)}${tabBtn('done', '처리 완료', done.length)}</div>
+                <div class="flex items-center gap-2">
+                    <button type="button" id="calcAlertBtn" class="flex-1 min-w-0 h-11 px-3 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 ${alertOn === 'on' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-pink-600 text-white'}">
+                        <i class="fa-solid ${alertOn === 'on' ? 'fa-bell' : 'fa-bell-slash'}"></i><span class="truncate">${alertOn === 'on' ? '이 폰은 알림 받는 중' : '이 폰으로 알림 받기'}</span></button>
+                    ${list.length ? `<button type="button" id="calcSelToggle" class="flex-shrink-0 h-11 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">${calcSelMode ? '선택 취소' : '선택'}</button>` : ''}
+                </div>`;
             if (calcReqError) html += `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">요청 목록을 못 불러왔어요. Firebase 보안 규칙에 card_requests 칸이 들어갔는지 확인해주세요.</p>`;
             if (!list.length) {
                 html += `<p class="text-sm text-gray-600 text-center py-8">${calcReqTab === 'open' ? '새 요청이 없어요.<br>고객이 명함에서 [상담 받기]를 누르면 여기에 떠요.' : '처리한 요청이 없어요.'}</p>`;
@@ -9241,16 +9313,18 @@ familyStr + `\n` +
                 const name = c ? (c.name || '이름 없음') : (r.name || '이름 미입력');
                 const phone = (c && c.phone) || r.phone || '';
                 const digits = String(phone).replace(/\D/g, '');
-                html += `<article class="rounded-2xl border ${isAsk && r.done !== 'Y' ? 'border-pink-300 bg-pink-50/40' : 'border-gray-200 bg-white'} p-3 space-y-2">
+                const picked = calcSel.has(r.id);
+                html += `<article ${calcSelMode ? `data-calc-pick="${r.id}" role="checkbox" aria-checked="${picked}" tabindex="0"` : ''} class="rounded-2xl border ${picked ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50/40' : (isAsk && r.done !== 'Y' ? 'border-pink-300 bg-pink-50/40' : 'border-gray-200 bg-white')} p-3 space-y-2 ${calcSelMode ? 'cursor-pointer' : ''}">
                     <div class="flex items-start justify-between gap-2">
-                        <div class="min-w-0">
+                        ${calcSelMode ? `<span class="flex-shrink-0 w-6 h-6 mt-0.5 rounded-md border-2 ${picked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'} flex items-center justify-center text-xs">${picked ? '<i class="fa-solid fa-check"></i>' : ''}</span>` : ''}
+                        <div class="min-w-0 flex-1">
                             ${c ? `<button type="button" data-calc-open="${c.id}" class="text-[15px] font-bold text-indigo-700 underline underline-offset-2 truncate max-w-full text-left">${escapeHtml(name)}</button> <span class="text-xs font-medium text-gray-500">등록 고객</span>` : `<p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(name)} <span class="text-xs font-medium text-gray-500">새 고객</span></p>`}
                             <p class="text-xs text-gray-600">${escapeHtml(phone ? formatPhone(phone) : '연락처 없음')} · ${escapeHtml(calcAgo(r.at))}</p>
                         </div>
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-700'}">${isAsk ? '상담요청' : '계산만 해봄'}</span>
                     </div>
                     <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(r.detail || r.summary || '')}</p>
-                    <div class="grid grid-cols-4 gap-1.5">
+                    <div class="grid grid-cols-4 gap-1.5 ${calcSelMode ? 'hidden' : ''}">
                         ${digits ? `<a href="tel:${digits}" data-calc-contact="${r.id}" class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-phone"></i>전화</a>
                         <a href="${smsHref(digits, `${name}님, ${msgStoreName()} ${getStaffName() || ''}입니다. 명함에서 계산해 보신 조건으로 안내드릴게요.`)}" data-calc-contact="${r.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
                         ${c ? `<button type="button" data-calc-open="${c.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">고객</button>` : '<span></span>'}
@@ -9258,9 +9332,38 @@ familyStr + `\n` +
                     </div>
                 </article>`;
             });
+            if (calcSelMode && list.length) {
+                const all = list.every(r => calcSel.has(r.id));
+                html += `<div class="sticky bottom-0 -mx-4 px-4 pt-2 pb-1 bg-white border-t border-gray-200 flex gap-2">
+                    <button type="button" id="calcSelAll" class="flex-1 h-12 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">${all ? '전체 해제' : '전체 선택'}</button>
+                    <button type="button" id="calcSelDel" ${calcSel.size ? '' : 'disabled'} class="flex-1 h-12 rounded-xl bg-red-600 text-white text-sm font-bold disabled:opacity-40"><i class="fa-solid fa-trash-can"></i> ${calcSel.size}건 삭제</button>
+                </div>`;
+            }
             const body = document.getElementById('calcSheetBody');
             body.innerHTML = html;
-            body.querySelectorAll('[data-calc-tab]').forEach(b => b.onclick = () => { calcReqTab = b.dataset.calcTab; renderCalcRequests(); });
+            body.querySelectorAll('[data-calc-tab]').forEach(b => b.onclick = () => { calcReqTab = b.dataset.calcTab; calcSel.clear(); renderCalcRequests(); });
+            document.getElementById('calcAlertBtn').onclick = () => toggleStaffAlert();
+            const selT = document.getElementById('calcSelToggle');
+            if (selT) selT.onclick = () => { calcSelMode = !calcSelMode; calcSel.clear(); renderCalcRequests(); };
+            body.querySelectorAll('[data-calc-pick]').forEach(el => {
+                const flip = (e) => { if (e.target.closest('button, a')) return; const id = el.dataset.calcPick; if (calcSel.has(id)) calcSel.delete(id); else calcSel.add(id); renderCalcRequests(); };
+                el.onclick = flip;
+                el.onkeydown = (e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flip(e); } };
+            });
+            const selAll = document.getElementById('calcSelAll');
+            if (selAll) selAll.onclick = () => { const all = list.every(r => calcSel.has(r.id)); calcSel.clear(); if (!all) list.forEach(r => calcSel.add(r.id)); renderCalcRequests(); };
+            const selDel = document.getElementById('calcSelDel');
+            if (selDel) selDel.onclick = async () => {
+                const ids = [...calcSel];
+                if (!ids.length) return;
+                if (!(await customConfirm(`상담요청 ${ids.length}건을 지울까요?\n지운 요청은 되살릴 수 없어요.`))) return;
+                selDel.disabled = true;
+                const results = await Promise.allSettled(ids.map(id => deleteDoc(doc(db, 'card_requests', id))));
+                const fail = results.filter(x => x.status === 'rejected').length;
+                calcSel.clear(); calcSelMode = false;
+                renderCalcRequests();
+                if (fail) customAlert(`${fail}건은 못 지웠어요. 인터넷 연결을 확인하고 다시 해주세요.`);
+            };
             body.querySelectorAll('[data-calc-open]').forEach(b => b.onclick = () => { const id = b.dataset.calcOpen; closeCalcSheet(); setTimeout(() => window.openProfileCard(id), 0); });
             body.querySelectorAll('[data-calc-done]').forEach(b => b.onclick = async () => {
                 const r = calcRequests.find(x => x.id === b.dataset.calcDone);
@@ -9341,6 +9444,9 @@ familyStr + `\n` +
             const dk = document.getElementById('calcDistKeep');
             if (document.activeElement !== dk) dk.value = d.distKeep;
             dk.disabled = locked;
+            const au = document.getElementById('calcAlertUrl');
+            if (document.activeElement !== au) au.value = (d.alert && d.alert.url) || '';
+            au.disabled = locked;
         }
         document.getElementById('calcDistKeep').addEventListener('change', e => {
             const v = Math.round(Number(e.target.value) || 0);
@@ -9348,6 +9454,13 @@ familyStr + `\n` +
             const next = calcNormalize(calcData); next.distKeep = v; calcSave(next, true);
         });
         document.getElementById('dashCalc').addEventListener('click', () => openCalcSheet('requests'));
+        document.getElementById('calcAlertUrl').addEventListener('change', e => {
+            const v = e.target.value.trim().replace(/\/+$/, '');
+            if (v && !/^https:\/\/[^\s]+$/.test(v)) { customAlert('https:// 로 시작하는 주소를 넣어주세요.'); e.target.value = ((calcData || {}).alert || {}).url || ''; return; }
+            const next = calcNormalize(calcData);
+            next.alert = { url: v, crm: location.origin + location.pathname };
+            calcSave(next, true);
+        });
 
         let calcSavedTimer = null;
         async function calcSave(next, quiet) {
