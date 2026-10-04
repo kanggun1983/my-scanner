@@ -404,6 +404,7 @@
                 <div class="flex items-center gap-0.5 flex-shrink-0">
                     <button type="button" id="sortBtn" class="h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60 flex items-center gap-1"><span id="sortLabel">최근 방문순</span><i class="fa-solid fa-chevron-down text-[11px]"></i></button>
                     <button type="button" id="selectModeBtn" class="lg:hidden h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60">선택</button>
+                    <button type="button" id="calOpenBtn" aria-label="약속 달력 보기" class="w-11 h-11 rounded-xl text-gray-700 hover:bg-gray-200/60 flex items-center justify-center"><i class="fa-regular fa-calendar-days text-lg"></i></button>
                     <button type="button" id="addMenuBtn" aria-label="추가하기 (신규 개통보고, 고객 등록)" class="ml-1 w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm"><i class="fa-solid fa-plus text-lg"></i></button>
                 </div>
             </div>
@@ -783,7 +784,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V111</span>
+                    <span class="text-sm text-gray-600">V112</span>
                 </div>
             </section>
         </div>
@@ -2136,7 +2137,7 @@
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
                 checkPendingCallResult();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
-                try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); } catch (e) { /* 준비 전 */ }
+                try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'cal') renderPromCalendar(); } catch (e) { /* 준비 전 */ }
             }, (error) => {
                 // 예전엔 오류가 나도 아무 표시 없이 빈 목록/불러오는 중으로 남았음
                 console.error('고객 목록 불러오기 실패:', error);
@@ -4665,7 +4666,8 @@
                     nameEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     nameEl.focus();
                 } },
-                { icon: 'fa-solid fa-address-card', label: '명함 보내기 (번호 입력)', sub: '등록 안 된 사람에게도 디지털 명함을 문자로 보내요', onClick: () => openCardSendSheet() }
+                { icon: 'fa-solid fa-address-card', label: '명함 보내기 (번호 입력)', sub: '등록 안 된 사람에게도 디지털 명함을 문자로 보내요', onClick: () => openCardSendSheet() },
+                { icon: 'fa-regular fa-calendar-plus', label: '약속 추가', sub: '고객을 골라 요금제 변경·재연락 같은 약속을 넣어요', onClick: () => { promAdd = { cid: '', key: 'Call', date: getTodayStr(), memo: '', q: '' }; setTimeout(() => openCalcSheet('promAdd'), 0); } }
             ]);
         }
 
@@ -9133,6 +9135,8 @@ familyStr + `\n` +
             document.getElementById('calcManageBox').classList.toggle('hidden', !manage);
             document.getElementById('calcSheetBody').classList.toggle('hidden', manage);
             if (calcSheetMode === 'requests') renderCalcRequests();
+            else if (calcSheetMode === 'cal') renderPromCalendar();
+            else if (calcSheetMode === 'promAdd') renderPromAdd();
             else if (calcSheetMode === 'staff') renderStaffStats();
             else if (manage) {
                 document.getElementById('calcSheetTitle').textContent = '명함 폰값계산';
@@ -9746,6 +9750,232 @@ familyStr + `\n` +
                 else btn.disabled = false;
             };
         }
+
+    
+        /* =====================================================================
+           📅 약속 달력 (전체 고객 약속을 월 단위로) + 약속 추가
+           · 약속 종류는 기존 그대로: 요금제 변경 · 부가 해지 · 보험 해지 · 기타 약속 · 재연락
+           ===================================================================== */
+        const CAL_STYLE = {
+            Plan:  { short: '요금제', cls: 'bg-green-100 text-green-800', dot: 'bg-green-500' },
+            Addon: { short: '부가',   cls: 'bg-indigo-100 text-indigo-800', dot: 'bg-indigo-500' },
+            Ins:   { short: '보험',   cls: 'bg-amber-100 text-amber-800', dot: 'bg-amber-500' },
+            Other: { short: '기타',   cls: 'bg-gray-200 text-gray-800', dot: 'bg-gray-500' },
+            Call:  { short: '재연락', cls: 'bg-pink-100 text-pink-800', dot: 'bg-pink-500' }
+        };
+        const calNow = new Date();
+        let calY = calNow.getFullYear(), calM = calNow.getMonth(), calSel = getTodayStr();
+        let calType = 'all', calState = 'open', calStaff = '';
+        let promAdd = { cid: '', key: 'Call', date: '', memo: '', q: '' };
+        const calPad = (n) => String(n).padStart(2, '0');
+        const calYmd = (y, m, d) => `${y}-${calPad(m + 1)}-${calPad(d)}`;
+
+        function calEvents(prefix) {
+            const out = [];
+            customerDB.forEach(c => {
+                if (c.deletedAt) return;
+                if (calStaff && managerKey(c.manager || c.contactManager || '') !== calStaff) return;
+                PROMISE_DEFS.forEach(t => {
+                    const date = String(c[`prom${t.key}Date`] || '');
+                    if (date.length < 10 || (prefix && !date.startsWith(prefix))) return;
+                    const done = !!c[`prom${t.key}Chk`];
+                    if (calType !== 'all' && calType !== t.key) return;
+                    if (calState === 'open' && done) return;
+                    out.push({ c, key: t.key, label: t.label, date: date.slice(0, 10), done, memo: String(c[`prom${t.key}Memo`] || '') });
+                });
+            });
+            return out;
+        }
+        function calStaffList() {
+            const set = new Set();
+            customerDB.forEach(c => { const k = managerKey(c.manager || c.contactManager || ''); if (k) set.add(k); });
+            return [...set].sort((a, b) => a.localeCompare(b, 'ko'));
+        }
+
+        function renderPromCalendar() {
+            const today = getTodayStr();
+            document.getElementById('calcSheetTitle').textContent = '약속 달력';
+            const prefix = `${calY}-${calPad(calM + 1)}`;
+            const evs = calEvents(prefix);
+            const openCnt = evs.filter(e => !e.done).length;
+            const overdue = evs.filter(e => !e.done && e.date < today).length;
+            document.getElementById('calcSheetSub').textContent = `${calM + 1}월 약속 ${evs.length}건 · 처리 전 ${openCnt}건${overdue ? ` · 지난 미처리 ${overdue}건` : ''}`;
+            const byDay = new Map();
+            evs.forEach(e => { if (!byDay.has(e.date)) byDay.set(e.date, []); byDay.get(e.date).push(e); });
+
+            const first = new Date(calY, calM, 1).getDay();
+            const days = new Date(calY, calM + 1, 0).getDate();
+            const sel = document.createElement('div');
+            const typeOpts = [['all', '모든 종류'], ...PROMISE_DEFS.map(t => [t.key, t.label])];
+            const staffOpts = [['', '모든 담당자'], ...calStaffList().map(n => [n, n])];
+            const selCls = 'h-11 min-w-0 px-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-800 bg-white';
+            let html = `
+                <div class="flex items-center gap-1">
+                    <button type="button" data-cal-nav="-1" aria-label="이전 달" class="w-11 h-11 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-700"><i class="fa-solid fa-chevron-left"></i></button>
+                    <p class="flex-1 text-center text-lg font-bold text-gray-900">${calY}년 ${calM + 1}월</p>
+                    <button type="button" data-cal-nav="1" aria-label="다음 달" class="w-11 h-11 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-700"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button type="button" data-cal-today class="h-11 px-3 rounded-xl border border-gray-300 text-sm font-bold text-gray-700">오늘</button>
+                    <button type="button" data-cal-add class="h-11 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-1"><i class="fa-solid fa-plus"></i>약속</button>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <select id="calType" aria-label="약속 종류" class="${selCls}">${typeOpts.map(([v, l]) => `<option value="${v}" ${v === calType ? 'selected' : ''}>${l}</option>`).join('')}</select>
+                    <select id="calState" aria-label="처리 상태" class="${selCls}"><option value="open" ${calState === 'open' ? 'selected' : ''}>처리 전만</option><option value="all" ${calState === 'all' ? 'selected' : ''}>완료 포함</option></select>
+                    <select id="calStaff" aria-label="담당자" class="${selCls}">${staffOpts.map(([v, l]) => `<option value="${escapeHtml(v)}" ${v === calStaff ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>
+                </div>
+                <div class="rounded-2xl border border-gray-200 overflow-hidden">
+                    <div class="grid grid-cols-7 bg-gray-50 text-center text-xs font-bold py-1.5">
+                        ${['일', '월', '화', '수', '목', '금', '토'].map((d, i) => `<span class="${i === 0 ? 'text-red-600' : i === 6 ? 'text-blue-600' : 'text-gray-600'}">${d}</span>`).join('')}
+                    </div>
+                    <div class="grid grid-cols-7">`;
+            const cells = Math.ceil((first + days) / 7) * 7;
+            for (let i = 0; i < cells; i++) {
+                const d = i - first + 1;
+                if (d < 1 || d > days) { html += `<div class="min-h-[68px] border-t border-gray-100 bg-gray-50/60"></div>`; continue; }
+                const ds = calYmd(calY, calM, d);
+                const list = byDay.get(ds) || [];
+                const counts = {};
+                list.forEach(e => { counts[e.key] = (counts[e.key] || 0) + 1; });
+                const keys = PROMISE_DEFS.map(t => t.key).filter(k => counts[k]);
+                const late = list.some(e => !e.done && e.date < today);
+                const dow = (first + d - 1) % 7;
+                const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-1 text-[10px] leading-[16px] font-bold ${CAL_STYLE[k].cls}">${CAL_STYLE[k].short} ${counts[k]}</span>`).join('') +
+                    (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[14px]">+${keys.slice(3).reduce((s, k) => s + counts[k], 0)}</span>` : '');
+                html += `<button type="button" data-cal-day="${ds}" aria-label="${calM + 1}월 ${d}일 약속 ${list.length}건" class="min-h-[68px] border-t border-gray-100 ${i % 7 ? 'border-l' : ''} p-0.5 text-left flex flex-col gap-0.5 ${ds === calSel ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-400' : 'bg-white'}">
+                        <span class="flex items-center gap-1 px-0.5"><span class="text-[12px] font-bold ${ds === today ? 'w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' : (dow === 0 ? 'text-red-600' : dow === 6 ? 'text-blue-600' : 'text-gray-800')}">${d}</span>${late ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500" aria-hidden="true"></span>' : ''}</span>
+                        ${pills}
+                    </button>`;
+            }
+            html += `</div></div>`;
+
+            // 고른 날의 약속 목록
+            const dayList = (byDay.get(calSel) || []).sort((a, b) => Number(a.done) - Number(b.done) || a.key.localeCompare(b.key));
+            const sd = new Date(calSel + 'T00:00:00');
+            html += `<div class="flex items-center justify-between pt-1">
+                    <p class="text-[15px] font-bold text-gray-900">${sd.getMonth() + 1}월 ${sd.getDate()}일 (${['일', '월', '화', '수', '목', '금', '토'][sd.getDay()]}) · ${dayList.length}건</p>
+                    <button type="button" data-cal-add class="h-9 px-2 rounded-lg text-sm font-bold text-indigo-700 hover:bg-indigo-50"><i class="fa-solid fa-plus"></i> 이 날 약속</button>
+                </div>`;
+            if (!dayList.length) html += `<p class="text-sm text-gray-500 text-center py-6">이 날은 ${calState === 'open' ? '처리할 ' : ''}약속이 없어요.</p>`;
+            else html += `<div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` + dayList.map(e => `
+                    <div class="flex items-center gap-2 px-2 py-2 ${e.done ? 'bg-gray-50' : (e.date < today ? 'bg-red-50/50' : 'bg-white')}">
+                        <button type="button" data-cal-done="${e.c.id}|${e.key}" role="checkbox" aria-checked="${e.done}" aria-label="${escapeHtml(e.c.name || '')} ${e.label} 처리 표시" class="w-11 h-11 flex-shrink-0 flex items-center justify-center">
+                            <span class="w-6 h-6 rounded-md border-2 ${e.done ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 bg-white'} flex items-center justify-center text-xs">${e.done ? '<i class="fa-solid fa-check"></i>' : ''}</span>
+                        </button>
+                        <button type="button" data-cal-open="${e.c.id}" class="flex-1 min-w-0 text-left py-1">
+                            <span class="flex items-center gap-1.5"><span class="text-[11px] font-bold rounded px-1.5 ${CAL_STYLE[e.key].cls}">${e.label}</span><span class="text-[15px] font-bold ${e.done ? 'text-gray-400 line-through' : 'text-gray-900'} truncate">${escapeHtml(e.c.name || '이름 없음')}</span></span>
+                            <span class="block text-xs text-gray-600 truncate">${escapeHtml(formatPhone(e.c.phone || ''))}${e.memo ? ' · ' + escapeHtml(e.memo) : ''}${managerKey(e.c.manager || '') ? ' · ' + escapeHtml(managerKey(e.c.manager)) : ''}</span>
+                        </button>
+                        <i class="fa-solid fa-chevron-right text-gray-300 text-xs flex-shrink-0 pr-1" aria-hidden="true"></i>
+                    </div>`).join('') + `</div>`;
+
+            const body = document.getElementById('calcSheetBody');
+            body.innerHTML = html;
+            body.querySelectorAll('[data-cal-nav]').forEach(b => b.onclick = () => {
+                calM += Number(b.dataset.calNav);
+                if (calM < 0) { calM = 11; calY--; } else if (calM > 11) { calM = 0; calY++; }
+                const t = getTodayStr();
+                calSel = t.startsWith(`${calY}-${calPad(calM + 1)}`) ? t : calYmd(calY, calM, 1);
+                renderPromCalendar();
+            });
+            body.querySelector('[data-cal-today]').onclick = () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); calSel = getTodayStr(); renderPromCalendar(); };
+            body.querySelectorAll('[data-cal-add]').forEach(b => b.onclick = () => { promAdd = { cid: '', key: 'Call', date: calSel, memo: '', q: '' }; openCalcSheet('promAdd'); });
+            body.querySelectorAll('[data-cal-day]').forEach(b => b.onclick = () => { calSel = b.dataset.calDay; renderPromCalendar(); });
+            document.getElementById('calType').onchange = e => { calType = e.target.value; renderPromCalendar(); };
+            document.getElementById('calState').onchange = e => { calState = e.target.value; renderPromCalendar(); };
+            document.getElementById('calStaff').onchange = e => { calStaff = e.target.value; renderPromCalendar(); };
+            body.querySelectorAll('[data-cal-open]').forEach(b => b.onclick = () => { const id = b.dataset.calOpen; closeCalcSheet(); setTimeout(() => window.openProfileCard(id), 0); });
+            body.querySelectorAll('[data-cal-done]').forEach(b => b.onclick = async () => {
+                const [id, key] = b.dataset.calDone.split('|');
+                const c = customerDB.find(x => x.id === id);
+                if (!c) return;
+                b.disabled = true;
+                try {
+                    await saveUpdate(doc(db, 'smart_customers', id), { [`prom${key}Chk`]: !c[`prom${key}Chk`], updatedAt: new Date().toISOString() });
+                } catch (e) { b.disabled = false; customAlert(koreanError(e, '저장')); }
+            });
+        }
+
+        /* ---------- ➕ 약속 추가 ---------- */
+        function renderPromAdd() {
+            document.getElementById('calcSheetTitle').textContent = '약속 추가';
+            document.getElementById('calcSheetSub').textContent = '고객을 고르고 종류·날짜를 정하면 달력과 고객카드에 같이 들어가요';
+            const c = promAdd.cid ? customerDB.find(x => x.id === promAdd.cid) : null;
+            const field = 'w-full h-12 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            let html = `<div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">1. 고객</p>`;
+            if (c) {
+                html += `<div class="flex items-center gap-2 rounded-xl border-2 border-indigo-300 bg-indigo-50 px-3 py-2">
+                        <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')}</span><span class="block text-xs text-gray-600">${escapeHtml(formatPhone(c.phone || ''))}</span></span>
+                        <button type="button" id="promAddChange" class="h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm font-bold text-gray-700">바꾸기</button>
+                    </div>`;
+            } else {
+                html += `<input type="search" id="promAddQ" value="${escapeHtml(promAdd.q)}" placeholder="이름이나 전화번호 뒷자리" autocomplete="off" class="${field}"><div id="promAddResults" class="space-y-1"></div>`;
+            }
+            html += `</div>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">2. 약속 종류</p>
+                    <div class="grid grid-cols-2 gap-1.5">${PROMISE_DEFS.map((t, i) => `<button type="button" data-prom-key="${t.key}" aria-pressed="${promAdd.key === t.key}" class="${i === PROMISE_DEFS.length - 1 && PROMISE_DEFS.length % 2 ? 'col-span-2 ' : ''}h-11 rounded-xl border text-sm font-bold ${promAdd.key === t.key ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-gray-300 bg-white text-gray-700'}">${t.label}</button>`).join('')}</div>
+                </div>
+                <label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">3. 날짜</span><input type="date" id="promAddDate" value="${escapeHtml(promAdd.date || getTodayStr())}" class="${field}"></label>
+                <div class="flex flex-wrap gap-1.5">${[['내일', 1], ['3일 뒤', 3], ['1주 뒤', 7], ['1달 뒤', 30]].map(([l, n]) => `<button type="button" data-prom-quick="${n}" class="h-9 px-3 rounded-full border border-gray-300 text-xs font-bold text-gray-700 bg-white">${l}</button>`).join('')}</div>
+                <label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">4. 메모 <span class="font-normal text-gray-500">(선택)</span></span><input type="text" id="promAddMemo" value="${escapeHtml(promAdd.memo)}" maxlength="60" placeholder="예) 요금제 5G 라이트로 변경" class="${field}"></label>`;
+            const prev = c ? String(c[`prom${promAdd.key}Date`] || '') : '';
+            if (c && prev.length >= 10 && !c[`prom${promAdd.key}Chk`]) html += `<p class="text-[13px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-snug"><i class="fa-solid fa-triangle-exclamation"></i> 이 고객은 이미 ${escapeHtml(prev.slice(5).replace('-', '/'))} ${PROMISE_DEFS.find(t => t.key === promAdd.key).label} 약속이 있어요. 저장하면 새 날짜로 바뀌어요.</p>`;
+            html += `<p id="promAddErr" role="alert" class="hidden text-[13px] font-bold text-red-700"></p>
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <button type="button" id="promAddCancel" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">취소</button>
+                    <button type="button" id="promAddSave" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold"><i class="fa-solid fa-check"></i> 저장</button>
+                </div>`;
+            const body = document.getElementById('calcSheetBody');
+            body.innerHTML = html;
+            const keepInputs = () => {
+                const d = document.getElementById('promAddDate'), m = document.getElementById('promAddMemo');
+                if (d) promAdd.date = d.value; if (m) promAdd.memo = m.value;
+            };
+            const q = document.getElementById('promAddQ');
+            if (q) {
+                const showResults = () => {
+                    promAdd.q = q.value;
+                    const t = q.value.trim(), digits = t.replace(/\D/g, '');
+                    const box = document.getElementById('promAddResults');
+                    if (!t) { box.innerHTML = ''; return; }
+                    const found = customerDB.filter(x => !x.deletedAt && ((x.name || '').includes(t) || (digits.length >= 3 && String(x.phone || '').replace(/\D/g, '').includes(digits)))).slice(0, 6);
+                    box.innerHTML = found.length ? found.map(x => `<button type="button" data-prom-pick="${x.id}" class="w-full min-h-[52px] px-3 py-1.5 rounded-xl border border-gray-200 bg-white text-left hover:bg-gray-50"><span class="block text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '이름 없음')}</span><span class="block text-xs text-gray-600">${escapeHtml(formatPhone(x.phone || ''))}${x.manager ? ' · ' + escapeHtml(managerKey(x.manager)) : ''}</span></button>`).join('')
+                        : '<p class="text-sm text-gray-500 px-1">찾는 고객이 없어요. 먼저 고객으로 등록해 주세요.</p>';
+                    box.querySelectorAll('[data-prom-pick]').forEach(b => b.onclick = () => { keepInputs(); promAdd.cid = b.dataset.promPick; renderPromAdd(); });
+                };
+                q.oninput = showResults;
+                showResults();
+                setTimeout(() => q.focus(), 50);
+            }
+            const ch = document.getElementById('promAddChange');
+            if (ch) ch.onclick = () => { keepInputs(); promAdd.cid = ''; renderPromAdd(); };
+            body.querySelectorAll('[data-prom-key]').forEach(b => b.onclick = () => { keepInputs(); promAdd.key = b.dataset.promKey; renderPromAdd(); });
+            body.querySelectorAll('[data-prom-quick]').forEach(b => b.onclick = () => {
+                const t = new Date(); t.setDate(t.getDate() + Number(b.dataset.promQuick));
+                document.getElementById('promAddDate').value = calYmd(t.getFullYear(), t.getMonth(), t.getDate());
+                keepInputs();
+            });
+            document.getElementById('promAddCancel').onclick = () => openCalcSheet('cal');
+            document.getElementById('promAddSave').onclick = async () => {
+                keepInputs();
+                const err = document.getElementById('promAddErr');
+                const show = (m) => { err.textContent = m; err.classList.remove('hidden'); };
+                if (!promAdd.cid) return show('고객을 먼저 골라주세요.');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(promAdd.date)) return show('날짜를 골라주세요.');
+                const btn = document.getElementById('promAddSave');
+                btn.disabled = true;
+                try {
+                    await saveUpdate(doc(db, 'smart_customers', promAdd.cid), {
+                        [`prom${promAdd.key}Date`]: promAdd.date,
+                        [`prom${promAdd.key}Memo`]: promAdd.memo.trim(),
+                        [`prom${promAdd.key}Chk`]: false,
+                        updatedAt: new Date().toISOString()
+                    });
+                    const d = new Date(promAdd.date + 'T00:00:00');
+                    calY = d.getFullYear(); calM = d.getMonth(); calSel = promAdd.date;
+                    openCalcSheet('cal');
+                } catch (e) { btn.disabled = false; show(koreanError(e, '저장')); }
+            };
+        }
+        document.getElementById('calOpenBtn').addEventListener('click', () => { const t = new Date(); calY = t.getFullYear(); calM = t.getMonth(); calSel = getTodayStr(); openCalcSheet('cal'); });
 
     </script>
 </body>
