@@ -805,7 +805,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V117</span>
+                    <span class="text-sm text-gray-600">V118</span>
                 </div>
             </section>
         </div>
@@ -4756,7 +4756,6 @@
         function openAddMenu() {
             openActionSheet('추가하기', [
                 { icon: 'fa-solid fa-file-signature', label: '개통등록', sub: '무선·홈상품 개통을 할부원금·정산까지 한 번에 등록해요', onClick: () => setTimeout(() => openActReg(null, 'mobile'), 0) },
-                { icon: 'fa-solid fa-file-lines', label: '신규 개통보고', sub: '개통한 고객을 보고서로 쓰고 바로 저장해요', onClick: () => document.getElementById('newReportBtn').click() },
                 { icon: 'fa-solid fa-camera', label: '사진으로 고객 등록', sub: '전산 화면을 찍으면 AI가 칸을 채워줘요', onClick: async () => {
                     const ready = await prepareScannerForNew();
                     switchTab('scanner');
@@ -8063,11 +8062,13 @@ ${AI_TONES[aiSmsTone]}
                 add(actCheckMeaningful(c.device) ? 'ok' : 'miss', '단말기');
                 add(actCheckMeaningful(c.plan) ? 'ok' : 'miss', '요금제');
                 add(actCheckMeaningful(c.discountType) ? 'ok' : 'miss', '할인유형 (공시·선약)');
-                add(actCheckMeaningful(c.fee) ? 'ok' : 'check', '월 요금', '개통보고엔 없는 칸이에요 · 고객 카드 [수정]에서 넣어요');
+                add(actCheckMeaningful(c.fee) ? 'ok' : 'check', '월 요금', '개통등록엔 없는 칸이에요 · 고객 카드 [수정]에서 넣어요');
                 add(actCheckMeaningful(c.repPrincipal) || actCheckMeaningful(c.installment) || actCheckMeaningful(c.repInstallment) ? 'ok' : 'check', '할부 정보', '완납이면 괜찮아요');
                 add(openPromise('Plan') ? 'ok' : 'check', '요금제 변경 약속', openPromise('Plan') ? formatShortDate(c.promPlanDate) : '유지 조건이 없으면 괜찮아요');
-                if (actCheckMeaningful(c.repAddons)) add(openPromise('Addon') ? 'ok' : 'miss', '부가서비스 해지 약속', openPromise('Addon') ? formatShortDate(c.promAddonDate) : `가입한 부가서비스: ${String(c.repAddons).trim()}`);
-                if (actCheckMeaningful(c.repInsurance)) add(openPromise('Ins') ? 'ok' : 'miss', '보험 해지 약속', openPromise('Ins') ? formatShortDate(c.promInsDate) : `가입한 보험: ${String(c.repInsurance).trim()}`);
+                const addonTxt = c.repAddons || c.addons, insTxt = c.repInsurance || c.insurance;
+                const addonKey = ['Addon', 'Addon2', 'Addon3', 'Addon4'].find(k => openPromise(k));
+                if (actCheckMeaningful(addonTxt)) add(addonKey ? 'ok' : 'miss', '부가서비스 해지 약속', addonKey ? formatShortDate(c[`prom${addonKey}Date`]) : `가입한 부가서비스: ${String(addonTxt).trim()}`);
+                if (actCheckMeaningful(insTxt)) add(openPromise('Ins') ? 'ok' : 'miss', '보험 해지 약속', openPromise('Ins') ? formatShortDate(c.promInsDate) : `가입한 보험: ${String(insTxt).trim()}`);
             }
             if (wired) {
                 add(actCheckMeaningful(c.internetProd) || actCheckMeaningful(c.tvProd) ? 'ok' : 'miss', '인터넷·TV 상품');
@@ -10474,7 +10475,7 @@ familyStr + `\n` +
                 <button type="button" id="arClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
                 <h2 id="arTitle" class="flex-1 text-[17px] font-bold text-gray-900 truncate">개통등록</h2>
                 <button type="button" id="arCopy" class="h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700"><i class="fa-regular fa-copy"></i> 보고서</button>
-                <button type="button" id="arSave" class="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold"><i class="fa-solid fa-check"></i> 저장</button>
+                <button type="button" id="arSave" class="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold"><i class="fa-solid fa-check"></i> 복사+저장</button>
             </header>
             <div class="flex-shrink-0 bg-white px-3 pb-2">
                 <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl" role="tablist">
@@ -10486,7 +10487,15 @@ familyStr + `\n` +
         document.body.appendChild(arEl);
 
         // ➕ 추가정책·부가 줄 (폰 개통보고처럼: 이름 · 금액 · 유지 N일 → 유지일 자동)
-        let arItems = [], arPickerOpen = false, arPresetEdit = false;
+        let arItems = [], arPickerOpen = false, arPresetEdit = false, arPrefill = { intTv: '', combo: '' };
+        // 주민번호 앞자리 → 생년월일 (예전 개통보고와 같은 규칙)
+        function juminToDob(v) {
+            const j = String(v || '').replace(/[^0-9]/g, '');
+            if (j.length < 6) return '';
+            const yy = j.slice(0, 2), mm = j.slice(2, 4), dd = j.slice(4, 6);
+            const century = j.length >= 7 ? (['3', '4', '7', '8'].includes(j.charAt(6)) ? '20' : '19') : (parseInt(yy, 10) <= 30 ? '20' : '19');
+            return `${century}${yy}-${mm}-${dd}`;
+        }
         const AR_ITEM_KINDS = ['부가', '보험', '제휴카드', '그레이드', '기타'];
         function arPresets() { return Array.isArray(appSettings.addonPresets) ? appSettings.addonPresets : []; }
         function arItemDate(it) { const d = arVal('ar-date'); return it.days > 0 && /^\d{4}-\d{2}-\d{2}$/.test(d) ? computeKeepDate(d, 'D' + it.days) : ''; }
@@ -10605,13 +10614,21 @@ familyStr + `\n` +
             const c = arCust || {};
             arEl.querySelectorAll('[data-ar-mode]').forEach(b => b.className = `flex-1 h-10 rounded-xl text-sm font-bold ${b.dataset.arMode === arMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`);
             document.getElementById('arTitle').textContent = arCust ? `${c.name || '고객'} · 개통등록` : '새 개통등록';
-            document.getElementById('arCopy').classList.toggle('hidden', arMode !== 'mobile');
+            document.getElementById('arCopy').classList.remove('hidden');
             const stores = [...new Set(customerDB.map(x => pcStr(x.openStore)).filter(Boolean))];
             const dl = `<datalist id="arStores">${stores.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
             const S = c.poncle || {};
             const showSettle = canSeeSettle();
             const today = getTodayStr();
             let html = dl;
+            // 예전 개통보고와 같은 '미리 채움' (인터넷+TV · 결합은 안 바꾸면 기존 유선·결합 정보를 건드리지 않음)
+            const clean = (v) => (v && !['-', '해당없음', '미적용'].includes(String(v).trim())) ? String(v).trim() : '';
+            const prefIntTv = c.repInternetTv || [clean(c.internetProd), clean(c.tvProd)].filter(Boolean).join(' + ');
+            const prefCombo = c.repCombination || [clean(c.combination), clean(c.welfare)].filter(Boolean).join(' / ');
+            arPrefill = { intTv: String(prefIntTv || '').trim(), combo: String(prefCombo || '').trim() };
+            const legalOn = !!(c.legalName || c.legalPhone);
+            const legalHtml = `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-minor" ${legalOn ? 'checked' : ''} class="w-5 h-5 accent-indigo-600"> 미성년자 (법정대리인 있음)</label>
+                    <div id="ar-legal" class="grid grid-cols-2 gap-2 ${legalOn ? '' : 'hidden'}">${arIn('ar-legal-name', '법정대리인 이름', c.legalName || '')}${arIn('ar-legal-phone', '법정대리인 연락처', c.legalPhone || '', { type: 'tel' })}${arIn('ar-legal-dob', '법정대리인 생년월일', formatDob(c.legalDob || ''), { ph: '1970-01-01', span: true })}</div>`;
             if (arMode === 'mobile') {
                 html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
                     ${arIn('ar-date', '개통일', today, { type: 'date', req: true })}
@@ -10620,18 +10637,27 @@ familyStr + `\n` +
                     ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], AR_CARRIERS.includes(c.carrier) ? c.carrier : '', { req: true })}
                     ${arSel('ar-prev', '전통신사 (이동일 때)', [['', '-'], 'SKT', 'KT', 'LG U+', '알뜰폰'], '')}
-                    ${arIn('ar-store', '거래처', '', { list: 'arStores', ph: '예) LG 뉴에이스' })}
+                    ${arIn('ar-store', '거래처 (개통점)', c.openStore || '', { list: 'arStores', ph: '예) LG 뉴에이스' })}
                     ${arIn('ar-manager', '개통직원', getStaffName() || '')}
-                    ${arIn('ar-plan', '요금제', '', { span: true, ph: '예) 5G 프리미어 에센셜' })}
+                    ${arIn('ar-plan', '요금제', c.plan || '', { span: true, ph: '예) 5G 프리미어 에센셜' })}
                     ${arSel('ar-term', '약정개월', ['24개월', '12개월', '무약정'], '24개월')}
                     ${arSel('ar-inst', '단말기할부', ['24개월', '36개월', '30개월', '48개월', '12개월', '일시불'], '24개월')}
                     ${arIn('ar-addon', '부가서비스', '', { ph: '예) 캐치콜플러스' })}
                     ${arIn('ar-ins', '단말기보험', '', { ph: '예) 폰 안심패스' })}
-                    ${arIn('ar-comb', '결합상품', '', {})}
-                    ${arIn('ar-welfare', '복지할인', '', {})}
+                    ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
                     ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
                     ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
                     </div>`);
+                html += arSec('고객정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1' })}
+                    ${arIn('ar-branch', '접수처', c.repBranch || '', {})}
+                    ${arIn('ar-address', '주소', c.repAddress || c.address || '', { span: true })}
+                    ${arIn('ar-inttv', '인터넷+TV', prefIntTv, { span: true, ph: '예) 기가 500M + 베이직' })}
+                    ${arIn('ar-usedphone', '중고폰', '', { ph: '예) S22 반납' })}
+                    ${arIn('ar-subsidy', '지원금 (보고서용)', '', { ph: '예) 공통 50만' })}
+                    </div>
+                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">가족정보</span><textarea id="ar-family" rows="2" placeholder="예) 배우자 홍길순 010-0000-0000" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">${escapeHtml(c.repFamily || '')}</textarea></label>
+                    ${legalHtml}`);
                 html += arSec('단말기 · 유심', `<div class="grid grid-cols-2 gap-2">
                     ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
                     ${arIn('ar-color', '색상', '', {})}
@@ -10670,6 +10696,7 @@ familyStr + `\n` +
                     ${arSel('ar-k-addon', '부가서비스 해지 (위 부가 줄이 있으면 그 유지일로)', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
                     ${arSel('ar-k-ins', '보험 해지', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
                     ${arSel('ar-k-card', '제휴카드 (위 제휴카드 줄이 있으면 그 유지일로)', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
+                    ${arIn('ar-target', '유지 후 바꿀 요금제 (약속 메모에 들어가요)', c.repTargetPlan || '', { ph: '예) 5G 라이트' })}
                     </div><p id="ar-k-dates" class="text-xs text-indigo-700 font-bold"></p>`, '<span class="text-xs text-gray-500">통신사를 고르면 기본값이 맞춰져요</span>');
                 html += arSec('기타정보', `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
                     ${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}
@@ -10685,10 +10712,14 @@ familyStr + `\n` +
                     ${arIn('hr-date', '개통일 (완료 시)', '', { type: 'date' })}
                     ${arIn('hr-name', '고객명', c.name || '', { req: true })}
                     ${arIn('hr-phone', '연락처', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
-                    ${arIn('hr-addr', '주소', c.address || '', { span: true })}
-                    </div>`);
+                    ${arIn('hr-addr', '주소', c.repAddress || c.address || '', { span: true })}
+                    ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
+                    </div>${legalHtml}`);
                 html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
-                    <div class="grid grid-cols-2 gap-2">${arIn('hr-internet', '인터넷 상품', c.internetProd || '', { ph: '예) 기가 500M' })}${arIn('hr-tv', 'TV 상품', c.tvProd || '', { ph: '예) 베이직' })}${arMoney('hr-fee', '월 요금')}</div>`);
+                    <div class="grid grid-cols-2 gap-2">${arIn('hr-internet', '인터넷 상품', c.internetProd || '', { ph: '예) 기가 500M' })}${arIn('hr-tv', 'TV 상품', c.tvProd || '', { ph: '예) 베이직' })}${arIn('hr-extratv', '추가 TV', '', { ph: '예) 2대' })}${arMoney('hr-fee', '월 요금')}
+                    ${arIn('hr-comb', '결합', prefCombo, { span: true })}${arIn('hr-subsidy', '지원금 (보고서용)', '', { span: true, ph: '예) 현금 40만' })}</div>
+                    <p class="text-xs font-bold text-gray-600 pt-1">고객 자동이체 계좌 <span class="font-normal text-gray-500">(보고서에만 들어가고 저장은 안 해요)</span></p>
+                    <div class="grid grid-cols-3 gap-2">${arIn('hr-bank', '은행', '')}${arIn('hr-account', '계좌번호', '', { num: false })}${arIn('hr-owner', '예금주', '')}</div>`);
                 if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">${arMoney('hr-base', '정책금액')}${arMoney('hr-add', '추가정책')}${arMoney('hr-dist', '유통지원 (사은품 등)')}${arMoney('hr-disc', '할인금액')}</div>
                     <div class="grid grid-cols-3 gap-2 text-sm">${[['정산금액', 'hr-settle'], ['판매마진', 'hr-margin'], ['실판매마진', 'hr-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-2 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[15px] text-gray-900">0</b>원</div>`).join('')}</div>
                     <p class="text-xs text-gray-500">정산금액 = 정책 + 추가정책 − 유통지원 · 판매마진 = 정산금액 − 할인 · 실판매마진 = 판매마진 − 부가세(÷11)</p>`);
@@ -10713,6 +10744,8 @@ familyStr + `\n` +
                 if (kp && appSettings.autoPlanOn !== false && pcs[0]) kp.value = pcs[0];
                 arRecalc();
             });
+            const minor = document.getElementById('ar-minor');
+            if (minor) minor.addEventListener('change', () => document.getElementById('ar-legal').classList.toggle('hidden', !minor.checked));
             const addBtn = document.getElementById('arItemAdd');
             if (addBtn) addBtn.onclick = () => { arPickerOpen = !arPickerOpen; renderArPicker(); };
             const dEl = document.getElementById('ar-date');
@@ -10802,28 +10835,60 @@ familyStr + `\n` +
         }
 
         function arReportText() {
-            const r = arCalc();
-            const lines = [
-                `[개통보고] ${arVal('ar-date')} ${arVal('ar-type')}`,
-                `고객: ${arVal('ar-name')} (${arVal('ar-phone')})`,
-                `통신사: ${arVal('ar-carrier')}${arVal('ar-prev') ? ` (전 ${arVal('ar-prev')})` : ''} · 거래처: ${arVal('ar-store') || '-'}`,
-                `단말기: ${[arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' ') || '-'}${arVal('ar-serial') ? ` / ${arVal('ar-serial')}` : ''}`,
-                arVal('ar-usim') || arVal('ar-usimserial') ? `유심: ${[arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / ')}` : '',
-                `요금제: ${arVal('ar-plan') || '-'} · 약정 ${arVal('ar-term')} · ${r.sup === '공시' ? '공시지원' : '선택약정'}`,
-                `출고가 ${arWon(r.price)} → 할부원금 ${arWon(r.loan)} (${arVal('ar-inst')})`,
-                arVal('ar-addon') ? `부가: ${arVal('ar-addon')}` : '', arVal('ar-ins') ? `보험: ${arVal('ar-ins')}` : '',
-                ...arItems.filter(it => it.name).map(it => `· ${it.kind} ${it.name}${it.date ? ` (유지 ${it.days ? it.days + '일 → ' : ''}${it.date})` : ''}`),
-                ...arKeepPlan().filter(k => k.key === 'Plan').map(k => `요금제 유지일: ${k.date}`),
-                document.getElementById('ar-missing') && document.getElementById('ar-missing').checked ? `미비서류: ${arVal('ar-missing-text') || '있음'}` : '',
-                `개통직원: ${arVal('ar-manager')}`,
-                arVal('ar-memo') ? `메모: ${arVal('ar-memo')}` : ''
-            ];
-            return lines.filter(Boolean).join('\n');
+            const t = new Date();
+            const dateStr = `${String(t.getMonth() + 1).padStart(2, '0')}월 ${String(t.getDate()).padStart(2, '0')}일`;
+            const legal = document.getElementById('ar-minor') && document.getElementById('ar-minor').checked ? [arVal('ar-legal-name'), arVal('ar-legal-phone'), arVal('ar-legal-dob')] : ['', '', ''];
+            let text;
+            if (arMode === 'mobile') {
+                const r = arCalc();
+                const fam = arVal('ar-family');
+                const device = [[arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / ');
+                const typeStr = arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : (arVal('ar-carrier') ? ` (${arVal('ar-carrier')})` : ''));
+                const addonNames = [arVal('ar-addon'), ...arItems.filter(it => it.kind === '부가' && it.name).map(it => it.name)].filter(Boolean).join(', ');
+                const insNames = [arVal('ar-ins'), ...arItems.filter(it => it.kind === '보험' && it.name).map(it => it.name)].filter(Boolean).join(', ');
+                text = `-모바일 개통보고 ${dateStr}-\n\n` +
+                    `이름: ${arVal('ar-name')}\n` +
+                    `주민번호: ${arVal('ar-jumin')}\n` +
+                    `연락처 : ${arVal('ar-phone')}\n` +
+                    `주소 : ${arVal('ar-address')}\n` +
+                    `모델/일련: ${device}\n` +
+                    `요금제 : ${arVal('ar-plan')}\n` +
+                    `유심 일련: ${[arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / ')}\n` +
+                    `유심 선납: ${arVal('ar-usimfee')}\n` +
+                    `유형: ${typeStr}\n` +
+                    `부가 : ${addonNames}\n` +
+                    `보험 : ${insNames}\n` +
+                    `할부원금 : ${r.price ? arWon(r.loan) : ''}\n` +
+                    `할부개월수 : ${arVal('ar-inst')}\n` +
+                    `공시/선약 : ${r.sup === '공시' ? '공시' : `선약 ${arVal('ar-term')}`}\n` +
+                    `지원금 : ${arVal('ar-subsidy')}\n` +
+                    `중고폰 : ${arVal('ar-usedphone')}\n` +
+                    `접수처 : ${arVal('ar-branch') || arVal('ar-store')}\n` +
+                    `인터넷+TV : ${arVal('ar-inttv')}\n` +
+                    `결합 : ${arVal('ar-comb')}` +
+                    (fam ? `\n가족정보:\n${fam}` : '') + `\n`;
+            } else {
+                const typeStr = [arVal('hr-internet'), arVal('hr-tv'), arVal('hr-extratv')].filter(Boolean).join(' / ');
+                text = `-유선 개통보고 ${dateStr}-\n\n` +
+                    `이름: ${arVal('hr-name')}\n` +
+                    `주민번호: ${arVal('ar-jumin')}\n` +
+                    `연락처: ${arVal('hr-phone')}\n` +
+                    `주소 : ${arVal('hr-addr')}\n` +
+                    `유형: ${typeStr}\n` +
+                    `지원금 : ${arVal('hr-subsidy')}\n` +
+                    `고객계좌: ${[arVal('hr-bank'), arVal('hr-account'), arVal('hr-owner')].filter(Boolean).join(' ')}\n` +
+                    `결합: ${arVal('hr-comb')}\n` +
+                    `월요금: ${arNum('hr-fee') ? arWon(arNum('hr-fee')) + '원' : ''}\n` +
+                    `접수처: ${arVal('hr-store')}\n`;
+            }
+            if (legal.some(Boolean)) text += `\n법정대리인 : ${legal[0]} / ${legal[1]} / ${legal[2]}\n`;
+            text += `\n개통자 : ${arMode === 'mobile' ? arVal('ar-manager') : arVal('hr-manager')}`;
+            return text;
         }
         document.getElementById('arCopy').onclick = async () => {
             const t = arReportText();
-            try { await navigator.clipboard.writeText(t); customAlert('보고서 문구를 복사했어요. 단톡방에 붙여넣기 하세요.'); }
-            catch (e) { customAlert(t); }
+            if (await copyTextSafe(t)) customAlert('보고서 문구를 복사했어요. 단톡방에 붙여넣기 하세요.');
+            else customAlert(t);
         };
 
         document.getElementById('arSave').onclick = async () => {
@@ -10850,6 +10915,8 @@ familyStr + `\n` +
                 if (!document.querySelector('input[name="hr-item"]:checked')) return fail('상품을 하나 이상 골라주세요.');
                 if (arVal('hr-status') === '완료' && !arVal('hr-date')) return fail('완료면 개통일을 넣어주세요.', 'hr-date');
             }
+            // 예전 '복사+저장'처럼: 저장 전에 보고서 문구부터 복사 (누른 순간이어야 폰이 복사를 허락해요)
+            const copied = await copyTextSafe(arReportText());
             const cur = customerDB.find(x => x.id === digits) || trashDB.find(x => x.id === digits) || (arCust && arCust.id === digits ? arCust : null);
             if (arCust && arCust.id !== digits && !(await customConfirm('번호가 처음과 달라요. 이 번호로 따로 저장할까요?'))) return;
             const r = arCalc();
@@ -10863,14 +10930,27 @@ familyStr + `\n` +
                     name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), activationDate: d,
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-store'), repManager: arVal('ar-manager'),
                     plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: arVal('ar-addon'), insurance: arVal('ar-ins'),
-                    combination: arVal('ar-comb'), welfare: arVal('ar-welfare'), discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
+                    discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
                     discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
                     salesStatus: '판매성공', salesStatusAt: d,
-                    missingDocs: document.getElementById('ar-missing').checked ? (arVal('ar-missing-text') || '있음') : ''
+                    missingDocs: document.getElementById('ar-missing').checked ? (arVal('ar-missing-text') || '있음') : '',
+                    // 예전 개통보고 칸 (고객카드 가족 칸 · 개통 점검 · 엑셀 내보내기가 이 칸을 씀)
+                    repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('ar-address'), repFamily: arVal('ar-family'),
+                    repUsedPhone: arVal('ar-usedphone'), repBranch: arVal('ar-branch'), repSubsidy: arVal('ar-subsidy'), repTargetPlan: arVal('ar-target'),
+                    repInternetTv: arVal('ar-inttv'), repCombination: arVal('ar-comb'),
+                    repType: arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : ''),
+                    repUsim: [arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / '), repUsimPay: arVal('ar-usimfee'),
+                    repInstallment: arVal('ar-inst'), repDiscount: r.sup === '공시' ? '공시' : `선약 ${arVal('ar-term')}`
                 });
+                // 인터넷+TV · 결합: 미리 채운 그대로면 기존 정보 유지, 바꿨으면 새로
+                const itv = arVal('ar-inttv');
+                if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', wiredDate: d });
+                const cmb = arVal('ar-comb');
+                if (cmb && cmb !== arPrefill.combo) Object.assign(upd, { combination: cmb, welfare: '' });
                 if (model) Object.assign(upd, {
                     device: [model, arVal('ar-color')].filter(Boolean).join(' '), deviceSerial: arVal('ar-serial'),
+                    repDevice: [[model, arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / '), repPrincipal: r.loan ? arWon(r.loan) : '0',
                     devicePrice: r.price, publicSupport: r.sup === '공시' ? arNum('ar-pub') : 0, switchSupport: arNum('ar-switch'), distSupport: arNum('ar-dist'),
                     prepay: arNum('ar-prepay'), cashPay: arNum('ar-cash'), cardPay: arNum('ar-cardpay'), unpaid: arNum('ar-unpaid'),
                     loanPrincipal: r.loan,
@@ -10882,6 +10962,8 @@ familyStr + `\n` +
                 const names = (k) => upd.policyItems.filter(it => it.kind === k && it.name).map(it => it.name).join(', ');
                 if (!upd.addons && names('부가')) upd.addons = names('부가');
                 if (!upd.insurance && names('보험')) upd.insurance = names('보험');
+                upd.repAddons = [upd.addons].filter(Boolean).join(', '); upd.repInsurance = upd.insurance || '';
+                if (arVal('ar-target')) Object.keys(upd).filter(k => k === 'promPlanMemo').forEach(k => { upd[k] += ` → ${arVal('ar-target')}`; });
                 if (!upd.discountCard && names('제휴카드')) upd.discountCard = names('제휴카드');
                 note = `[개통등록 ${d.slice(5).replace('-', '/')}] ${[arVal('ar-type'), arVal('ar-carrier'), model || arVal('ar-usim'), arVal('ar-plan')].filter(Boolean).join(' · ')}${arVal('ar-memo') ? ' / ' + arVal('ar-memo') : ''}`;
             } else {
@@ -10894,12 +10976,23 @@ familyStr + `\n` +
                     tvProd: items.includes('TV') ? (arVal('hr-tv') || 'TV') : (cur ? cur.tvProd || '' : ''),
                     ...(arNum('hr-fee') ? { wiredFee: `${arWon(arNum('hr-fee'))}원` } : {}),
                     ...(done ? { wiredDate: arVal('hr-date'), salesStatus: '판매성공', salesStatusAt: arVal('hr-date') } : {}),
-                    wiredRepManager: arVal('hr-manager')
+                    wiredRepManager: arVal('hr-manager'),
+                    repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('hr-addr'), repBranch: arVal('hr-store'), repCombination: arVal('hr-comb')
                 });
+                if (arVal('hr-extratv') && upd.tvProd) upd.tvProd += ` (추가 ${arVal('hr-extratv')})`;
+                const hcmb = arVal('hr-comb');
+                if (hcmb && hcmb !== arPrefill.combo) Object.assign(upd, { combination: hcmb, welfare: '' });
                 if (canSeeSettle()) upd.wiredSettle = { 정책금액: arNum('hr-base'), 추가정책: arNum('hr-add'), 유통지원: arNum('hr-dist'), 할인금액: arNum('hr-disc'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real };
                 note = `[홈상품 ${arVal('hr-status')} ${(arVal('hr-date') || arVal('hr-apply')).slice(5).replace('-', '/')}] ${arVal('hr-kind')} · ${items.join('+')} · ${arVal('hr-store')}${arVal('hr-memo') ? ' / ' + arVal('hr-memo') : ''}`;
             }
+            const dob = juminToDob(arVal('ar-jumin'));
+            if (dob) upd.dob = dob;
+            const minorOn = document.getElementById('ar-minor') && document.getElementById('ar-minor').checked;
+            if (minorOn) Object.assign(upd, { legalName: arVal('ar-legal-name'), legalPhone: arVal('ar-legal-phone'), legalDob: arVal('ar-legal-dob') });
+            upd.repManager = isM ? arVal('ar-manager') : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
+                // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare') delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (cur.deletedAt) upd.deletedAt = '';
                 if (cur.name && cur.name !== upd.name && !(await customConfirm(`기존 이름 '${cur.name}'을(를) '${upd.name}'(으)로 바꿀까요?`))) upd.name = cur.name;
@@ -10919,7 +11012,9 @@ familyStr + `\n` +
                     const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
                     hideUploadToast();
                     customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n서류 ${ur.ok}개 업로드${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}`);
-                } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.`);
+                } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
+                // 상세카드에서 열었으면 상세카드도 새 내용으로
+                if (typeof currentDetailId !== 'undefined' && currentDetailId === digits && document.getElementById('detailModal').style.display === 'flex') { try { openDetailModal(digits); } catch (e) { /* 무시 */ } }
             } catch (e) { fail(koreanError(e, '저장')); }
             btn.disabled = false;
         };
@@ -11186,6 +11281,20 @@ familyStr + `\n` +
             catch (e) { customAlert(koreanError(e, '저장')); }
         }
 
+    
+        // 🔁 예전 개통보고 입구 → 개통등록으로 (예전 화면은 열리지 않게 · 문서 맨 앞에서 가로챔)
+        const AR_REDIRECT = { openReportBtn: 'mobile', openWiredReportBtn: 'home', newReportBtn: 'mobile' };
+        Object.entries(AR_REDIRECT).forEach(([id, mode]) => {
+            const b = document.getElementById(id);
+            if (b) b.innerHTML = mode === 'home' ? '<i class="fa-solid fa-network-wired"></i> 홈상품 등록' : '<i class="fa-solid fa-file-signature"></i> 개통등록';
+        });
+        document.addEventListener('click', (e) => {
+            const b = e.target.closest && e.target.closest('#openReportBtn, #openWiredReportBtn, #newReportBtn');
+            if (!b) return;
+            e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+            const c = b.id === 'newReportBtn' ? null : (customerDB.find(x => x.id === currentDetailId) || trashDB.find(x => x.id === currentDetailId) || null);
+            openActReg(c, AR_REDIRECT[b.id]);
+        }, true);
     </script>
 </body>
 </html>
