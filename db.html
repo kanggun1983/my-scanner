@@ -597,6 +597,13 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setDiagTitle">
+                <h3 id="setDiagTitle" class="text-[13px] font-bold text-gray-600 pl-1">연결 점검</h3>
+                <button type="button" id="diagBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">🩺 연결된 기능 한 번에 점검</span><span class="text-[13px] text-gray-600">Firebase · 알림 서버 · 푸시 · 자동 문자 · 서류 백업 · AI</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
+            </section>
             <section class="space-y-2" aria-labelledby="setAccountTitle">
                 <h3 id="setAccountTitle" class="text-[13px] font-bold text-gray-600 pl-1">계정</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -816,7 +823,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V122</span>
+                    <span class="text-sm text-gray-600">V123</span>
                 </div>
             </section>
         </div>
@@ -9332,6 +9339,7 @@ familyStr + `\n` +
             document.getElementById('calcSheetBody').classList.toggle('hidden', manage);
             if (calcSheetMode === 'requests') renderCalcRequests();
             else if (calcSheetMode === 'cal') renderPromCalendar();
+            else if (calcSheetMode === 'diag') renderDiag();
             else if (calcSheetMode === 'poncle') renderPoncleImport();
             else if (calcSheetMode === 'range') renderRangeSheet();
             else if (calcSheetMode === 'promAdd') renderPromAdd();
@@ -11132,7 +11140,7 @@ familyStr + `\n` +
            · 기록(doc_files): 직원은 본인이 올린 것만, 총관리자는 전체가 보여요 (Firebase 규칙으로 막음)
            ===================================================================== */
         const DRIVE_ROOT = '강CRM 서류';
-        let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0;
+        let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0, docFilesError = null;
         function driveMode() { return appSettings.driveMode || 'off'; }
         function driveTokenValid() { return !!gisToken && Date.now() < gisTokenExp - 60000; }
         function myEmail() { return (auth && auth.currentUser && auth.currentUser.email) || ''; }
@@ -11146,7 +11154,7 @@ familyStr + `\n` +
                 list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
                 docFiles = list;
                 if (currentProfileId) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
-            }, err => console.error('서류 기록 불러오기 실패:', err));
+            }, err => { docFilesError = err; console.error('서류 기록 불러오기 실패:', err); });
         }
 
         // 사진은 크기를 줄여서 (2000px · JPEG) — PDF 등은 그대로
@@ -11464,6 +11472,88 @@ familyStr + `\n` +
                 catch (e) { customAlert(koreanError(e, '저장')); }
             }
         });
+
+    
+        /* =====================================================================
+           🩺 연결 점검 — 이 폰에서 실제로 하나씩 연결해 보고 ✅ / ⚠️ / ❌ 로 알려줌 (아무것도 보내지 않음)
+           ===================================================================== */
+        let diagRows = [], diagRunning = false;
+        async function diagFetchJson(url, opt = {}, ms = 9000) {
+            const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+            try { const r = await fetch(url, { ...opt, signal: ctl.signal }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, data: d }; }
+            finally { clearTimeout(t); }
+        }
+        async function runDiag() {
+            diagRunning = true; diagRows = []; renderDiag();
+            const add = (group, label, state, hint = '') => { diagRows.push({ group, label, state, hint }); renderDiag(); };
+            const d = calcData || calcNormalize(null);
+            // 1. Firebase
+            add('Firebase', '고객 데이터', dbLoadError ? 'bad' : (dbLoaded ? 'ok' : 'warn'), dbLoadError ? koreanError(dbLoadError, '불러오기') : `고객 ${customerDB.length}명 · 휴지통 ${trashDB.length}명`);
+            add('Firebase', '서류 기록 규칙 (doc_files)', docFilesError ? 'bad' : 'ok', docFilesError ? 'Firebase 규칙을 최신 firestore-rules.txt로 바꿔 게시해 주세요.' : (isSuperAdmin ? '총관리자 · 전체 보기' : '직원 · 본인 것만 보기'));
+            add('Firebase', '명함 지원금 (card_public)', calcLoadError ? 'bad' : 'ok', calcLoadError ? '규칙에 card_public 칸이 있는지 확인해 주세요.' : CALC_CARRIERS.map(k => { const C = d.carriers[k] || {}; return `${k} ${C.models && C.models.length ? (C.date || '등록') : '준비 중'}`; }).join(' · '));
+            add('Firebase', '명함 상담요청 (card_requests)', calcReqError ? 'bad' : 'ok', calcReqError ? '규칙에 card_requests 칸이 있는지 확인해 주세요.' : `새 요청 ${calcRequests.filter(r => r.done !== 'Y').length}건`);
+            // 2. 알림 서버
+            const aUrl = d.alert && d.alert.url;
+            if (!aUrl) add('알림 서버', '상담 알림 서버 주소', 'bad', '설정 → 명함 폰값계산 → 상담 알림 서버에 주소를 넣어주세요.');
+            else {
+                try {
+                    const r = await diagFetchJson(aUrl);
+                    const v = r.data.version || 1;
+                    add('알림 서버', '서버 연결', r.ok && r.data.ok ? 'ok' : 'bad', r.ok ? `kangcrm-alert v${v}` : `응답 ${r.status}`);
+                    add('알림 서버', 'OneSignal 키', r.data.ready ? 'ok' : 'bad', r.data.ready ? '' : 'Cloudflare에 ONESIGNAL_APP_ID · ONESIGNAL_REST_KEY를 넣어주세요.');
+                    add('알림 서버', '아침 약속 알림 (v2 · FIREBASE_SA)', v < 2 ? 'bad' : (r.data.promReady ? 'ok' : 'bad'), v < 2 ? '알림 서버 코드를 v2로 바꿔 배포해 주세요.' : (r.data.promReady ? 'Cron 트리거(30 0 * * *)도 넣었는지 Cloudflare에서 확인해 주세요.' : 'Cloudflare에 FIREBASE_SA(서비스 계정 JSON)를 넣어주세요.'));
+                } catch (e) { add('알림 서버', '서버 연결', 'bad', '주소에 연결하지 못했어요. 주소를 확인해 주세요.'); }
+            }
+            add('알림 서버', '약속 알림 켜짐 (설정)', appSettings.promPushOn === true ? 'ok' : 'warn', appSettings.promPushOn === true ? '' : '설정 → 📅 약속 알림을 켜야 아침마다 와요.');
+            // 3. 이 폰
+            const perm = 'Notification' in window ? Notification.permission : 'none';
+            add('이 폰', '상담·약속 알림 받기', staffAlertState() === 'on' ? 'ok' : 'warn', staffAlertState() === 'on' ? '이 폰으로 알림이 와요' : (perm === 'denied' ? '크롬 알림이 차단돼 있어요. 주소창 왼쪽 → 권한 → 알림 허용' : '명함 상담요청 창 → [이 폰으로 알림 받기]를 눌러주세요.'));
+            add('이 폰', '직원 이름', getStaffName() ? 'ok' : 'warn', getStaffName() ? `${getStaffName()} (담당자별 알림·실적 기준)` : '설정 → 내 정보 → 직원 이름을 넣어주세요.');
+            add('이 폰', 'AI 키', geminiApiKey ? 'ok' : 'warn', geminiApiKey ? 'AI 스캔·AI 문자 가능' : '설정 → AI 키를 넣어야 스캔·AI 문자를 쓸 수 있어요.');
+            // 4. 푸시 중계 · 자동 문자
+            if (!pushRelayReady()) add('푸시·문자', '푸시 중계 서버', 'warn', '설정 → 명함 푸시 알림 → 바로 보내기 연결 (이 폰 비밀번호 포함)');
+            else {
+                try { const t = await callPushRelay({ test: true }); add('푸시·문자', '푸시 중계 서버', 'ok', `v${t.version || '?'}${t.photo === false ? ' · 사진 저장소 미연결' : ''}`); }
+                catch (e) { add('푸시·문자', '푸시 중계 서버', 'bad', e.message); }
+                if (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || autoSmsOn()) {
+                    try { const st = await callSms('status'); add('푸시·문자', '매장 폰 자동 문자', st.ready ? 'ok' : 'bad', st.ready ? (st.e2e && !st.e2eWeak ? '🔐 암호화 켜짐' : '암호화 꺼짐 (켜는 걸 추천)') : (!st.gateway ? 'SMSGATE_USER·SMSGATE_PASS를 넣어주세요.' : '저장소(IMAGES) 연결 확인')); }
+                    catch (e) { add('푸시·문자', '매장 폰 자동 문자', 'bad', e.message); }
+                }
+            }
+            // 5. 서류 백업
+            const mode = driveMode();
+            if (mode === 'off') add('서류 백업', '방식', 'warn', '꺼져 있어요 (쓰려면 설정 → 서류 클라우드 백업)');
+            else if (mode === 'admin') {
+                const u = String(appSettings.driveScriptUrl || '').trim();
+                if (!u) add('서류 백업', '관리자 드라이브 창구', 'bad', '업로드 주소를 넣어주세요.');
+                else { try { const r = await diagFetchJson(u, {}, 12000); add('서류 백업', '관리자 드라이브 창구', r.data.ready ? 'ok' : 'bad', r.data.ready ? '대표님 드라이브로 모아요' : 'SECRET이 설정되지 않았어요 (앱스 스크립트 속성)'); }
+                      catch (e) { add('서류 백업', '관리자 드라이브 창구', 'bad', '연결 실패 · 배포 액세스가 \'모든 사용자\'인지 확인'); } }
+                add('서류 백업', '업로드 비밀번호', appSettings.driveSecret ? 'ok' : 'bad', appSettings.driveSecret ? '' : '설정에 SECRET과 같은 비밀번호를 넣어주세요.');
+            } else {
+                add('서류 백업', '구글 클라이언트 ID', appSettings.driveClientId ? 'ok' : 'bad', appSettings.driveClientId ? '' : '클라이언트 ID를 넣어주세요.');
+                add('서류 백업', '이 폰 드라이브 연결', localStorage.getItem('kcrmDriveOk') ? 'ok' : 'warn', localStorage.getItem('kcrmDriveOk') ? '' : '[이 폰을 구글 드라이브에 연결하기]를 한 번 눌러주세요.');
+            }
+            // 6. 명함
+            try { const r = await fetch(DEFAULT_CARD_URL, { method: 'HEAD', cache: 'no-store' }); add('명함', '디지털 명함 페이지', r.ok ? 'ok' : 'bad', r.ok ? DEFAULT_CARD_URL : `응답 ${r.status}`); }
+            catch (e) { add('명함', '디지털 명함 페이지', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
+            add('명함', '유통망지원금 표시', 'ok', d.showDist === false ? '숨김' : '보임');
+            diagRunning = false; renderDiag();
+        }
+        function renderDiag() {
+            document.getElementById('calcSheetTitle').textContent = '연결 점검';
+            const bad = diagRows.filter(r => r.state === 'bad').length, warn = diagRows.filter(r => r.state === 'warn').length;
+            document.getElementById('calcSheetSub').textContent = diagRunning ? '하나씩 확인하는 중…' : (diagRows.length ? (bad ? `❌ 고칠 것 ${bad}개${warn ? ` · ⚠️ 확인 ${warn}개` : ''}` : (warn ? `✅ 큰 문제 없음 · ⚠️ 확인 ${warn}개` : '✅ 모두 정상이에요')) : '');
+            const icon = { ok: '✅', warn: '⚠️', bad: '❌' };
+            const groups = [...new Set(diagRows.map(r => r.group))];
+            document.getElementById('calcSheetBody').innerHTML = groups.map(g => `<div class="rounded-2xl border border-gray-200 overflow-hidden">
+                    <p class="px-3 py-1.5 bg-gray-50 text-xs font-bold text-gray-600">${escapeHtml(g)}</p>
+                    ${diagRows.filter(r => r.group === g).map(r => `<div class="px-3 py-2 border-t border-gray-100 flex items-start gap-2"><span class="flex-shrink-0">${icon[r.state]}</span><span class="min-w-0"><span class="block text-[14px] font-bold ${r.state === 'bad' ? 'text-red-800' : 'text-gray-900'}">${escapeHtml(r.label)}</span>${r.hint ? `<span class="block text-xs text-gray-600 leading-snug">${escapeHtml(r.hint)}</span>` : ''}</span></div>`).join('')}
+                </div>`).join('') + (diagRunning ? '<p class="text-sm text-gray-500 text-center py-3"><i class="fa-solid fa-spinner fa-spin"></i> 확인 중…</p>'
+                : `<button type="button" id="diagAgain" class="w-full h-12 rounded-xl border border-indigo-300 bg-white text-[15px] font-bold text-indigo-700"><i class="fa-solid fa-rotate"></i> 다시 점검</button>
+                   <p class="text-xs text-gray-500 leading-relaxed">이 폰 기준으로 점검해요. 직원 폰은 각자 한 번씩 눌러보세요. 점검은 아무것도 보내지 않아요.</p>`);
+            const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
+        }
+        document.getElementById('diagBtn').addEventListener('click', () => { openCalcSheet('diag'); runDiag(); });
 
     </script>
 </body>
