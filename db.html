@@ -718,7 +718,15 @@
                         <div id="calcCarrierList" class="space-y-2"></div>
                         <input type="file" id="poncleFile" accept=".xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden">
                         <input type="file" id="calcExcelFile" accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" class="hidden">
+                        <input type="file" id="calcPhotoFile" accept="image/*" class="hidden">
                         <p id="calcStatus" role="status" class="hidden"></p>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <p class="text-[14px] font-bold text-gray-900">알뜰유심 요금제</p>
+                        <p class="text-xs text-gray-600 leading-relaxed -mt-1">알뜰폰 정책표 사진을 올리면 AI가 요금제·청구액만 읽어서 명함 [알뜰유심 가입]에 추천으로 보여줘요. 수수료·정책 숫자는 읽지도 저장하지도 않아요.</p>
+                        <div id="mvnoList" class="space-y-2"></div>
+                        <button type="button" id="mvnoPhotoBtn" class="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-camera"></i>정책표 사진으로 올리기</button>
+                        <input type="file" id="mvnoPhotoFile" accept="image/*" class="hidden">
                     </div>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
                         <p class="text-[14px] font-bold text-gray-900">요금제 낮출 때 위약금 기준</p>
@@ -823,7 +831,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V123</span>
+                    <span class="text-sm text-gray-600">V124</span>
                 </div>
             </section>
         </div>
@@ -3168,7 +3176,7 @@
                     note = document.createElement('p');
                     note.className = 'admin-lock-note text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2';
                     note.textContent = '🔒 매장 공용 설정이라 총관리자만 바꿀 수 있어요. (보기는 가능)';
-                    const h = sec.querySelector('h3'); if (h) h.insertAdjacentElement('afterend', note);
+                    const body = sec.querySelector('.kc-acc-body'); if (body) body.insertBefore(note, body.firstChild); else { const h = sec.querySelector('h3'); if (h) h.insertAdjacentElement('afterend', note); }
                 }
                 if (isSuperAdmin && note) note.remove();
             });
@@ -9340,6 +9348,7 @@ familyStr + `\n` +
             if (calcSheetMode === 'requests') renderCalcRequests();
             else if (calcSheetMode === 'cal') renderPromCalendar();
             else if (calcSheetMode === 'diag') renderDiag();
+            else if (calcSheetMode === 'mvno') renderMvnoDraft();
             else if (calcSheetMode === 'poncle') renderPoncleImport();
             else if (calcSheetMode === 'range') renderRangeSheet();
             else if (calcSheetMode === 'promAdd') renderPromAdd();
@@ -9661,8 +9670,9 @@ familyStr + `\n` +
                         </div>
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${live ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}">${live ? '명함에 보임' : (has ? '숨김' : '준비 중')}</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button type="button" data-calc-up="${k}" ${locked ? 'disabled' : ''} class="h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-file-arrow-up"></i>엑셀 올리기</button>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" data-calc-up="${k}" ${locked ? 'disabled' : ''} class="h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-file-arrow-up"></i>엑셀</button>
+                        <button type="button" data-calc-photo="${k}" ${locked ? 'disabled' : ''} class="h-11 rounded-xl bg-indigo-50 border border-indigo-300 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-camera"></i>사진</button>
                         <button type="button" data-calc-plans="${k}" ${has && !locked ? '' : 'disabled'} class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40">요금제 고르기</button>
                     </div>
                     ${has ? `<button type="button" data-calc-hide="${k}" ${locked ? 'disabled' : ''} class="text-xs font-bold text-gray-600 underline underline-offset-2 disabled:opacity-40">${live ? '명함에서 잠깐 숨기기' : '명함에 다시 보이기'}</button>` : ''}
@@ -9670,6 +9680,11 @@ familyStr + `\n` +
             }).join('') + (calcLoadError ? `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">저장된 지원금을 못 불러왔어요. Firebase 보안 규칙에 card_public 칸이 들어갔는지 확인해주세요.</p>` : '');
 
             box.querySelectorAll('[data-calc-up]').forEach(b => b.onclick = () => { calcUploadCarrier = b.dataset.calcUp; const f = document.getElementById('calcExcelFile'); f.value = ''; f.click(); });
+            box.querySelectorAll('[data-calc-photo]').forEach(b => b.onclick = () => {
+                if (!geminiApiKey) return customAlert('사진 읽기는 AI 키가 필요해요. 설정 → AI 키를 먼저 넣어주세요.');
+                calcUploadCarrier = b.dataset.calcPhoto; const f = document.getElementById('calcPhotoFile'); f.value = ''; f.click();
+            });
+            renderMvnoList();
             box.querySelectorAll('[data-calc-plans]').forEach(b => b.onclick = () => {
                 const k = b.dataset.calcPlans, C = d.carriers[k];
                 calcDraft = { carrier: k, isNew: false, date: C.date || '', plans: calcClone(C.plans || []), show: new Set(C.show || []), models: C.models, file: C.file || '' };
@@ -9905,6 +9920,10 @@ familyStr + `\n` +
             const body = document.getElementById('calcSheetBody');
             body.innerHTML = `
                 ${D.isNew ? `<p class="text-xs text-gray-600 bg-gray-50 rounded-xl px-3 py-2 leading-relaxed">${escapeHtml(D.file)}<br>예) ${escapeHtml(sample)}</p>` : ''}
+                ${D.photo ? `<div class="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-1.5"><p class="text-[13px] font-bold text-amber-900">📷 사진에서 AI가 읽은 값이에요. 원본 사진과 몇 개만 맞춰보세요.</p>
+                    <div class="overflow-x-auto"><table class="w-full text-[12px] text-gray-800"><thead><tr class="text-gray-600"><th class="text-left font-bold pr-2">기종</th><th class="text-right font-bold px-1">출고가</th><th class="text-right font-bold px-1">신규</th><th class="text-right font-bold px-1">기변</th><th class="text-right font-bold pl-1">번이</th></tr></thead><tbody>
+                    ${D.models.slice(0, 6).map(m => { const j = Math.max(0, D.plans.findIndex(p => D.show.has(p.name))); return `<tr class="border-t border-amber-200"><td class="pr-2 py-1 truncate max-w-[120px]">${escapeHtml(m.name)}</td><td class="text-right px-1">${arWon(m.price)}</td><td class="text-right px-1">${arWon((m.sup.new || [])[j])}</td><td class="text-right px-1">${arWon((m.sup.chg || [])[j])}</td><td class="text-right pl-1">${arWon((m.sup.mnp || [])[j])}</td></tr>`; }).join('')}
+                    </tbody></table></div><p class="text-[11px] text-amber-800">지원금은 '${escapeHtml((D.plans.find(p => D.show.has(p.name)) || D.plans[0] || {}).name || '')}' 기준이에요. 틀린 게 많으면 창을 닫고(저장 안 됨) 더 선명한 사진이나 엑셀로 올려주세요.</p></div>` : ''}
                 <label class="text-xs font-bold text-gray-600">지원금 기준일 <span class="font-normal text-gray-500">(명함에 "○월 ○일 기준"으로 나와요)</span>
                     <input type="text" id="calcDraftDate" value="${escapeHtml(D.date)}" placeholder="예) 9월 22일" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900"></label>
                 <div class="flex items-center justify-between">
@@ -11554,6 +11573,202 @@ familyStr + `\n` +
             const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
         }
         document.getElementById('diagBtn').addEventListener('click', () => { openCalcSheet('diag'); runDiag(); });
+
+    
+        /* =====================================================================
+           📷 사진으로 지원금표 · 알뜰유심 정책표 읽기 (AI) — 엑셀이 없을 때
+           · 고객용 정보만 읽어요 (수수료·정책·환수 조건은 읽지도 저장하지도 않음)
+           ===================================================================== */
+        function photoToB64(file, max = 2600) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onerror = () => reject(new Error('사진을 읽지 못했어요.'));
+                r.onload = e => {
+                    const img = new Image();
+                    img.onerror = () => reject(new Error('이 사진은 열 수 없어요. (HEIC면 스크린샷으로 올려주세요)'));
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        if (Math.max(w, h) > max) { const k = max / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+                        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+                        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+                        resolve(cv.toDataURL('image/jpeg', 0.92).split(',')[1]);
+                    };
+                    img.src = e.target.result;
+                };
+                r.readAsDataURL(file);
+            });
+        }
+        const toWon = (v) => { const n = Math.round(Number(String(v ?? '').replace(/[^\d.]/g, '')) || 0); return n; };
+        function setCalcStatus(t, tone) { const s = document.getElementById('calcStatus'); if (!t) { s.className = 'hidden'; return; } s.className = `text-[13px] font-medium ${tone === 'red' ? 'text-red-700' : 'text-indigo-700'}`; s.textContent = t; }
+
+        document.getElementById('calcPhotoFile').addEventListener('change', async e => {
+            const file = e.target.files && e.target.files[0];
+            const k = calcUploadCarrier;
+            if (!file || !k) return;
+            setCalcStatus(`${k} 지원금표 사진을 AI가 읽는 중… (30초쯤 걸려요)`);
+            try {
+                const data = await photoToB64(file);
+                const prompt = `한국 이동통신 ${k} 공통지원금(공시지원금) 표 사진이야. 표를 읽어서 JSON으로 줘.
+- date: 지원금 기준일 ("9월 22일" 모양, 없으면 "")
+- plans: 표 위쪽 요금제 칸을 왼쪽부터 순서대로 [{name, fee}] (fee=월정액 원 단위 정수, 표에 없으면 0)
+- models: 기종 줄마다 {name(기종 이름), code(모델 코드, 없으면 ""), gen("5G" 또는 "LTE"), price(출고가 원), new, chg, mnp}
+  new·chg·mnp = 신규·기기변경·번호이동 지원금을 plans 순서대로 원 단위 정수 배열. 구분이 하나뿐이면 셋 다 같은 배열.
+- 금액이 "만원"이면 ×10000 해서 원으로. 빈칸은 0.
+- 판매가·대리점 정책·수수료·리베이트 숫자는 절대 넣지 말 것. 표에 있는 기종을 빠짐없이.`;
+                const S = { type: 'OBJECT', properties: { date: { type: 'STRING' }, plans: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, fee: { type: 'NUMBER' } }, required: ['name'] } },
+                    models: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, code: { type: 'STRING' }, gen: { type: 'STRING' }, price: { type: 'NUMBER' }, new: { type: 'ARRAY', items: { type: 'NUMBER' } }, chg: { type: 'ARRAY', items: { type: 'NUMBER' } }, mnp: { type: 'ARRAY', items: { type: 'NUMBER' } } }, required: ['name', 'price'] } } }, required: ['plans', 'models'] };
+                const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data } }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: S } },
+                    { timeoutMs: 120000, onRetry: (l) => setCalcStatus(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
+                const j = JSON.parse(text);
+                const plans = (j.plans || []).map(p => ({ name: pcStr(p.name), fee: Math.round(toWon(p.fee) / 100) * 100 })).filter(p => p.name);
+                const n = plans.length;
+                const fix = (a) => Array.from({ length: n }, (_, i) => toWon((a || [])[i]));
+                const models = (j.models || []).map(m => {
+                    const sup = { new: fix(m.new), chg: fix(m.chg), mnp: fix(m.mnp) };
+                    const any = [sup.new, sup.chg, sup.mnp].find(a => a.some(Boolean)) || sup.new;
+                    ['new', 'chg', 'mnp'].forEach(t => { if (!sup[t].some(Boolean)) sup[t] = any; });
+                    return { name: pcStr(m.name), code: pcStr(m.code), gen: /LTE/i.test(m.gen) ? 'LTE' : '5G', price: toWon(m.price), sup };
+                }).filter(m => m.name && m.price > 0);
+                setCalcStatus('');
+                if (n < 1 || models.length < 1) return customAlert('사진에서 표를 읽지 못했어요.\n표 전체가 잘 보이게, 흔들리지 않게 다시 찍어주세요. (엑셀이 있으면 엑셀이 더 정확해요)');
+                const prev = (calcData && calcData.carriers[k]) || {};
+                const prevShow = new Set(prev.show || []), prevFee = new Map((prev.plans || []).map(p => [p.name, p.fee]));
+                plans.forEach(p => { if (!p.fee && prevFee.get(p.name)) p.fee = prevFee.get(p.name); });
+                const show = new Set(plans.filter(p => prevShow.size ? prevShow.has(p.name) : (!/키즈|주니어/.test(p.name) && p.fee >= 55000)).map(p => p.name));
+                calcDraft = { carrier: k, isNew: true, photo: true, date: pcStr(j.date) || '', plans, show, models, file: `📷 ${file.name}` };
+                openCalcSheet('plans');
+            } catch (err) { console.error(err); setCalcStatus(''); customAlert(`사진을 읽지 못했어요.\n${err.reason || err.message || ''}`); }
+        });
+
+        // 알뜰유심 정책표
+        let mvnoDraft = null;
+        const MVNO_NETS = [['SK', 'SK망'], ['KT', 'KT망'], ['LG', 'LG망']];
+        function renderMvnoList() {
+            const box = document.getElementById('mvnoList');
+            if (!box) return;
+            const d = calcData || calcNormalize(null);
+            const list = Array.isArray(d.mvno) ? d.mvno : [];
+            box.innerHTML = list.length ? list.map((m, i) => `<div class="rounded-xl border border-gray-200 p-3 flex items-center gap-2">
+                    <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold text-gray-900 truncate">${escapeHtml(m.brand || '알뜰폰')} <span class="text-xs font-bold text-indigo-700">${escapeHtml((MVNO_NETS.find(x => x[0] === m.net) || ['', ''])[1])}</span></span>
+                    <span class="block text-xs text-gray-600">${m.date ? escapeHtml(m.date) + ' 기준 · ' : ''}요금제 ${(m.plans || []).length}개${m.by ? ' · ' + escapeHtml(m.by) : ''}</span></span>
+                    <button type="button" data-mvno-del="${i}" ${isSuperAdmin ? '' : 'disabled'} class="h-10 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-700 disabled:opacity-40">삭제</button>
+                </div>`).join('') : '<p class="text-xs text-gray-500">아직 없어요. 명함에선 상담 요청만 받아요.</p>';
+            document.getElementById('mvnoPhotoBtn').disabled = !isSuperAdmin;
+            box.querySelectorAll('[data-mvno-del]').forEach(b => b.onclick = async () => {
+                const m = list[+b.dataset.mvnoDel];
+                if (!(await customConfirm(`${m.brand || '알뜰폰'} 요금제를 명함에서 뺄까요?`))) return;
+                const next = calcNormalize(calcData); next.mvno = list.filter((_, i) => i !== +b.dataset.mvnoDel);
+                if (await calcSave(next)) renderMvnoList();
+            });
+        }
+        document.getElementById('mvnoPhotoBtn').addEventListener('click', () => {
+            if (!geminiApiKey) return customAlert('사진 읽기는 AI 키가 필요해요. 설정 → AI 키를 먼저 넣어주세요.');
+            const f = document.getElementById('mvnoPhotoFile'); f.value = ''; f.click();
+        });
+        document.getElementById('mvnoPhotoFile').addEventListener('change', async e => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            setCalcStatus('알뜰유심 정책표를 AI가 읽는 중… (30초쯤 걸려요)');
+            try {
+                const data = await photoToB64(file);
+                const prompt = `한국 알뜰폰(MVNO) 요금제 정책표 사진이야. 고객에게 안내할 정보만 JSON으로 줘.
+- brand: 알뜰폰 회사 이름 (예: "KT M모바일")
+- net: 쓰는 통신망 "SK" / "KT" / "LG" 중 하나 (회사로 판단)
+- date: 정책 시작일 ("10월 1일" 모양, 없으면 "")
+- plans: 표의 요금제 줄을 빠짐없이 [{name, voice, sms, data, qos, base, price, bonus}]
+  voice=음성(예 "기본제공", "100분"), sms=문자, data=데이터(예 "7GB", "11GB+일2GB"), qos=소진 후 속도(없으면 ""),
+  base=기본료 원, price=할인 적용 후 실제 월 청구액 원(정수), bonus=결합 추가데이터(없으면 "")
+- 신규·MNP 수수료/정책 숫자, 차감·환수·유지 조건, 하단 안내문은 절대 넣지 말 것.`;
+                const S = { type: 'OBJECT', properties: { brand: { type: 'STRING' }, net: { type: 'STRING' }, date: { type: 'STRING' },
+                    plans: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, voice: { type: 'STRING' }, sms: { type: 'STRING' }, data: { type: 'STRING' }, qos: { type: 'STRING' }, base: { type: 'NUMBER' }, price: { type: 'NUMBER' }, bonus: { type: 'STRING' } }, required: ['name', 'price'] } } }, required: ['plans'] };
+                const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data } }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: S } },
+                    { timeoutMs: 120000, onRetry: (l) => setCalcStatus(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
+                const j = JSON.parse(text);
+                const plans = (j.plans || []).map(p => ({ name: pcStr(p.name), voice: pcStr(p.voice), sms: pcStr(p.sms), data: pcStr(p.data), qos: pcStr(p.qos).replace(/^-$/, ''), base: toWon(p.base), price: toWon(p.price), bonus: pcStr(p.bonus).replace(/^[xX-]$/, ''), on: true })).filter(p => p.name && p.price > 0);
+                setCalcStatus('');
+                if (!plans.length) return customAlert('사진에서 요금제를 읽지 못했어요. 표가 잘 보이게 다시 찍어주세요.');
+                const net = /^(SK|KT|LG)/.exec(String(j.net || '').toUpperCase());
+                mvnoDraft = { brand: pcStr(j.brand) || '알뜰폰', net: net ? net[1] : 'KT', date: pcStr(j.date), plans, file: file.name };
+                openCalcSheet('mvno');
+            } catch (err) { console.error(err); setCalcStatus(''); customAlert(`사진을 읽지 못했어요.\n${err.reason || err.message || ''}`); }
+        });
+        function renderMvnoDraft() {
+            const D = mvnoDraft;
+            if (!D) { openCalcSheet('manage'); return; }
+            document.getElementById('calcSheetTitle').textContent = '알뜰유심 요금제 확인';
+            document.getElementById('calcSheetSub').textContent = `${D.plans.length}개를 읽었어요 · 체크한 것만 명함에 나와요`;
+            const field = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            const on = D.plans.filter(p => p.on).length;
+            document.getElementById('calcSheetBody').innerHTML = `
+                <p class="text-[13px] font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2">📷 사진에서 AI가 읽은 값이에요. 청구액 몇 개를 원본과 맞춰보세요. 수수료 숫자는 읽지 않았어요.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-xs font-bold text-gray-600">회사<input id="mvBrand" value="${escapeHtml(D.brand)}" class="mt-1 ${field}"></label>
+                    <label class="text-xs font-bold text-gray-600">통신망<select id="mvNet" class="mt-1 ${field}">${MVNO_NETS.map(([v, l]) => `<option value="${v}" ${v === D.net ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+                    <label class="text-xs font-bold text-gray-600 col-span-2">기준일<input id="mvDate" value="${escapeHtml(D.date)}" placeholder="예) 10월 1일" class="mt-1 ${field}"></label>
+                </div>
+                <div class="flex items-center justify-between"><p class="text-sm font-bold text-gray-900">명함에 보일 요금제 <span class="text-indigo-700">${on}개</span></p>
+                    <button type="button" id="mvAll" class="h-9 px-3 rounded-lg border border-gray-300 text-xs font-bold text-gray-700">${on === D.plans.length ? '전체 해제' : '전체 선택'}</button></div>
+                <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100">
+                    ${D.plans.map((p, i) => `<div class="flex items-center gap-2 px-3 py-2">
+                        <input type="checkbox" data-mv-on="${i}" ${p.on ? 'checked' : ''} aria-label="${escapeHtml(p.name)} 보이기" class="w-5 h-5 accent-indigo-600 flex-shrink-0">
+                        <span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(p.name)}</span><span class="block text-[11px] text-gray-600 truncate">${escapeHtml([p.data, p.qos && `소진 후 ${p.qos}`, p.voice && `통화 ${p.voice}`].filter(Boolean).join(' · '))}</span></span>
+                        <input type="number" inputmode="numeric" data-mv-price="${i}" value="${p.price}" aria-label="${escapeHtml(p.name)} 월 청구액" class="w-24 h-10 px-2 border border-gray-300 rounded-lg text-[14px] text-right">
+                    </div>`).join('')}
+                </div>
+                <div class="grid grid-cols-2 gap-2 sticky bottom-0 bg-white pt-2">
+                    <button type="button" id="mvCancel" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">취소</button>
+                    <button type="button" id="mvSave" class="h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold"><i class="fa-solid fa-check"></i> 명함에 반영</button>
+                </div>`;
+            const keep = () => { D.brand = arVal('mvBrand') || D.brand; D.net = arVal('mvNet'); D.date = arVal('mvDate'); };
+            const body = document.getElementById('calcSheetBody');
+            body.querySelectorAll('[data-mv-on]').forEach(el => el.onchange = () => { keep(); D.plans[+el.dataset.mvOn].on = el.checked; renderMvnoDraft(); });
+            body.querySelectorAll('[data-mv-price]').forEach(el => el.oninput = () => { D.plans[+el.dataset.mvPrice].price = Math.max(0, Math.round(Number(el.value) || 0)); });
+            document.getElementById('mvAll').onclick = () => { keep(); const all = D.plans.every(p => p.on); D.plans.forEach(p => { p.on = !all; }); renderMvnoDraft(); };
+            document.getElementById('mvCancel').onclick = () => { mvnoDraft = null; openCalcSheet('manage'); };
+            document.getElementById('mvSave').onclick = async () => {
+                keep();
+                const plans = D.plans.filter(p => p.on && p.price > 0).map(({ on, ...p }) => p);
+                if (!plans.length) return customAlert('명함에 보일 요금제를 하나 이상 체크해주세요.');
+                const next = calcNormalize(calcData);
+                const list = (Array.isArray(next.mvno) ? next.mvno : []).filter(m => !(m.brand === D.brand && m.net === D.net));
+                next.mvno = [...list, { brand: D.brand, net: D.net, date: D.date, plans, by: getStaffName() || '', uploadedAt: getTodayStr() }];
+                if (await calcSave(next)) { mvnoDraft = null; openCalcSheet('manage'); customAlert(`${D.brand} 요금제 ${plans.length}개를 명함에 반영했어요.`); }
+            };
+        }
+
+        /* =====================================================================
+           🗂️ 설정 화면: 제목을 누르면 펼치고 접기 (펼친 칸은 이 폰에 기억)
+           ===================================================================== */
+        (() => {
+            const view = document.getElementById('settingsView');
+            let open = {};
+            try { open = JSON.parse(localStorage.getItem('setOpen') || '{}') || {}; } catch (e) { open = {}; }
+            view.querySelectorAll(':scope > section[aria-labelledby]').forEach(sec => {
+                const h = sec.querySelector(':scope > h3');
+                if (!h || sec.dataset.acc) return;
+                sec.dataset.acc = '1';
+                const id = sec.getAttribute('aria-labelledby');
+                const body = document.createElement('div');
+                body.className = 'kc-acc-body space-y-2';
+                [...sec.children].filter(el => el !== h).forEach(el => body.appendChild(el));
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'w-full min-h-[52px] bg-white border border-gray-200 rounded-2xl px-4 flex items-center justify-between gap-3 text-left';
+                btn.setAttribute('aria-controls', id + '_body');
+                body.id = id + '_body';
+                h.className = 'text-[15px] font-bold text-gray-900';
+                const chev = document.createElement('i');
+                chev.className = 'fa-solid fa-chevron-down text-gray-400 transition-transform flex-shrink-0';
+                chev.setAttribute('aria-hidden', 'true');
+                btn.appendChild(h); btn.appendChild(chev);
+                sec.appendChild(btn); sec.appendChild(body);
+                const set = (on) => { body.classList.toggle('hidden', !on); btn.setAttribute('aria-expanded', on); chev.style.transform = on ? 'rotate(180deg)' : ''; };
+                set(!!open[id]);
+                btn.addEventListener('click', () => { const on = body.classList.contains('hidden'); set(on); open[id] = on; try { localStorage.setItem('setOpen', JSON.stringify(open)); } catch (e) { /* 무시 */ } });
+            });
+            const t = view.querySelector(':scope > h2');
+            if (t) { const note = document.createElement('p'); note.className = 'text-xs text-gray-500 -mt-2 pl-1'; note.textContent = '제목을 누르면 펼쳐져요'; t.insertAdjacentElement('afterend', note); }
+        })();
 
     </script>
 </body>
