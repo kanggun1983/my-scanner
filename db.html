@@ -10799,7 +10799,16 @@ familyStr + `\n` +
             try { localStorage.setItem(key, id); } catch (e) {}
             return id;
         }
-        async function uploadViaGis(file, name, month, custFolder) {
+        async function uploadViaGis(file, name, month, custFolder, retried) {
+            try { return await uploadViaGisOnce(file, name, month, custFolder); }
+            catch (e) {
+                // 드라이브에서 폴더를 지웠으면 기억해둔 폴더 번호가 틀려짐 → 지우고 한 번 더
+                if (retried || !/404|not found|찾을 수/i.test(String(e.message))) throw e;
+                Object.keys(localStorage).filter(k => k.startsWith('kcrmDF:')).forEach(k => localStorage.removeItem(k));
+                return uploadViaGis(file, name, month, custFolder, true);
+            }
+        }
+        async function uploadViaGisOnce(file, name, month, custFolder) {
             await getDriveToken(false);
             const root = await driveFolder(DRIVE_ROOT, null);
             const mf = await driveFolder(month, root);
