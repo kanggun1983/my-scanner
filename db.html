@@ -402,8 +402,9 @@
                     <span id="totalCustomerCount" class="text-[15px] font-medium text-gray-600 truncate">0명</span>
                 </div>
                 <div class="flex items-center gap-0.5 flex-shrink-0">
-                    <button type="button" id="sortBtn" class="h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60 flex items-center gap-1"><span id="sortLabel">최근 방문순</span><i class="fa-solid fa-chevron-down text-[11px]"></i></button>
+                    <button type="button" id="sortBtn" aria-label="정렬" class="h-11 min-w-[44px] px-2.5 max-[389px]:px-0 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60 flex items-center justify-center gap-1"><i class="fa-solid fa-arrow-down-wide-short text-lg min-[390px]:hidden" aria-hidden="true"></i><span id="sortLabel" class="max-[389px]:hidden">최근 방문순</span><i class="fa-solid fa-chevron-down text-[11px] max-[389px]:hidden"></i></button>
                     <button type="button" id="selectModeBtn" class="lg:hidden h-11 px-2.5 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-200/60">선택</button>
+                    <button type="button" id="pcalOpenBtn" aria-label="폰값계산" class="w-11 h-11 rounded-xl text-gray-700 hover:bg-gray-200/60 flex items-center justify-center"><i class="fa-solid fa-calculator text-lg"></i></button>
                     <button type="button" id="calOpenBtn" aria-label="약속 달력 보기" class="w-11 h-11 rounded-xl text-gray-700 hover:bg-gray-200/60 flex items-center justify-center"><i class="fa-regular fa-calendar-days text-lg"></i></button>
                     <button type="button" id="addMenuBtn" aria-label="추가하기 (신규 개통보고, 고객 등록)" class="ml-1 w-11 h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center shadow-sm"><i class="fa-solid fa-plus text-lg"></i></button>
                 </div>
@@ -747,6 +748,7 @@
                         <input type="url" id="calcAlertUrl" inputmode="url" autocomplete="off" placeholder="https://kangcrm-alert.○○.workers.dev" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50">
                         <p class="text-xs text-gray-600 leading-relaxed">Cloudflare에 만든 상담 알림 서버 주소를 넣으면, 명함 상담요청이 들어올 때 '이 폰으로 알림 받기'를 켠 직원 폰에 푸시가 가요.</p>
                     </div>
+                    <button type="button" id="pcalTableBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-sm font-bold text-indigo-800 flex items-center justify-center gap-2"><i class="fa-solid fa-table-list"></i>기종·지원금표 보기</button>
                     <a href="https://kanggun1983.github.io/" target="_blank" rel="noopener" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800 flex items-center justify-center gap-2"><i class="fa-solid fa-arrow-up-right-from-square"></i>명함에서 확인하기</a>
                 </div>
             </section>
@@ -831,7 +833,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V124</span>
+                    <span class="text-sm text-gray-600">V125</span>
                 </div>
             </section>
         </div>
@@ -4805,6 +4807,7 @@
                     nameEl.focus();
                 } },
                 { icon: 'fa-solid fa-address-card', label: '명함 보내기 (번호 입력)', sub: '등록 안 된 사람에게도 디지털 명함을 문자로 보내요', onClick: () => openCardSendSheet() },
+                { icon: 'fa-solid fa-calculator', label: '폰값계산 (상담용)', sub: '명함과 같은 계산기 · 기종별 출고가·지원금표', onClick: () => setTimeout(() => openPhoneCalc('calc'), 0) },
                 { icon: 'fa-solid fa-file-import', label: '개통 엑셀 가져오기', sub: '전산에서 받은 모바일개통 엑셀을 올리면 고객카드가 자동으로 생겨요', onClick: () => setTimeout(openPoncleImport, 0) },
                 { icon: 'fa-regular fa-calendar-plus', label: '약속 추가', sub: '고객을 골라 요금제 변경·재연락 같은 약속을 넣어요', onClick: () => { promAdd = { cid: '', key: 'Call', date: getTodayStr(), memo: '', q: '' }; setTimeout(() => openCalcSheet('promAdd'), 0); } }
             ]);
@@ -11769,6 +11772,90 @@ familyStr + `\n` +
             const t = view.querySelector(':scope > h2');
             if (t) { const note = document.createElement('p'); note.className = 'text-xs text-gray-500 -mt-2 pl-1'; note.textContent = '제목을 누르면 펼쳐져요'; t.insertAdjacentElement('afterend', note); }
         })();
+
+    
+        /* =====================================================================
+           🧮 강CRM 폰값계산 (상담용) — 명함과 똑같은 계산기 + 기종·지원금표
+           · 계산기는 명함 페이지를 '직원용'으로 띄움 (상담요청·기록·알림 없음)
+           ===================================================================== */
+        const pcalEl = document.createElement('div');
+        pcalEl.id = 'phoneCalcModal';
+        pcalEl.className = 'fixed inset-0 z-[67] hidden flex-col bg-gray-50';
+        pcalEl.innerHTML = `
+            <header class="flex-shrink-0 bg-white border-b border-gray-200 px-2 flex items-center gap-1" style="padding-top: env(safe-area-inset-top, 0px);">
+                <button type="button" id="pcalClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h2 class="flex-1 text-[17px] font-bold text-gray-900">폰값계산 <span class="text-xs font-medium text-gray-500">상담용</span></h2>
+            </header>
+            <div class="flex-shrink-0 bg-white px-3 pb-2 pt-1"><div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">
+                <button type="button" data-pcal-tab="calc" class="flex-1 h-10 rounded-xl text-sm font-bold">🧮 계산기</button>
+                <button type="button" data-pcal-tab="table" class="flex-1 h-10 rounded-xl text-sm font-bold">📋 기종·지원금표</button>
+            </div></div>
+            <div id="pcalCalc" class="flex-1 min-h-0"></div>
+            <div id="pcalTable" class="flex-1 overflow-y-auto px-3 pt-2 space-y-2 hidden" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
+        document.body.appendChild(pcalEl);
+        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '' };
+        function openPhoneCalc(tab) {
+            pcalTab = tab || 'calc';
+            pcalEl.style.display = 'flex';
+            if (!pcalPushed) { pushAppState({ phoneCalc: true }); pcalPushed = true; }
+            renderPhoneCalc();
+        }
+        function closePhoneCalc(fromPop = false) {
+            if (pcalEl.style.display !== 'flex') return;
+            pcalEl.style.display = 'none';
+            if (pcalPushed) { pcalPushed = false; if (!fromPop) historyBackSilently(); }
+        }
+        { const prev = window.__actRegBack; window.__actRegBack = () => { if (pcalEl.style.display === 'flex') { closePhoneCalc(true); return true; } return prev ? prev() : false; }; }
+        pcalEl.querySelector('#pcalClose').onclick = () => closePhoneCalc();
+        pcalEl.querySelectorAll('[data-pcal-tab]').forEach(b => b.onclick = () => { pcalTab = b.dataset.pcalTab; renderPhoneCalc(); });
+        function renderPhoneCalc() {
+            pcalEl.querySelectorAll('[data-pcal-tab]').forEach(b => b.className = `flex-1 h-10 rounded-xl text-sm font-bold ${b.dataset.pcalTab === pcalTab ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`);
+            const calcBox = document.getElementById('pcalCalc'), tbl = document.getElementById('pcalTable');
+            calcBox.classList.toggle('hidden', pcalTab !== 'calc');
+            tbl.classList.toggle('hidden', pcalTab !== 'table');
+            if (pcalTab === 'calc' && !calcBox.querySelector('iframe')) {
+                calcBox.innerHTML = `<iframe title="폰값계산" src="${CALC_CARD_URL}?staff=1&t=${Date.now()}" class="w-full h-full border-0 bg-white"></iframe>`;
+            }
+            if (pcalTab === 'table') renderPcalTable();
+        }
+        function renderPcalTable() {
+            const d = calcData || calcNormalize(null);
+            const cars = CALC_CARRIERS.filter(k => d.carriers[k] && d.carriers[k].models && d.carriers[k].models.length);
+            const box = document.getElementById('pcalTable');
+            if (!cars.length) { box.innerHTML = '<p class="text-sm text-gray-600 text-center py-10">아직 올린 지원금표가 없어요.<br>설정 → 명함 폰값계산에서 엑셀이나 사진으로 올려주세요.</p>'; return; }
+            if (!cars.includes(pcalSt.car)) { pcalSt.car = cars[0]; pcalSt.plan = -1; }
+            const C = d.carriers[pcalSt.car];
+            const showIdx = C.plans.map((p, i) => i).filter(i => (C.show || []).includes(C.plans[i].name));
+            if (pcalSt.plan < 0 || pcalSt.plan >= C.plans.length) pcalSt.plan = showIdx.length ? showIdx[0] : 0;
+            const sel = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[14px] font-medium text-gray-900 bg-white';
+            const q = pcalSt.q.trim().toLowerCase();
+            const rows = C.models.filter(m => !q || (m.name + ' ' + (m.code || '')).toLowerCase().includes(q));
+            const pl = C.plans[pcalSt.plan] || {};
+            box.innerHTML = `
+                <div class="grid grid-cols-2 gap-1.5">
+                    <select id="pcalCar" aria-label="통신사" class="${sel}">${cars.map(k => `<option ${k === pcalSt.car ? 'selected' : ''}>${k}</option>`).join('')}</select>
+                    <select id="pcalType" aria-label="가입 유형" class="${sel}">${[['mnp', '번호이동'], ['chg', '기기변경'], ['new', '신규']].map(([v, l]) => `<option value="${v}" ${v === pcalSt.type ? 'selected' : ''}>${l}</option>`).join('')}</select>
+                    <select id="pcalPlan" aria-label="요금제" class="${sel} col-span-2">${C.plans.map((p, i) => `<option value="${i}" ${i === pcalSt.plan ? 'selected' : ''}>${escapeHtml(p.name)}${p.fee ? ' · ' + arWon(p.fee) + '원' : ''}${showIdx.includes(i) ? '' : ' (명함엔 숨김)'}</option>`).join('')}</select>
+                    <input type="search" id="pcalQ" value="${escapeHtml(pcalSt.q)}" placeholder="기종 찾기 (예: S26, 아이폰)" class="${sel} col-span-2">
+                </div>
+                <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 기종 ${C.models.length}개${C.file ? ' · ' + escapeHtml(C.file) : ''}</p>
+                <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                    <div class="grid grid-cols-[minmax(0,1fr)_76px_76px_80px] gap-1 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600"><span>기종</span><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></div>
+                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; return `<div class="grid grid-cols-[minmax(0,1fr)_76px_76px_80px] gap-1 px-3 py-2 border-t border-gray-100 items-center">
+                        <span class="min-w-0"><span class="block text-[13px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}</span><span class="block text-[11px] text-gray-500 truncate">${escapeHtml([m.code, m.gen].filter(Boolean).join(' · '))}</span></span>
+                        <span class="text-right text-[12px] text-gray-800">${arWon(m.price)}</span>
+                        <span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span>
+                        <span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></div>`; }).join('') || '<p class="text-sm text-gray-500 text-center py-6">찾는 기종이 없어요.</p>'}
+                </div>
+                <p class="text-xs text-gray-500 px-1 leading-relaxed">'${escapeHtml(pl.name || '')}' 요금제 기준 공통지원금이에요. 유통망지원금·전환지원금은 빠진 금액이라, 실제 할부원금은 [계산기]에서 확인해요.</p>`;
+            document.getElementById('pcalCar').onchange = e => { pcalSt.car = e.target.value; pcalSt.plan = -1; renderPcalTable(); };
+            document.getElementById('pcalType').onchange = e => { pcalSt.type = e.target.value; renderPcalTable(); };
+            document.getElementById('pcalPlan').onchange = e => { pcalSt.plan = +e.target.value; renderPcalTable(); };
+            const qi = document.getElementById('pcalQ');
+            qi.oninput = () => { pcalSt.q = qi.value; const pos = qi.selectionStart; renderPcalTable(); const n = document.getElementById('pcalQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
+        }
+        document.getElementById('pcalOpenBtn').addEventListener('click', () => openPhoneCalc('calc'));
+        document.getElementById('pcalTableBtn').addEventListener('click', () => { closeCalcSheet(); setTimeout(() => openPhoneCalc('table'), 0); });
 
     </script>
 </body>
