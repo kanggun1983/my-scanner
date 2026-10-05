@@ -805,7 +805,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V119</span>
+                    <span class="text-sm text-gray-600">V120</span>
                 </div>
             </section>
         </div>
@@ -11295,6 +11295,53 @@ familyStr + `\n` +
             const c = b.id === 'newReportBtn' ? null : (customerDB.find(x => x.id === currentDetailId) || trashDB.find(x => x.id === currentDetailId) || null);
             openActReg(c, AR_REDIRECT[b.id]);
         }, true);
+    
+        /* =====================================================================
+           📅 날짜 칸 지우기: 폰 달력은 한 번 고르면 비울 수가 없어서 모든 날짜 칸 오른쪽에 ✕ (모르면 비워두기)
+           ===================================================================== */
+        (() => {
+            const MOVE = /^(w-|min-w-|max-w-|flex-|shrink|grow|basis-|col-span|order-|self-)/;
+            function enhance(inp) {
+                if (inp.dataset.kcClear || inp.readOnly || inp.disabled && inp.dataset.kcSkip) return;
+                inp.dataset.kcClear = '1';
+                const wrap = document.createElement('span');
+                const cls = (inp.getAttribute('class') || '').split(/\s+/).filter(Boolean);
+                const moved = cls.filter(c => MOVE.test(c) && c !== 'w-full');
+                const full = cls.includes('w-full') || getComputedStyle(inp).display === 'block';
+                wrap.className = 'kc-dw ' + moved.join(' ') + (full ? ' kc-dw-block' : '');
+                inp.setAttribute('class', cls.filter(c => !moved.includes(c)).concat(['w-full']).join(' '));
+                inp.style.paddingRight = '34px';
+                inp.parentNode.insertBefore(wrap, inp);
+                wrap.appendChild(inp);
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'kc-dclear';
+                btn.setAttribute('aria-label', '날짜 지우기');
+                btn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault(); e.stopPropagation();
+                    if (inp.disabled || !inp.value) return;
+                    inp.value = '';
+                    inp.dispatchEvent(new Event('input', { bubbles: true }));
+                    inp.dispatchEvent(new Event('change', { bubbles: true }));
+                    sync();
+                });
+                wrap.appendChild(btn);
+                const sync = () => { btn.style.display = inp.value && !inp.disabled ? 'flex' : 'none'; };
+                inp.addEventListener('input', sync); inp.addEventListener('change', sync);
+                inp._kcSync = sync;
+                sync();
+            }
+            function scan(root) { (root.querySelectorAll ? root : document).querySelectorAll('input[type="date"]').forEach(enhance); }
+            const st = document.createElement('style');
+            st.textContent = '.kc-dw{position:relative;display:inline-block;vertical-align:middle;min-width:0}.kc-dw-block{display:block;width:100%}.kc-dclear{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:9999px;background:#e5e7eb;color:#4b5563;align-items:center;justify-content:center;font-size:12px;border:0;cursor:pointer;z-index:2}.kc-dclear:hover{background:#d1d5db}';
+            document.head.appendChild(st);
+            scan(document);
+            new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('input[type="date"]')) enhance(n); else scan(n); } }))).observe(document.body, { childList: true, subtree: true });
+            // 코드에서 날짜를 채우거나 비운 경우도 ✕ 보이기 맞춤
+            setInterval(() => document.querySelectorAll('input[data-kc-clear]').forEach(i => i._kcSync && i._kcSync()), 700);
+        })();
+
     </script>
 </body>
 </html>
