@@ -816,7 +816,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V121</span>
+                    <span class="text-sm text-gray-600">V122</span>
                 </div>
             </section>
         </div>
@@ -894,6 +894,10 @@
                 <label for="aiSmsDraft" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">보낼 문자 <span class="font-normal text-gray-500">(고쳐도 돼요)</span></label>
                 <textarea id="aiSmsDraft" rows="6" class="w-full p-3 border border-gray-300 rounded-xl text-[15px] leading-relaxed text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" placeholder="위에서 종류를 고르면 AI가 문자를 써줘요. 직접 써도 돼요."></textarea>
                 <p id="aiSmsStatus" role="status" class="hidden text-[13px] font-medium mt-1 pl-1"></p>
+                <label for="aiSmsCardChk" class="mt-2 flex items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50/60 px-3 min-h-[48px] cursor-pointer">
+                    <input type="checkbox" id="aiSmsCardChk" class="w-5 h-5 accent-pink-600 flex-shrink-0">
+                    <span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">📇 내 명함 링크 같이 보내기</span><span id="aiSmsCardHint" class="block text-[12px] text-gray-600 truncate">문자 끝에 이 고객 전용 명함 주소가 붙어요</span></span>
+                </label>
             </div>
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" id="aiSmsCopyBtn" class="h-12 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-[15px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>복사</button>
@@ -3640,10 +3644,14 @@
 
                 // 📇 명함 보내기(명함 뿌리기)는 기록에만 남기고 '최근 연락'으로는 치지 않음
                 const isCardSend = targetLabel === '명함';
+                // 💬 보낸 문자 내용 보관 (고객카드 연락 탭에서 복사·공유·메모 붙이기)
+                const smsLogPatch = (actionType === 'sms' && smsBody && customer) ? { smsLog: [...(Array.isArray(customer.smsLog) ? customer.smsLog : []), { at: new Date().toISOString(), by: managerName, text: String(smsBody).slice(0, 2000) }].slice(-20) } : {};
                 const logWrite = saveDoc(doc(db, 'smart_customers', docId), isCardSend ? {
+                    ...smsLogPatch,
                     contactHistory: newHistory,
                     updatedAt: new Date().toISOString()
                 } : {
+                    ...smsLogPatch,
                     lastContactDate: getTodayStr(), 
                     contactManager: managerName,
                     contactHistory: newHistory,
@@ -5741,6 +5749,22 @@
                 </div>`;
             }
 
+            const sms = Array.isArray(c.smsLog) ? c.smsLog.slice().reverse() : [];
+            if (sms.length) {
+                html += `<p class="text-[11px] font-bold text-gray-400 mt-3 mb-1">💬 보낸 문자 ${sms.length}건</p>` + sms.slice(0, 10).map((m, i) => {
+                    const d = new Date(m.at || '');
+                    const when = isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    const sch = m.scheduled ? new Date(m.scheduled) : null;
+                    return `<div class="mb-2 rounded-xl border border-sky-100 bg-sky-50/50 p-2.5">
+                        <div class="flex items-center gap-2 text-[11px] text-gray-500"><span class="font-bold text-sky-700">${sch && !isNaN(sch) ? `⏰ 예약 ${sch.getMonth() + 1}/${sch.getDate()} ${String(sch.getHours()).padStart(2, '0')}:${String(sch.getMinutes()).padStart(2, '0')}` : '보냄'}</span><span>${when}</span>${m.by ? `<span class="ml-auto">담당 ${escapeHtml(m.by)}</span>` : ''}</div>
+                        <p class="text-[13px] text-gray-800 whitespace-pre-wrap mt-1 line-clamp-4">${escapeHtml(m.text || '')}</p>
+                        <div class="grid grid-cols-3 gap-1.5 mt-2">
+                            <button type="button" data-smslog="copy|${i}" class="h-9 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700"><i class="fa-regular fa-copy"></i> 복사</button>
+                            <button type="button" data-smslog="share|${i}" class="h-9 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700"><i class="fa-solid fa-share-nodes"></i> 공유</button>
+                            <button type="button" data-smslog="memo|${i}" class="h-9 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700"><i class="fa-regular fa-note-sticky"></i> 메모에</button>
+                        </div></div>`;
+                }).join('');
+            }
             const logs = parseContactHistory(c.contactHistory);
             html += `<p class="text-[11px] font-bold text-gray-400 mt-3 mb-1">연락 기록${logs.length ? ` ${logs.length}건` : ''}</p>`;
             if (logs.length === 0) {
@@ -6973,8 +6997,8 @@
             if (!c) return;
             const draftEl1 = document.getElementById('aiSmsDraft');
             draftEl1.value = fillMsgPlaceholders(draftEl1.value);
-            const text = draftEl1.value.trim();
-            if (!text) return setAiSmsStatus('보낼 문자를 먼저 써주세요.', 'red');
+            if (!draftEl1.value.trim()) return setAiSmsStatus('보낼 문자를 먼저 써주세요.', 'red');
+            const text = withCardLink(draftEl1.value.trim(), c);
             if (!smsMobileDigits(c.phone)) return setAiSmsStatus('이 고객은 휴대폰 번호가 없어서 예약할 수 없어요.', 'red');
             const v = document.getElementById('aiSmsSchedAt').value;
             const at = v ? new Date(v).getTime() : 0;
@@ -6987,6 +7011,9 @@
                 const r = await callSms('schedule', { items: [{ to: c.phone, text, sendAt: Math.max(at, Date.now() + 60 * 1000), name: c.name || '' }] });
                 if (!r.added) throw new Error((r.errors && r.errors[0]) || '예약하지 못했어요.');
                 saveAiSmsDraft();
+                markCardSent(c);
+                // 💬 예약 문자도 보낸 문자 기록에 (예약 표시)
+                saveDoc(doc(db, 'smart_customers', c.id), { smsLog: [...(Array.isArray(c.smsLog) ? c.smsLog : []), { at: new Date().toISOString(), by: getStaffName() || '', text, scheduled: new Date(at).toISOString() }].slice(-20) }, { merge: true }).catch(err => console.error(err));
                 if (r.ready === false) setAiSmsStatus(`예약은 됐어요 (${fmtSmsWhen(at)}). 그런데 매장 폰 연결이 아직 안 돼 있어서, 연결되기 전엔 안 나가요.`, 'red');
                 else setAiSmsStatus(`예약했어요! ${fmtSmsWhen(at)}에 매장 폰으로 보내요.`, 'green');
                 document.getElementById('aiSmsSchedBox').classList.add('hidden');
@@ -7434,6 +7461,11 @@
             document.getElementById('aiSmsWarn').classList.toggle('hidden', !c.marketingDeny);
             document.getElementById('aiSmsDraft').value = c.smsDraft || '';
             document.getElementById('aiSmsSendBtn').disabled = !hasPhone;
+            // 📇 명함 링크 자동 첨부 (이 폰에 기억 · 기본 켜짐) — 전용 명함 번호는 미리 만들어 둠
+            const cardChk = document.getElementById('aiSmsCardChk');
+            cardChk.checked = localStorage.getItem('aiSmsCard') !== '0';
+            if (cardChk.checked && !c.cardId) ensureCardId(c).then(updateAiCardHint).catch(() => {});
+            updateAiCardHint();
             aiSmsLastType = null;
             resetAiVariants();
             resetAiSmsSchedule();
@@ -7442,6 +7474,23 @@
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 이 창만 닫히도록
             if (!aiSmsHistoryPushed) { pushAppState({ aiSms: true }); aiSmsHistoryPushed = true; }
         };
+
+        // 📇 문자에 명함 링크 붙이기 (이미 들어 있으면 또 안 붙임)
+        function aiCardLink(c) { return c && c.cardId ? cardLinkFor(c.cardId) : DEFAULT_CARD_URL; }
+        function updateAiCardHint() {
+            const c = customerDB.find(x => x.id === aiSmsCustomerId);
+            const el = document.getElementById('aiSmsCardHint');
+            if (el) el.textContent = document.getElementById('aiSmsCardChk').checked ? `끝에 붙어요: ${aiCardLink(c)}` : '명함 링크 없이 보내요';
+        }
+        function withCardLink(text, c) {
+            const t = String(text || '').trim();
+            if (!document.getElementById('aiSmsCardChk').checked || !t || t.includes(DEFAULT_CARD_URL)) return t;
+            return `${t}\n\n📇 ${getStaffName() || '담당자'} 디지털 명함\n${aiCardLink(c)}`;
+        }
+        function markCardSent(c) {
+            if (!c || !document.getElementById('aiSmsCardChk').checked) return;
+            saveDoc(doc(db, 'smart_customers', c.id), { bizCardSentAt: getTodayStr() }, { merge: true }).catch(err => console.error(err));
+        }
 
         // 문자 초안이 바뀌었으면 고객 정보에 저장 (다음에 열면 이어서 볼 수 있게)
         async function saveAiSmsDraft() {
@@ -7671,8 +7720,14 @@ ${AI_TONES[aiSmsTone]}
             if (btn && !btn.disabled) generateAiSms(btn.dataset.smsType);
         });
 
+        document.getElementById('aiSmsCardChk').addEventListener('change', (e) => {
+            try { localStorage.setItem('aiSmsCard', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ }
+            const c = customerDB.find(x => x.id === aiSmsCustomerId);
+            if (e.target.checked && c && !c.cardId) ensureCardId(c).then(updateAiCardHint).catch(() => {});
+            updateAiCardHint();
+        });
         document.getElementById('aiSmsCopyBtn').addEventListener('click', async () => {
-            const text = document.getElementById('aiSmsDraft').value;
+            const text = withCardLink(document.getElementById('aiSmsDraft').value, customerDB.find(x => x.id === aiSmsCustomerId));
             if (!text.trim()) return setAiSmsStatus('복사할 문자 내용이 없어요.', 'red');
             const copied = await copyTextSafe(text);
             setAiSmsStatus(copied ? '복사했어요. 문자앱에 붙여넣기 하면 돼요.' : '이 폰에서 자동 복사가 막혔어요. 글을 길게 눌러 직접 복사해주세요.', copied ? 'green' : 'red');
@@ -7684,8 +7739,9 @@ ${AI_TONES[aiSmsTone]}
             draftEl0.value = fillMsgPlaceholders(draftEl0.value);
             const c = customerDB.find(x => x.id === aiSmsCustomerId);
             if (!c) return;
-            const text = document.getElementById('aiSmsDraft').value.trim();
+            const text = withCardLink(document.getElementById('aiSmsDraft').value.trim(), c);
             saveAiSmsDraft();   // 저장은 뒤에서 진행 (기다리면 느린 인터넷에서 문자앱이 안 열릴 수 있음)
+            markCardSent(c);
             closeAiSmsSheet();
             logActionAndCall(c.id, 'sms', c.phone, '', text);  // 문자 기록 + 문자앱에 내용 채워서 열기
         });
@@ -11382,6 +11438,32 @@ familyStr + `\n` +
                 tb.disabled = false; tb.textContent = '지금 한 번 보내보기';
             });
         })();
+
+    
+        /* ---------- 💬 보낸 문자: 복사 · 공유 · 메모에 붙이기 ---------- */
+        profileModal.addEventListener('click', async (ev) => {
+            const b = ev.target.closest('[data-smslog]');
+            if (!b || !currentProfileId) return;
+            const c = customerDB.find(x => x.id === currentProfileId);
+            if (!c) return;
+            const [act, idx] = b.dataset.smslog.split('|');
+            const m = (Array.isArray(c.smsLog) ? c.smsLog.slice().reverse() : [])[+idx];
+            if (!m) return;
+            const d = new Date(m.at || '');
+            const head = `[${c.name || '고객'} ${formatPhone(c.phone || '')} · ${isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()}`} 보낸 문자${m.by ? ` · ${m.by}` : ''}]`;
+            if (act === 'copy') {
+                customAlert((await copyTextSafe(m.text || '')) ? '문자 내용을 복사했어요.' : (m.text || ''));
+            } else if (act === 'share') {
+                const t = `${head}\n${m.text || ''}`;
+                if (navigator.share) { try { await navigator.share({ text: t }); } catch (e) { /* 취소 */ } }
+                else customAlert((await copyTextSafe(t)) ? '공유 기능이 없는 폰이라 복사했어요. 카톡 등에 붙여넣기 하세요.' : t);
+            } else if (act === 'memo') {
+                if (!(await customConfirm('이 문자를 고객 메모 아래에 붙일까요?'))) return;
+                const memo = [String(c.memo || '').trim(), `${head}\n${m.text || ''}`].filter(Boolean).join('\n');
+                try { await saveDoc(doc(db, 'smart_customers', c.id), { memo, updatedAt: new Date().toISOString() }, { merge: true }); customAlert('메모에 붙였어요. 다른 직원도 고객카드 메모에서 볼 수 있어요.'); }
+                catch (e) { customAlert(koreanError(e, '저장')); }
+            }
+        });
 
     </script>
 </body>
