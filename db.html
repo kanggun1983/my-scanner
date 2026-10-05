@@ -674,6 +674,17 @@
                     </div>
                 </div>
             </section>
+            <section class="space-y-2" aria-labelledby="setPromPushTitle">
+                <h3 id="setPromPushTitle" class="text-[13px] font-bold text-gray-600 pl-1">📅 약속 알림 <span class="font-normal text-gray-500">(매일 아침 푸시)</span></h3>
+                <div class="bg-white border border-gray-200 rounded-2xl p-3 space-y-2.5">
+                    <label for="promPushChk" class="flex items-center justify-between gap-3 cursor-pointer min-h-[48px]">
+                        <span class="min-w-0"><span class="block text-[15px] font-medium text-gray-900">약속 있는 날 아침에 푸시 받기</span><span class="block text-[13px] text-gray-600 leading-snug">담당 직원 폰엔 본인 고객 약속, 👑 총관리자 폰엔 매장 전체 요약</span></span>
+                        <input type="checkbox" id="promPushChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                    </label>
+                    <button type="button" id="promPushTest" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">지금 한 번 보내보기</button>
+                    <p class="text-xs text-gray-500 leading-relaxed">받을 폰은 '명함 상담요청 → 이 폰으로 알림 받기'를 켜두세요. 보내는 시간은 알림 서버(Cloudflare)의 Cron 트리거로 정해요 (기본 오전 9시 30분).</p>
+                </div>
+            </section>
             <section class="space-y-2" aria-labelledby="setDriveTitle">
                 <h3 id="setDriveTitle" class="text-[13px] font-bold text-gray-600 pl-1">서류 클라우드 백업 <span class="font-normal text-gray-500">(구글 드라이브)</span></h3>
                 <div id="driveSetBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-2"></div>
@@ -805,7 +816,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V120</span>
+                    <span class="text-sm text-gray-600">V121</span>
                 </div>
             </section>
         </div>
@@ -3129,7 +3140,7 @@
 
         // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
         let isSuperAdmin = false;
-        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle'];
+        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle', 'setPromPushTitle'];
         const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn', 'calcOpenReqBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
         // 잠금은 '잠금이 한 것'만 풀어요 — 원래 기능 때문에 꺼둔 칸(예: 자동 약속을 끄면 유지 조건 칸이 흐려짐)은 그대로
         function setAdminLock(el, lock) {
@@ -4859,6 +4870,7 @@
             renderCalcManageSub();
             { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
             try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
+            { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
         let staffSavedTimer = null;
@@ -9140,7 +9152,7 @@ familyStr + `\n` +
                 await OS.User.PushSubscription.optIn();
                 const email = (auth && auth.currentUser && auth.currentUser.email) || '';
                 if (email) await OS.login(staffOneSignalId());
-                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()) });
+                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
                 localStorage.setItem('kcrmStaffAlert', 'on');
                 const d = calcData || calcNormalize(null);
                 customAlert(d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 상담요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.');
@@ -9163,7 +9175,7 @@ familyStr + `\n` +
                 if (!OS.User.PushSubscription.optedIn) await OS.User.PushSubscription.optIn();
                 const id = staffOneSignalId();
                 if (id) await OS.login(id);
-                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()) });
+                await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
             } catch (e) { console.error('직원 알림 다시 연결 실패:', e); }
         }
         // [테스트] 알림 서버 → 직원 폰으로 진짜 푸시 한 번 보내보기 (안 오면 이유를 알려줌)
@@ -11340,6 +11352,35 @@ familyStr + `\n` +
             new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('input[type="date"]')) enhance(n); else scan(n); } }))).observe(document.body, { childList: true, subtree: true });
             // 코드에서 날짜를 채우거나 비운 경우도 ✕ 보이기 맞춤
             setInterval(() => document.querySelectorAll('input[data-kc-clear]').forEach(i => i._kcSync && i._kcSync()), 700);
+        })();
+
+    
+        /* ---------- 📅 약속 알림 (매일 아침 · 알림 서버가 보냄) ---------- */
+        (() => {
+            const chk = document.getElementById('promPushChk'), tb = document.getElementById('promPushTest');
+            if (!chk || !tb) return;
+            chk.addEventListener('change', async () => {
+                if (!isSuperAdmin) { chk.checked = appSettings.promPushOn === true; return; }
+                const patch = { promPushOn: chk.checked, promPushCrmUrl: location.origin + location.pathname };
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); }
+                catch (e) { chk.checked = !chk.checked; customAlert(koreanError(e, '저장')); }
+            });
+            tb.addEventListener('click', async () => {
+                const d = calcData || calcNormalize(null);
+                const url = d.alert && d.alert.url;
+                if (!url) return customAlert('알림 서버 주소가 아직 없어요.\n설정 → 명함 폰값계산 → 상담 알림 서버에 주소를 넣어주세요.');
+                tb.disabled = true; tb.textContent = '보내는 중…';
+                try {
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'promTest' }) });
+                    const data = await res.json().catch(() => ({}));
+                    if (data.ok && data.total === undefined) customAlert('알림 서버가 예전 버전(v1)이에요. kangcrm-alert-worker.js(v2) 코드로 바꿔 배포해주세요.\n(방금 테스트 상담요청 알림이 한 번 갔을 수 있어요)');
+                    else if (data.ok) customAlert(`보냈어요! 오늘 약속 ${data.total}건${data.late ? ` · 지난 미처리 ${data.late}건` : ''}\n` + (data.sent || []).map(x => `· ${x.staff}: ${x.count}건 → 폰 ${x.recipients || 0}대`).join('\n') + '\n\n폰이 0대면 그 직원 폰에서 \'이 폰으로 알림 받기\'를 껐다 켜주세요.');
+                    else if (/FIREBASE_SA/.test(String(data.error))) customAlert('알림 서버에 Firebase 서비스 계정(FIREBASE_SA)이 아직 없어요. 설치 안내대로 넣어주세요.');
+                    else if (!res.ok && res.status === 404 || /POST only|service/.test(String(data.error))) customAlert('알림 서버가 예전 버전이에요. kangcrm-alert-worker.js(v2)로 바꿔 배포해주세요.');
+                    else customAlert('보내지 못했어요: ' + (data.error || res.status));
+                } catch (e) { customAlert('알림 서버에 연결하지 못했어요.'); }
+                tb.disabled = false; tb.textContent = '지금 한 번 보내보기';
+            });
         })();
 
     </script>
