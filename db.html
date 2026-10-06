@@ -515,6 +515,8 @@
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="promise">약속·할일</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_prospect">가망</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="bizcard"><i class="fa-solid fa-address-card text-pink-600"></i> 명함</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="doc_no"><i class="fa-solid fa-paperclip text-amber-600"></i> 서류 미첨부</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="doc_yes"><i class="fa-solid fa-paperclip text-green-700"></i> 서류 첨부</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="mobile">무선</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="wired">유선</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="expired">약정만료</button>
@@ -833,7 +835,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V128</span>
+                    <span class="text-sm text-gray-600">V129</span>
                 </div>
             </section>
         </div>
@@ -2263,6 +2265,7 @@
                 dbLoaded = true;
                 migrateCardSendStatus();
                 migrateCardContact();
+                try { syncDocCounts(); } catch (e) { /* 준비 전 */ }
                 dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
@@ -4042,6 +4045,8 @@
                 if (currentFilter === 'expired') return (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
                 if (currentFilter === 'status_prospect') return c.salesStatus && c.salesStatus.includes('가망고객');
                 if (currentFilter === 'bizcard') return c.bizCardInstalled === true;
+                if (currentFilter === 'doc_yes') return docCountOf(c) > 0;
+                if (currentFilter === 'doc_no') return c.salesStatus === '판매성공' && docCountOf(c) === 0;   // 개통 고객 중 서류 없는 고객
                 if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promAddon2Date || c.promAddon3Date || c.promAddon4Date || c.promInsDate || c.promCardDate || c.promOtherDate || c.promCallDate); 
                 return true; 
             });
@@ -4543,7 +4548,8 @@
             const { facts, warn } = getCardFacts(c);
             const chipCls = 'text-[13px] leading-5 px-2 py-0.5 rounded-lg border max-w-full truncate';
             const factsHtml = facts.map(f => `<span class="${chipCls} ${refused ? 'bg-gray-100 border-transparent text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-700'}">${escapeHtml(f)}</span>`).join('')
-                + (warn ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold">${escapeHtml(warn)}</span>` : '');
+                + (warn ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold">${escapeHtml(warn)}</span>` : '')
+                + (() => { const n = docCountOf(c); return n ? `<span class="${chipCls} bg-green-50 border-green-200 text-green-800 font-bold"><i class="fa-solid fa-paperclip"></i> 서류 ${n}</span>` : (c.salesStatus === '판매성공' ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold"><i class="fa-solid fa-paperclip"></i> 서류 없음</span>` : ''); })();
 
             let taskHtml = '';
             if (top) {
@@ -11162,7 +11168,26 @@ familyStr + `\n` +
            · 기록(doc_files): 직원은 본인이 올린 것만, 총관리자는 전체가 보여요 (Firebase 규칙으로 막음)
            ===================================================================== */
         const DRIVE_ROOT = '강CRM 서류';
-        let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0, docFilesError = null;
+        let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0, docFilesError = null, docFilesLoaded = false;
+        // 📎 고객별 서류 개수: 고객 정보에 저장된 개수(누가 올렸든) + 이 폰에서 보이는 기록 중 큰 값
+        function docCountOf(c) {
+            const mine = docFiles.filter(f => f.customerId === c.id).length;
+            return Math.max(Number(c.docCount) || 0, mine);
+        }
+        // 👑 총관리자 폰: 실제 기록 수와 다르면 고객 정보의 개수를 맞춤 (예전에 올린 서류도 목록에 표시되게)
+        const docSynced = new Set();
+        function syncDocCounts() {
+            if (!isSuperAdmin || !docFilesLoaded || !dbLoaded || !db) return;
+            const cnt = new Map();
+            docFiles.forEach(f => cnt.set(f.customerId, (cnt.get(f.customerId) || 0) + 1));
+            customerDB.forEach(c => {
+                const real = cnt.get(c.id) || 0, cur = Number(c.docCount) || 0;
+                const key = c.id + ':' + real;
+                if (real === cur || docSynced.has(key)) return;
+                docSynced.add(key);
+                saveDoc(doc(db, 'smart_customers', c.id), { docCount: real }, { merge: true }).catch(e => console.error(e));
+            });
+        }
         function driveMode() { return appSettings.driveMode || 'off'; }
         function driveTokenValid() { return !!gisToken && Date.now() < gisTokenExp - 60000; }
         function myEmail() { return (auth && auth.currentUser && auth.currentUser.email) || ''; }
@@ -11175,6 +11200,9 @@ familyStr + `\n` +
                 snap.forEach(d => list.push({ ...d.data(), id: d.id }));
                 list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
                 docFiles = list;
+                docFilesLoaded = true;
+                syncDocCounts();
+                try { if (!document.getElementById('dbView').classList.contains('hidden')) renderDB(); } catch (e) { /* 준비 전 */ }
                 if (currentProfileId) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
             }, err => { docFilesError = err; console.error('서류 기록 불러오기 실패:', err); });
         }
@@ -11284,6 +11312,7 @@ familyStr + `\n` +
                     const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
                     const r = mode === 'admin' ? await uploadViaScript(f, name, today.slice(0, 7), custFolder) : await uploadViaGis(f, name, today.slice(0, 7), custFolder);
                     const rid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+                    saveDoc(doc(db, 'smart_customers', cust.id), { docCount: increment(1), docAt: new Date().toISOString() }, { merge: true }).catch(e => console.error('서류 개수 저장 실패', e));
                     await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString() });
                     ok++;
                 } catch (e) { console.error(e); errs.push(e.message || String(e)); }
@@ -11294,6 +11323,7 @@ familyStr + `\n` +
         // 고객카드 안 '서류' 칸
         function buildDocFilesHtml(c) {
             const list = docFiles.filter(f => f.customerId === c.id);
+            const others = Math.max(0, (Number(c.docCount) || 0) - list.length);
             const mode = driveMode();
             let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2">
                 <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
@@ -11303,7 +11333,8 @@ familyStr + `\n` +
                     <a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>
                     <span class="text-[11px] text-gray-500 flex-shrink-0">${escapeHtml(String(f.at || '').slice(5, 10).replace('-', '/'))} · ${escapeHtml(managerKey(f.uploaderName || '') || '')}</span>
                     <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
-                </div>`).join('') : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}</p>`;
+                </div>`).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}</p>`);
+            if (others && !isSuperAdmin) h += `<p class="text-xs text-gray-600 py-1 border-t border-gray-100 mt-1"><i class="fa-solid fa-paperclip"></i> 다른 직원이 올린 서류 ${others}개가 있어요 (총관리자만 볼 수 있어요)</p>`;
             return h + '</div>';
         }
         const docInput = document.createElement('input');
@@ -11342,7 +11373,11 @@ familyStr + `\n` +
                 const f = docFiles.find(x => x.id === del.dataset.docdel);
                 if (!f) return;
                 if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)`))) return;
-                try { await deleteDoc(doc(db, 'doc_files', f.id)); } catch (e) { customAlert(koreanError(e, '삭제')); }
+                try {
+                    await deleteDoc(doc(db, 'doc_files', f.id));
+                    const cc = customerDB.find(x => x.id === f.customerId);
+                    if (cc && (Number(cc.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', cc.id), { docCount: increment(-1) }, { merge: true }).catch(() => {});
+                } catch (e) { customAlert(koreanError(e, '삭제')); }
             }
         });
 
