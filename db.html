@@ -848,7 +848,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V131</span>
+                    <span class="text-sm text-gray-600">V133</span>
                 </div>
             </section>
         </div>
@@ -1108,6 +1108,13 @@
             </div>
             <p id="pushStatus" role="status" class="hidden text-[13px] font-medium pl-1"></p>
             <label class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="pushAdOn" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>(광고) 표시와 수신거부 안내 넣기<span class="block text-xs font-normal text-gray-500">이벤트·할인 같은 광고성 알림은 꼭 넣어야 해요</span></span></label>
+            <div id="pushNoticeBox">
+                <label class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="pushNoticeOn" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>명함 열면 이 내용을 공지 창으로도 보여주기<span class="block text-xs font-normal text-gray-500">알림을 못 보고 지나친 고객도 명함을 열면 보여요 (한 사람에게 한 번 · 14일 동안)</span></span></label>
+                <div id="pushNoticeNow" class="hidden mt-2 ml-7 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 flex items-center gap-2">
+                    <span id="pushNoticeNowText" class="flex-1 min-w-0 break-words"></span>
+                    <button type="button" id="pushNoticeClearBtn" class="flex-shrink-0 h-8 px-3 rounded-lg bg-white border border-amber-300 font-bold">내리기</button>
+                </div>
+            </div>
             <div class="rounded-2xl bg-gray-100 p-3">
                 <p class="text-[11px] font-bold text-gray-500 mb-1.5">이렇게 보여요</p>
                 <div class="bg-white rounded-xl p-3 shadow-sm">
@@ -7109,8 +7116,17 @@
             if (data.version) { try { localStorage.setItem('relayVersion', String(data.version)); } catch (e) { /* 무시 */ } }
             return data;
         }
+        // 📩 알림을 누르면 명함이 열리면서 같은 내용을 팝업으로 보여주게, 알림 주소 끝에 내용을 붙임 (#pn=…)
+        function pushOpenUrl(t, id) {
+            try {
+                const j = JSON.stringify({ id, h: (t.heading || '').slice(0, 60), b: (t.body || '').slice(0, 400), i: /^https:\/\//.test(pushImage || '') ? pushImage : '' });
+                const b64 = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                return `${DEFAULT_CARD_URL}#pn=${b64}`;
+            } catch (e) { return DEFAULT_CARD_URL; }
+        }
         async function sendPushNow() {
             const t = pushFinalTexts();
+            const pid = Date.now().toString(36);
             if (!t.body) return setPushStatus('내용을 먼저 적어주세요.', 'red');
             const ad = document.getElementById('pushAdOn').checked;
             let sendAfter = null;
@@ -7121,7 +7137,7 @@
                 btn1.disabled = true;
                 setPushStatus('보내는 중…');
                 try {
-                    await callPushRelay({ pushTo: [pushTarget.cardId], heading: t.heading, content: t.body, image: pushImage || undefined, icon: pushIcon || undefined, url: DEFAULT_CARD_URL });
+                    await callPushRelay({ pushTo: [pushTarget.cardId], heading: t.heading, content: t.body, image: pushImage || undefined, icon: pushIcon || undefined, url: pushOpenUrl(t, pid) });
                     setPushStatus(`${pushTarget.name}님에게 보냈어요!`, 'green');
                     logStaffPush();
                 } catch (e) {
@@ -7137,15 +7153,50 @@
             btn.disabled = true;
             setPushStatus(sendAfter ? '예약하는 중…' : '보내는 중…');
             try {
-                const data = await callPushRelay({ heading: t.heading, content: t.body, url: DEFAULT_CARD_URL, image: pushImage || undefined, icon: pushIcon || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
+                const data = await callPushRelay({ heading: t.heading, content: t.body, url: pushOpenUrl(t, pid), image: pushImage || undefined, icon: pushIcon || undefined, sendAfter: sendAfter ? sendAfter.iso : undefined });
                 setPushStatus(sendAfter ? `예약했어요! ${sendAfter.label}에 보내져요.` : `보냈어요!${data.recipients ? ` (받는 사람 ${data.recipients}명)` : ''}`, 'green');
                 logStaffPush();
+                if (document.getElementById('pushNoticeOn').checked) saveCardNotice(sendAfter ? sendAfter.iso : '', pid);
                 setTimeout(() => loadPushStats(true), 5000);   // OneSignal 집계가 반영될 시간을 조금 두고 대시보드 숫자 새로고침
             } catch (e) {
                 console.error('푸시 보내기 실패:', e);
                 setPushStatus(e.message, 'red');
             } finally { btn.disabled = false; }
         }
+        // 📢 명함 공지 창: 전체 푸시를 보낼 때 같은 내용을 card_public/notice 에 저장 → 명함을 열면 한 번 보여줌
+        async function saveCardNotice(atIso, pid) {
+            const heading = document.getElementById('pushHeading').value.trim();
+            const body = document.getElementById('pushBody').value.trim();
+            if (!body) return;
+            const at = atIso || new Date().toISOString();
+            const until = new Date(new Date(at).getTime() + 14 * 86400000).toISOString();
+            try {
+                await saveDoc(doc(db, 'card_public', 'notice'), { id: pid || Date.now().toString(36), heading: heading.slice(0, 40), body: body.slice(0, 200), image: /^https:\/\//.test(pushImage || '') ? pushImage : '', at, until, by: getStaffName() || '' });
+            } catch (e) {
+                console.error('명함 공지 저장 실패:', e);
+                setPushStatus('알림은 보냈지만 명함 공지 저장은 못 했어요. (' + koreanError(e, '저장') + ')', 'red');
+            }
+        }
+        function renderCardNoticeNow() {
+            const box = document.getElementById('pushNoticeNow');
+            if (!box) return;
+            const n = cardNotice;
+            const live = n && n.until && new Date(n.until) > new Date();
+            box.classList.toggle('hidden', !live);
+            if (!live) return;
+            const d = new Date(n.until);
+            const fut = new Date(n.at) > new Date();
+            document.getElementById('pushNoticeNowText').textContent = `${fut ? '예약된' : '지금'} 명함 공지: ${n.heading || n.body.slice(0, 24)} · ${d.getMonth() + 1}/${d.getDate()}까지`;
+        }
+        document.getElementById('pushNoticeClearBtn').addEventListener('click', async () => {
+            if (!(await customConfirm('명함 공지 창을 내릴까요?\n(이미 보낸 푸시 알림은 그대로예요)'))) return;
+            try {
+                await deleteDoc(doc(db, 'card_public', 'notice'));
+                cardNotice = null;
+                renderCardNoticeNow();
+                setPushStatus('명함 공지를 내렸어요.', 'green');
+            } catch (e) { customAlert(koreanError(e, '삭제')); }
+        });
         const PUSH_AD_FOOTER = '수신거부: 휴대폰 설정 > 알림에서 끌 수 있어요';
         const pushSheet = document.getElementById('pushSheet');
         let pushHistoryPushed = false;
@@ -7276,6 +7327,9 @@
                 callPushRelay({ test: true }).then(() => renderPushIconStrip()).catch(() => {});
             }
             document.getElementById('pushAdOn').checked = !pushTarget;   // 전체 발송은 광고 표시 켜고 시작, 한 명 안내는 끄고 시작
+            document.getElementById('pushNoticeBox').classList.toggle('hidden', !!pushTarget);   // 명함 공지는 전체 발송 때만
+            document.getElementById('pushNoticeOn').checked = true;
+            renderCardNoticeNow();
             pushVariantList = [];
             document.getElementById('pushVariantsBox').classList.add('hidden');
             setPushStatus('');
@@ -9043,7 +9097,7 @@ familyStr + `\n` +
         };
         const CALC_CARD_URL = 'https://kanggun1983.github.io/';
         let calcData = null, calcLoadError = null;
-        let calcUnsub = null, calcReqUnsub = null;
+        let calcUnsub = null, calcReqUnsub = null, cardNoticeUnsub = null, cardNotice = null;
         let calcRequests = [], calcReqFirstLoad = true, calcReqError = null, calcPurged = false;
         let calcSheetMode = 'requests', calcReqTab = 'open', calcDraft = null, calcSheetPushed = false, calcUploadCarrier = null;
 
@@ -9085,6 +9139,10 @@ familyStr + `\n` +
             detachCalcListeners();
             try { attachDocFilesListener(); } catch (e) { console.error(e); }
             setTimeout(refreshStaffAlert, 1500);
+            cardNoticeUnsub = onSnapshot(doc(db, 'card_public', 'notice'), snap => {
+                cardNotice = snap.exists() && snap.data().id ? snap.data() : null;
+                renderCardNoticeNow();
+            }, err => console.error('명함 공지 불러오기 실패:', err));
             calcUnsub = onSnapshot(doc(db, 'card_public', 'phonecalc'), snap => {
                 let d = null;
                 try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
@@ -9125,6 +9183,7 @@ familyStr + `\n` +
             if (staffStatsUnsub) { staffStatsUnsub(); staffStatsUnsub = null; }
             if (calcUnsub) { calcUnsub(); calcUnsub = null; }
             if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
+            if (cardNoticeUnsub) { cardNoticeUnsub(); cardNoticeUnsub = null; }
         }
         // 처리 끝난 지 30일 지난 요청, 60일 지난 기록은 자동 정리 (하루 한 번 아님 · 앱 열 때 한 번)
         function calcPurgeOld() {
