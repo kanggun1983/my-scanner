@@ -833,7 +833,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V126</span>
+                    <span class="text-sm text-gray-600">V127</span>
                 </div>
             </section>
         </div>
@@ -11822,14 +11822,15 @@ familyStr + `\n` +
         const pcalNorm = (t) => String(t || '').toLowerCase().replace(/\s+/g, '').replace(/갤럭시/g, 'galaxy').replace(/아이폰/g, 'iphone');
         function pcalCompose(C) {
             const src = C.src || C.models || [], off = new Set(C.off || []);
-            return [...src.filter(m => !off.has(m.name)), ...(C.manual || [])];
+            return [...src, ...(C.manual || [])].filter(m => !off.has(m.name));
         }
         function pcalComposeFields(prev, srcModels) {
             const names = new Set(srcModels.map(m => m.name));
             const n = ((srcModels[0] || {}).sup && srcModels[0].sup.new || []).length;
             const pad = (a) => Array.from({ length: n }, (_, i) => Number((a || [])[i]) || 0);
             const manual = (prev.manual || []).filter(m => !names.has(m.name)).map(m => ({ ...m, sup: { new: pad(m.sup && m.sup.new), chg: pad(m.sup && m.sup.chg), mnp: pad(m.sup && m.sup.mnp) } }));
-            const C = { src: srcModels, off: (prev.off || []).filter(n => names.has(n)), manual };
+            const keep = new Set([...names, ...manual.map(m => m.name)]);
+            const C = { src: srcModels, off: (prev.off || []).filter(n => keep.has(n)), manual };
             return { ...C, models: pcalCompose(C) };
         }
         async function pcalSaveCarrier(car, mut) {
@@ -11841,6 +11842,16 @@ familyStr + `\n` +
             C.models = pcalCompose(C);
             next.carriers[car] = C;
             return calcSave(next, true);
+        }
+        // ☑️ 체크로 명함에 넣고 빼기 (여러 번 눌러도 순서대로 저장)
+        let pcalSaveChain = Promise.resolve();
+        function pcalToggle(car, names, on) {
+            pcalSaveChain = pcalSaveChain.then(() => pcalSaveCarrier(car, C2 => {
+                const set = new Set(C2.off);
+                names.forEach(n => { if (on) set.delete(n); else set.add(n); });
+                C2.off = [...set];
+            })).catch(e => console.error(e));
+            return pcalSaveChain;
         }
         function renderPcalTable() {
             const d = calcData || calcNormalize(null);
@@ -11855,24 +11866,13 @@ familyStr + `\n` +
             const sel = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[14px] font-medium text-gray-900 bg-white';
             const q = pcalNorm(pcalSt.q);
             const manualNames = new Set((C.manual || []).map(m => m.name));
-            const rows = (C.models || []).filter(m => !q || pcalNorm(m.name + (m.code || '')).includes(q));
-            const offList = (C.src || []).filter(m => (C.off || []).includes(m.name));
+            const off = new Set(C.off || []);
+            const all = [...(C.src || C.models || []), ...(C.manual || [])];
+            const rows = all.filter(m => !q || pcalNorm(m.name + (m.code || '')).includes(q));
+            const onCnt = all.length - all.filter(m => off.has(m.name)).length;
             const pl = C.plans[pcalSt.plan] || {};
             const admin = isSuperAdmin;
-            // 검색어로 못 찾았을 때: 뺀 기종에서 찾거나 직접 추가
-            let addHtml = '';
-            const hidMatch = q ? offList.filter(m => pcalNorm(m.name + (m.code || '')).includes(q)) : [];
-            if (q && rows.length && hidMatch.length) {
-                addHtml = `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2"><p class="text-[13px] font-bold text-indigo-900">명함에서 뺀 기종 중에도 있어요</p>${hidMatch.map(m => `<button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full min-h-[44px] px-3 rounded-xl bg-white border border-indigo-200 text-left text-[13px] font-bold text-indigo-800 disabled:opacity-40"><i class="fa-solid fa-rotate-left"></i> ${escapeHtml(m.name)} 다시 넣기</button>`).join('')}</div>`;
-            }
-            if (q && !rows.length) {
-                const hid = hidMatch;
-                addHtml = `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2">
-                    <p class="text-[13px] font-bold text-indigo-900">'${escapeHtml(pcalSt.q)}'은(는) 명함 기종 목록에 없어요</p>
-                    ${hid.map(m => `<button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full min-h-[44px] px-3 rounded-xl bg-white border border-indigo-200 text-left text-[13px] font-bold text-indigo-800 disabled:opacity-40"><i class="fa-solid fa-rotate-left"></i> ${escapeHtml(m.name)} 다시 넣기 <span class="font-normal text-gray-500">(지원금표에 있는 기종 · 금액 그대로)</span></button>`).join('')}
-                    ${admin ? `<button type="button" id="pcalAddManual" class="w-full h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold"><i class="fa-solid fa-plus"></i> '${escapeHtml(pcalSt.q)}' 직접 넣기</button>` : '<p class="text-xs text-gray-600">기종 추가는 총관리자만 할 수 있어요.</p>'}
-                </div>`;
-            }
+            const rowsOn = rows.filter(m => !off.has(m.name)).length;
             box.innerHTML = `
                 <div class="grid grid-cols-2 gap-1.5">
                     <select id="pcalCar" aria-label="통신사" class="${sel}">${cars.map(k => `<option ${k === pcalSt.car ? 'selected' : ''}>${k}</option>`).join('')}</select>
@@ -11880,18 +11880,25 @@ familyStr + `\n` +
                     <select id="pcalPlan" aria-label="요금제" class="${sel} col-span-2">${C.plans.map((p, i) => `<option value="${i}" ${i === pcalSt.plan ? 'selected' : ''}>${escapeHtml(p.name)}${p.fee ? ' · ' + arWon(p.fee) + '원' : ''}${showIdx.includes(i) ? '' : ' (명함엔 숨김)'}</option>`).join('')}</select>
                     <input type="search" id="pcalQ" value="${escapeHtml(pcalSt.q)}" placeholder="기종 찾기·추가 (예: S26, 아이폰)" class="${sel} col-span-2">
                 </div>
-                <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 명함에 기종 ${(C.models || []).length}개${offList.length ? ` · 뺀 기종 ${offList.length}개` : ''}${admin ? ' · 기종을 누르면 고치거나 뺄 수 있어요' : ''}</p>
-                ${addHtml}
+                <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 명함에 <b class="text-indigo-700">${onCnt}</b> / 전체 ${all.length}개${admin ? ' · ☑ 체크한 기종만 명함에 나와요 · 이름을 누르면 금액 고치기' : ''}</p>
+                ${admin && rows.length ? `<div class="flex items-center gap-1.5">
+                    <span class="flex-1 text-xs text-gray-600 pl-1">${q ? `찾은 ${rows.length}개 중 ${rowsOn}개 체크` : `전체 ${rows.length}개 중 ${rowsOn}개 체크`}</span>
+                    <button type="button" id="pcalAllOn" class="h-9 px-3 rounded-lg border border-indigo-300 bg-white text-xs font-bold text-indigo-700">${q ? '찾은 것' : '모두'} 넣기</button>
+                    <button type="button" id="pcalAllOff" class="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">${q ? '찾은 것' : '모두'} 빼기</button>
+                </div>` : ''}
+                ${q && !rows.length ? `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2">
+                    <p class="text-[13px] font-bold text-indigo-900">'${escapeHtml(pcalSt.q)}'은(는) 지원금표에 없어요</p>
+                    ${admin ? `<button type="button" id="pcalAddManual" class="w-full h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold"><i class="fa-solid fa-plus"></i> '${escapeHtml(pcalSt.q)}' 직접 넣기</button>` : '<p class="text-xs text-gray-600">기종 추가는 총관리자만 할 수 있어요.</p>'}
+                </div>` : ''}
                 ${rows.length ? `<div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                    <div class="grid grid-cols-[minmax(0,1fr)_72px_72px_76px] gap-1 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600"><span>기종</span><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></div>
-                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; return `<button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full text-left grid grid-cols-[minmax(0,1fr)_72px_72px_76px] gap-1 px-3 py-2 border-t border-gray-100 items-center ${admin ? 'hover:bg-gray-50' : ''}">
-                        <span class="min-w-0"><span class="block text-[13px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}</span><span class="block text-[11px] text-gray-500 truncate">${escapeHtml([m.code, m.gen].filter(Boolean).join(' · '))}</span></span>
-                        <span class="text-right text-[12px] text-gray-800">${arWon(m.price)}</span>
-                        <span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span>
-                        <span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></button>`; }).join('')}
+                    <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600">${admin ? '<span class="w-7 flex-shrink-0">명함</span>' : ''}<span class="flex-1 grid grid-cols-3 gap-1"><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></span></div>
+                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; const isOn = !off.has(m.name); return `<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
+                        ${admin ? `<label class="w-7 h-11 flex-shrink-0 flex items-center cursor-pointer"><input type="checkbox" data-pcal-on="${escapeHtml(m.name)}" ${isOn ? 'checked' : ''} aria-label="${escapeHtml(m.name)} 명함에 보이기" class="w-6 h-6 accent-indigo-600"></label>` : ''}
+                        <button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="flex-1 min-w-0 text-left ${isOn ? '' : 'opacity-50'}">
+                            <span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
+                            <span class="grid grid-cols-3 gap-1 mt-0.5 items-baseline"><span class="text-right text-[12px] text-gray-700">${arWon(m.price)}</span><span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span><span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></span>
+                        </button></div>`; }).join('')}
                 </div>` : (q ? '' : '<p class="text-sm text-gray-500 text-center py-6">기종이 없어요.</p>')}
-                ${offList.length && !q ? `<details class="rounded-2xl border border-gray-200 bg-white px-3 py-2"><summary class="text-[13px] font-bold text-gray-700 min-h-[36px] flex items-center cursor-pointer">명함에서 뺀 기종 ${offList.length}개</summary>
-                    ${offList.map(m => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100"><span class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">${escapeHtml(m.name)}</span><button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="h-9 px-3 rounded-lg border border-indigo-200 text-xs font-bold text-indigo-700 disabled:opacity-40">다시 넣기</button></div>`).join('')}</details>` : ''}
                 <p class="text-xs text-gray-500 px-1 leading-relaxed">'${escapeHtml(pl.name || '')}' 요금제 기준 공통지원금이에요. 유통망·전환지원금은 빠진 금액이라 실제 할부원금은 [계산기]에서 확인해요. 엑셀·사진을 새로 올려도 뺀 기종은 계속 빠져 있어요.</p>`;
             document.getElementById('pcalCar').onchange = e => { pcalSt.car = e.target.value; pcalSt.plan = -1; renderPcalTable(); };
             document.getElementById('pcalType').onchange = e => { pcalSt.type = e.target.value; renderPcalTable(); };
@@ -11899,10 +11906,20 @@ familyStr + `\n` +
             const qi = document.getElementById('pcalQ');
             qi.oninput = () => { pcalSt.q = qi.value; const pos = qi.selectionStart; renderPcalTable(); const n = document.getElementById('pcalQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
             box.querySelectorAll('[data-pcal-edit]').forEach(b => b.onclick = () => { pcalSt.edit = { name: b.dataset.pcalEdit, isNew: false }; renderPcalTable(); box.scrollTop = 0; });
-            box.querySelectorAll('[data-pcal-restore]').forEach(b => b.onclick = async () => {
-                const name = b.dataset.pcalRestore;
-                if (await pcalSaveCarrier(pcalSt.car, C2 => { C2.off = C2.off.filter(n => n !== name); })) { pcalSt.q = ''; renderPcalTable(); }
+            box.querySelectorAll('[data-pcal-on]').forEach(el => el.onchange = async () => {
+                const top = box.scrollTop;
+                await pcalToggle(pcalSt.car, [el.dataset.pcalOn], el.checked);
+                renderPcalTable(); box.scrollTop = top;
             });
+            const bulk = async (on) => {
+                const names = rows.map(m => m.name);
+                if (!on && !(await customConfirm(`${q ? '찾은' : '모든'} 기종 ${names.length}개를 명함에서 뺄까요?`))) return;
+                const top = box.scrollTop;
+                await pcalToggle(pcalSt.car, names, on);
+                renderPcalTable(); box.scrollTop = top;
+            };
+            const ao = document.getElementById('pcalAllOn'); if (ao) ao.onclick = () => bulk(true);
+            const af = document.getElementById('pcalAllOff'); if (af) af.onclick = () => bulk(false);
             const am = document.getElementById('pcalAddManual');
             if (am) am.onclick = () => { pcalSt.edit = { name: pcalSt.q.trim(), isNew: true }; renderPcalTable(); };
         }
@@ -11965,7 +11982,7 @@ familyStr + `\n` +
             if (del) del.onclick = async () => {
                 if (!(await customConfirm(manual ? `${D.name}을(를) 지울까요?` : `${D.name}을(를) 명함 기종 목록에서 뺄까요?\n(목록 아래 '뺀 기종'에서 다시 넣을 수 있어요)`))) return;
                 const ok = await pcalSaveCarrier(pcalSt.car, C2 => {
-                    if (manual) C2.manual = C2.manual.filter(m => m.name !== manual.name);
+                    if (manual) { C2.manual = C2.manual.filter(m => m.name !== manual.name); C2.off = C2.off.filter(n => n !== manual.name); }
                     else if (!C2.off.includes(E.name)) C2.off.push(E.name);
                 });
                 if (ok) { pcalSt.edit = null; renderPcalTable(); }
