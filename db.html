@@ -833,7 +833,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V125</span>
+                    <span class="text-sm text-gray-600">V126</span>
                 </div>
             </section>
         </div>
@@ -9971,7 +9971,7 @@ familyStr + `\n` +
                     date: D.date,
                     plans: D.plans.map(p => ({ name: p.name, fee: p.fee || 0, kids: /키즈|주니어/.test(p.name) })),
                     show: D.plans.filter(p => D.show.has(p.name)).map(p => p.name),
-                    models: D.models,
+                    ...(D.isNew ? pcalComposeFields(next.carriers[D.carrier] || {}, D.models) : { models: D.models }),
                     file: D.file,
                     ...(D.isNew ? { uploadedAt: getTodayStr(), by: getStaffName() || '' } : {})
                 };
@@ -11793,7 +11793,7 @@ familyStr + `\n` +
             <div id="pcalCalc" class="flex-1 min-h-0"></div>
             <div id="pcalTable" class="flex-1 overflow-y-auto px-3 pt-2 space-y-2 hidden" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
         document.body.appendChild(pcalEl);
-        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '' };
+        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null };
         function openPhoneCalc(tab) {
             pcalTab = tab || 'calc';
             pcalEl.style.display = 'flex';
@@ -11818,41 +11818,158 @@ familyStr + `\n` +
             }
             if (pcalTab === 'table') renderPcalTable();
         }
+        // 📋 기종 관리: src = 지원금표에서 읽은 전체 기종 · off = 명함에서 뺀 기종 이름 · manual = 직접 넣은 기종
+        const pcalNorm = (t) => String(t || '').toLowerCase().replace(/\s+/g, '').replace(/갤럭시/g, 'galaxy').replace(/아이폰/g, 'iphone');
+        function pcalCompose(C) {
+            const src = C.src || C.models || [], off = new Set(C.off || []);
+            return [...src.filter(m => !off.has(m.name)), ...(C.manual || [])];
+        }
+        function pcalComposeFields(prev, srcModels) {
+            const names = new Set(srcModels.map(m => m.name));
+            const n = ((srcModels[0] || {}).sup && srcModels[0].sup.new || []).length;
+            const pad = (a) => Array.from({ length: n }, (_, i) => Number((a || [])[i]) || 0);
+            const manual = (prev.manual || []).filter(m => !names.has(m.name)).map(m => ({ ...m, sup: { new: pad(m.sup && m.sup.new), chg: pad(m.sup && m.sup.chg), mnp: pad(m.sup && m.sup.mnp) } }));
+            const C = { src: srcModels, off: (prev.off || []).filter(n => names.has(n)), manual };
+            return { ...C, models: pcalCompose(C) };
+        }
+        async function pcalSaveCarrier(car, mut) {
+            const next = calcNormalize(calcData);
+            const C = { ...(next.carriers[car] || {}) };
+            if (!C.src) C.src = calcClone(C.models || []);
+            C.off = [...(C.off || [])]; C.manual = calcClone(C.manual || []); C.src = calcClone(C.src);
+            mut(C);
+            C.models = pcalCompose(C);
+            next.carriers[car] = C;
+            return calcSave(next, true);
+        }
         function renderPcalTable() {
             const d = calcData || calcNormalize(null);
-            const cars = CALC_CARRIERS.filter(k => d.carriers[k] && d.carriers[k].models && d.carriers[k].models.length);
+            const cars = CALC_CARRIERS.filter(k => d.carriers[k] && ((d.carriers[k].models || []).length || (d.carriers[k].src || []).length));
             const box = document.getElementById('pcalTable');
             if (!cars.length) { box.innerHTML = '<p class="text-sm text-gray-600 text-center py-10">아직 올린 지원금표가 없어요.<br>설정 → 명함 폰값계산에서 엑셀이나 사진으로 올려주세요.</p>'; return; }
             if (!cars.includes(pcalSt.car)) { pcalSt.car = cars[0]; pcalSt.plan = -1; }
             const C = d.carriers[pcalSt.car];
+            if (pcalSt.edit) return renderPcalEdit(C);
             const showIdx = C.plans.map((p, i) => i).filter(i => (C.show || []).includes(C.plans[i].name));
             if (pcalSt.plan < 0 || pcalSt.plan >= C.plans.length) pcalSt.plan = showIdx.length ? showIdx[0] : 0;
             const sel = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[14px] font-medium text-gray-900 bg-white';
-            const q = pcalSt.q.trim().toLowerCase();
-            const rows = C.models.filter(m => !q || (m.name + ' ' + (m.code || '')).toLowerCase().includes(q));
+            const q = pcalNorm(pcalSt.q);
+            const manualNames = new Set((C.manual || []).map(m => m.name));
+            const rows = (C.models || []).filter(m => !q || pcalNorm(m.name + (m.code || '')).includes(q));
+            const offList = (C.src || []).filter(m => (C.off || []).includes(m.name));
             const pl = C.plans[pcalSt.plan] || {};
+            const admin = isSuperAdmin;
+            // 검색어로 못 찾았을 때: 뺀 기종에서 찾거나 직접 추가
+            let addHtml = '';
+            const hidMatch = q ? offList.filter(m => pcalNorm(m.name + (m.code || '')).includes(q)) : [];
+            if (q && rows.length && hidMatch.length) {
+                addHtml = `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2"><p class="text-[13px] font-bold text-indigo-900">명함에서 뺀 기종 중에도 있어요</p>${hidMatch.map(m => `<button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full min-h-[44px] px-3 rounded-xl bg-white border border-indigo-200 text-left text-[13px] font-bold text-indigo-800 disabled:opacity-40"><i class="fa-solid fa-rotate-left"></i> ${escapeHtml(m.name)} 다시 넣기</button>`).join('')}</div>`;
+            }
+            if (q && !rows.length) {
+                const hid = hidMatch;
+                addHtml = `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2">
+                    <p class="text-[13px] font-bold text-indigo-900">'${escapeHtml(pcalSt.q)}'은(는) 명함 기종 목록에 없어요</p>
+                    ${hid.map(m => `<button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full min-h-[44px] px-3 rounded-xl bg-white border border-indigo-200 text-left text-[13px] font-bold text-indigo-800 disabled:opacity-40"><i class="fa-solid fa-rotate-left"></i> ${escapeHtml(m.name)} 다시 넣기 <span class="font-normal text-gray-500">(지원금표에 있는 기종 · 금액 그대로)</span></button>`).join('')}
+                    ${admin ? `<button type="button" id="pcalAddManual" class="w-full h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold"><i class="fa-solid fa-plus"></i> '${escapeHtml(pcalSt.q)}' 직접 넣기</button>` : '<p class="text-xs text-gray-600">기종 추가는 총관리자만 할 수 있어요.</p>'}
+                </div>`;
+            }
             box.innerHTML = `
                 <div class="grid grid-cols-2 gap-1.5">
                     <select id="pcalCar" aria-label="통신사" class="${sel}">${cars.map(k => `<option ${k === pcalSt.car ? 'selected' : ''}>${k}</option>`).join('')}</select>
                     <select id="pcalType" aria-label="가입 유형" class="${sel}">${[['mnp', '번호이동'], ['chg', '기기변경'], ['new', '신규']].map(([v, l]) => `<option value="${v}" ${v === pcalSt.type ? 'selected' : ''}>${l}</option>`).join('')}</select>
                     <select id="pcalPlan" aria-label="요금제" class="${sel} col-span-2">${C.plans.map((p, i) => `<option value="${i}" ${i === pcalSt.plan ? 'selected' : ''}>${escapeHtml(p.name)}${p.fee ? ' · ' + arWon(p.fee) + '원' : ''}${showIdx.includes(i) ? '' : ' (명함엔 숨김)'}</option>`).join('')}</select>
-                    <input type="search" id="pcalQ" value="${escapeHtml(pcalSt.q)}" placeholder="기종 찾기 (예: S26, 아이폰)" class="${sel} col-span-2">
+                    <input type="search" id="pcalQ" value="${escapeHtml(pcalSt.q)}" placeholder="기종 찾기·추가 (예: S26, 아이폰)" class="${sel} col-span-2">
                 </div>
-                <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 기종 ${C.models.length}개${C.file ? ' · ' + escapeHtml(C.file) : ''}</p>
-                <div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
-                    <div class="grid grid-cols-[minmax(0,1fr)_76px_76px_80px] gap-1 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600"><span>기종</span><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></div>
-                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; return `<div class="grid grid-cols-[minmax(0,1fr)_76px_76px_80px] gap-1 px-3 py-2 border-t border-gray-100 items-center">
-                        <span class="min-w-0"><span class="block text-[13px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}</span><span class="block text-[11px] text-gray-500 truncate">${escapeHtml([m.code, m.gen].filter(Boolean).join(' · '))}</span></span>
+                <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 명함에 기종 ${(C.models || []).length}개${offList.length ? ` · 뺀 기종 ${offList.length}개` : ''}${admin ? ' · 기종을 누르면 고치거나 뺄 수 있어요' : ''}</p>
+                ${addHtml}
+                ${rows.length ? `<div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                    <div class="grid grid-cols-[minmax(0,1fr)_72px_72px_76px] gap-1 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600"><span>기종</span><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></div>
+                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; return `<button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="w-full text-left grid grid-cols-[minmax(0,1fr)_72px_72px_76px] gap-1 px-3 py-2 border-t border-gray-100 items-center ${admin ? 'hover:bg-gray-50' : ''}">
+                        <span class="min-w-0"><span class="block text-[13px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}</span><span class="block text-[11px] text-gray-500 truncate">${escapeHtml([m.code, m.gen].filter(Boolean).join(' · '))}</span></span>
                         <span class="text-right text-[12px] text-gray-800">${arWon(m.price)}</span>
                         <span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span>
-                        <span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></div>`; }).join('') || '<p class="text-sm text-gray-500 text-center py-6">찾는 기종이 없어요.</p>'}
-                </div>
-                <p class="text-xs text-gray-500 px-1 leading-relaxed">'${escapeHtml(pl.name || '')}' 요금제 기준 공통지원금이에요. 유통망지원금·전환지원금은 빠진 금액이라, 실제 할부원금은 [계산기]에서 확인해요.</p>`;
+                        <span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></button>`; }).join('')}
+                </div>` : (q ? '' : '<p class="text-sm text-gray-500 text-center py-6">기종이 없어요.</p>')}
+                ${offList.length && !q ? `<details class="rounded-2xl border border-gray-200 bg-white px-3 py-2"><summary class="text-[13px] font-bold text-gray-700 min-h-[36px] flex items-center cursor-pointer">명함에서 뺀 기종 ${offList.length}개</summary>
+                    ${offList.map(m => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100"><span class="flex-1 min-w-0 text-[13px] text-gray-700 truncate">${escapeHtml(m.name)}</span><button type="button" data-pcal-restore="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="h-9 px-3 rounded-lg border border-indigo-200 text-xs font-bold text-indigo-700 disabled:opacity-40">다시 넣기</button></div>`).join('')}</details>` : ''}
+                <p class="text-xs text-gray-500 px-1 leading-relaxed">'${escapeHtml(pl.name || '')}' 요금제 기준 공통지원금이에요. 유통망·전환지원금은 빠진 금액이라 실제 할부원금은 [계산기]에서 확인해요. 엑셀·사진을 새로 올려도 뺀 기종은 계속 빠져 있어요.</p>`;
             document.getElementById('pcalCar').onchange = e => { pcalSt.car = e.target.value; pcalSt.plan = -1; renderPcalTable(); };
             document.getElementById('pcalType').onchange = e => { pcalSt.type = e.target.value; renderPcalTable(); };
             document.getElementById('pcalPlan').onchange = e => { pcalSt.plan = +e.target.value; renderPcalTable(); };
             const qi = document.getElementById('pcalQ');
             qi.oninput = () => { pcalSt.q = qi.value; const pos = qi.selectionStart; renderPcalTable(); const n = document.getElementById('pcalQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
+            box.querySelectorAll('[data-pcal-edit]').forEach(b => b.onclick = () => { pcalSt.edit = { name: b.dataset.pcalEdit, isNew: false }; renderPcalTable(); box.scrollTop = 0; });
+            box.querySelectorAll('[data-pcal-restore]').forEach(b => b.onclick = async () => {
+                const name = b.dataset.pcalRestore;
+                if (await pcalSaveCarrier(pcalSt.car, C2 => { C2.off = C2.off.filter(n => n !== name); })) { pcalSt.q = ''; renderPcalTable(); }
+            });
+            const am = document.getElementById('pcalAddManual');
+            if (am) am.onclick = () => { pcalSt.edit = { name: pcalSt.q.trim(), isNew: true }; renderPcalTable(); };
+        }
+        // ✏️ 기종 고치기 · 빼기 · 직접 넣기
+        function renderPcalEdit(C) {
+            const E = pcalSt.edit, box = document.getElementById('pcalTable');
+            const manual = (C.manual || []).find(m => m.name === E.name);
+            const base = E.isNew ? null : (manual || (C.src || C.models || []).find(m => m.name === E.name));
+            if (!E.draft) {
+                const n = C.plans.length;
+                E.draft = base ? calcClone(base) : { name: E.name, code: '', gen: '5G', price: 0, sup: { new: Array(n).fill(0), chg: Array(n).fill(0), mnp: Array(n).fill(0) } };
+                ['new', 'chg', 'mnp'].forEach(t => { E.draft.sup[t] = Array.from({ length: n }, (_, i) => Number((E.draft.sup[t] || [])[i]) || 0); });
+                E.type = pcalSt.type;
+            }
+            const D = E.draft, field = 'h-11 min-w-0 w-full px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            const showSet = new Set(C.show || []);
+            box.innerHTML = `
+                <div class="flex items-center gap-2"><button type="button" id="pcalBack" class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700"><i class="fa-solid fa-chevron-left"></i> 목록</button>
+                    <p class="text-[15px] font-bold text-gray-900 truncate">${E.isNew ? '기종 직접 넣기' : '기종 고치기'} · ${escapeHtml(pcalSt.car)}</p></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="col-span-2 text-xs font-bold text-gray-600">기종 이름<input id="pcalEName" value="${escapeHtml(D.name)}" ${E.isNew || manual ? '' : 'readonly'} class="mt-1 ${field} ${E.isNew || manual ? '' : 'bg-gray-100'}"></label>
+                    <label class="text-xs font-bold text-gray-600">출고가 (원)<input id="pcalEPrice" inputmode="numeric" value="${D.price ? arWon(D.price) : ''}" class="mt-1 ${field} text-right"></label>
+                    <label class="text-xs font-bold text-gray-600">구분<select id="pcalEGen" class="mt-1 ${field}"><option ${D.gen !== 'LTE' ? 'selected' : ''}>5G</option><option ${D.gen === 'LTE' ? 'selected' : ''}>LTE</option></select></label>
+                </div>
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${[['mnp', '번호이동'], ['chg', '기기변경'], ['new', '신규']].map(([v, l]) => `<button type="button" data-pcal-etype="${v}" class="flex-1 h-10 rounded-xl text-sm font-bold ${E.type === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${l}</button>`).join('')}</div>
+                <div class="flex items-center gap-2"><input id="pcalEAll" inputmode="numeric" placeholder="모든 요금제에 같은 지원금" class="${field} text-right"><button type="button" id="pcalEAllBtn" class="flex-shrink-0 h-11 px-3 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">한 번에 넣기</button></div>
+                <div class="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
+                    ${C.plans.map((p, i) => `<div class="flex items-center gap-2 px-3 py-1.5"><span class="flex-1 min-w-0 text-[13px] ${showSet.has(p.name) ? 'font-bold text-gray-900' : 'text-gray-500'} truncate">${escapeHtml(p.name)}</span>
+                        <input data-pcal-esup="${i}" inputmode="numeric" value="${D.sup[E.type][i] ? arWon(D.sup[E.type][i]) : ''}" placeholder="0" aria-label="${escapeHtml(p.name)} 공통지원금" class="w-28 h-10 px-2 border border-gray-300 rounded-lg text-[14px] text-right"></div>`).join('')}
+                </div>
+                <p class="text-xs text-gray-500 px-1">굵은 요금제가 명함에 보이는 요금제예요. 지원금은 공통지원금(공시)만 넣어요.</p>
+                <p id="pcalEErr" role="alert" class="hidden text-[13px] font-bold text-red-700 px-1"></p>
+                <div class="grid ${E.isNew ? 'grid-cols-1' : 'grid-cols-[1fr_1.6fr]'} gap-2 pt-1">
+                    ${E.isNew ? '' : `<button type="button" id="pcalEDel" class="h-12 rounded-xl border border-red-200 bg-white text-[15px] font-bold text-red-700"><i class="fa-solid fa-trash-can"></i> ${manual ? '지우기' : '명함에서 빼기'}</button>`}
+                    <button type="button" id="pcalESave" class="h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold"><i class="fa-solid fa-check"></i> 저장</button>
+                </div>`;
+            const num = (v) => Number(String(v).replace(/[^\d]/g, '')) || 0;
+            const keep = () => { D.name = arVal('pcalEName') || D.name; D.price = num(arVal('pcalEPrice')); D.gen = arVal('pcalEGen'); box.querySelectorAll('[data-pcal-esup]').forEach(el => { D.sup[E.type][+el.dataset.pcalEsup] = num(el.value); }); };
+            box.querySelectorAll('input[inputmode="numeric"]').forEach(el => el.addEventListener('input', () => { const n = num(el.value); el.value = n ? arWon(n) : ''; }));
+            document.getElementById('pcalBack').onclick = () => { pcalSt.edit = null; renderPcalTable(); };
+            box.querySelectorAll('[data-pcal-etype]').forEach(b => b.onclick = () => { keep(); E.type = b.dataset.pcalEtype; renderPcalEdit(C); });
+            document.getElementById('pcalEAllBtn').onclick = () => { keep(); const v = num(arVal('pcalEAll')); D.sup[E.type] = D.sup[E.type].map(() => v); renderPcalEdit(C); };
+            const err = (m) => { const e = document.getElementById('pcalEErr'); e.textContent = m; e.classList.remove('hidden'); };
+            document.getElementById('pcalESave').onclick = async () => {
+                keep();
+                if (!D.name.trim()) return err('기종 이름을 넣어주세요.');
+                if (!(D.price > 0)) return err('출고가를 넣어주세요.');
+                if (E.isNew || manual) {
+                    const dup = (C.models || []).some(m => m.name === D.name && (!manual || m.name !== manual.name));
+                    if (dup) return err('같은 이름의 기종이 이미 있어요.');
+                }
+                const ok = await pcalSaveCarrier(pcalSt.car, C2 => {
+                    if (E.isNew) C2.manual.push(D);
+                    else if (manual) C2.manual = C2.manual.map(m => m.name === manual.name ? D : m);
+                    else C2.src = C2.src.map(m => m.name === D.name ? D : m);
+                });
+                if (ok) { pcalSt.edit = null; pcalSt.q = ''; renderPcalTable(); customAlert(`${D.name} 저장했어요. 명함에도 바로 반영돼요.`); }
+            };
+            const del = document.getElementById('pcalEDel');
+            if (del) del.onclick = async () => {
+                if (!(await customConfirm(manual ? `${D.name}을(를) 지울까요?` : `${D.name}을(를) 명함 기종 목록에서 뺄까요?\n(목록 아래 '뺀 기종'에서 다시 넣을 수 있어요)`))) return;
+                const ok = await pcalSaveCarrier(pcalSt.car, C2 => {
+                    if (manual) C2.manual = C2.manual.filter(m => m.name !== manual.name);
+                    else if (!C2.off.includes(E.name)) C2.off.push(E.name);
+                });
+                if (ok) { pcalSt.edit = null; renderPcalTable(); }
+            };
         }
         document.getElementById('pcalOpenBtn').addEventListener('click', () => openPhoneCalc('calc'));
         document.getElementById('pcalTableBtn').addEventListener('click', () => { closeCalcSheet(); setTimeout(() => openPhoneCalc('table'), 0); });
