@@ -833,7 +833,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V127</span>
+                    <span class="text-sm text-gray-600">V128</span>
                 </div>
             </section>
         </div>
@@ -11793,7 +11793,9 @@ familyStr + `\n` +
             <div id="pcalCalc" class="flex-1 min-h-0"></div>
             <div id="pcalTable" class="flex-1 overflow-y-auto px-3 pt-2 space-y-2 hidden" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
         document.body.appendChild(pcalEl);
-        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null };
+        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null, brand: localStorage.getItem('pcalBrand') || '' };
+        // 명함과 같은 규칙 + 모델 코드(SM-·AIP)로도 구분
+        const pcalBrandOf = (m) => { const t = `${m.name || ''} ${m.code || ''}`; return /iphone|아이폰|apple|\bAIP/i.test(t) ? '애플' : (/갤럭시|galaxy|삼성|samsung|\bSM-|z ?폴드|z ?플립|fold|flip/i.test(t) ? '삼성' : '기타'); };
         function openPhoneCalc(tab) {
             pcalTab = tab || 'calc';
             pcalEl.style.display = 'flex';
@@ -11868,7 +11870,12 @@ familyStr + `\n` +
             const manualNames = new Set((C.manual || []).map(m => m.name));
             const off = new Set(C.off || []);
             const all = [...(C.src || C.models || []), ...(C.manual || [])];
-            const rows = all.filter(m => !q || pcalNorm(m.name + (m.code || '')).includes(q));
+            const brandCnt = { 삼성: 0, 애플: 0, 기타: 0 };
+            all.forEach(m => { brandCnt[pcalBrandOf(m)]++; });
+            if (pcalSt.brand && !brandCnt[pcalSt.brand]) pcalSt.brand = '';
+            const order = { 삼성: 0, 애플: 1, 기타: 2 };
+            const rows = all.filter(m => (!q || pcalNorm(m.name + (m.code || '')).includes(q)) && (!pcalSt.brand || pcalBrandOf(m) === pcalSt.brand))
+                .map((m, i) => [m, i]).sort((a, b) => (order[pcalBrandOf(a[0])] - order[pcalBrandOf(b[0])]) || (a[1] - b[1])).map(x => x[0]);
             const onCnt = all.length - all.filter(m => off.has(m.name)).length;
             const pl = C.plans[pcalSt.plan] || {};
             const admin = isSuperAdmin;
@@ -11880,11 +11887,12 @@ familyStr + `\n` +
                     <select id="pcalPlan" aria-label="요금제" class="${sel} col-span-2">${C.plans.map((p, i) => `<option value="${i}" ${i === pcalSt.plan ? 'selected' : ''}>${escapeHtml(p.name)}${p.fee ? ' · ' + arWon(p.fee) + '원' : ''}${showIdx.includes(i) ? '' : ' (명함엔 숨김)'}</option>`).join('')}</select>
                     <input type="search" id="pcalQ" value="${escapeHtml(pcalSt.q)}" placeholder="기종 찾기·추가 (예: S26, 아이폰)" class="${sel} col-span-2">
                 </div>
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${[['', '전체', all.length], ['삼성', '삼성', brandCnt.삼성], ['애플', '애플', brandCnt.애플], ...(brandCnt.기타 ? [['기타', '기타', brandCnt.기타]] : [])].map(([v, l, n]) => `<button type="button" data-pcal-brand="${v}" class="flex-1 h-10 rounded-xl text-sm font-bold ${pcalSt.brand === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${l} <span class="text-xs font-medium text-gray-500">${n}</span></button>`).join('')}</div>
                 <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} ${C.date ? escapeHtml(C.date) + ' 기준' : ''} · 명함에 <b class="text-indigo-700">${onCnt}</b> / 전체 ${all.length}개${admin ? ' · ☑ 체크한 기종만 명함에 나와요 · 이름을 누르면 금액 고치기' : ''}</p>
                 ${admin && rows.length ? `<div class="flex items-center gap-1.5">
-                    <span class="flex-1 text-xs text-gray-600 pl-1">${q ? `찾은 ${rows.length}개 중 ${rowsOn}개 체크` : `전체 ${rows.length}개 중 ${rowsOn}개 체크`}</span>
-                    <button type="button" id="pcalAllOn" class="h-9 px-3 rounded-lg border border-indigo-300 bg-white text-xs font-bold text-indigo-700">${q ? '찾은 것' : '모두'} 넣기</button>
-                    <button type="button" id="pcalAllOff" class="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">${q ? '찾은 것' : '모두'} 빼기</button>
+                    <span class="flex-1 text-xs text-gray-600 pl-1">${q ? '찾은' : (pcalSt.brand || '전체')} ${rows.length}개 중 ${rowsOn}개 체크</span>
+                    <button type="button" id="pcalAllOn" class="h-9 px-3 rounded-lg border border-indigo-300 bg-white text-xs font-bold text-indigo-700">${q ? '찾은 것' : (pcalSt.brand ? pcalSt.brand + ' 모두' : '모두')} 넣기</button>
+                    <button type="button" id="pcalAllOff" class="h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">${q ? '찾은 것' : (pcalSt.brand ? pcalSt.brand + ' 모두' : '모두')} 빼기</button>
                 </div>` : ''}
                 ${q && !rows.length ? `<div class="rounded-2xl border border-dashed border-indigo-300 bg-indigo-50/50 p-3 space-y-2">
                     <p class="text-[13px] font-bold text-indigo-900">'${escapeHtml(pcalSt.q)}'은(는) 지원금표에 없어요</p>
@@ -11892,7 +11900,7 @@ familyStr + `\n` +
                 </div>` : ''}
                 ${rows.length ? `<div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
                     <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600">${admin ? '<span class="w-7 flex-shrink-0">명함</span>' : ''}<span class="flex-1 grid grid-cols-3 gap-1"><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></span></div>
-                    ${rows.map(m => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; const isOn = !off.has(m.name); return `<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
+                    ${rows.map((m, ri) => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; const isOn = !off.has(m.name); const br = pcalBrandOf(m); const head = !pcalSt.brand && (ri === 0 || pcalBrandOf(rows[ri - 1]) !== br) ? `<div class="px-3 py-1.5 border-t border-gray-200 bg-indigo-50/60 text-[12px] font-bold text-indigo-900">${br === '삼성' ? '📱 삼성' : (br === '애플' ? '🍎 애플' : '기타')} <span class="font-medium text-indigo-700">${brandCnt[br]}개</span></div>` : ''; return `${head}<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
                         ${admin ? `<label class="w-7 h-11 flex-shrink-0 flex items-center cursor-pointer"><input type="checkbox" data-pcal-on="${escapeHtml(m.name)}" ${isOn ? 'checked' : ''} aria-label="${escapeHtml(m.name)} 명함에 보이기" class="w-6 h-6 accent-indigo-600"></label>` : ''}
                         <button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="flex-1 min-w-0 text-left ${isOn ? '' : 'opacity-50'}">
                             <span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
@@ -11905,6 +11913,7 @@ familyStr + `\n` +
             document.getElementById('pcalPlan').onchange = e => { pcalSt.plan = +e.target.value; renderPcalTable(); };
             const qi = document.getElementById('pcalQ');
             qi.oninput = () => { pcalSt.q = qi.value; const pos = qi.selectionStart; renderPcalTable(); const n = document.getElementById('pcalQ'); n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) {} };
+            box.querySelectorAll('[data-pcal-brand]').forEach(b => b.onclick = () => { pcalSt.brand = b.dataset.pcalBrand; try { localStorage.setItem('pcalBrand', pcalSt.brand); } catch (e) {} renderPcalTable(); });
             box.querySelectorAll('[data-pcal-edit]').forEach(b => b.onclick = () => { pcalSt.edit = { name: b.dataset.pcalEdit, isNew: false }; renderPcalTable(); box.scrollTop = 0; });
             box.querySelectorAll('[data-pcal-on]').forEach(el => el.onchange = async () => {
                 const top = box.scrollTop;
@@ -11913,7 +11922,7 @@ familyStr + `\n` +
             });
             const bulk = async (on) => {
                 const names = rows.map(m => m.name);
-                if (!on && !(await customConfirm(`${q ? '찾은' : '모든'} 기종 ${names.length}개를 명함에서 뺄까요?`))) return;
+                if (!on && !(await customConfirm(`${q ? '찾은' : (pcalSt.brand ? pcalSt.brand + ' ' : '모든 ')} 기종 ${names.length}개를 명함에서 뺄까요?`))) return;
                 const top = box.scrollTop;
                 await pcalToggle(pcalSt.car, names, on);
                 renderPcalTable(); box.scrollTop = top;
