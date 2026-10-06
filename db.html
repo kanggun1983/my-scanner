@@ -848,7 +848,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V133</span>
+                    <span class="text-sm text-gray-600">V134</span>
                 </div>
             </section>
         </div>
@@ -1377,12 +1377,16 @@
                         <div class="bg-white border border-pink-100 rounded-lg p-2 shadow-sm flex flex-col gap-2">
                             <label class="flex items-center gap-1.5 cursor-pointer">
                                 <input type="checkbox" id="promAccChk" class="w-4 h-4 text-pink-600 rounded focus:ring-pink-500">
-                                <span class="text-xs font-bold text-gray-700">✅ 악세 예약 (찾으러 오는 날 · 악세정산 앱에서 자동 등록)</span>
+                                <span class="text-xs font-bold text-gray-700">✅ 악세 예약 (찾으러 오는 날 · 악세정산 앱과 자동 연결)</span>
                             </label>
                             <div class="flex gap-2">
                                 <input type="date" id="promAccDate" class="w-28 flex-shrink-0 p-1.5 border border-pink-200 rounded text-xs outline-none focus:ring-1 focus:ring-pink-400">
                                 <input type="text" id="promAccMemo" placeholder="예약한 악세 (예: 아이폰17 프로 케이스)" class="flex-1 p-1.5 border border-pink-200 rounded text-xs outline-none focus:ring-1 focus:ring-pink-400">
                             </div>
+                            <label class="flex items-center gap-2 text-[11px] font-bold text-gray-600">악세정산 매장
+                                <select id="promAccStore" class="flex-1 min-w-0 p-1.5 border border-pink-200 rounded text-xs bg-white outline-none focus:ring-1 focus:ring-pink-400"></select>
+                            </label>
+                            <p id="promAccFromNote" class="hidden text-[11px] text-gray-500"></p>
                         </div>
 
                         <div class="bg-white border border-purple-100 rounded-lg p-2 shadow-sm flex flex-col gap-2">
@@ -5184,6 +5188,9 @@
                 document.getElementById(`prom${k}Memo`).value = c[`prom${k}Memo`] || '';
                 document.getElementById(`prom${k}Chk`).checked = c[`prom${k}Chk`] || false;
             });
+            fillAccStoreSelect(document.getElementById('promAccStore'), c.promAccStore);
+            { const nt = document.getElementById('promAccFromNote'); const on = !!(c.promAccDate && c.promAccFrom);
+              nt.classList.toggle('hidden', !on); nt.textContent = c.promAccFrom === 'acc' ? `악세정산 앱(${c.promAccStore || '매장'})에서 넣은 예약이에요.` : (on ? `강CRM에서 넣은 예약 → 악세정산 '${c.promAccStore || ''}' 예약 목록에 떠요.` : ''); }
             
             document.getElementById('promInsDate').value = c.promInsDate || '';
             document.getElementById('promInsMemo').value = c.promInsMemo || '';
@@ -7943,6 +7950,7 @@ ${AI_TONES[aiSmsTone]}
                 promAddonMemo: document.getElementById('promAddonMemo').value,
                 promAddonChk: document.getElementById('promAddonChk').checked,
                 ...Object.fromEntries(['Addon2', 'Addon3', 'Addon4', 'Card', 'Acc'].flatMap(k => [[`prom${k}Date`, document.getElementById(`prom${k}Date`).value], [`prom${k}Memo`, document.getElementById(`prom${k}Memo`).value], [`prom${k}Chk`, document.getElementById(`prom${k}Chk`).checked]])),
+                ...accLinkFields(prevSales, document.getElementById('promAccDate').value, document.getElementById('promAccMemo').value, document.getElementById('promAccStore').value),
                 
                 promInsDate: document.getElementById('promInsDate').value,
                 promInsMemo: document.getElementById('promInsMemo').value,
@@ -10891,7 +10899,16 @@ familyStr + `\n` +
                     ${arSel('ar-k-card', '제휴카드 (위 제휴카드 줄이 있으면 그 유지일로)', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
                     ${arIn('ar-target', '유지 후 바꿀 요금제 (약속 메모에 들어가요)', c.repTargetPlan || '', { ph: '예) 5G 라이트' })}
                     </div><p id="ar-k-dates" class="text-xs text-indigo-700 font-bold"></p>`, '<span class="text-xs text-gray-500">통신사를 고르면 기본값이 맞춰져요</span>');
-                html += arSec('기타정보', `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
+                html += arSec('기타정보', `<div class="rounded-xl border border-pink-200 bg-pink-50/50 p-2.5 space-y-2">
+                        <p class="text-[13px] font-bold text-pink-900">🌸 악세 예약 <span class="font-normal text-gray-600">(악세정산 앱 예약 목록에 자동으로 떠요)</span></p>
+                        ${c.promAccDate && !c.promAccChk && c.promAccMemo ? `<p class="text-xs text-gray-700 bg-white rounded-lg px-2 py-1.5">지금 예약: ${escapeHtml(String(c.promAccMemo).slice(0, 60))} · ${escapeHtml(String(c.promAccDate).slice(5).replace('-', '/'))}${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''} <span class="text-gray-500">(새로 적으면 바뀌어요)</span></p>` : ''}
+                        ${arIn('ar-acc-text', '예약한 악세', '', { ph: '예) 아이폰17 프로 클리어 케이스' })}
+                        <div class="grid grid-cols-2 gap-2">
+                            ${arIn('ar-acc-date', '찾으러 오는 날', '', { type: 'date' })}
+                            <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">악세정산 매장</span><select id="ar-acc-store" class="${arCls}"></select></label>
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
                     ${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}
                     <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>
                     ${driveMode() !== 'off' ? `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`);
@@ -10922,6 +10939,7 @@ familyStr + `\n` +
             const body = document.getElementById('arBody');
             body.innerHTML = html;
             body.scrollTop = 0;
+            { const as = document.getElementById('ar-acc-store'); if (as) fillAccStoreSelect(as, c.promAccStore); }
             // 금액 칸: 입력하면 쉼표 + 다시 계산
             body.querySelectorAll('input[inputmode="numeric"]').forEach(el => el.addEventListener('input', () => {
                 const neg = String(el.value).trim().startsWith('-');
@@ -11128,6 +11146,9 @@ familyStr + `\n` +
                     discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
                     salesStatus: '판매성공', salesStatusAt: d,
                     missingDocs: document.getElementById('ar-missing').checked ? (arVal('ar-missing-text') || '있음') : '',
+                    // 🌸 악세 예약 → 악세정산 앱 예약 목록에 자동으로
+                    ...(arVal('ar-acc-text') ? { promAccDate: arVal('ar-acc-date') || getTodayStr(), promAccMemo: arVal('ar-acc-text').slice(0, 200), promAccChk: false,
+                        promAccFrom: 'crm', promAccStore: arVal('ar-acc-store'), promAccKey: newAccKey(), promAccBy: getStaffName() || '' } : {}),
                     // 예전 개통보고 칸 (고객카드 가족 칸 · 개통 점검 · 엑셀 내보내기가 이 칸을 씀)
                     repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('ar-address'), repFamily: arVal('ar-family'),
                     repUsedPhone: arVal('ar-usedphone'), repBranch: arVal('ar-branch'), repSubsidy: arVal('ar-subsidy'), repTargetPlan: arVal('ar-target'),
@@ -12136,6 +12157,35 @@ familyStr + `\n` +
             ['bbOn', 'bbIconIn'].forEach(id => document.getElementById(id).addEventListener('change', save));
             ['bbTitleIn', 'bbSubIn'].forEach(id => document.getElementById(id).addEventListener('change', save));
         })();
+
+    
+        /* =====================================================================
+           🌸 악세정산 앱 연결: 강CRM에서 잡은 악세 예약 → 악세정산 '매장' 예약 목록에 자동으로
+           · promAccFrom: 'crm'(강CRM에서 넣음) / 'acc'(악세정산에서 넣음) · promAccStore: 악세정산 매장 · promAccKey: 예약 번호
+           ===================================================================== */
+        function accStoreList() {
+            const L = Array.isArray(appSettings.accStores) && appSettings.accStores.length ? appSettings.accStores : ['태검+진천', '평리점', '성당점'];
+            return L.map(x => String(x || '').trim()).filter(Boolean);
+        }
+        function fillAccStoreSelect(sel, cur) {
+            if (!sel) return;
+            const list = accStoreList();
+            let last = ''; try { last = localStorage.getItem('accStoreLast') || ''; } catch (e) {}
+            const pick = cur && list.includes(cur) ? cur : (list.includes(last) ? last : (list.find(x => /진천/.test(x)) || list[0]));
+            sel.innerHTML = (cur && !list.includes(cur) ? [cur, ...list] : list).map(n => `<option ${n === pick ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
+            sel.onchange = () => { try { localStorage.setItem('accStoreLast', sel.value); } catch (e) {} };
+        }
+        function newAccKey() { return 'crm:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+        // 상세카드 저장 때: 바뀌었으면 출처·매장·번호 정리 (악세정산에서 넣은 예약은 그쪽 것 그대로)
+        function accLinkFields(prev, date, memo, store) {
+            prev = prev || {};
+            if (!date && !memo) return { promAccFrom: '', promAccKey: '', promAccStore: '' };
+            const changed = date !== (prev.promAccDate || '') || memo !== (prev.promAccMemo || '') || store !== (prev.promAccStore || '');
+            if (!changed) return {};
+            try { if (store) localStorage.setItem('accStoreLast', store); } catch (e) {}
+            const keepKey = prev.promAccFrom === 'crm' && prev.promAccKey;
+            return { promAccFrom: 'crm', promAccStore: store || '', promAccKey: keepKey ? prev.promAccKey : newAccKey(), promAccBy: getStaffName() || '' };
+        }
 
     </script>
 </body>
