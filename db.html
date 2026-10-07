@@ -881,7 +881,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V142</span>
+                    <span class="text-sm text-gray-600">V143</span>
                 </div>
             </section>
         </div>
@@ -6539,14 +6539,18 @@
             const t = smsSetting('smsPromoTarget') || 'all';
             const today = getTodayStr(), d90 = addDaysStr(today, -90);
             return customerDB.filter(c => {
-                if (c.deletedAt || c.marketingDeny || c.salesStatus === '고객거부') return false;
-                if (!smsMobileDigits(c.phone) && !(autoPushOn() && c.pushSubscribed === true && c.cardId)) return false;
+                if (!promoReachable(c)) return false;
                 if (t === 'm18') { const a = c.activationDate ? getDdayAndMonths(c.activationDate) : null; return !!(a && a.months >= 18); }
                 if (t === 'prospect') return c.salesStatus === '가망' || c.salesStatus === '방문약속';
                 if (t === 'visit90') return !!(c.visitDate && String(c.visitDate).slice(0, 10) >= d90);
                 return true;
             }).sort((a, b) => String(a.id).localeCompare(String(b.id)));
         }
+        function promoReachable(c) {   // 지금도 보내도 되는 고객인지 (삭제·수신거부·고객거부·연락처 없음 제외)
+            if (!c || c.deletedAt || c.marketingDeny || c.salesStatus === '고객거부') return false;
+            return !!(smsMobileDigits(c.phone) || (autoPushOn() && c.pushSubscribed === true && c.cardId));
+        }
+        function promoKey() { return `${String(smsSetting('smsPromoDate') || '')}${promoTime()}`; }
         function promoTimeOk(t) { const h = parseInt(t, 10); return /^\d{2}:\d{2}$/.test(String(t || '')) && h >= 8 && h < 21; }
         function promoTime() {   // 광고는 밤 9시~아침 8시 금지 → 그 시간이면 오전 10시 (홍보 전용 시각이 없으면 자동 문자 시각)
             const own = String(smsSetting('smsPromoTime') || '');
@@ -6562,11 +6566,21 @@
             if (forPush) return `${body}\n${PUSH_AD_FOOTER}`;
             return `(광고) ${body}\n${String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim()}`;
         }
+        // 시작할 때 대상 명단을 고정 (나중에 고객이 늘거나 상태가 바뀌어도 순서가 밀려 두 번 가거나 빠지지 않게)
         function promoPlan() {
             const date = String(smsSetting('smsPromoDate') || '');
             const per = Math.max(1, parseInt(smsSetting('smsPromoDaily'), 10) || 50);
-            const list = /^\d{4}-\d{2}-\d{2}$/.test(date) ? promoTargets() : [];
-            return { date, per, list, days: Math.ceil(list.length / per), last: list.length ? addDaysStr(date, Math.ceil(list.length / per) - 1) : '' };
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { date, per, list: [], pos: [], size: 0, days: 0, last: '' };
+            const ids = Array.isArray(appSettings.smsPromoIds) ? appSettings.smsPromoIds : null;
+            let list, pos, size;
+            if (smsSetting('smsAutoPromoOn') && ids && ids.length && appSettings.smsPromoKey === promoKey()) {
+                const byId = new Map(customerDB.map(c => [String(c.id), c]));
+                list = []; pos = [];
+                ids.forEach((id, i) => { const c = byId.get(String(id)); if (promoReachable(c)) { list.push(c); pos.push(i); } });
+                size = ids.length;
+            } else { list = promoTargets(); pos = list.map((_, i) => i); size = list.length; }
+            const days = Math.ceil(size / per);
+            return { date, per, list, pos, size, days, last: size ? addDaysStr(date, days - 1) : '' };
         }
         // 앞으로 14일 안에 보내야 할 자동 문자 목록 (고객 데이터로 계산)
         function buildAutoSmsItems(now = new Date()) {
@@ -6576,8 +6590,8 @@
                 const P = promoPlan(), today = getTodayStr(), skip = smsSkipIds(), time = promoTime(), camp = promoCampaign();
                 const lastD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
                 const lastStr = `${lastD.getFullYear()}-${String(lastD.getMonth() + 1).padStart(2, '0')}-${String(lastD.getDate()).padStart(2, '0')}`;
-                P.list.forEach((c, i) => {
-                    const day = addDaysStr(P.date, Math.floor(i / P.per));
+                P.list.forEach((c, k) => {
+                    const day = addDaysStr(P.date, Math.floor(P.pos[k] / P.per));
                     if (day < today || day > lastStr) return;                       // 지난 날(이미 보냄)·14일 뒤는 빼기
                     const at = parseDateString(day); const [hh, mm] = time.split(':').map(n => parseInt(n, 10));
                     const atMs = new Date(at.getFullYear(), at.getMonth(), at.getDate(), hh || 10, mm || 0).getTime();
@@ -6662,6 +6676,11 @@
                 const list = await callSms('list');
                 const queued = Array.isArray(list.queued) ? list.queued : [];
                 const byId = new Map(queued.map(q => [q.id, q]));
+                if (smsSetting('smsAutoPromoOn') && appSettings.smsPromoKey !== promoKey() && isSuperAdmin) {   // 예전 버전으로 시작한 홍보도 지금 명단으로 고정
+                    const ids = promoTargets().map(c => String(c.id));
+                    appSettings = { ...appSettings, smsPromoIds: ids, smsPromoKey: promoKey() };
+                    saveDoc(doc(db, 'smart_global', 'settings'), { smsPromoIds: ids, smsPromoKey: promoKey() }, { merge: true }).catch(e => console.error(e));
+                }
                 const desired = buildAutoSmsItems();
                 const desiredIds = new Set(desired.map(d => d.id));
                 const toAdd = desired.filter(d => { const q = byId.get(d.id); return !q || q.to !== smsIntl(d.to) || (q.channel || 'sms') !== (d.channel || 'sms') || q.preview !== d.text.slice(0, 40) || Number(q.sendAt) !== d.sendAt && Math.abs(Number(q.sendAt) - d.sendAt) > 5 * 60 * 1000; });
@@ -6791,6 +6810,8 @@
                 smsPromoDate: document.getElementById('smsPromoDate').value || '',
                 smsPromoTime: promoTimeOk(document.getElementById('smsPromoTime').value) ? document.getElementById('smsPromoTime').value : '',
                 smsPromoMode: promoModeUI,
+                smsPromoIds: Array.isArray(appSettings.smsPromoIds) ? appSettings.smsPromoIds : [],
+                smsPromoKey: String(appSettings.smsPromoKey || ''),
                 smsPromoTarget: document.getElementById('smsPromoTarget').value || 'all',
                 smsPromoDaily: document.getElementById('smsPromoDaily').value || '50',
                 smsPromoOptout: document.getElementById('smsPromoOptout').value.trim() || SMS_AUTO_DEFAULTS.smsPromoOptout,
@@ -6875,6 +6896,12 @@
             document.getElementById('smsPromoDate').value = date;
             document.getElementById('smsPromoTime').value = time;
             document.getElementById('smsAutoPromoOn').checked = true;
+            {   // 대상 명단 고정
+                const save2 = { ...appSettings };
+                appSettings = { ...appSettings, smsPromoDate: date, smsPromoTarget: document.getElementById('smsPromoTarget').value };
+                const ids = promoTargets().map(c => String(c.id)); appSettings = save2;
+                appSettings = { ...appSettings, smsPromoIds: ids, smsPromoKey: `${date}${time}` };
+            }
             if (!await saveSmsSettings()) return;
             customAlert(mode === 'now' ? `📢 보내기 시작했어요! (${n}명)\n'보낼 예정' 목록에서 확인할 수 있어요.` : `📅 예약했어요! ${date.slice(5).replace('-', '/')} ${time} · ${n}명\n취소하려면 '이 홍보 그만 보내기'를 눌러주세요.`);
         }
@@ -6893,8 +6920,8 @@
             if (!smsSetting('smsAutoPromoOn') || !promoProgList) return null;
             const P = promoPlan(), today = getTodayStr(), camp = promoCampaign(), time = promoTime();
             if (!P.list.length || today < P.date) return null;
-            const dueIdx = Math.min(P.list.length, (Math.floor((parseDateString(today) - parseDateString(P.date)) / 86400000) + (Date.now() >= promoStartMs(today, time) ? 1 : 0)) * P.per);
-            const due = P.list.slice(0, dueIdx);                             // 지금까지 나갔어야 할 고객
+            const dueIdx = (Math.floor((parseDateString(today) - parseDateString(P.date)) / 86400000) + (Date.now() >= promoStartMs(today, time) ? 1 : 0)) * P.per;
+            const due = P.list.filter((c, k) => P.pos[k] < dueIdx);                             // 지금까지 나갔어야 할 고객
             const last8 = v => String(v || '').replace(/\D/g, '').slice(-8);
             const duePh = new Set(due.map(c => last8(c.phone)).filter(Boolean));
             const queued = (promoProgList.queued || []).filter(q => String(q.id || '').startsWith(camp));
@@ -6992,7 +7019,7 @@
         // 보내는 중이면 1분마다 진행 상황 확인 (앱이 열려 있을 때만 · 보낼 시각 3시간 지나면 멈춤)
         setInterval(() => {
             try {
-                if (!smsSetting('smsAutoPromoOn') || !pushRelayReady() || document.visibilityState !== 'visible') return;
+                if (!isSuperAdmin || !smsSetting('smsAutoPromoOn') || !pushRelayReady() || document.visibilityState !== 'visible') return;   // 👑 총관리자 폰에서만
                 const today = getTodayStr(), P = promoPlan();
                 if (!P.list.length || today < P.date || today > P.last) return;
                 const st = promoStartMs(today, promoTime());
@@ -7026,6 +7053,7 @@
             document.getElementById('promoResvBox').style.display = mode === 'now' ? 'none' : '';
             const go = document.getElementById('smsPromoGo'), stop = document.getElementById('smsPromoStop');
             stop.classList.toggle('hidden', !on);
+            ['smsPromoDate', 'smsPromoTime', 'smsPromoTarget', 'smsPromoDaily'].forEach(id => { const el = document.getElementById(id); el.disabled = on; el.title = on ? "진행 중에는 못 바꿔요 · '이 홍보 그만 보내기' 후 다시 시작" : ''; el.classList.toggle('opacity-50', on); });
             go.style.display = (mode === 'resv' && on) ? 'none' : '';
             go.innerHTML = mode === 'now' ? '<i class="fa-solid fa-paper-plane"></i> 지금 바로 보내기' : '<i class="fa-solid fa-calendar-check"></i> 이 날짜·시각으로 예약하기';
             const tail = '<span class="text-gray-600">(광고)와 수신거부 안내는 자동으로 붙어요.</span>';
@@ -7036,7 +7064,7 @@
                 const nowMode = smsSetting('smsPromoMode') === 'now' && date === getTodayStr();
                 box.innerHTML = `<b>${nowMode ? '⚡ 즉시 발송함' : '📅 예약됨'}</b> · 대상 <b>${R.P.list.length}명</b> · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
                    <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
-                   ${tail} <span class="text-gray-600">문구를 고치면 아직 안 나간 문자에 바로 반영돼요.</span>`;
+                   ${tail} <span class="text-gray-600">문구를 고치면 아직 안 나간 문자에 바로 반영돼요. 대상·날짜·하루 최대는 시작할 때 고정돼요 (바꾸려면 그만 보내기 후 다시 시작).</span>`;
                 return;
             }
             if (mode === 'now') {
