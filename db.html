@@ -881,7 +881,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V139</span>
+                    <span class="text-sm text-gray-600">V140</span>
                 </div>
             </section>
         </div>
@@ -6465,9 +6465,22 @@
             return /^01[016789]\d{7,8}$/.test(d) ? d : '';
         }
         function smsIntl(v) { const d = smsMobileDigits(v); return d ? '+82' + d.slice(1) : ''; }
+        // 문자에 넣을 이름: '이름없음'·'모름'·빈칸·번호 같은 건 'VIP고객'으로 (→ "VIP고객님")
+        const NO_NAME_WORD = 'VIP고객';
+        function isNoName(v) {
+            const t = String(v || '').replace(/[\s.\-_~!?·,()\[\]"'*/]/g, '').toLowerCase();
+            if (!t) return true;
+            if (/^\d+$/.test(t) || /^[ㄱ-ㅎㅏ-ㅣ]+$/.test(t) || /^(x+|na|n\/a|unknown|noname|none|null|undefined|test|테스트)$/.test(t)) return true;
+            if (/^(고객|손님|이름|성함|미정|없음|무명|미입력|미기재|미확인|확인중|확인필요|모름|미상|익명|본인|고객님|손님|님)$/.test(t)) return true;
+            return /(이름없|이름미|이름모|성함모|성함미|모름|미상|알수없|알수x|확인불가|이름확인)/.test(t);
+        }
+        function msgName(cOrName) {
+            const raw = typeof cOrName === 'string' ? cOrName : (cOrName && cOrName.name);
+            return isNoName(raw) ? NO_NAME_WORD : String(raw).trim();
+        }
         function fillSmsTemplate(tpl, c, extra = {}) {
             const staff = msgStaffName({ auto: true });
-            const map = { '이름': (c.name || '고객').trim(), '매장': msgStoreName(), '담당자': staff, '단말기': String(c.device || '').trim(), '사진': '', ...extra };
+            const map = { '이름': msgName(c), '매장': msgStoreName(), '담당자': staff, '단말기': String(c.device || '').trim(), '사진': '', ...extra };
             let t = String(tpl || '');
             if (!staff) t = t.replace(/\s?\{담당자\}/g, '');   // 직원 이름이 없으면 '{매장} {담당자}입니다' → '{매장}입니다'
             if (!map['사진']) t = t.replace(/\n?[^\S\n]*\{사진\}/g, '');
@@ -7125,7 +7138,7 @@
         // 명함은 두 통으로: ① 인사말(링크 없음) ② 링크만 → 받는 폰에 '인사말 + 명함 카드'로 깔끔하게 보임
         function cardIntroMessage(name) {
             const staff = getStaffName();
-            return `${name ? name + '님, ' : '안녕하세요, '}${msgStoreName()}${staff ? ' ' + staff : ''}입니다 😊\n바로 이어서 제 디지털 명함을 보내드려요. 저장해두시고 [이벤트 혜택 알림받기]를 눌러주시면 혜택 소식을 가장 먼저 알려드릴게요!`;
+            return `${msgName(name)}님, ${msgStoreName()}${staff ? ' ' + staff : ''}입니다 😊\n바로 이어서 제 디지털 명함을 보내드려요. 저장해두시고 [이벤트 혜택 알림받기]를 눌러주시면 혜택 소식을 가장 먼저 알려드릴게요!`;
         }
         // 문자에 보일 링크는 https:// 없이 짧게 (눌러도 똑같이 열리고 미리보기 카드도 붙어요)
         function shortCardLink(url) { return String(url || '').replace(/^https?:\/\//, ''); }
@@ -8057,7 +8070,7 @@
         // 이 고객만을 위한 문자가 되도록 알려줄 정보 (전화번호·주민번호·메모 같은 개인정보는 보내지 않음)
         function buildAiCustomerContext(c) {
             const ok = (v) => v && String(v).trim() && String(v).trim() !== '-' && !String(v).includes('해당없음') && !String(v).includes('미정');
-            const lines = [`- 이름: ${c.name || '고객'}`];
+            const lines = [`- 이름: ${msgName(c)}${isNoName(c.name) ? ' (이름을 몰라서 이렇게 불러요 · 꼭 "' + NO_NAME_WORD + '님"으로 불러줘)' : ''}`];
             if (ok(c.device)) lines.push(`- 쓰시는 폰: ${c.device}`);
             if (c.activationDate && c.activationDate.length === 10) {
                 const calc = getDdayAndMonths(c.activationDate);
@@ -10074,7 +10087,7 @@ familyStr + `\n` +
                     <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(r.detail || r.summary || '')}</p>
                     <div class="grid grid-cols-4 gap-1.5 ${calcSelMode ? 'hidden' : ''}">
                         ${digits ? `<a href="tel:${digits}" data-calc-contact="${r.id}" class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-phone"></i>전화</a>
-                        <a href="${smsHref(digits, `${name}님, ${msgStoreName()} ${getStaffName() || ''}입니다. 명함에서 계산해 보신 조건으로 안내드릴게요.`)}" data-calc-contact="${r.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
+                        <a href="${smsHref(digits, `${msgName(c ? c : (r.name || ''))}님, ${msgStoreName()} ${getStaffName() || ''}입니다. 명함에서 계산해 보신 조건으로 안내드릴게요.`)}" data-calc-contact="${r.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
                         ${c ? `<button type="button" data-calc-open="${c.id}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">고객</button>` : '<span></span>'}
                         <button type="button" data-calc-done="${r.id}" class="h-11 rounded-xl ${r.done === 'Y' ? 'border border-gray-300 bg-white text-gray-700' : 'bg-emerald-600 text-white'} text-sm font-bold">${r.done === 'Y' ? '되돌리기' : '완료'}</button>
                     </div>
