@@ -881,7 +881,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V141</span>
+                    <span class="text-sm text-gray-600">V142</span>
                 </div>
             </section>
         </div>
@@ -6413,7 +6413,7 @@
         //   · 자동 문자(약속일 안내·생일 축하)는 14일 앞까지 미리 예약하고, 약속이 바뀌거나 끝나면 알아서 취소
         // ═════════════════════════════════════════════
         const DEFAULT_STORE_NAME = 'LGU+진천점';
-        let promoModeUI = 'resv';   // ⚡ 즉시 / 📅 예약 (홍보 문자)
+        let promoModeUI = 'resv', promoFlushing = '';   // ⚡ 즉시 / 📅 예약 (홍보 문자)
         const SMS_AUTO_DEFAULTS = {
             smsAutoPromOn: false, smsAutoBdayOn: false, smsSendTime: '10:00', smsStoreName: DEFAULT_STORE_NAME,
             smsTplProm: '안녕하세요 {이름}님, {매장} {담당자}입니다 😊\n오늘부터 {약속} 가능한 날이에요.\n편하실 때 들르시거나 연락 주시면 바로 도와드릴게요!',
@@ -6909,6 +6909,8 @@
                 if (x.state === 'sending') { sending.add(key); return; }
                 (x.ok ? ok : bad).add(key);
             });
+            const fl = promoFlushLog()[camp] || { ok: [], bad: [] };   // 이 폰에서 직접 보낸 것
+            fl.ok.forEach(k => ok.add(k)); fl.bad.forEach(k => { if (!ok.has(k)) bad.add(k); });
             bad.forEach(k => { if (ok.has(k)) bad.delete(k); });
             sending.forEach(k => { if (ok.has(k) || bad.has(k)) sending.delete(k); });
             const waiting = waitIds.size;
@@ -6929,10 +6931,47 @@
                 box.innerHTML = `📊 ${head} ${btn}<br>
                     ✅ 보냄 <b>${R.ok}</b>명${R.bad ? ` · <span class="text-red-700">❌ 실패 <b>${R.bad}</b>명</span>` : ''}${R.sending ? ` · 📤 매장 폰에서 보내는 중 <b>${R.sending}</b>명` : ''} · ⏳ 남음 <b>${R.waiting}</b>명${R.later ? ` · 📅 다음 날부터 <b>${R.later}</b>명 (${escapeHtml(R.time)})` : ''}<br>
                     ${R.ready === false ? '<span class="block my-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 font-bold text-red-800">❌ 매장 폰이 연결 안 돼 있어서 안 나가고 있어요. 설정 → 연결 점검에서 \'매장 폰 자동 문자\'를 확인해주세요.</span>'
-                        : (R.stuck ? `<span class="block my-1 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 font-bold text-amber-900">⚠️ 보낼 시각이 15분 넘게 지났는데 ${R.stuck}명이 아직 서버에 남아 있어요. ① 매장 폰의 SMS Gateway 앱이 켜져 있고 인터넷이 되는지 ② 설정 → 연결 점검을 확인해주세요.</span>` : '')}
+                        : (R.stuck ? `<span class="block my-1 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 font-bold text-amber-900">⚠️ 보낼 시각이 15분 넘게 지났는데 ${R.stuck}명이 아직 서버에 남아 있어요. 테스트 문자는 되는데 이게 안 나가면 중계 서버의 <u>Cron 트리거(10분마다)</u>가 빠진 거예요. 고치기 전까지는 아래 버튼으로 바로 보낼 수 있어요.</span><button type="button" id="smsPromoFlush" class="w-full h-10 my-1 rounded-lg bg-amber-500 text-white text-[13px] font-bold">${promoFlushing ? escapeHtml(promoFlushing) : `📤 밀린 문자 지금 바로 보내기 (${R.stuck}명)`}</button>` : '')}
                     <span class="text-gray-500">${at ? `${escapeHtml(at)} 확인 · ` : ''}자세한 건 '보낼 예정' 목록에서 · 실패는 번호 오류·매장 폰 꺼짐 등이에요</span>`;
             }
             document.getElementById('smsPromoProgBtn').onclick = () => refreshPromoProg(true);
+            const fb = document.getElementById('smsPromoFlush'); if (fb) { fb.disabled = !!promoFlushing; fb.onclick = flushPromoNow; }
+        }
+        // 📤 서버 예약 처리가 멈췄을 때: 밀린 홍보 문자를 이 폰에서 하나씩 바로 보내기 (테스트 문자와 같은 길)
+        function promoFlushLog() { try { return JSON.parse(localStorage.getItem('promoFlushLog') || '{}') || {}; } catch (e) { return {}; } }
+        function savePromoFlushLog(camp, key, good) {
+            const all = promoFlushLog(); const L = all[camp] || { ok: [], bad: [] };
+            (good ? L.ok : L.bad).push(key); all[camp] = L;
+            Object.keys(all).filter(k => k !== camp).slice(0, -5).forEach(k => delete all[k]);   // 오래된 기록은 정리
+            try { localStorage.setItem('promoFlushLog', JSON.stringify(all)); } catch (e) { /* 무시 */ }
+        }
+        async function flushPromoNow() {
+            if (promoFlushing) return;
+            const camp = promoCampaign();
+            const mins = new Date().getHours() * 60 + new Date().getMinutes();
+            if (mins < 8 * 60 || mins >= 21 * 60) { customAlert('광고 문자는 밤 9시~아침 8시에는 보낼 수 없어요.\n내일 다시 눌러주세요.'); return; }
+            let list;
+            try { list = await callSms('list'); } catch (e) { customAlert('서버 목록을 불러오지 못했어요. 인터넷을 확인해주세요.'); return; }
+            const due = (list.queued || []).filter(q => String(q.id || '').startsWith(camp) && Number(q.sendAt) <= Date.now() && (q.channel || 'sms') !== 'push');
+            const byKey = new Map(customerDB.map(c => [String(c.id).replace(/[^A-Za-z0-9_-]/g, ''), c]));
+            const jobs = due.map(q => ({ q, c: byKey.get(String(q.id).slice(camp.length)) })).filter(j => j.c && smsMobileDigits(j.c.phone));
+            if (!jobs.length) { customAlert('지금 바로 보낼 밀린 문자가 없어요.'); setPromoProgList(list); return; }
+            if (!await customConfirm(`밀린 홍보 문자 ${jobs.length}명을 지금 이 폰에서 하나씩 보낼까요?\n(서버 예약은 먼저 취소해서 두 번 가지 않아요)\n다 보낼 때까지 이 화면을 켜두세요. 약 ${Math.ceil(jobs.length * 2 / 60)}분 걸려요.`)) return;
+            try { await callSms('cancel', { ids: jobs.map(j => j.q.id) }); }
+            catch (e) { customAlert('서버 예약을 취소하지 못해서 멈췄어요 (두 번 가는 걸 막으려고). 잠시 뒤 다시 눌러주세요.'); return; }
+            let okN = 0, badN = 0;
+            for (let i = 0; i < jobs.length; i++) {
+                const { q, c } = jobs[i];
+                promoFlushing = `보내는 중… ${i + 1}/${jobs.length}`; renderPromoProg();
+                let good = false;
+                try { const r = await callSms('test', { to: c.phone, text: promoText(c, false) }); good = r && r.ok !== false; } catch (e) { console.error(e); }
+                savePromoFlushLog(camp, String(q.id).slice(camp.length), good);
+                good ? okN++ : badN++;
+                await new Promise(r => setTimeout(r, 1500));   // 한꺼번에 몰리지 않게
+            }
+            promoFlushing = '';
+            try { setPromoProgList(await callSms('list')); } catch (e) { renderPromoProg(); }
+            customAlert(`📤 밀린 문자 보내기 끝!\n✅ 매장 폰으로 넘김 ${okN}명${badN ? ` · ❌ 실패 ${badN}명` : ''}\n\n다음 날 몫은 서버 예약으로 남아 있어요. 중계 서버의 Cron 트리거를 꼭 넣어주세요.`);
         }
         async function refreshPromoProg(manual = false) {
             if (promoProgBusy || !pushRelayReady()) return;
