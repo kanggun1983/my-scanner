@@ -881,7 +881,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V140</span>
+                    <span class="text-sm text-gray-600">V141</span>
                 </div>
             </section>
         </div>
@@ -6900,17 +6900,20 @@
             const queued = (promoProgList.queued || []).filter(q => String(q.id || '').startsWith(camp));
             const waitIds = new Set(queued.filter(q => Number(q.sendAt) <= Date.now() + 60 * 1000).map(q => String(q.id).slice(camp.length).replace(/-p$/, '')));
             const startMs = promoStartMs(P.date, time) - 2 * 60 * 1000;
-            const ok = new Set(), bad = new Set();
+            const stuck = new Set(queued.filter(q => Number(q.sendAt) < Date.now() - 15 * 60 * 1000).map(q => String(q.id).slice(camp.length).replace(/-p$/, ''))).size;
+            const ok = new Set(), bad = new Set(), sending = new Set();
             (promoProgList.sent || []).forEach(x => {
                 const mine = x.id ? String(x.id).startsWith(camp) : (Number(x.sentAt) >= startMs && duePh.has(last8(x.to)));
-                if (!mine || x.state === 'sending') return;
+                if (!mine) return;
                 const key = x.id ? String(x.id).slice(camp.length).replace(/-p$/, '') : last8(x.to);
+                if (x.state === 'sending') { sending.add(key); return; }
                 (x.ok ? ok : bad).add(key);
             });
             bad.forEach(k => { if (ok.has(k)) bad.delete(k); });
+            sending.forEach(k => { if (ok.has(k) || bad.has(k)) sending.delete(k); });
             const waiting = waitIds.size;
             const later = P.list.length - due.length;
-            return { total: P.list.length, due: due.length, ok: ok.size, bad: bad.size, waiting, later, done: due.length > 0 && waiting === 0 && (ok.size + bad.size > 0 || Date.now() > promoStartMs(today, time) + 15 * 60 * 1000), last: P.last, per: P.per, time };
+            return { total: P.list.length, due: due.length, ok: ok.size, bad: bad.size, sending: sending.size, stuck, ready: promoProgList.ready, waiting, later, done: due.length > 0 && waiting === 0 && (ok.size + bad.size > 0 || Date.now() > promoStartMs(today, time) + 15 * 60 * 1000), last: P.last, per: P.per, time };
         }
         function renderPromoProg() {
             const box = document.getElementById('smsPromoProg');
@@ -6924,7 +6927,9 @@
             else {
                 const head = R.done ? `<b class="text-emerald-700">✅ ${R.later ? '오늘 분 ' : ''}발송 완료</b>` : `<b class="text-amber-700">⏳ 보내는 중</b>`;
                 box.innerHTML = `📊 ${head} ${btn}<br>
-                    ✅ 보냄 <b>${R.ok}</b>명${R.bad ? ` · <span class="text-red-700">❌ 실패 <b>${R.bad}</b>명</span>` : ''} · ⏳ 남음 <b>${R.waiting}</b>명${R.later ? ` · 📅 다음 날부터 <b>${R.later}</b>명 (${escapeHtml(R.time)})` : ''}<br>
+                    ✅ 보냄 <b>${R.ok}</b>명${R.bad ? ` · <span class="text-red-700">❌ 실패 <b>${R.bad}</b>명</span>` : ''}${R.sending ? ` · 📤 매장 폰에서 보내는 중 <b>${R.sending}</b>명` : ''} · ⏳ 남음 <b>${R.waiting}</b>명${R.later ? ` · 📅 다음 날부터 <b>${R.later}</b>명 (${escapeHtml(R.time)})` : ''}<br>
+                    ${R.ready === false ? '<span class="block my-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 font-bold text-red-800">❌ 매장 폰이 연결 안 돼 있어서 안 나가고 있어요. 설정 → 연결 점검에서 \'매장 폰 자동 문자\'를 확인해주세요.</span>'
+                        : (R.stuck ? `<span class="block my-1 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 font-bold text-amber-900">⚠️ 보낼 시각이 15분 넘게 지났는데 ${R.stuck}명이 아직 서버에 남아 있어요. ① 매장 폰의 SMS Gateway 앱이 켜져 있고 인터넷이 되는지 ② 설정 → 연결 점검을 확인해주세요.</span>` : '')}
                     <span class="text-gray-500">${at ? `${escapeHtml(at)} 확인 · ` : ''}자세한 건 '보낼 예정' 목록에서 · 실패는 번호 오류·매장 폰 꺼짐 등이에요</span>`;
             }
             document.getElementById('smsPromoProgBtn').onclick = () => refreshPromoProg(true);
