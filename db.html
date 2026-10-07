@@ -849,6 +849,7 @@
                             <p id="smsPromoImgStatus" role="status" class="hidden text-xs font-medium"></p>
                         </div>
                         <div id="smsPromoInfo" class="rounded-xl bg-pink-50 border border-pink-200 px-3 py-2 text-xs text-pink-900 leading-relaxed"></div>
+                        <div id="smsPromoProg" class="hidden rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 leading-relaxed"></div>
                         <button type="button" id="smsPromoGo" class="w-full h-12 rounded-xl bg-pink-600 text-white text-[15px] font-bold flex items-center justify-center gap-2 disabled:opacity-40"></button>
                         <button type="button" id="smsPromoStop" class="hidden w-full h-10 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">이 홍보 그만 보내기 (남은 것 취소)</button>
                         <div class="grid grid-cols-2 gap-2 items-end">
@@ -880,7 +881,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V138</span>
+                    <span class="text-sm text-gray-600">V139</span>
                 </div>
             </section>
         </div>
@@ -6658,7 +6659,9 @@
                 if (toCancel.length) await callSms('cancel', { ids: toCancel });
                 localStorage.setItem('smsAutoSyncAt', String(Date.now()));
                 localStorage.removeItem('smsAutoSyncFailAt');
-                saveSmsStats({ ...list, queued: queued.filter(q => !toCancel.includes(q.id)).concat(toAdd.filter(d => !byId.has(d.id))) });
+                const newQueued = queued.filter(q => !toCancel.includes(q.id)).concat(toAdd.filter(d => !byId.has(d.id)));
+                saveSmsStats({ ...list, queued: newQueued });
+                setPromoProgList({ ...list, queued: newQueued });
             } catch (e) {
                 console.error('자동 문자 맞추기 실패:', e);
                 localStorage.setItem('smsAutoSyncFailAt', String(Date.now()));
@@ -6702,6 +6705,7 @@
             try {
                 const list = await callSms('list');
                 smsListData = { queued: list.queued || [], sent: list.sent || [], todaySent: list.todaySent || 0, ready: list.ready, e2e: !!list.e2e };
+                setPromoProgList(list);
                 saveSmsStats(list);
                 renderSmsStats();
             } catch (e) { smsListData = { error: e.message }; }
@@ -6868,6 +6872,80 @@
             await saveSmsSettings();
         });
         // 📢 홍보 문자 안내 (대상 수 · 며칠에 나눠 · 미리보기)
+        // 📊 홍보 진행 상황 (서버 예약 목록·보낸 기록으로 계산)
+        let promoProgList = null, promoProgAt = 0, promoProgBusy = false;
+        function setPromoProgList(list) { promoProgList = list; promoProgAt = Date.now(); try { renderPromoProg(); } catch (e) { console.error(e); } }
+        function promoStartMs(date, time) { const d = parseDateString(date); const [hh, mm] = String(time).split(':').map(n => parseInt(n, 10)); return new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh || 0, mm || 0).getTime(); }
+        function promoProgress() {
+            if (!smsSetting('smsAutoPromoOn') || !promoProgList) return null;
+            const P = promoPlan(), today = getTodayStr(), camp = promoCampaign(), time = promoTime();
+            if (!P.list.length || today < P.date) return null;
+            const dueIdx = Math.min(P.list.length, (Math.floor((parseDateString(today) - parseDateString(P.date)) / 86400000) + (Date.now() >= promoStartMs(today, time) ? 1 : 0)) * P.per);
+            const due = P.list.slice(0, dueIdx);                             // 지금까지 나갔어야 할 고객
+            const last8 = v => String(v || '').replace(/\D/g, '').slice(-8);
+            const duePh = new Set(due.map(c => last8(c.phone)).filter(Boolean));
+            const queued = (promoProgList.queued || []).filter(q => String(q.id || '').startsWith(camp));
+            const waitIds = new Set(queued.filter(q => Number(q.sendAt) <= Date.now() + 60 * 1000).map(q => String(q.id).slice(camp.length).replace(/-p$/, '')));
+            const startMs = promoStartMs(P.date, time) - 2 * 60 * 1000;
+            const ok = new Set(), bad = new Set();
+            (promoProgList.sent || []).forEach(x => {
+                const mine = x.id ? String(x.id).startsWith(camp) : (Number(x.sentAt) >= startMs && duePh.has(last8(x.to)));
+                if (!mine || x.state === 'sending') return;
+                const key = x.id ? String(x.id).slice(camp.length).replace(/-p$/, '') : last8(x.to);
+                (x.ok ? ok : bad).add(key);
+            });
+            bad.forEach(k => { if (ok.has(k)) bad.delete(k); });
+            const waiting = waitIds.size;
+            const later = P.list.length - due.length;
+            return { total: P.list.length, due: due.length, ok: ok.size, bad: bad.size, waiting, later, done: due.length > 0 && waiting === 0 && (ok.size + bad.size > 0 || Date.now() > promoStartMs(today, time) + 15 * 60 * 1000), last: P.last, per: P.per, time };
+        }
+        function renderPromoProg() {
+            const box = document.getElementById('smsPromoProg');
+            if (!box) return;
+            const R = smsSetting('smsAutoPromoOn') ? promoProgress() : null;
+            if (!smsSetting('smsAutoPromoOn') || !pushRelayReady()) { box.classList.add('hidden'); return; }
+            box.classList.remove('hidden');
+            const at = promoProgAt ? nowHHMM(new Date(promoProgAt)) : '';
+            const btn = `<button type="button" id="smsPromoProgBtn" class="ml-1 h-7 px-2 rounded-lg border border-gray-300 bg-white text-[11px] font-bold text-gray-700 align-middle">${promoProgBusy ? '확인 중…' : '↻ 새로고침'}</button>`;
+            if (!R) { box.innerHTML = `📊 <b>진행 상황</b> · ${promoProgList ? '아직 보낼 시각 전이에요' : '확인 전'} ${btn}`; }
+            else {
+                const head = R.done ? `<b class="text-emerald-700">✅ ${R.later ? '오늘 분 ' : ''}발송 완료</b>` : `<b class="text-amber-700">⏳ 보내는 중</b>`;
+                box.innerHTML = `📊 ${head} ${btn}<br>
+                    ✅ 보냄 <b>${R.ok}</b>명${R.bad ? ` · <span class="text-red-700">❌ 실패 <b>${R.bad}</b>명</span>` : ''} · ⏳ 남음 <b>${R.waiting}</b>명${R.later ? ` · 📅 다음 날부터 <b>${R.later}</b>명 (${escapeHtml(R.time)})` : ''}<br>
+                    <span class="text-gray-500">${at ? `${escapeHtml(at)} 확인 · ` : ''}자세한 건 '보낼 예정' 목록에서 · 실패는 번호 오류·매장 폰 꺼짐 등이에요</span>`;
+            }
+            document.getElementById('smsPromoProgBtn').onclick = () => refreshPromoProg(true);
+        }
+        async function refreshPromoProg(manual = false) {
+            if (promoProgBusy || !pushRelayReady()) return;
+            promoProgBusy = true; renderPromoProg();
+            try { setPromoProgList(await callSms('list')); }
+            catch (e) { console.error(e); if (manual) customAlert('진행 상황을 불러오지 못했어요. 인터넷·문자 서버 연결을 확인해주세요.'); }
+            finally { promoProgBusy = false; renderPromoProg(); }
+            const R = promoProgress();
+            if (R && R.done && R.due) {   // 완료 알림 (오늘 한 번)
+                const key = `${promoCampaign()}${getTodayStr()}`;
+                let seen = ''; try { seen = localStorage.getItem('promoDoneSeen') || ''; } catch (e) { /* 무시 */ }
+                if (seen !== key) {
+                    try { localStorage.setItem('promoDoneSeen', key); } catch (e) { /* 무시 */ }
+                    if (!manual) customAlert(`📢 홍보 문자 ${R.later ? '오늘 분 ' : ''}발송 완료!\n✅ 보냄 ${R.ok}명${R.bad ? ` · ❌ 실패 ${R.bad}명` : ''}${R.later ? `\n남은 ${R.later}명은 다음 날 ${R.time}에 이어서 나가요.` : ''}`);
+                }
+            }
+        }
+        // 보내는 중이면 1분마다 진행 상황 확인 (앱이 열려 있을 때만 · 보낼 시각 3시간 지나면 멈춤)
+        setInterval(() => {
+            try {
+                if (!smsSetting('smsAutoPromoOn') || !pushRelayReady() || document.visibilityState !== 'visible') return;
+                const today = getTodayStr(), P = promoPlan();
+                if (!P.list.length || today < P.date || today > P.last) return;
+                const st = promoStartMs(today, promoTime());
+                if (Date.now() < st || Date.now() > st + 3 * 3600 * 1000) return;
+                const R = promoProgress();
+                let seen = ''; try { seen = localStorage.getItem('promoDoneSeen') || ''; } catch (e) { /* 무시 */ }
+                if (R && R.done && seen === `${promoCampaign()}${today}`) return;
+                refreshPromoProg(false);
+            } catch (e) { console.error(e); }
+        }, 60 * 1000);
         function promoPreview(over) {   // 화면 값으로 잠깐 계산 (저장 안 함)
             const save = { ...appSettings };
             appSettings = { ...appSettings, smsPromoTarget: document.getElementById('smsPromoTarget').value, smsPromoDaily: document.getElementById('smsPromoDaily').value, smsTplPromo: document.getElementById('smsTplPromo').value.trim() || SMS_AUTO_DEFAULTS.smsTplPromo, smsPromoOptout: document.getElementById('smsPromoOptout').value.trim() || SMS_AUTO_DEFAULTS.smsPromoOptout, ...over };
@@ -6880,6 +6958,7 @@
         function renderPromoInfo() {
             const box = document.getElementById('smsPromoInfo');
             if (!box) return;
+            renderPromoProg();
             const on = document.getElementById('smsAutoPromoOn').checked;
             const mode = promoModeUI;
             document.querySelectorAll('[data-promo-mode]').forEach(b => {
