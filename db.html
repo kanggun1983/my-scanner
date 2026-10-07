@@ -819,6 +819,26 @@
                             <p class="text-xs text-gray-600 leading-relaxed">무료 문자 앱은 사진을 직접 붙여 보내는 기능(MMS)이 아직 없어서, 사진은 <b>누르면 열리는 링크</b>로 들어가요. 링크가 든 문자는 스팸처럼 보일 수 있으니 문구에 매장 이름이 꼭 들어가게 해주세요.</p>
                             <p id="smsBdayImgStatus" role="status" class="hidden text-xs font-medium"></p>
                         </div>
+                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoPromoOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📢 홍보 문자 <span class="text-pink-700">(광고)</span><span class="block text-xs font-normal text-gray-500">정한 날부터 대상 고객에게 한 번씩 · 수신 거부·고객거부 고객은 빼요</span></span></label>
+                        <textarea id="smsTplPromo" rows="4" aria-label="홍보 문자 문구" placeholder="예) {이름}님, {매장}입니다. 이번 주 갤럭시 S26 재고 넉넉해요! 방문하시면 케이스 무료 증정 🎁" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label class="text-xs font-bold text-gray-600">보낼 날 (시작)<input type="date" id="smsPromoDate" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
+                            <label class="text-xs font-bold text-gray-600">하루 최대<select id="smsPromoDaily" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"><option value="20">20명</option><option value="50">50명</option><option value="100">100명</option><option value="200">200명</option></select></label>
+                            <label class="col-span-2 text-xs font-bold text-gray-600">대상<select id="smsPromoTarget" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal">
+                                <option value="all">전체 고객</option><option value="m18">기변 대상 (개통 18개월↑)</option><option value="prospect">가망·방문약속 고객</option><option value="visit90">최근 3개월 안에 방문한 고객</option></select></label>
+                            <label class="col-span-2 text-xs font-bold text-gray-600">수신거부 안내 (맨 끝에 자동)<input id="smsPromoOptout" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white font-normal" placeholder="수신거부: 이 번호로 '거부'라고 답장 주세요"></label>
+                        </div>
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                            <p class="text-[13px] font-bold text-gray-800">홍보 문자에 사진 넣기 <span class="font-normal text-gray-500">(선택 · 링크로 들어가요)</span></p>
+                            <div id="smsPromoImgWrap" class="hidden relative">
+                                <img id="smsPromoImgPreview" alt="홍보 문자 사진 미리보기" class="w-full max-h-48 object-contain rounded-lg bg-white border border-gray-200">
+                                <button type="button" id="smsPromoImgRemove" class="absolute top-2 right-2 h-9 px-3 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-xmark"></i>빼기</button>
+                            </div>
+                            <button type="button" id="smsPromoImgBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-white text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-camera"></i>사진 올리기</button>
+                            <input type="file" id="smsPromoImgFile" accept="image/*" class="hidden">
+                            <p id="smsPromoImgStatus" role="status" class="hidden text-xs font-medium"></p>
+                        </div>
+                        <div id="smsPromoInfo" class="rounded-xl bg-pink-50 border border-pink-200 px-3 py-2 text-xs text-pink-900 leading-relaxed"></div>
                         <div class="grid grid-cols-2 gap-2 items-end">
                             <label class="text-xs font-bold text-gray-600">보내는 시각<input type="time" id="smsSendTime" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
                             <p id="smsSenderInfo" class="text-xs text-gray-600 leading-snug pb-1"></p>
@@ -848,7 +868,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V135</span>
+                    <span class="text-sm text-gray-600">V136</span>
                 </div>
             </section>
         </div>
@@ -6383,7 +6403,10 @@
         const SMS_AUTO_DEFAULTS = {
             smsAutoPromOn: false, smsAutoBdayOn: false, smsSendTime: '10:00', smsStoreName: DEFAULT_STORE_NAME,
             smsTplProm: '안녕하세요 {이름}님, {매장} {담당자}입니다 😊\n오늘부터 {약속} 가능한 날이에요.\n편하실 때 들르시거나 연락 주시면 바로 도와드릴게요!',
-            smsTplBday: '{이름}님, 생일 진심으로 축하드려요 🎂\n행복한 하루 보내세요!\n- {매장} {담당자} 드림'
+            smsTplBday: '{이름}님, 생일 진심으로 축하드려요 🎂\n행복한 하루 보내세요!\n- {매장} {담당자} 드림',
+            smsAutoPromoOn: false, smsPromoDate: '', smsPromoTarget: 'all', smsPromoDaily: '50',
+            smsTplPromo: '{이름}님, {매장} {담당자}입니다 😊\n이번 주 방문하시면 특별 혜택을 드려요!',
+            smsPromoOptout: "수신거부: 이 번호로 '거부'라고 답장 주세요"
         };
         // V70 기본 문구를 그대로 쓰던 매장은 담당자 이름이 들어간 새 기본 문구로 자동 교체
         const SMS_OLD_DEFAULT_TPLS = {
@@ -6484,10 +6507,55 @@
             if (m) return '지금: 모든 고객에게 문자로만 보내요.';
             return '지금: 둘 다 꺼져 있어서 자동 안내가 나가지 않아요.';
         }
+        // 📢 홍보 문자 대상 (수신 거부·고객거부·삭제 제외 · 번호 순으로 고정해서 날마다 나눠 보냄)
+        function promoTargets() {
+            const t = smsSetting('smsPromoTarget') || 'all';
+            const today = getTodayStr(), d90 = addDaysStr(today, -90);
+            return customerDB.filter(c => {
+                if (c.deletedAt || c.marketingDeny || c.salesStatus === '고객거부') return false;
+                if (!smsMobileDigits(c.phone) && !(autoPushOn() && c.pushSubscribed === true && c.cardId)) return false;
+                if (t === 'm18') { const a = c.activationDate ? getDdayAndMonths(c.activationDate) : null; return !!(a && a.months >= 18); }
+                if (t === 'prospect') return c.salesStatus === '가망' || c.salesStatus === '방문약속';
+                if (t === 'visit90') return !!(c.visitDate && String(c.visitDate).slice(0, 10) >= d90);
+                return true;
+            }).sort((a, b) => String(a.id).localeCompare(String(b.id)));
+        }
+        function promoTime() {   // 광고는 밤 9시~아침 8시 금지 → 그 시간이면 오전 10시
+            const t = String(smsSetting('smsSendTime') || '10:00'); const h = parseInt(t, 10);
+            return (h >= 8 && h < 21) ? t : '10:00';
+        }
+        function promoText(c, forPush) {
+            const tpl = smsSetting('smsTplPromo'), img = String(appSettings.smsPromoImage || '').trim();
+            const body = fillSmsTemplate(!forPush && img && !/\{사진\}/.test(tpl) ? `${tpl}\n👉 {사진}` : tpl, c, { '사진': forPush ? '' : img });
+            if (forPush) return `${body}\n${PUSH_AD_FOOTER}`;
+            return `(광고) ${body}\n${String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim()}`;
+        }
+        function promoPlan() {
+            const date = String(smsSetting('smsPromoDate') || '');
+            const per = Math.max(1, parseInt(smsSetting('smsPromoDaily'), 10) || 50);
+            const list = /^\d{4}-\d{2}-\d{2}$/.test(date) ? promoTargets() : [];
+            return { date, per, list, days: Math.ceil(list.length / per), last: list.length ? addDaysStr(date, Math.ceil(list.length / per) - 1) : '' };
+        }
         // 앞으로 14일 안에 보내야 할 자동 문자 목록 (고객 데이터로 계산)
         function buildAutoSmsItems(now = new Date()) {
             const items = [];
-            const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn');
+            const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn'), promoOn = !!smsSetting('smsAutoPromoOn');
+            if (promoOn) {
+                const P = promoPlan(), today = getTodayStr(), skip = smsSkipIds(), time = promoTime();
+                const lastD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
+                const lastStr = `${lastD.getFullYear()}-${String(lastD.getMonth() + 1).padStart(2, '0')}-${String(lastD.getDate()).padStart(2, '0')}`;
+                P.list.forEach((c, i) => {
+                    const day = addDaysStr(P.date, Math.floor(i / P.per));
+                    if (day < today || day > lastStr) return;                       // 지난 날(이미 보냄)·14일 뒤는 빼기
+                    const at = parseDateString(day); const [hh, mm] = time.split(':').map(n => parseInt(n, 10));
+                    const atMs = new Date(at.getFullYear(), at.getMonth(), at.getDate(), hh || 10, mm || 0).getTime();
+                    if (day === today && atMs < Date.now() - 5 * 60 * 1000) return;  // 오늘 보낼 시각이 지났으면 이미 나간 것으로 봄
+                    const safeId = String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
+                    const id = `apm-${P.date.replace(/-/g, '')}-${safeId}`;
+                    items.push(...autoItemsFor(c, { id, to: smsMobileDigits(c.phone), name: c.name || '', auto: true, sendAt: smsSendAt(day, time), text: promoText(c, false) },
+                        { heading: `(광고) ${msgStoreName()} 소식`, text: promoText(c, true), image: String(appSettings.smsPromoImage || '') }).filter(it => !skip.has(it.id)));
+                });
+            }
             if (!promOn && !bdayOn) return items;
             const today = getTodayStr();
             const last = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
@@ -6541,7 +6609,7 @@
             if (!row || !text) return;
             let c = null;
             try { c = JSON.parse(localStorage.getItem('smsStatsCache') || 'null'); } catch (e) { c = null; }
-            const on = pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || (c && c.queued > 0));
+            const on = pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn') || (c && c.queued > 0));
             row.classList.toggle('hidden', !on);
             row.classList.toggle('flex', !!on);
             if (!on) return;
@@ -6553,7 +6621,7 @@
             const last = Number(localStorage.getItem('smsAutoSyncAt') || 0);
             if (!force && Date.now() - last < SMS_SYNC_EVERY_MS) return renderSmsStats();
             if (!force && Date.now() - Number(localStorage.getItem('smsAutoSyncFailAt') || 0) < 10 * 60 * 1000) return renderSmsStats();   // 방금 실패했으면 10분 쉬기
-            const wantAny = smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn');
+            const wantAny = smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn');
             let cached = null;
             try { cached = JSON.parse(localStorage.getItem('smsStatsCache') || 'null'); } catch (e) { cached = null; }
             if (!wantAny && !force && !(cached && cached.queued > 0)) return renderSmsStats();   // 자동 문자를 안 쓰면 서버에 묻지 않음
@@ -6653,13 +6721,16 @@
             renderAutoPushIconStrip();
             document.getElementById('smsAutoPromOn').checked = !!smsSetting('smsAutoPromOn');
             document.getElementById('smsAutoBdayOn').checked = !!smsSetting('smsAutoBdayOn');
-            [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime']].forEach(([id, key]) => {
+            document.getElementById('smsAutoPromoOn').checked = !!smsSetting('smsAutoPromoOn');
+            [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime'], ['smsTplPromo', 'smsTplPromo'], ['smsPromoDate', 'smsPromoDate'], ['smsPromoTarget', 'smsPromoTarget'], ['smsPromoDaily', 'smsPromoDaily'], ['smsPromoOptout', 'smsPromoOptout']].forEach(([id, key]) => {
                 const el = document.getElementById(id);
                 if (document.activeElement !== el) el.value = smsSetting(key) || '';
             });
             const storeEl = document.getElementById('settingsStoreName');
             if (document.activeElement !== storeEl) storeEl.value = msgStoreName();
             renderSmsBdayImage();
+            renderPromoImage();
+            renderPromoInfo();
             renderOpenStoreList();
             renderJuminClean();
             fillRegStoreDefault();   // 매장 이름이 도착·변경되면 스캔 화면 등록점도 (직접 고친 게 아니면)
@@ -6676,10 +6747,18 @@
                 smsTplProm: document.getElementById('smsTplProm').value.trim() || SMS_AUTO_DEFAULTS.smsTplProm,
                 smsTplBday: document.getElementById('smsTplBday').value.trim() || SMS_AUTO_DEFAULTS.smsTplBday,
                 smsSendTime: /^\d{2}:\d{2}$/.test(document.getElementById('smsSendTime').value) ? document.getElementById('smsSendTime').value : '10:00',
+                smsAutoPromoOn: document.getElementById('smsAutoPromoOn').checked,
+                smsTplPromo: document.getElementById('smsTplPromo').value.trim() || SMS_AUTO_DEFAULTS.smsTplPromo,
+                smsPromoDate: document.getElementById('smsPromoDate').value || '',
+                smsPromoTarget: document.getElementById('smsPromoTarget').value || 'all',
+                smsPromoDaily: document.getElementById('smsPromoDaily').value || '50',
+                smsPromoOptout: document.getElementById('smsPromoOptout').value.trim() || SMS_AUTO_DEFAULTS.smsPromoOptout,
                 smsSenderName: getStaffName() || String(appSettings.smsSenderName || '')   // 자동 문자 담당자 = 설정을 저장한 직원
             };
             appSettings = { ...appSettings, ...data };
             document.getElementById('autoChSummary').textContent = autoChannelSummary();
+            if (data.smsAutoPromoOn && !data.smsPromoDate) { document.getElementById('smsAutoPromoOn').checked = false; data.smsAutoPromoOn = false; appSettings.smsAutoPromoOn = false; customAlert('홍보 문자는 보낼 날을 먼저 골라주세요.'); }
+            renderPromoInfo();
             try {
                 await saveDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
                 const saved = document.getElementById('smsAutoSaved');
@@ -6690,7 +6769,66 @@
             if (pushRelayReady()) syncAutoSms({ force: true });
             renderSmsStats();
         }
-        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsAutoPromoOn', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        // 📢 홍보 문자 안내 (대상 수 · 며칠에 나눠 · 미리보기)
+        function renderPromoInfo() {
+            const box = document.getElementById('smsPromoInfo');
+            if (!box) return;
+            const on = document.getElementById('smsAutoPromoOn').checked;
+            const date = document.getElementById('smsPromoDate').value;
+            const save = { ...appSettings };
+            appSettings = { ...appSettings, smsPromoDate: date, smsPromoTarget: document.getElementById('smsPromoTarget').value, smsPromoDaily: document.getElementById('smsPromoDaily').value, smsTplPromo: document.getElementById('smsTplPromo').value.trim() || SMS_AUTO_DEFAULTS.smsTplPromo, smsPromoOptout: document.getElementById('smsPromoOptout').value.trim() || SMS_AUTO_DEFAULTS.smsPromoOptout };
+            const P = promoPlan();
+            const sample = P.list[0] || customerDB.find(c => !c.deletedAt) || { name: '홍길동' };
+            const prev = promoText(sample, false);
+            appSettings = save;
+            const t = promoTime();
+            box.innerHTML = !date ? '보낼 날을 고르면 대상 수와 보내는 날이 여기 나와요.'
+                : `<b>${on ? '보낼 예정' : '꺼져 있음'}</b> · 대상 <b>${P.list.length}명</b> · ${escapeHtml(date.slice(5).replace('-', '/'))}${P.days > 1 ? `~${escapeHtml(P.last.slice(5).replace('-', '/'))} (${P.days}일에 나눠)` : ''} ${escapeHtml(t)}<br>
+                   <span class="text-gray-600">미리보기 (${escapeHtml(sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(prev)}</span><br>
+                   <span class="text-gray-600">(광고)와 수신거부 안내는 자동으로 붙어요. 날짜를 바꾸면 새 홍보로 처음부터 다시 보내요.</span>`;
+        }
+        ['smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsTplPromo', 'smsPromoOptout'].forEach(id => document.getElementById(id).addEventListener('input', renderPromoInfo));
+        // 📢 홍보 문자 사진 (생일 사진과 같은 방식)
+        function renderPromoImage() {
+            const url = String(appSettings.smsPromoImage || '').trim();
+            document.getElementById('smsPromoImgWrap').classList.toggle('hidden', !url);
+            if (url) document.getElementById('smsPromoImgPreview').src = url;
+            document.getElementById('smsPromoImgBtn').innerHTML = `<i class="fa-solid fa-camera"></i>${url ? '다른 사진으로 바꾸기' : '사진 올리기'}`;
+        }
+        function setPromoImgStatus(text, tone) {
+            const el = document.getElementById('smsPromoImgStatus');
+            if (!text) { el.classList.add('hidden'); return; }
+            el.textContent = text;
+            el.className = `text-xs font-medium ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`;
+        }
+        async function savePromoImage(url) {
+            appSettings = { ...appSettings, smsPromoImage: url };
+            await saveDoc(doc(db, 'smart_global', 'settings'), { smsPromoImage: url }, { merge: true });
+            renderPromoImage(); renderPromoInfo();
+            if (pushRelayReady()) syncAutoSms({ force: true });
+        }
+        document.getElementById('smsPromoImgBtn').addEventListener('click', () => {
+            if (!pushRelayReady()) return setPromoImgStatus("먼저 위의 '바로 보내기 연결'을 해주세요. (사진은 중계 서버에 보관돼요)", 'red');
+            const input = document.getElementById('smsPromoImgFile'); input.value = ''; input.click();
+        });
+        document.getElementById('smsPromoImgFile').addEventListener('change', async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (!f) return;
+            if (!/^image\//.test(f.type || '')) return setPromoImgStatus('사진 파일만 올릴 수 있어요.', 'red');
+            const btn = document.getElementById('smsPromoImgBtn');
+            btn.disabled = true; setPromoImgStatus('사진을 줄여서 올리는 중…', 'gray');
+            try {
+                const dataUrl = await compressPushImage(f);
+                const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' }, keep: true });
+                await savePromoImage(data.url);
+                setPromoImgStatus('올렸어요. 홍보 문자에 이 사진 링크가 들어가요.', 'green');
+            } catch (err) { console.error(err); setPromoImgStatus(err.message || '사진을 올리지 못했어요.', 'red'); }
+            finally { btn.disabled = false; }
+        });
+        document.getElementById('smsPromoImgRemove').addEventListener('click', async () => {
+            try { await savePromoImage(''); setPromoImgStatus('사진을 뺐어요.', 'gray'); } catch (err) { setPromoImgStatus('저장하지 못했어요.', 'red'); }
+        });
         // 매장 이름 (내 정보 · 매장 공용) → 저장하고 예약된 자동 문자 문구도 새 이름으로
         let storeSavedTimer = null;
         document.getElementById('settingsStoreName').addEventListener('change', async (e) => {
