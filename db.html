@@ -893,7 +893,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V148</span>
+                    <span class="text-sm text-gray-600">V149</span>
                 </div>
             </section>
         </div>
@@ -2063,7 +2063,7 @@
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where, runTransaction, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -2131,6 +2131,7 @@
                     const snap = await tx.get(ref);
                     const patch = build(snap.exists() ? (snap.data() || {}) : {});
                     tx.set(ref, stripUndefined(stampCustomerWrite(ref, patch)), { merge: true });
+                    noteCustomerWrite(ref, patch);
                     return patch;
                 });
             } catch (e) {
@@ -2142,8 +2143,18 @@
             }
         }
         const appendLine = (old, line) => (old && String(old).trim()) ? `${old}\n${line}` : line;
-        function saveDoc(ref, data, opts) { data = stampCustomerWrite(ref, data); return opts ? setDoc(ref, stripUndefined(data), opts) : setDoc(ref, stripUndefined(data)); }
-        function saveUpdate(ref, data) { return updateDoc(ref, stripUndefined(stampCustomerWrite(ref, data))); }
+        // 📨 약속·생일·번호·수신거부·삭제처럼 자동 안내에 영향 주는 칸을 고치면 잠시 뒤 예약 목록도 맞춤 (예전엔 최대 3시간 뒤에야 반영)
+        const SMS_RELATED = /^(prom[A-Za-z0-9]+(Date|Chk)|dob|phone|marketingDeny|deletedAt|salesStatus|pushSubscribed|cardId|name)$/;
+        let smsResyncTimer = null;
+        function scheduleSmsResync() {
+            clearTimeout(smsResyncTimer);
+            smsResyncTimer = setTimeout(() => {
+                try { if (pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn'))) syncAutoSms({ force: true }); } catch (e) { console.error(e); }
+            }, 15000);
+        }
+        function noteCustomerWrite(ref, data) { try { if (refCol(ref) === 'smart_customers' && data && Object.keys(data).some(k => SMS_RELATED.test(k))) scheduleSmsResync(); } catch (e) { /* 무시 */ } }
+        function saveDoc(ref, data, opts) { data = stampCustomerWrite(ref, data); noteCustomerWrite(ref, data); return opts ? setDoc(ref, stripUndefined(data), opts) : setDoc(ref, stripUndefined(data)); }
+        function saveUpdate(ref, data) { noteCustomerWrite(ref, data); return updateDoc(ref, stripUndefined(stampCustomerWrite(ref, data))); }
         // ⚠️ 오류를 알아듣기 쉬운 한국어로 (영어 오류문이 그대로 뜨지 않게)
         function koreanError(e, what = '처리') {
             const code = String((e && (e.code || '')) || '').replace(/^(firestore|auth)\//, '');
@@ -2541,6 +2552,7 @@
                 const prevLock = `${appSettings.ownerLock}|${appSettings.actProtect}`;
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
                 settingsLoaded = true;
+                try { bindStaffName(); } catch (e) { console.error(e); }
                 if (dbLoaded) setTimeout(() => autoReleaseProspects(), 1500);
                 if (prevLock !== `${appSettings.ownerLock}|${appSettings.actProtect}` && dbLoaded) { try { renderDB(); } catch (e) { /* 준비 전 */ } }   // 🔒 담당자 잠금을 켜고 끄면 목록 표시도 바로
                 if (document.getElementById('pushSheet').style.display === 'flex') { try { renderPushIconStrip(); } catch (e) { /* 준비 전 */ } }
@@ -3039,7 +3051,8 @@
         function getStaffName() { return (localStorage.getItem('staffName') || '').trim(); }
         document.getElementById('val-manager').value = getStaffName();
         document.getElementById('val-manager').addEventListener('change', (e) => {
-            localStorage.setItem('staffName', e.target.value.trim());
+            // 스캔 화면의 담당자 칸은 '이번 고객 담당자'일 뿐 → 이 폰의 직원 이름은 처음 한 번만 정함 (예전엔 남 이름을 적으면 이 폰이 그 사람이 됐음)
+            if (!getStaffName()) localStorage.setItem('staffName', e.target.value.trim());
         });
 
         function parseDateString(dateStr) {
@@ -5288,10 +5301,29 @@
             { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
         }
+        // 👤 직원 이름은 로그인 계정에 묶음 (매장 설정 staffByEmail) → 폰을 바꿔도 같은 이름 · 다른 직원 이름으로 바꿀 수 없음 (담당자 잠금 우회 방지)
+        function staffByEmail() { return appSettings.staffByEmail || {}; }
+        function nameTakenBy(v) { const me = myEmail().toLowerCase(); const hit = Object.entries(staffByEmail()).find(([em, nm]) => em !== me && nm && sameStaff(nm, v)); return hit ? hit[1] : ''; }
+        function bindStaffName() {
+            const me = myEmail().toLowerCase();
+            if (!me || !db) return;
+            const mine = staffByEmail()[me];
+            if (mine && mine !== getStaffName()) {
+                try { localStorage.setItem('staffName', mine); } catch (e) { /* 무시 */ }
+                const a = document.getElementById('settingsStaffName'); if (a && document.activeElement !== a) a.value = mine;
+                const b = document.getElementById('val-manager'); if (b && document.activeElement !== b) b.value = mine;
+            } else if (!mine && getStaffName() && !nameTakenBy(getStaffName())) {
+                saveDoc(doc(db, 'smart_global', 'settings'), { staffByEmail: { [me]: getStaffName() } }, { merge: true }).catch(() => {});
+            }
+        }
         let staffSavedTimer = null;
         document.getElementById('settingsStaffName').addEventListener('change', (e) => {
             const v = e.target.value.trim();
+            const taken = v && nameTakenBy(v);
+            if (taken) { customAlert(`'${taken}'은(는) 다른 직원 계정의 이름이에요.\n내 이름으로 적어주세요.`); e.target.value = getStaffName(); return; }
+            if (v && db) saveDoc(doc(db, 'smart_global', 'settings'), { staffByEmail: { [myEmail().toLowerCase()]: v } }, { merge: true }).catch(() => {});
             try { localStorage.setItem('staffName', v); } catch (err) { /* 무시 */ }
+            try { refreshStaffAlert(); } catch (err) { /* 무시 */ }   // 직원 알림 이름표도 새 이름으로
             document.getElementById('val-manager').value = v;
             if (v && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn')) && v !== appSettings.smsSenderName) {
                 appSettings = { ...appSettings, smsSenderName: v };
@@ -6852,10 +6884,10 @@
         }
         function promoReachable(c) {   // 지금도 보내도 되는 고객인지 (삭제·수신거부·고객거부·연락처 없음 제외)
             if (!c || c.deletedAt || c.marketingDeny || c.salesStatus === '고객거부') return false;
-            return !!(smsMobileDigits(c.phone) || (autoPushOn() && c.pushSubscribed === true && c.cardId));
+            return !!((autoSmsOn() && smsMobileDigits(c.phone)) || (autoPushOn() && c.pushSubscribed === true && c.cardId));   // 켜 둔 방법으로 실제 닿는 고객만
         }
         function promoKey() { return `${String(smsSetting('smsPromoDate') || '')}${promoTime()}`; }
-        function promoTimeOk(t) { const h = parseInt(t, 10); return /^\d{2}:\d{2}$/.test(String(t || '')) && h >= 8 && h < 21; }
+        function promoTimeOk(t) { const s0 = String(t || ''); if (!/^\d{2}:\d{2}$/.test(s0)) return false; const h = parseInt(s0, 10), m = parseInt(s0.slice(3), 10); return h >= 8 && (h < 20 || (h === 20 && m <= 40)); }   // 서버가 최대 10분 늦게 보낼 수 있어서 저녁 8시 40분까지만
         function promoTime() {   // 광고는 밤 9시~아침 8시 금지 → 그 시간이면 오전 10시 (홍보 전용 시각이 없으면 자동 문자 시각)
             const own = String(smsSetting('smsPromoTime') || '');
             if (promoTimeOk(own)) return own;
@@ -6966,8 +6998,23 @@
             text.innerHTML = c ? `<b class="font-bold text-gray-900">자동 안내 예약 ${c.queued}건</b> · 오늘 보냄 ${c.todaySent}건${c.ready === false ? ' · <span class="text-red-600">매장 폰 연결 확인 필요</span>' : ''}` : '자동 문자';
         }
         // 예약 목록을 고객 데이터와 맞추기 (없는 건 예약, 바뀐 건 다시 예약, 필요 없어진 자동 문자는 취소)
-        async function syncAutoSms({ force = false } = {}) {
+        // 두 번 겹쳐 부르면: 강제 맞추기는 지금 것이 끝난 뒤 한 번 더 (예전엔 그냥 건너뛰어서 '시작했어요'가 떠도 예약이 안 들어갈 수 있었음)
+        let smsSyncPromise = null, smsSyncAgain = false, lastSmsSyncOk = null;
+        async function syncAutoSms(opts = {}) {
+            if (smsSyncing) {
+                if (!opts.force) return;
+                smsSyncAgain = true;
+                try { await smsSyncPromise; } catch (e) { /* 무시 */ }
+                if (!smsSyncAgain) return lastSmsSyncOk;
+                smsSyncAgain = false;
+            }
+            smsSyncPromise = syncAutoSmsInner(opts);
+            return smsSyncPromise;
+        }
+        async function syncAutoSmsInner({ force = false } = {}) {
             if (!pushRelayReady() || smsSyncing || !db || !dbLoaded) return;
+            // 🛡️ 고객·매장 설정이 제대로 안 불러와졌으면 맞추지 않음 (예전: 불러오기 실패 = 고객 0명으로 보고 예약을 전부 취소할 수 있었음)
+            if (!settingsLoaded || dbLoadError || !customerDB.length) return;
             const last = Number(localStorage.getItem('smsAutoSyncAt') || 0);
             if (!force && Date.now() - last < SMS_SYNC_EVERY_MS) return renderSmsStats();
             if (!force && Date.now() - Number(localStorage.getItem('smsAutoSyncFailAt') || 0) < 10 * 60 * 1000) return renderSmsStats();   // 방금 실패했으면 10분 쉬기
@@ -6985,22 +7032,58 @@
                     appSettings = { ...appSettings, smsPromoIds: ids, smsPromoKey: promoKey() };
                     saveDoc(doc(db, 'smart_global', 'settings'), { smsPromoIds: ids, smsPromoKey: promoKey() }, { merge: true }).catch(e => console.error(e));
                 }
-                const desired = buildAutoSmsItems();
+                // 🔁 같은 안내 두 번 보내기 막기: 예전에 예약했고 보낼 시각이 지나 목록에서 빠진 것 = 이미 나간 것
+                const nowMs = Date.now(), hourNow = new Date().getHours();
+                const sentIds = new Set((Array.isArray(list.sent) ? list.sent : []).map(x => x && x.id).filter(Boolean));
+                const sched = appSettings.smsSched || {};
+                const desired = buildAutoSmsItems().filter(d => {
+                    if (byId.has(d.id)) return true;
+                    if (sentIds.has(d.id) || sentIds.has(String(d.id).replace(/-p$/, ''))) return false;
+                    if (/^a[pb]-/.test(d.id)) {
+                        const prev = Number(sched[d.id] || 0);
+                        if (prev && prev <= nowMs + 60 * 1000) return false;
+                        if (d.sendAt <= nowMs + 2 * 60 * 1000 && (hourNow < 8 || hourNow >= 21)) return false;   // 밤에는 지난 안내를 늦게 보내지 않음
+                    }
+                    return true;
+                });
                 const desiredIds = new Set(desired.map(d => d.id));
-                const toAdd = desired.filter(d => { const q = byId.get(d.id); return !q || q.to !== smsIntl(d.to) || (q.channel || 'sms') !== (d.channel || 'sms') || q.preview !== d.text.slice(0, 40) || Number(q.sendAt) !== d.sendAt && Math.abs(Number(q.sendAt) - d.sendAt) > 5 * 60 * 1000; });
+                // 바뀐 것만 다시 예약 (번호는 숫자만 비교 · 이미 보낼 시각이 된 건 '곧바로'끼리 같은 것으로 봄 → 맞출 때마다 뒤로 밀리지 않게)
+                const digits = v => String(v || '').replace(/\D/g, '');
+                const toAdd = desired.filter(d => {
+                    const q = byId.get(d.id);
+                    if (!q) return true;
+                    const qAt = Number(q.sendAt) || 0, bothDue = qAt <= nowMs + 2 * 60 * 1000 && d.sendAt <= nowMs + 2 * 60 * 1000;
+                    return digits(q.to) !== digits(smsIntl(d.to)) || (q.channel || 'sms') !== (d.channel || 'sms') || String(q.preview || '') !== d.text.slice(0, String(q.preview || '').length || 40) || (!bothDue && Math.abs(qAt - d.sendAt) > 5 * 60 * 1000);
+                });
                 // 지금 홍보의 보낼 시각이 막 지난 것은 서버가 보내는 중(최대 10분)이니 취소하지 않기
                 const camp = smsSetting('smsAutoPromoOn') ? promoCampaign() : null;
-                const toCancel = queued.filter(q => q.auto && !desiredIds.has(q.id) && !(camp && String(q.id).startsWith(camp) && Number(q.sendAt) <= Date.now())).map(q => q.id);
+                const toCancel = queued.filter(q => q.auto && !desiredIds.has(q.id) && !(camp && String(q.id).startsWith(camp) && Number(q.sendAt) <= nowMs && Number(q.sendAt) > nowMs - 15 * 60 * 1000 && hourNow < 21)).map(q => q.id);
                 for (let i = 0; i < toAdd.length; i += 50) await callSms('schedule', { items: toAdd.slice(i, i + 50) });
                 if (toCancel.length) await callSms('cancel', { ids: toCancel });
+                // 예약한 안내(약속·생일) 기록 → 다음에 '이미 나간 것'을 알 수 있게 (두 폰이 같이 씀)
+                const track = {};
+                toAdd.forEach(d => { if (/^a[pb]-/.test(d.id)) track[d.id] = d.sendAt; });
+                if (Object.keys(track).length) {
+                    appSettings = { ...appSettings, smsSched: { ...sched, ...track } };
+                    saveDoc(doc(db, 'smart_global', 'settings'), { smsSched: track }, { merge: true }).catch(e => console.error('예약 기록 저장 실패', e));
+                }
+                if (isSuperAdmin && Object.keys(appSettings.smsSched || {}).length > 400) {   // 오래된 기록 정리 (3일 지난 것)
+                    const kept = Object.fromEntries(Object.entries(appSettings.smsSched).filter(([, v]) => Number(v) > nowMs - 3 * 86400000));
+                    appSettings = { ...appSettings, smsSched: kept };
+                    saveUpdate(doc(db, 'smart_global', 'settings'), { smsSched: kept }).catch(e => console.error(e));
+                }
                 localStorage.setItem('smsAutoSyncAt', String(Date.now()));
                 localStorage.removeItem('smsAutoSyncFailAt');
                 const newQueued = queued.filter(q => !toCancel.includes(q.id)).concat(toAdd.filter(d => !byId.has(d.id)));
                 saveSmsStats({ ...list, queued: newQueued });
                 setPromoProgList({ ...list, queued: newQueued });
+                lastSmsSyncOk = true;
+                return true;
             } catch (e) {
                 console.error('자동 문자 맞추기 실패:', e);
                 localStorage.setItem('smsAutoSyncFailAt', String(Date.now()));
+                lastSmsSyncOk = false;
+                return false;
             } finally {
                 smsSyncing = false;
                 renderSmsStats();
@@ -7143,7 +7226,7 @@
         });
         document.getElementById('smsPromoTime').addEventListener('change', (e) => {
             const v = e.target.value;
-            if (v && !promoTimeOk(v)) { customAlert('광고 문자는 밤 9시~아침 8시에는 보낼 수 없어요.\n오전 8시~저녁 8시 59분 사이로 골라주세요.'); e.target.value = promoTimeOk(appSettings.smsPromoTime) ? appSettings.smsPromoTime : '10:00'; }
+            if (v && !promoTimeOk(v)) { customAlert('광고 문자는 밤 9시~아침 8시에는 보낼 수 없어요.\n오전 8시~저녁 8시 40분 사이로 골라주세요.'); e.target.value = promoTimeOk(appSettings.smsPromoTime) ? appSettings.smsPromoTime : '10:00'; }
             saveSmsSettings();
         });
         // ⚡ 즉시 발송 / 📅 예약 발송
@@ -7167,8 +7250,8 @@
             let date, time;
             if (mode === 'now') {
                 const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
-                if (mins < 8 * 60 || mins > 20 * 60 + 45) {
-                    const ok = await customConfirm('광고 문자는 밤 9시~아침 8시에는 보낼 수 없어요.\n(서버가 10분 안에 보내서 저녁 8시 45분까지만 즉시 발송돼요)\n\n대신 📅 예약 발송으로 ' + (mins < 8 * 60 ? '오늘' : '내일') + ' 오전 10시에 맞춰둘까요?');
+                if (mins < 8 * 60 || mins > 20 * 60 + 40) {
+                    const ok = await customConfirm('광고 문자는 밤 9시~아침 8시에는 보낼 수 없어요.\n(서버가 10분 안에 보내서 저녁 8시 40분까지만 즉시 발송돼요)\n\n대신 📅 예약 발송으로 ' + (mins < 8 * 60 ? '오늘' : '내일') + ' 오전 10시에 맞춰둘까요?');
                     if (!ok) return;
                     promoModeUI = 'resv';
                     document.getElementById('smsPromoDate').value = mins < 8 * 60 ? getTodayStr() : addDaysStr(getTodayStr(), 1);
@@ -7180,7 +7263,7 @@
                 date = document.getElementById('smsPromoDate').value;
                 time = document.getElementById('smsPromoTime').value || promoTime();
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { customAlert('보낼 날을 골라주세요.'); return; }
-                if (!promoTimeOk(time)) { customAlert('광고 문자는 오전 8시~저녁 8시 59분 사이로만 예약할 수 있어요.'); return; }
+                if (!promoTimeOk(time)) { customAlert('광고 문자는 오전 8시~저녁 8시 40분 사이로만 예약할 수 있어요.'); return; }
                 const [hh, mm] = time.split(':').map(n => parseInt(n, 10)); const at = parseDateString(date);
                 if (new Date(at.getFullYear(), at.getMonth(), at.getDate(), hh, mm).getTime() < Date.now() - 60 * 1000) { customAlert('이미 지난 시각이에요. 앞으로의 날짜·시각을 골라주세요.\n바로 보내려면 ⚡ 즉시 발송을 눌러주세요.'); return; }
             }
@@ -7207,6 +7290,7 @@
                 appSettings = { ...appSettings, smsPromoIds: ids, smsPromoKey: `${date}${time}` };
             }
             if (!await saveSmsSettings()) return;
+            if (lastSmsSyncOk === false) { customAlert('설정은 저장했는데 문자 서버에 예약을 넣지 못했어요.\n인터넷·중계 서버 연결을 확인하고, 잠시 뒤 [보낼 예정] 목록에 들어갔는지 확인해주세요.'); return; }
             customAlert(mode === 'now' ? `📢 보내기 시작했어요! (${n}명)\n'보낼 예정' 목록에서 확인할 수 있어요.` : `📅 예약했어요! ${date.slice(5).replace('-', '/')} ${time} · ${n}명\n취소하려면 '이 홍보 그만 보내기'를 눌러주세요.`);
         }
         document.getElementById('smsPromoGo').addEventListener('click', () => startPromo(promoModeUI));
@@ -7262,7 +7346,7 @@
                 box.innerHTML = `📊 ${head} ${btn}<br>
                     ✅ 보냄 <b>${R.ok}</b>명${R.bad ? ` · <span class="text-red-700">❌ 실패 <b>${R.bad}</b>명</span>` : ''}${R.sending ? ` · 📤 매장 폰에서 보내는 중 <b>${R.sending}</b>명` : ''} · ⏳ 남음 <b>${R.waiting}</b>명${R.later ? ` · 📅 다음 날부터 <b>${R.later}</b>명 (${escapeHtml(R.time)})` : ''}<br>
                     ${R.ready === false ? '<span class="block my-1 rounded-lg bg-red-50 border border-red-200 px-2 py-1 font-bold text-red-800">❌ 매장 폰이 연결 안 돼 있어서 안 나가고 있어요. 설정 → 연결 점검에서 \'매장 폰 자동 문자\'를 확인해주세요.</span>'
-                        : (R.stuck ? `<span class="block my-1 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 font-bold text-amber-900">⚠️ 보낼 시각이 15분 넘게 지났는데 ${R.stuck}명이 아직 서버에 남아 있어요. 테스트 문자는 되는데 이게 안 나가면 중계 서버의 <u>Cron 트리거(10분마다)</u>가 빠진 거예요. 고치기 전까지는 아래 버튼으로 바로 보낼 수 있어요.</span><button type="button" id="smsPromoFlush" class="w-full h-10 my-1 rounded-lg bg-amber-500 text-white text-[13px] font-bold">${promoFlushing ? escapeHtml(promoFlushing) : `📤 밀린 문자 지금 바로 보내기 (${R.stuck}명)`}</button>` : '')}
+                        : (R.stuck ? `<span class="block my-1 rounded-lg bg-amber-50 border border-amber-300 px-2 py-1 font-bold text-amber-900">⚠️ 보낼 시각이 15분 넘게 지났는데 ${R.stuck}명이 아직 서버에 남아 있어요. 테스트 문자는 되는데 이게 안 나가면 <u>중계 서버(kangcrm-push)</u>의 Cron 트리거(*/10 * * * *)가 빠졌거나 안 도는 거예요 (설정 → 연결 점검 → 🧪 예약 문자 시험으로 확인). 고치기 전까지는 아래 버튼으로 바로 보낼 수 있어요.</span><button type="button" id="smsPromoFlush" class="w-full h-10 my-1 rounded-lg bg-amber-500 text-white text-[13px] font-bold">${promoFlushing ? escapeHtml(promoFlushing) : `📤 밀린 문자 지금 바로 보내기 (${R.stuck}명)`}</button>` : '')}
                     <span class="text-gray-500">${at ? `${escapeHtml(at)} 확인 · ` : ''}자세한 건 '보낼 예정' 목록에서 · 실패는 번호 오류·매장 폰 꺼짐 등이에요</span>`;
             }
             document.getElementById('smsPromoProgBtn').onclick = () => refreshPromoProg(true);
@@ -7285,24 +7369,38 @@
             try { list = await callSms('list'); } catch (e) { customAlert('서버 목록을 불러오지 못했어요. 인터넷을 확인해주세요.'); return; }
             const due = (list.queued || []).filter(q => String(q.id || '').startsWith(camp) && Number(q.sendAt) <= Date.now() && (q.channel || 'sms') !== 'push');
             const byKey = new Map(customerDB.map(c => [String(c.id).replace(/[^A-Za-z0-9_-]/g, ''), c]));
-            const jobs = due.map(q => ({ q, c: byKey.get(String(q.id).slice(camp.length)) })).filter(j => j.c && smsMobileDigits(j.c.phone));
+            const jobs = due.map(q => ({ q, c: byKey.get(String(q.id).slice(camp.length)) })).filter(j => j.c && smsMobileDigits(j.c.phone) && promoReachable(j.c));   // 그 사이 수신거부·삭제된 고객은 빼기
             if (!jobs.length) { customAlert('지금 바로 보낼 밀린 문자가 없어요.'); setPromoProgList(list); return; }
-            if (!await customConfirm(`밀린 홍보 문자 ${jobs.length}명을 지금 이 폰에서 하나씩 보낼까요?\n(서버 예약은 먼저 취소해서 두 번 가지 않아요)\n다 보낼 때까지 이 화면을 켜두세요. 약 ${Math.ceil(jobs.length * 2 / 60)}분 걸려요.`)) return;
-            try { await callSms('cancel', { ids: jobs.map(j => j.q.id) }); }
-            catch (e) { customAlert('서버 예약을 취소하지 못해서 멈췄어요 (두 번 가는 걸 막으려고). 잠시 뒤 다시 눌러주세요.'); return; }
-            let okN = 0, badN = 0;
+            if (!await customConfirm(`밀린 홍보 문자 ${jobs.length}명을 지금 이 폰에서 하나씩 보낼까요?\n(한 명씩 서버 예약을 먼저 취소하고 보내서 두 번 가지 않아요)\n다 보낼 때까지 이 화면을 켜두세요. 약 ${Math.ceil(jobs.length * 2 / 60)}분 걸려요.`)) return;
+            // 🔒 두 폰에서 동시에 누르면 두 번 갈 수 있어서, 매장 공용 잠금을 먼저 잡음 (10분 지나면 풀림)
+            const lockRef = doc(db, 'smart_global', 'settings'), me = getStaffName() || '직원', lockAt = Date.now();
+            try {
+                const got = await runTransaction(db, async (tx) => {
+                    const snap = await tx.get(lockRef);
+                    const L = (snap.exists() && snap.data().promoFlushLock) || null;
+                    if (L && Number(L.at) > Date.now() - 10 * 60 * 1000 && L.by !== me) return L;
+                    tx.set(lockRef, { promoFlushLock: { by: me, at: lockAt, camp } }, { merge: true });
+                    return null;
+                });
+                if (got) { customAlert(`${got.by}님 폰에서 지금 밀린 문자를 보내는 중이에요. 끝날 때까지 기다려주세요.`); return; }
+            } catch (e) { console.warn('보내기 잠금 실패 (계속 진행)', e); }
+            let okN = 0, badN = 0, skipN = 0;
             for (let i = 0; i < jobs.length; i++) {
                 const { q, c } = jobs[i];
+                const mm = new Date().getHours() * 60 + new Date().getMinutes();
+                if (mm >= 21 * 60) { skipN = jobs.length - i; break; }   // 밤 9시가 되면 멈춤 (남은 건 서버 예약에 그대로)
                 promoFlushing = `보내는 중… ${i + 1}/${jobs.length}`; renderPromoProg();
+                try { await callSms('cancel', { ids: [q.id] }); } catch (e) { badN++; continue; }   // 이 사람 예약만 먼저 취소 → 바로 보냄 (화면을 닫아도 남은 사람 예약은 그대로)
                 let good = false;
                 try { const r = await callSms('test', { to: c.phone, text: promoText(c, false) }); good = r && r.ok !== false; } catch (e) { console.error(e); }
                 savePromoFlushLog(camp, String(q.id).slice(camp.length), good);
                 good ? okN++ : badN++;
                 await new Promise(r => setTimeout(r, 1500));   // 한꺼번에 몰리지 않게
             }
+            saveDoc(lockRef, { promoFlushLock: { by: '', at: 0, camp: '' } }, { merge: true }).catch(() => {});
             promoFlushing = '';
             try { setPromoProgList(await callSms('list')); } catch (e) { renderPromoProg(); }
-            customAlert(`📤 밀린 문자 보내기 끝!\n✅ 매장 폰으로 넘김 ${okN}명${badN ? ` · ❌ 실패 ${badN}명` : ''}\n\n다음 날 몫은 서버 예약으로 남아 있어요. 중계 서버의 Cron 트리거를 꼭 넣어주세요.`);
+            customAlert(`📤 밀린 문자 보내기 끝!\n✅ 매장 폰으로 넘김 ${okN}명${badN ? ` · ❌ 실패 ${badN}명` : ''}${skipN ? `\n🌙 밤 9시가 돼서 ${skipN}명은 멈췄어요 (내일 다시 눌러주세요)` : ''}\n\n다음 날 몫은 서버 예약으로 남아 있어요. 중계 서버(kangcrm-push)의 Cron 트리거를 꼭 확인해주세요.`);
         }
         async function refreshPromoProg(manual = false) {
             if (promoProgBusy || !pushRelayReady()) return;
@@ -7375,14 +7473,14 @@
                 const R = promoPreview({ smsPromoDate: getTodayStr(), smsPromoTime: nowHHMM() });
                 box.innerHTML = `지금 보내면 대상 <b>${R.P.list.length}명</b>${R.P.days > 1 ? ` · 하루 ${R.P.per}명씩 <b>${R.P.days}일</b>에 나눠 (다음 날부터 같은 시각)` : ''}<br>
                    <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
-                   ${tail} <span class="text-gray-600">버튼을 누르면 서버가 10분 안에 보내요. 광고라서 오전 8시~저녁 8시 45분에만 즉시 발송돼요.</span>`;
+                   ${tail} <span class="text-gray-600">버튼을 누르면 서버가 10분 안에 보내요. 광고라서 오전 8시~저녁 8시 40분에만 즉시 발송돼요.</span>`;
                 return;
             }
             if (!date) { box.innerHTML = '보낼 날과 시각을 고르면 대상 수와 보내는 날이 여기 나와요.'; return; }
             const R = promoPreview({ smsPromoDate: date, smsPromoTime: promoTimeOk(tv) ? tv : '' });
             box.innerHTML = `예약하면 대상 <b>${R.P.list.length}명</b> · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
                <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
-               ${tail} <span class="text-gray-600">광고라서 오전 8시~저녁 8시 59분 사이로만 예약돼요.</span>`;
+               ${tail} <span class="text-gray-600">광고라서 오전 8시~저녁 8시 40분 사이로만 예약돼요.</span>`;
         }
         ['smsPromoDate', 'smsPromoTime', 'smsPromoTarget', 'smsPromoDaily', 'smsTplPromo', 'smsPromoOptout'].forEach(id => document.getElementById(id).addEventListener('input', renderPromoInfo));
         // 📢 홍보 문자 사진 (생일 사진과 같은 방식)
@@ -7672,7 +7770,13 @@
                 ids = ids.filter(id => Date.now() - (cardCheckedAt.get(id) || 0) > 20 * 1000);   // 같은 고객은 20초에 한 번만 (알림 켠 뒤 바로 확인되게)
                 if (!ids.length) return;
             }
-            const targets = (ids ? customerDB.filter(c => ids.includes(c.id)) : customerDB).filter(c => c.cardId).slice(0, 120);
+            let targets = (ids ? customerDB.filter(c => ids.includes(c.id)) : customerDB).filter(c => c.cardId);
+            if (!ids && targets.length > 120) {   // 한 번에 120명씩 돌아가며 확인 (예전엔 늘 앞의 120명만 확인해서 나머지 고객의 '알림 켬' 표시가 안 바뀌었음)
+                targets.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+                const off = (parseInt(localStorage.getItem('cardCheckOffset') || '0', 10) || 0) % targets.length;
+                targets = targets.slice(off).concat(targets.slice(0, off)).slice(0, 120);
+                try { localStorage.setItem('cardCheckOffset', String(off + 120)); } catch (e) { /* 무시 */ }
+            } else targets = targets.slice(0, 120);
             if (!targets.length) { if (!ids) localStorage.setItem('cardCheckAt', String(Date.now())); return; }
             cardChecking = true;
             try {
@@ -10071,7 +10175,7 @@ familyStr + `\n` +
         async function toggleStaffAlert() {
             if (staffAlertState() === 'on') {
                 if (!(await customConfirm('이 폰에서 상담요청 알림을 그만 받을까요?'))) return;
-                try { const OS = await loadOneSignalForStaff(); await OS.User.removeTag('kcrm_staff'); } catch (e) { /* 무시 */ }
+                try { const OS = await loadOneSignalForStaff(); await OS.User.removeTag('kcrm_staff'); await OS.User.PushSubscription.optOut(); } catch (e) { /* 무시 */ }   // 알림 등록 자체도 끔 (남아 있으면 이 폰이 명함 고객으로 섞일 수 있음)
                 try { localStorage.removeItem('kcrmStaffAlert'); } catch (e) { /* 무시 */ }
                 renderCalcRequests();
                 return;
@@ -10113,6 +10217,9 @@ familyStr + `\n` +
                 const id = staffOneSignalId();
                 if (id) await OS.login(id);
                 await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
+                // 아침 약속 알림 서버가 '호규'↔'임호규'처럼 이름이 조금 달라도 찾을 수 있게, 알림 받는 직원 이름을 매장 설정에 적어둠
+                const nm = staffKeyName(getStaffName());
+                if (nm && nm !== '담당자미상' && db) saveDoc(doc(db, 'smart_global', 'settings'), { staffAlertNames: { [nm]: Date.now() } }, { merge: true }).catch(() => {});
             } catch (e) { console.error('직원 알림 다시 연결 실패:', e); }
         }
         // [테스트] 알림 서버 → 직원 폰으로 진짜 푸시 한 번 보내보기 (안 오면 이유를 알려줌)
@@ -13016,6 +13123,17 @@ familyStr + `\n` +
                 } catch (e) { add('알림 서버', '서버 연결', 'bad', '주소에 연결하지 못했어요. 주소를 확인해 주세요.'); }
             }
             add('알림 서버', '약속 알림 켜짐 (설정)', appSettings.promPushOn === true ? 'ok' : 'warn', appSettings.promPushOn === true ? '' : '설정 → 📅 약속 알림을 켜야 아침마다 와요.');
+            // ⏰ 알림 서버 Cron이 실제로 돌았는지 (v3.1 서버가 Firestore에 기록)
+            try {
+                const ws = await getDoc(doc(db, 'smart_global', 'worker_status'));
+                const W = ws.exists() ? ws.data() : {};
+                if (!W.alertLastCron) add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '아직 기록이 없어요. 알림 서버 코드를 v3.1로 배포하면, 다음 Cron이 돌 때부터 여기 보여요.');
+                else {
+                    const k = cronKst(W.alertCron);
+                    if (W.alertCronDaily === false) add('알림 서버', '자동 실행 (Cron)', 'bad', `알림 서버(kangcrm-alert)에 '${W.alertCron}'(자주 도는 Cron)이 들어가 있어요. 10분마다 Cron은 중계 서버(kangcrm-push)에 넣는 거예요. 알림 서버에는 '30 0 * * *'(아침 9시 30분)만 두세요. (v3.1은 이걸로 약속 알림을 보내지 않게 막아놨어요)`);
+                    else add('알림 서버', '자동 실행 (Cron)', 'ok', `${W.alertCron}${k ? ` = 매일 한국 시간 ${k}` : ''} · 마지막 실행 ${fmtSmsWhen(Date.parse(W.alertLastCron))}`);
+                }
+            } catch (e) { add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '기록을 읽지 못했어요.'); }
             // 3. 이 폰
             const perm = 'Notification' in window ? Notification.permission : 'none';
             add('이 폰', '상담·약속 알림 받기', staffAlertState() === 'on' ? 'ok' : 'warn', staffAlertState() === 'on' ? '이 폰으로 알림이 와요' : (perm === 'denied' ? '크롬 알림이 차단돼 있어요. 주소창 왼쪽 → 권한 → 알림 허용' : '명함 상담요청 창 → [이 폰으로 알림 받기]를 눌러주세요.'));
@@ -13026,10 +13144,27 @@ familyStr + `\n` +
             else {
                 try { const t = await callPushRelay({ test: true }); add('푸시·문자', '푸시 중계 서버', 'ok', `v${t.version || '?'}${t.photo === false ? ' · 사진 저장소 미연결' : ''}`); }
                 catch (e) { add('푸시·문자', '푸시 중계 서버', 'bad', e.message); }
-                if (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || autoSmsOn()) {
+                if (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn') || autoSmsOn()) {
                     try { const st = await callSms('status'); add('푸시·문자', '매장 폰 자동 문자', st.ready ? 'ok' : 'bad', st.ready ? (st.e2e && !st.e2eWeak ? '🔐 암호화 켜짐' : '암호화 꺼짐 (켜는 걸 추천)') : (!st.gateway ? 'SMSGATE_USER·SMSGATE_PASS를 넣어주세요.' : '저장소(IMAGES) 연결 확인')); }
                     catch (e) { add('푸시·문자', '매장 폰 자동 문자', 'bad', e.message); }
                 }
+                // ⏰ 예약 문자가 제때 나가는지 = 중계 서버(kangcrm-push)의 Cron이 도는지 (보낼 시각이 15분 넘게 지났는데 남아 있으면 안 도는 것)
+                try {
+                    const L = await callSms('list');
+                    const q = Array.isArray(L.queued) ? L.queued : [], now = Date.now();
+                    const late = q.filter(x => Number(x.sendAt) < now - 15 * 60 * 1000).sort((a, b) => a.sendAt - b.sendAt);
+                    const T = diagSmsTest();
+                    if (late.length) {
+                        const mins = Math.round((now - Number(late[0].sendAt)) / 60000);
+                        add('푸시·문자', '예약 문자 처리 (중계 서버 Cron)', 'bad', `보낼 시각이 지났는데 안 나간 문자 ${late.length}건 (가장 오래된 것 ${mins >= 120 ? Math.round(mins / 60) + '시간' : mins + '분'} 지남). Cloudflare → kangcrm-push → 설정 → 트리거에 Cron '*/10 * * * *'가 있는지 확인해 주세요. 있는데도 이러면 중계 서버 코드가 예약을 보내는 버전이 아니에요 → 코드를 보내주세요.`);
+                    } else add('푸시·문자', '예약 문자 처리 (중계 서버 Cron)', T && !T.done ? 'warn' : 'ok', `밀린 문자 없음 · 예약 ${q.length}건${T && !T.done ? '' : ' (확실히 보려면 아래 [예약 문자 시험])'}`);
+                    if (T) {
+                        const inQ = q.some(x => x.id === T.id);
+                        if (!inQ) { T.done = true; saveDiagSmsTest(T); add('푸시·문자', '🧪 예약 문자 시험', 'ok', `${fmtSmsWhen(T.sendAt)} 시험 문자가 서버에서 나갔어요 → Cron 정상. ${T.to.slice(-4)} 폰에 왔는지 확인하세요 (안 왔으면 매장 폰 SMS Gateway 앱 확인).`); }
+                        else if (Number(T.sendAt) < now - 12 * 60 * 1000) add('푸시·문자', '🧪 예약 문자 시험', 'bad', `${fmtSmsWhen(T.sendAt)}에 나가야 할 시험 문자가 아직 서버에 있어요 → 중계 서버 Cron이 안 돌아요.`);
+                        else add('푸시·문자', '🧪 예약 문자 시험', 'warn', `${fmtSmsWhen(T.sendAt)}에 나갈 예정 · 10~12분 뒤에 [다시 점검]을 눌러 결과를 보세요.`);
+                    }
+                } catch (e) { add('푸시·문자', '예약 문자 처리 (중계 서버 Cron)', 'warn', `목록을 읽지 못했어요: ${e.message}`); }
             }
             // 5. 서류 백업
             const mode = driveMode();
@@ -13061,8 +13196,32 @@ familyStr + `\n` +
                     ${diagRows.filter(r => r.group === g).map(r => `<div class="px-3 py-2 border-t border-gray-100 flex items-start gap-2"><span class="flex-shrink-0">${icon[r.state]}</span><span class="min-w-0"><span class="block text-[14px] font-bold ${r.state === 'bad' ? 'text-red-800' : 'text-gray-900'}">${escapeHtml(r.label)}</span>${r.hint ? `<span class="block text-xs text-gray-600 leading-snug">${escapeHtml(r.hint)}</span>` : ''}</span></div>`).join('')}
                 </div>`).join('') + (diagRunning ? '<p class="text-sm text-gray-500 text-center py-3"><i class="fa-solid fa-spinner fa-spin"></i> 확인 중…</p>'
                 : `<button type="button" id="diagAgain" class="w-full h-12 rounded-xl border border-indigo-300 bg-white text-[15px] font-bold text-indigo-700"><i class="fa-solid fa-rotate"></i> 다시 점검</button>
+                   ${pushRelayReady() ? `<button type="button" id="diagSmsTestBtn" class="w-full h-12 rounded-xl border border-emerald-300 bg-emerald-50 text-[15px] font-bold text-emerald-800"><i class="fa-solid fa-flask"></i> 🧪 예약 문자 시험 (1분 뒤 보내기 → 10분 뒤 결과 확인)</button>` : ''}
                    <p class="text-xs text-gray-500 leading-relaxed">이 폰 기준으로 점검해요. 직원 폰은 각자 한 번씩 눌러보세요. 점검은 아무것도 보내지 않아요.</p>`);
             const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
+            const tb = document.getElementById('diagSmsTestBtn'); if (tb) tb.onclick = startDiagSmsTest;
+        }
+        // 🧪 예약 문자 시험: 1분 뒤 보내기로 예약 → 중계 서버 Cron이 돌면 목록에서 빠지고 폰에 문자가 옴
+        function diagSmsTest() { try { return JSON.parse(localStorage.getItem('diagSmsTest') || 'null'); } catch (e) { return null; } }
+        function saveDiagSmsTest(t) { try { localStorage.setItem('diagSmsTest', JSON.stringify(t)); } catch (e) { /* 무시 */ } }
+        function cronKst(cron) {   // '30 0 * * *' → '09:30'
+            const f = String(cron || '').trim().split(/\s+/);
+            if (f.length < 5 || !/^\d+$/.test(f[0]) || !/^\d+$/.test(f[1])) return '';
+            const h = (parseInt(f[1], 10) + 9) % 24;
+            return `${String(h).padStart(2, '0')}:${String(parseInt(f[0], 10)).padStart(2, '0')}`;
+        }
+        async function startDiagSmsTest() {
+            const to = prompt('시험 문자를 받을 휴대폰 번호 (본인 번호 추천)', (diagSmsTest() || {}).to || '');
+            if (to === null) return;
+            const digits = smsMobileDigits(to);
+            if (!digits) return customAlert('휴대폰 번호(010…)를 확인해주세요.');
+            const sendAt = Date.now() + 60 * 1000, id = `diagtest-${Date.now().toString(36)}`;
+            try {
+                await callSms('schedule', { items: [{ id, to: digits, name: '예약 문자 시험', sendAt, text: `강CRM 예약 문자 시험이에요 ✅\n${fmtSmsWhen(sendAt)} 예약분 · 이게 오면 자동 문자가 정상이에요.` }] });
+                saveDiagSmsTest({ id, to: digits, sendAt, done: false });
+                customAlert(`🧪 ${fmtSmsWhen(sendAt)}에 보내도록 예약했어요.\n\n10~12분 뒤에 [다시 점검]을 누르면 결과가 나와요.\n· 문자가 오고 '나갔어요'로 나오면 정상\n· 계속 '아직 서버에 있어요'면 중계 서버 Cron이 안 도는 거예요.`);
+                runDiag();
+            } catch (e) { customAlert(`예약하지 못했어요: ${e.message}`); }
         }
         document.getElementById('diagBtn').addEventListener('click', () => { openCalcSheet('diag'); runDiag(); });
 
