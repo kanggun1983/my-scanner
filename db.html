@@ -902,7 +902,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V160</span>
+                    <span class="text-sm text-gray-600">V161</span>
                 </div>
             </section>
         </div>
@@ -13974,7 +13974,8 @@ familyStr + `\n` +
                 if (m) { car = m[1]; model = m[2]; const c2 = capRe.exec(model); if (c2) { cap = (c2[1] + c2[2]).toUpperCase(); model = model.replace(c2[0], ' ').replace(/\s+/g, ' ').trim(); } }
                 const nm = /^지금:\s*([^/\n]+)/m.exec(t); if (nm) now = nm[1].trim();
             }
-            return { model, cap, now, car: /추천/.test(car) ? '' : car, ins: get('할부'), disc: get('할인 방식') };
+            const tr = get('기기 보상'), trPhone = (/\(지금 폰:\s*([^)]+)\)/.exec(tr) || [])[1] || '';
+            return { model, cap, now, car: /추천/.test(car) ? '' : car, ins: get('할부'), disc: get('할인 방식'), trade: /원해요/.test(tr), tradePhone: trPhone.trim() };
         }
         function openQuoteFromRequest(r) {
             const c = calcFindCustomer(r);
@@ -14000,6 +14001,10 @@ familyStr + `\n` +
                 <p id="qsWho" class="text-xs font-medium text-gray-600 -mt-1 pl-1"></p>
                 <label class="text-xs font-bold text-gray-600">보낼 문구 <span class="font-normal text-gray-500">(고쳐서 보내도 돼요)</span>
                     <textarea id="qsText" rows="14" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900"></textarea></label>
+                <label for="qsCompare" class="flex items-center justify-between gap-3 rounded-xl bg-indigo-50 border border-indigo-100 px-3 py-2 cursor-pointer">
+                    <span class="text-sm font-bold text-indigo-900 leading-snug">📊 비교 견적으로 보내기<br><span class="text-xs font-medium text-indigo-800">공통지원금 · 선택약정 두 가지를 나란히 (켜고 끄면 문구가 새로 만들어져요)</span></span>
+                    <input type="checkbox" id="qsCompare" class="w-6 h-6 accent-indigo-600 flex-shrink-0">
+                </label>
                 <label id="qsDoneRow" class="hidden flex items-center gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsDone" checked class="w-5 h-5 accent-indigo-600"> 보내면 이 견적요청을 처리 완료로</label>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="qsCopy" class="h-12 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800"><i class="fa-regular fa-copy"></i> 복사 (카톡용)</button>
@@ -14021,9 +14026,16 @@ familyStr + `\n` +
             if (pcalQuoteCtx && pcalQuoteCtx.custId && d === pcalQuoteCtx.phone) return customerDB.find(x => x.id === pcalQuoteCtx.custId) || null;
             return d.length >= 10 ? (customerDB.find(x => String(x.phone || '').replace(/\D/g, '') === d) || null) : null;
         }
+        const qsCompareOn = () => !!qsEl.querySelector('#qsCompare').checked;
         function qsCompose(name) {
             const store = msgStoreName(), staff = getStaffName() || '';
-            return `${msgName(name || '')}님, ${store} ${staff}입니다.\n요청하신 휴대폰 견적 보내드려요 😊\n\n${(qsData && qsData.text) || ''}\n\n궁금한 점은 편하게 답장 주세요!`;
+            const cmp = qsCompareOn() && qsData && qsData.textCompare;
+            const body = cmp ? qsData.textCompare : ((qsData && qsData.text) || '');
+            return `${msgName(name || '')}님, ${store} ${staff}입니다.\n요청하신 휴대폰 ${cmp ? '비교 견적' : '견적'} 보내드려요 😊\n\n${body}\n\n궁금한 점은 편하게 답장 주세요!`;
+        }
+        function qsNameNow() {
+            const c = qsCustomer(); const typed = qsEl.querySelector('#qsName').value.trim();
+            return typed || (c ? c : '');
         }
         function qsRefreshWho() {
             const c = qsCustomer();
@@ -14031,6 +14043,7 @@ familyStr + `\n` +
         }
         function openQuoteSend(d) {
             qsData = d;
+            { let on = false; try { on = localStorage.getItem('quoteCompare') === '1'; } catch (e) {} const cb = qsEl.querySelector('#qsCompare'); cb.checked = on && !!d.textCompare; cb.disabled = !d.textCompare; }
             const ctx = pcalQuoteCtx;
             qsEl.querySelector('#qsName').value = ctx ? (ctx.name === '새 고객' ? '' : ctx.name) : '';
             qsEl.querySelector('#qsPhone').value = ctx && ctx.phone ? formatPhone(ctx.phone) : '';
@@ -14042,6 +14055,10 @@ familyStr + `\n` +
             if (!qsPushed) { pushAppState({ quoteSend: true }); qsPushed = true; }
         }
         qsEl.querySelector('#qsPhone').addEventListener('input', qsRefreshWho);
+        qsEl.querySelector('#qsCompare').addEventListener('change', e => {   // 📊 비교 견적 켜고 끄기 (이 폰이 기억)
+            try { localStorage.setItem('quoteCompare', e.target.checked ? '1' : '0'); } catch (err) {}
+            qsEl.querySelector('#qsText').value = qsCompose(qsNameNow());
+        });
         qsEl.querySelector('#qsName').addEventListener('change', e => {   // 이름을 고치면 인사말도
             const ta = qsEl.querySelector('#qsText'); const first = ta.value.split('\n')[0];
             if (/님, /.test(first)) ta.value = ta.value.replace(first, `${msgName(e.target.value.trim())}님, ${first.split('님, ').slice(1).join('님, ')}`);
@@ -14049,7 +14066,7 @@ familyStr + `\n` +
         async function qsAfterSend(via) {
             const ctx = pcalQuoteCtx, d = qsData || {};
             if (ctx && ctx.rid) {
-                const patch = { quoteAt: new Date().toISOString(), quoteBy: getStaffName() || '', quoteSum: String(d.summary || '').slice(0, 120), quoteVia: via };
+                const patch = { quoteAt: new Date().toISOString(), quoteBy: getStaffName() || '', quoteSum: ((qsCompareOn() && d.textCompare) ? '📊 비교 · ' : '') + String(d.summary || '').slice(0, 120), quoteVia: via };
                 if (qsEl.querySelector('#qsDone').checked) Object.assign(patch, { done: 'Y', doneAt: new Date().toISOString(), doneBy: getStaffName() || '' });
                 try { await saveUpdate(doc(db, 'card_requests', ctx.rid), patch); } catch (e) { console.error('견적 기록 실패', e); }
             }
@@ -14076,7 +14093,7 @@ familyStr + `\n` +
             if (!fr || e.source !== fr.contentWindow) return;
             const d = e.data;
             if (!d || d.type !== 'kcrm-quote' || typeof d.text !== 'string') return;
-            openQuoteSend({ text: d.text.slice(0, 1500), summary: String(d.summary || '').slice(0, 200) });
+            openQuoteSend({ text: d.text.slice(0, 1500), textCompare: typeof d.textCompare === 'string' ? d.textCompare.slice(0, 1800) : '', summary: String(d.summary || '').slice(0, 200) });
         });
         pcalEl.querySelectorAll('[data-pcal-tab]').forEach(b => b.onclick = () => { pcalTab = b.dataset.pcalTab; renderPhoneCalc(); });
         function renderPhoneCalc() {
