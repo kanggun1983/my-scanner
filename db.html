@@ -898,7 +898,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V156</span>
+                    <span class="text-sm text-gray-600">V157</span>
                 </div>
             </section>
         </div>
@@ -1040,6 +1040,10 @@
             <div>
                 <p class="text-[13px] font-bold text-gray-700 mb-1 pl-1">방문 목적 <span class="font-normal text-gray-500">(선택 · 여러 개 가능)</span></p>
                 <div id="cardSendPurposes" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div>
+                <label for="cardSendMemo" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">메모 <span class="font-normal text-gray-500">(선택 · 상담 내용·특징)</span></label>
+                <textarea id="cardSendMemo" rows="2" maxlength="300" placeholder="예: S26 관심 · 다음 주 재방문 · 부모님 폰도 같이 보심" class="w-full p-3 border border-gray-300 rounded-xl text-[15px] leading-relaxed text-gray-900 resize-none focus:outline-none focus:ring-2 focus:ring-pink-300"></textarea>
             </div>
             <p id="cardSendMatch" class="hidden text-[13px] font-medium text-indigo-800 bg-indigo-50 rounded-xl px-3 py-2"></p>
             <label id="cardSendSaveRow" class="flex items-start gap-2 text-[14px] font-medium text-gray-900"><input type="checkbox" id="cardSendSave" checked class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>강CRM에 고객으로 저장 <span class="font-normal text-gray-500">(영업상태: 미정)</span><span class="block text-xs font-normal text-gray-500">저장하면 개인 링크로 보내서, 명함을 열었는지·알림을 켰는지 자동으로 확인돼요</span></span></label>
@@ -8073,6 +8077,7 @@
             renderCardSendPurposes();
             document.getElementById('cardSendPhone').value = '';
             document.getElementById('cardSendName').value = '';
+            document.getElementById('cardSendMemo').value = '';
             document.getElementById('cardSendSave').checked = true;
             renderCardSendMatch();
             setCardSendStatus('');
@@ -8097,17 +8102,25 @@
             if (!digits) return setCardSendStatus('휴대폰 번호(010…)를 확인해주세요.', 'red');
             const name = document.getElementById('cardSendName').value.trim();
             const purpose = VISIT_PURPOSES.filter(v => cardSendPicked.has(v)).join(', ');
+            // 📝 메모 (상담 내용·특징) → 고객카드 '기타 메모'에 날짜·직원 이름과 함께 덧붙임
+            const memoText = document.getElementById('cardSendMemo').value.trim().replace(/\s*\n\s*/g, ' · ').slice(0, 300);
+            const memoStamp = memoText ? `[${getTodayStr().slice(5).replace('-', '/')} ${getStaffName() || '직원'}] ${memoText}` : '';
+            if (memoText && !found && !trashed && !document.getElementById('cardSendSave').checked) return setCardSendStatus("메모를 남기려면 [강CRM에 고객으로 저장]을 켜주세요.", 'red');
+            const addMemo = (c) => memoStamp ? txCustomerUpdate(c.id, (cur) => (isLockedFor(cur) && !lockAdminOk.has(c.id))
+                ? { contactHistory: appendLine(cur.contactHistory, `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 메모: ${memoText} (담당: ${getStaffName() || '직원'})`), updatedAt: new Date().toISOString() }   // 다른 직원 담당이면 연락 기록에
+                : { memo: appendLine(cur.memo, memoStamp), updatedAt: new Date().toISOString() }) : Promise.resolve();
             const btn = document.getElementById('cardSendBtn');
             btn.disabled = true;
             try {
                 if (found) {   // 이미 있는 고객 → 그 고객 개인 링크로 (방문 목적을 골랐으면 오늘 방문으로 기록)
                     if (purpose) await waitAtMost(saveDoc(doc(db, 'smart_customers', found.id), { ...keepRegFields(found), visitPurpose: purpose, visitDate: getTodayStr(), updatedAt: new Date().toISOString() }, { merge: true }));
+                    if (memoStamp) await waitAtMost(addMemo(found).catch(e => console.error('메모 저장 실패', e)));
                     closeCardSendSheet(false, true);
                     await sendBizCard(found);
                     return;
                 }
                 if (trashed) {   // 휴지통 고객 → 목록으로 되돌리고 보냄
-                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...keepRegFields(trashed), ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), updatedAt: new Date().toISOString() }, { merge: true }));
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...keepRegFields(trashed), ...(purpose ? { visitPurpose: purpose, visitDate: getTodayStr() } : {}), ...(memoStamp ? { memo: appendLine(trashed.memo, memoStamp) } : {}), updatedAt: new Date().toISOString() }, { merge: true }));
                     closeCardSendSheet(false, true);
                     await sendBizCard({ ...trashed, deletedAt: '' });
                     return;
@@ -8119,7 +8132,7 @@
                     const staff = getStaffName();
                     await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), {
                         name, phone, salesStatus: '미정', visitDate: getTodayStr(), visitPurpose: purpose, regStore: msgStoreName(), cardId, bizCardSentAt: getTodayStr(),
-                        manager: staff, contactManager: staff, memo: '명함 보내기로 등록', regDate: getTodayStr(), regBy: staff,
+                        manager: staff, contactManager: staff, memo: memoStamp ? `${memoStamp}\n명함 보내기로 등록` : '명함 보내기로 등록', regDate: getTodayStr(), regBy: staff,
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true }));
                     closeCardSendSheet(false, true);
