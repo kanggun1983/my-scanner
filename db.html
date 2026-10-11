@@ -755,6 +755,10 @@
                             <span class="text-sm font-bold text-gray-900 leading-snug">명함에 '유통망지원금 받기' 보이기<br><span class="text-xs font-medium text-gray-600">끄면 고객 화면에서 칸이 사라지고 유통망지원금 없이 계산해요 (선택약정은 통신사 유지 기간으로)</span></span>
                             <input type="checkbox" id="calcShowDist" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                         </label>
+                        <label for="calcCustomerCalc" class="flex items-center justify-between gap-3 pt-2 cursor-pointer">
+                            <span class="text-sm font-bold text-gray-900 leading-snug">명함에 '월 납부액 직접 계산해 보기' 보이기<br><span class="text-xs font-medium text-gray-600">명함 [견적요청] 아래 계산기·알뜰유심 추천 버튼. 끄면 고객은 견적요청만 할 수 있어요 (강CRM 상담용 계산기는 그대로)</span></span>
+                            <input type="checkbox" id="calcCustomerCalc" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                        </label>
                         <p id="calcSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                     </div>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
@@ -902,7 +906,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V161</span>
+                    <span class="text-sm text-gray-600">V162</span>
                 </div>
             </section>
         </div>
@@ -11154,6 +11158,9 @@ familyStr + `\n` +
             const sd = document.getElementById('calcShowDist');
             sd.checked = d.showDist !== false;
             sd.disabled = locked;
+            const cc = document.getElementById('calcCustomerCalc');
+            cc.checked = d.customerCalc !== false;
+            cc.disabled = locked;
             { const bb = d.banner || {};
               const on = document.getElementById('bbOn'); on.checked = bb.on !== false; on.disabled = locked;
               [['bbTitleIn', 'title'], ['bbSubIn', 'sub'], ['bbIconIn', 'icon']].forEach(([id, k]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = bb[k] || (k === 'icon' ? 'fa-tv' : ''); el.disabled = locked; }); }
@@ -11172,6 +11179,12 @@ familyStr + `\n` +
         document.getElementById('dashCalc').addEventListener('click', () => openCalcSheet('requests'));
         document.getElementById('calcShowDist').addEventListener('change', e => {
             const next = calcNormalize(calcData); next.showDist = e.target.checked; calcSave(next, true);
+        });
+        // 명함 '월 납부액 직접 계산해 보기 · 알뜰유심 추천' 켜고 끄기 (총관리자)
+        document.getElementById('calcCustomerCalc').addEventListener('change', async e => {
+            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            const next = calcNormalize(calcData); next.customerCalc = e.target.checked;
+            if (!(await calcSave(next, true))) e.target.checked = !e.target.checked;
         });
         document.getElementById('calcAlertUrl').addEventListener('change', e => {
             const v = e.target.value.trim().replace(/\/+$/, '');
