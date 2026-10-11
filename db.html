@@ -902,7 +902,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V159</span>
+                    <span class="text-sm text-gray-600">V160</span>
                 </div>
             </section>
         </div>
@@ -11020,6 +11020,8 @@ familyStr + `\n` +
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : (calcIsView(r) ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-700')}">${isAsk ? calcAskLabel(r) : calcViewLabel(r)}</span>
                     </div>
                     <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '') || r.summary || '')}</p>
+                    ${r.quoteAt ? `<p class="text-xs font-bold text-emerald-800 pl-1"><i class="fa-solid fa-paper-plane"></i> 견적 보냄 · ${escapeHtml(calcAgo(r.quoteAt))}${r.quoteBy ? ' · ' + escapeHtml(r.quoteBy) : ''}${r.quoteSum ? ' · ' + escapeHtml(r.quoteSum) : ''}</p>` : ''}
+                    ${!calcSelMode && !/^🏠/.test(String(r.summary || '')) && (digits || c) ? `<button type="button" data-calc-quote="${escapeHtml(r.id)}" class="w-full h-11 rounded-xl border-2 border-pink-200 bg-pink-50 text-pink-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-calculator"></i> ${r.quoteAt ? '견적 다시 내서 보내기' : '계산기로 견적 내서 보내기'}</button>` : ''}
                     <div class="grid grid-cols-4 gap-1.5 ${calcSelMode ? 'hidden' : ''}">
                         ${digits ? `<a href="tel:${digits}" data-calc-contact="${escapeHtml(r.id)}" class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-phone"></i>전화</a>
                         <a href="${smsHref(digits, `${msgName(c ? c : (r.name || ''))}님, ${msgStoreName()} ${getStaffName() || ''}입니다. ${calcSmsText(r)}`)}" data-calc-contact="${escapeHtml(r.id)}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
@@ -11063,6 +11065,7 @@ familyStr + `\n` +
                 if (fail) customAlert(`${fail}건은 못 지웠어요. 인터넷 연결을 확인하고 다시 해주세요.`);
             };
             body.querySelectorAll('[data-calc-open]').forEach(b => b.onclick = () => { const id = b.dataset.calcOpen; closeCalcSheet(); setTimeout(() => window.openProfileCard(id), 0); });
+            body.querySelectorAll('[data-calc-quote]').forEach(b => b.onclick = () => { const r = calcRequests.find(x => x.id === b.dataset.calcQuote); if (r) openQuoteFromRequest(r); });
             body.querySelectorAll('[data-calc-done]').forEach(b => b.onclick = async () => {
                 const r = calcRequests.find(x => x.id === b.dataset.calcDone);
                 if (!r) return;
@@ -13914,6 +13917,10 @@ familyStr + `\n` +
                 <button type="button" id="pcalClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
                 <h2 class="flex-1 text-[17px] font-bold text-gray-900">폰값계산 <span class="text-xs font-medium text-gray-500">상담용</span></h2>
             </header>
+            <div id="pcalCtx" class="hidden flex-shrink-0 bg-pink-50 border-b border-pink-100 px-3 py-1.5 flex items-center gap-2">
+                <span id="pcalCtxText" class="flex-1 min-w-0 text-[13px] font-bold text-pink-800 truncate"></span>
+                <button type="button" id="pcalCtxClear" class="flex-shrink-0 h-9 px-2 rounded-lg text-xs font-bold text-pink-800 hover:bg-pink-100">고객 빼기</button>
+            </div>
             <div class="flex-shrink-0 bg-white px-3 pb-2 pt-1"><div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">
                 <button type="button" data-pcal-tab="calc" class="flex-1 h-10 rounded-xl text-sm font-bold">🧮 계산기</button>
                 <button type="button" data-pcal-tab="table" class="flex-1 h-10 rounded-xl text-sm font-bold">📋 기종·지원금표</button>
@@ -13924,7 +13931,18 @@ familyStr + `\n` +
         let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null, brand: localStorage.getItem('pcalBrand') || '' };
         // 명함과 같은 규칙 + 모델 코드(SM-·AIP)로도 구분
         const pcalBrandOf = (m) => { const t = `${m.name || ''} ${m.code || ''}`; return /iphone|아이폰|apple|\bAIP/i.test(t) ? '애플' : (/갤럭시|galaxy|삼성|samsung|\bSM-|z ?폴드|z ?플립|fold|flip/i.test(t) ? '삼성' : '기타'); };
-        function openPhoneCalc(tab) {
+        // 📤 견적 보내기 대상 (명함 견적요청에서 열었을 때) · null이면 그냥 상담용
+        let pcalQuoteCtx = null, pcalFrameQ = '';
+        function pcalShowCtx() {
+            const bar = pcalEl.querySelector('#pcalCtx');
+            bar.classList.toggle('hidden', !pcalQuoteCtx);
+            if (pcalQuoteCtx) bar.querySelector('#pcalCtxText').textContent = `👤 ${pcalQuoteCtx.name || '고객'}${pcalQuoteCtx.phone ? ' · ' + formatPhone(pcalQuoteCtx.phone) : ''} 견적 중`;
+        }
+        function openPhoneCalc(tab, opts) {
+            pcalQuoteCtx = (opts && opts.ctx) || null;   // + 메뉴·계산기 아이콘으로 열면 그냥 상담용
+            const wantQ = opts && opts.q ? JSON.stringify(opts.q) : (pcalQuoteCtx ? pcalFrameQ : '');
+            if (wantQ !== pcalFrameQ) { const box = document.getElementById('pcalCalc'); if (box) box.innerHTML = ''; pcalFrameQ = wantQ; }   // 다른 조건이면 계산기를 새로 열기
+            pcalShowCtx();
             pcalTab = tab || 'calc';
             pcalEl.style.display = 'flex';
             if (!pcalPushed) { pushAppState({ phoneCalc: true }); pcalPushed = true; }
@@ -13937,6 +13955,129 @@ familyStr + `\n` +
         }
         { const prev = window.__actRegBack; window.__actRegBack = () => { if (pcalEl.style.display === 'flex') { closePhoneCalc(true); return true; } return prev ? prev() : false; }; }
         pcalEl.querySelector('#pcalClose').onclick = () => closePhoneCalc();
+        pcalEl.querySelector('#pcalCtxClear').onclick = () => { pcalQuoteCtx = null; openPhoneCalc('calc', { plain: true }); };
+
+        /* ---------- 📤 계산한 견적을 고객에게 문자로 ----------
+           · 명함 견적요청 → [계산기로 견적 내서 보내기] → 고객이 고른 조건으로 계산기가 채워짐 → [이 견적 고객에게 보내기]
+           · 받는 사람·문구 확인 → 문자앱 (등록 고객이면 연락 기록·보낸 문자 보관 · 요청은 처리 완료로) */
+        function calcParseQuote(r) {
+            const t = String((r && r.detail) || '');
+            const get = (k) => { const m = new RegExp('^' + k + ':\\s*(.+)$', 'm').exec(t); return m ? m[1].trim() : ''; };
+            const capRe = /\s*(\d+(?:\.\d+)?)\s*(GB|TB)\b/i;
+            let model = get('기종').replace(/\s*\(출고가[^)]*\)\s*$/, ''), cap = '';
+            if (/\(기본 용량\)/.test(model)) model = model.replace(/\s*\(기본 용량\)/, '').trim();
+            else { const m = capRe.exec(model); if (m) { cap = (m[1] + m[2]).toUpperCase(); model = model.replace(m[0], ' ').replace(/\s+/g, ' ').trim(); } }
+            let car = get('원하는 통신사').replace(/\s*\(.*\)$/, '');
+            let now = get('지금 통신사');
+            if (!model) {   // 예전 계산기 상담요청: 'KT 갤럭시 S26 512GB · 요금제 · …'
+                const m = /^(SKT|KT|LG U\+)\s+(.+?)\s+·/.exec(String(r.summary || ''));
+                if (m) { car = m[1]; model = m[2]; const c2 = capRe.exec(model); if (c2) { cap = (c2[1] + c2[2]).toUpperCase(); model = model.replace(c2[0], ' ').replace(/\s+/g, ' ').trim(); } }
+                const nm = /^지금:\s*([^/\n]+)/m.exec(t); if (nm) now = nm[1].trim();
+            }
+            return { model, cap, now, car: /추천/.test(car) ? '' : car, ins: get('할부'), disc: get('할인 방식') };
+        }
+        function openQuoteFromRequest(r) {
+            const c = calcFindCustomer(r);
+            const phone = String((c && c.phone) || r.phone || '').replace(/\D/g, '');
+            const name = c ? (c.name || '') : (r.name || '');
+            const q = calcParseQuote(r);
+            q.who = msgName(c ? c : name);
+            openPhoneCalc('calc', { ctx: { rid: r.id, custId: c ? c.id : '', name: name || '새 고객', phone }, q });
+        }
+        const qsEl = document.createElement('div');
+        qsEl.id = 'quoteSend';
+        qsEl.className = 'fixed inset-0 z-[70] hidden items-end sm:items-center justify-center bg-black/50';
+        qsEl.innerHTML = `
+            <section aria-labelledby="qsTitle" class="sheet-in w-full sm:max-w-md max-h-[94vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-3xl px-4 pt-3 flex flex-col gap-3" style="padding-bottom: max(18px, env(safe-area-inset-bottom));">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 id="qsTitle" class="text-lg font-bold text-gray-900 pl-1">📤 견적 보내기</h2>
+                    <button type="button" id="qsClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-xs font-bold text-gray-600">받는 분<input id="qsName" type="text" autocomplete="off" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900"></label>
+                    <label class="text-xs font-bold text-gray-600">번호<input id="qsPhone" type="tel" inputmode="tel" autocomplete="off" placeholder="010-0000-0000" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900"></label>
+                </div>
+                <p id="qsWho" class="text-xs font-medium text-gray-600 -mt-1 pl-1"></p>
+                <label class="text-xs font-bold text-gray-600">보낼 문구 <span class="font-normal text-gray-500">(고쳐서 보내도 돼요)</span>
+                    <textarea id="qsText" rows="14" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900"></textarea></label>
+                <label id="qsDoneRow" class="hidden flex items-center gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsDone" checked class="w-5 h-5 accent-indigo-600"> 보내면 이 견적요청을 처리 완료로</label>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" id="qsCopy" class="h-12 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800"><i class="fa-regular fa-copy"></i> 복사 (카톡용)</button>
+                    <button type="button" id="qsSms" class="h-12 rounded-xl bg-pink-600 text-white text-[15px] font-bold"><i class="fa-solid fa-comment-sms"></i> 문자로 보내기</button>
+                </div>
+            </section>`;
+        document.body.appendChild(qsEl);
+        let qsPushed = false, qsData = null;
+        function closeQuoteSend(fromPop = false) {
+            if (qsEl.style.display !== 'flex') return;
+            qsEl.style.display = 'none';
+            if (qsPushed) { qsPushed = false; if (!fromPop) historyBackSilently(); }
+        }
+        { const prev = window.__actRegBack; window.__actRegBack = () => { if (qsEl.style.display === 'flex') { closeQuoteSend(true); return true; } return prev ? prev() : false; }; }
+        qsEl.querySelector('#qsClose').onclick = () => closeQuoteSend();
+        qsEl.addEventListener('click', e => { if (e.target === qsEl) closeQuoteSend(); });
+        function qsCustomer() {
+            const d = qsEl.querySelector('#qsPhone').value.replace(/\D/g, '');
+            if (pcalQuoteCtx && pcalQuoteCtx.custId && d === pcalQuoteCtx.phone) return customerDB.find(x => x.id === pcalQuoteCtx.custId) || null;
+            return d.length >= 10 ? (customerDB.find(x => String(x.phone || '').replace(/\D/g, '') === d) || null) : null;
+        }
+        function qsCompose(name) {
+            const store = msgStoreName(), staff = getStaffName() || '';
+            return `${msgName(name || '')}님, ${store} ${staff}입니다.\n요청하신 휴대폰 견적 보내드려요 😊\n\n${(qsData && qsData.text) || ''}\n\n궁금한 점은 편하게 답장 주세요!`;
+        }
+        function qsRefreshWho() {
+            const c = qsCustomer();
+            qsEl.querySelector('#qsWho').textContent = c ? `✅ 등록 고객 ${c.name || ''} — 보내면 연락 기록·보낸 문자에 남아요` : '등록 안 된 번호예요 — 문자앱만 열려요 (통화 후 고객으로 등록해 주세요)';
+        }
+        function openQuoteSend(d) {
+            qsData = d;
+            const ctx = pcalQuoteCtx;
+            qsEl.querySelector('#qsName').value = ctx ? (ctx.name === '새 고객' ? '' : ctx.name) : '';
+            qsEl.querySelector('#qsPhone').value = ctx && ctx.phone ? formatPhone(ctx.phone) : '';
+            qsEl.querySelector('#qsText').value = qsCompose(ctx ? (ctx.custId ? customerDB.find(x => x.id === ctx.custId) : ctx.name) : '');
+            qsEl.querySelector('#qsDoneRow').classList.toggle('hidden', !(ctx && ctx.rid));
+            qsEl.querySelector('#qsDone').checked = true;
+            qsRefreshWho();
+            qsEl.style.display = 'flex';
+            if (!qsPushed) { pushAppState({ quoteSend: true }); qsPushed = true; }
+        }
+        qsEl.querySelector('#qsPhone').addEventListener('input', qsRefreshWho);
+        qsEl.querySelector('#qsName').addEventListener('change', e => {   // 이름을 고치면 인사말도
+            const ta = qsEl.querySelector('#qsText'); const first = ta.value.split('\n')[0];
+            if (/님, /.test(first)) ta.value = ta.value.replace(first, `${msgName(e.target.value.trim())}님, ${first.split('님, ').slice(1).join('님, ')}`);
+        });
+        async function qsAfterSend(via) {
+            const ctx = pcalQuoteCtx, d = qsData || {};
+            if (ctx && ctx.rid) {
+                const patch = { quoteAt: new Date().toISOString(), quoteBy: getStaffName() || '', quoteSum: String(d.summary || '').slice(0, 120), quoteVia: via };
+                if (qsEl.querySelector('#qsDone').checked) Object.assign(patch, { done: 'Y', doneAt: new Date().toISOString(), doneBy: getStaffName() || '' });
+                try { await saveUpdate(doc(db, 'card_requests', ctx.rid), patch); } catch (e) { console.error('견적 기록 실패', e); }
+            }
+        }
+        qsEl.querySelector('#qsCopy').onclick = async () => {
+            const txt = qsEl.querySelector('#qsText').value;
+            try { await navigator.clipboard.writeText(txt); } catch (e) { const ta = qsEl.querySelector('#qsText'); ta.select(); try { document.execCommand('copy'); } catch (e2) {} }
+            await qsAfterSend('copy');
+            customAlert('견적을 복사했어요. 카톡 대화창에 붙여넣어 주세요.');
+        };
+        qsEl.querySelector('#qsSms').onclick = async () => {
+            const phone = qsEl.querySelector('#qsPhone').value.replace(/\D/g, '');
+            if (!/^01\d{8,9}$/.test(phone)) return customAlert('받는 분 번호를 정확히 넣어주세요.');
+            const txt = qsEl.querySelector('#qsText').value.trim();
+            if (!txt) return customAlert('보낼 문구가 비어 있어요.');
+            const c = qsCustomer();
+            await qsAfterSend('sms');
+            closeQuoteSend();
+            if (c) await window.logActionAndCall(c.id, 'sms', phone, '견적', txt);
+            else window.location.href = smsHref(phone, txt);
+        };
+        window.addEventListener('message', (e) => {
+            const fr = pcalEl.querySelector('iframe');
+            if (!fr || e.source !== fr.contentWindow) return;
+            const d = e.data;
+            if (!d || d.type !== 'kcrm-quote' || typeof d.text !== 'string') return;
+            openQuoteSend({ text: d.text.slice(0, 1500), summary: String(d.summary || '').slice(0, 200) });
+        });
         pcalEl.querySelectorAll('[data-pcal-tab]').forEach(b => b.onclick = () => { pcalTab = b.dataset.pcalTab; renderPhoneCalc(); });
         function renderPhoneCalc() {
             pcalEl.querySelectorAll('[data-pcal-tab]').forEach(b => b.className = `flex-1 h-10 rounded-xl text-sm font-bold ${b.dataset.pcalTab === pcalTab ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`);
@@ -13944,7 +14085,7 @@ familyStr + `\n` +
             calcBox.classList.toggle('hidden', pcalTab !== 'calc');
             tbl.classList.toggle('hidden', pcalTab !== 'table');
             if (pcalTab === 'calc' && !calcBox.querySelector('iframe')) {
-                calcBox.innerHTML = `<iframe title="폰값계산" src="${CALC_CARD_URL}?staff=1&t=${Date.now()}" class="w-full h-full border-0 bg-white"></iframe>`;
+                calcBox.innerHTML = `<iframe title="폰값계산" src="${CALC_CARD_URL}?staff=1${pcalFrameQ ? '&q=' + encodeURIComponent(pcalFrameQ) : ''}&t=${Date.now()}" class="w-full h-full border-0 bg-white"></iframe>`;
             }
             if (pcalTab === 'table') renderPcalTable();
         }
