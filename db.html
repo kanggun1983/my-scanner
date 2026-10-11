@@ -439,8 +439,8 @@
 
             <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌 · 화면이 좁으면 옆으로 넘겨서 보기) -->
             <div id="alertDashboard" class="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-hide">
-                <button type="button" id="dashCalc" aria-label="명함 상담요청 보기" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
-                    <span class="text-xs font-medium text-gray-600 truncate">명함상담</span>
+                <button type="button" id="dashCalc" aria-label="명함 견적요청 보기" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600 truncate">명함견적</span>
                     <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashCalcCount">0</span><span class="text-sm">건</span></span>
                     <span id="dashCalcSub" class="text-xs text-gray-600 truncate">새 요청 없음</span>
                 </button>
@@ -898,7 +898,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V155</span>
+                    <span class="text-sm text-gray-600">V156</span>
                 </div>
             </section>
         </div>
@@ -10500,6 +10500,8 @@ familyStr + `\n` +
             const c = customerDB.find(x => x.cardId === m[1]) || customerDB.find(x => prevCardIdsOf(x).includes(m[1])) || null;
             return { cid: m[1], c };
         }
+        // 요청 종류 표시 (명함 견적요청 · 인터넷+TV 배너 · 그 밖 상담)
+        function calcAskLabel(r) { const sm = String((r && r.summary) || ''); return /^📱 견적요청/.test(sm) ? '견적요청' : (/^🏠/.test(sm) ? '인터넷·TV 상담' : '상담요청'); }
         function calcFindCustomer(r) {
             if (r.cid) { const c = customerDB.find(x => x.cardId === r.cid) || customerDB.find(x => prevCardIdsOf(x).includes(r.cid)); if (c) return c; }   // 카드를 합친 고객은 예전 명함 번호로도
             const p = String(r.phone || '').replace(/\D/g, '');
@@ -10551,7 +10553,7 @@ familyStr + `\n` +
             const asks = open.filter(r => r.kind === 'ask').length;
             box.classList.remove('hidden');
             box.innerHTML = `<div class="flex items-center justify-between gap-2 px-3 py-2 bg-pink-50">
-                    <span class="text-sm font-bold text-pink-800"><i class="fa-solid fa-mobile-screen-button"></i> 명함 상담요청 ${asks}건${open.length > asks ? ` · 계산 ${open.length - asks}건` : ''}</span>
+                    <span class="text-sm font-bold text-pink-800"><i class="fa-solid fa-mobile-screen-button"></i> 명함 견적요청 ${asks}건${open.length > asks ? ` · 계산 ${open.length - asks}건` : ''}</span>
                     <button type="button" data-strip-all class="h-9 px-2 rounded-lg text-xs font-bold text-pink-800 hover:bg-pink-100">전체 보기 <i class="fa-solid fa-chevron-right text-[10px]"></i></button>
                 </div>` + open.slice(0, 3).map(r => {
                     const c = calcFindCustomer(r);
@@ -10623,7 +10625,7 @@ familyStr + `\n` +
                 await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
                 localStorage.setItem('kcrmStaffAlert', 'on');
                 const d = calcData || calcNormalize(null);
-                customAlert(d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 상담요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.');
+                customAlert(d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 견적요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.');
             } catch (e) {
                 console.error(e);
                 customAlert(String(e && e.message) === 'denied' ? '알림이 차단돼 있어요.\n크롬 주소창 왼쪽 아이콘 → 권한 → 알림을 허용으로 바꾼 뒤 다시 눌러주세요.' : '알림 설정에 실패했어요. 잠시 후 다시 해주세요.');
@@ -10692,7 +10694,7 @@ familyStr + `\n` +
                 document.body.appendChild(t);
             }
             t.innerHTML = `<span class="text-xl flex-shrink-0">${isAsk ? '📱' : '🧮'}</span>
-                <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold truncate">${escapeHtml(who)}님 ${isAsk ? '상담요청' : '폰값 계산'}</span>
+                <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold truncate">${escapeHtml(who)}님 ${isAsk ? calcAskLabel(r) : '폰값 계산'}</span>
                 <span class="block text-[13px] text-gray-300 truncate">${escapeHtml(r.summary || '')}</span></span>
                 <button type="button" class="flex-shrink-0 h-10 px-3 rounded-xl bg-pink-600 text-sm font-bold">보기</button>`;
             t.querySelector('button').onclick = () => { t.style.display = 'none'; if (c) window.openProfileCard(c.id); else openCalcSheet('requests'); };
@@ -10959,8 +10961,8 @@ familyStr + `\n` +
         let calcSelMode = false;
         const calcSel = new Set();
         function renderCalcRequests() {
-            document.getElementById('calcSheetTitle').textContent = '명함 상담요청';
-            document.getElementById('calcSheetSub').textContent = '명함 [폰값계산]에서 들어온 요청이에요';
+            document.getElementById('calcSheetTitle').textContent = '명함 견적요청';
+            document.getElementById('calcSheetSub').textContent = '명함 [견적요청]·배너에서 들어온 요청이에요';
             const open = calcRequests.filter(r => r.done !== 'Y');
             const done = calcRequests.filter(r => r.done === 'Y');
             const list = calcReqTab === 'open' ? open : done;
@@ -10976,7 +10978,7 @@ familyStr + `\n` +
                 </div>`;
             if (calcReqError) html += `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">요청 목록을 못 불러왔어요. Firebase 보안 규칙에 card_requests 칸이 들어갔는지 확인해주세요.</p>`;
             if (!list.length) {
-                html += `<p class="text-sm text-gray-600 text-center py-8">${calcReqTab === 'open' ? '새 요청이 없어요.<br>고객이 명함에서 [상담 받기]를 누르면 여기에 떠요.' : '처리한 요청이 없어요.'}</p>`;
+                html += `<p class="text-sm text-gray-600 text-center py-8">${calcReqTab === 'open' ? '새 요청이 없어요.<br>고객이 명함에서 [무료 견적 받기]를 누르면 여기에 떠요.' : '처리한 요청이 없어요.'}</p>`;
             }
             list.forEach(r => {
                 const c = calcFindCustomer(r);
@@ -10993,7 +10995,7 @@ familyStr + `\n` +
                             <p class="text-xs text-gray-600">${escapeHtml(phone ? formatPhone(phone) : '연락처 없음')} · ${escapeHtml(calcAgo(r.at))}</p>
                             ${(() => { const ref = calcRefOf(r); return ref ? `<p class="text-xs font-bold text-emerald-800 mt-0.5">🤝 ${ref.c ? `<button type="button" data-calc-open="${escapeHtml(ref.c.id)}" class="underline underline-offset-2">${escapeHtml(ref.c.name || '이름 없음')}</button> 고객이 받은 명함으로 들어온 지인` : '지인에게 받은 명함으로 들어왔어요'}</p>` : ''; })()}
                         </div>
-                        <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-700'}">${isAsk ? '상담요청' : '계산만 해봄'}</span>
+                        <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-700'}">${isAsk ? calcAskLabel(r) : '계산만 해봄'}</span>
                     </div>
                     <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '') || r.summary || '')}</p>
                     <div class="grid grid-cols-4 gap-1.5 ${calcSelMode ? 'hidden' : ''}">
@@ -13539,7 +13541,16 @@ familyStr + `\n` +
             add('Firebase', '고객 데이터', dbLoadError ? 'bad' : (dbLoaded ? 'ok' : 'warn'), dbLoadError ? koreanError(dbLoadError, '불러오기') : `고객 ${customerDB.length}명 · 휴지통 ${trashDB.length}명`);
             add('Firebase', '서류 기록 규칙 (doc_files)', docFilesError ? 'bad' : 'ok', docFilesError ? 'Firebase 규칙을 최신 firestore-rules.txt로 바꿔 게시해 주세요.' : (isSuperAdmin ? '총관리자 · 전체 보기' : '직원 · 본인 것만 보기'));
             add('Firebase', '명함 지원금 (card_public)', calcLoadError ? 'bad' : 'ok', calcLoadError ? '규칙에 card_public 칸이 있는지 확인해 주세요.' : CALC_CARRIERS.map(k => { const C = d.carriers[k] || {}; return `${k} ${C.models && C.models.length ? (C.date || '등록') : '준비 중'}`; }).join(' · '));
-            add('Firebase', '명함 상담요청 (card_requests)', calcReqError ? 'bad' : 'ok', calcReqError ? '규칙에 card_requests 칸이 있는지 확인해 주세요.' : `새 요청 ${calcRequests.filter(r => r.done !== 'Y').length}건`);
+            add('Firebase', '명함 견적요청 읽기 (card_requests)', calcReqError ? 'bad' : 'ok', calcReqError ? '규칙에 card_requests 칸이 있는지 확인해 주세요.' : `새 요청 ${calcRequests.filter(r => r.done !== 'Y').length}건`);
+            // 🧪 명함이 실제로 저장할 수 있는지 (고객 폰처럼 로그인 없이 저장해 보고 바로 지움)
+            try {
+                const A = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', bt = new Uint8Array(20); crypto.getRandomValues(bt);
+                const tid = Array.from(bt, x => A[x % A.length]).join('');
+                const fields = Object.fromEntries(Object.entries({ kind: 'calc', cid: 'diagtest', name: '', phone: '', agree: '', summary: '연결 점검 저장 시험 (바로 지워요)', detail: '연결 점검', at: new Date().toISOString() }).map(([k, v]) => [k, { stringValue: v }]));
+                const r = await fetch(`https://firestore.googleapis.com/v1/projects/${myFirebaseConfig.projectId}/databases/(default)/documents/card_requests?documentId=${tid}&key=${myFirebaseConfig.apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
+                if (r.ok) { deleteDoc(doc(db, 'card_requests', tid)).catch(() => {}); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'ok', '명함에서 보낸 요청이 강CRM에 들어올 수 있어요.'); }
+                else { const t = await r.text().catch(() => ''); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'bad', r.status === 403 ? `규칙이 막고 있어요 (403). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]해 주세요. 그 전까지 명함 요청은 강CRM에 안 들어오고 문자로만 와요.` : `저장 실패 (${r.status}) ${t.slice(0, 80)}`); }
+            } catch (e) { add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'warn', `시험하지 못했어요: ${e.message || e}`); }
             // 2. 알림 서버
             const aUrl = d.alert && d.alert.url;
             if (!aUrl) add('알림 서버', '상담 알림 서버 주소', 'bad', '설정 → 명함 폰값계산 → 상담 알림 서버에 주소를 넣어주세요.');
