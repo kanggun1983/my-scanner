@@ -718,6 +718,11 @@
                     <input type="checkbox" id="prospectAutoChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                 </label>
             </section>
+            <section class="space-y-2" aria-labelledby="setTeamTitle">
+                <h3 id="setTeamTitle" class="text-[13px] font-bold text-gray-600 pl-1">👥 직원 공용 명함</h3>
+                <div id="teamSetBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-3"></div>
+                <input type="file" id="teamPhotoFile" accept="image/*" class="hidden">
+            </section>
             <section class="space-y-2" aria-labelledby="setCalcTitle">
                 <h3 id="setCalcTitle" class="text-[13px] font-bold text-gray-600 pl-1">명함 폰값계산</h3>
                 <button type="button" id="calcManageBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
@@ -906,7 +911,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V165</span>
+                    <span class="text-sm text-gray-600">V166</span>
                 </div>
             </section>
         </div>
@@ -1955,6 +1960,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 </div>
                 <button type="button" id="cardSendClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-xmark text-xl"></i></button>
             </div>
+            <div id="cardSendWhich" class="hidden"></div>
             <div>
                 <label for="cardSendPhone" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">휴대폰 번호</label>
                 <input type="tel" id="cardSendPhone" inputmode="tel" autocomplete="off" placeholder="010-0000-0000" class="w-full h-12 px-3 border border-gray-300 rounded-xl text-[17px] tracking-wide text-gray-900 focus:outline-none focus:ring-2 focus:ring-pink-300">
@@ -4533,7 +4539,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             ADMIN_LOCK_SECTIONS.forEach(tid => {
                 const sec = document.querySelector(`section[aria-labelledby="${tid}"]`);
                 if (!sec) return;
-                sec.querySelectorAll('input, select, textarea, button').forEach(el => { if (!ADMIN_LOCK_ALLOW.has(el.id)) setAdminLock(el, !isSuperAdmin); });
+                sec.querySelectorAll('input, select, textarea, button').forEach(el => { if (!ADMIN_LOCK_ALLOW.has(el.id) && !el.hasAttribute('aria-controls')) setAdminLock(el, !isSuperAdmin); });   // 제목(펼치기) 버튼은 잠그지 않음 → 직원도 내용은 볼 수 있게
                 let note = sec.querySelector('.admin-lock-note');
                 if (!isSuperAdmin && !note) {
                     note = document.createElement('p');
@@ -4543,6 +4549,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
                 if (isSuperAdmin && note) note.remove();
             });
+            try { const tb = document.getElementById('teamSetBox'); if (tb && tb.dataset.admin !== (isSuperAdmin ? '1' : '0')) renderTeamSettings(); } catch (e) { /* 준비 전 */ }   // 👥 공용 명함 칸 (총관리자 여부가 바뀔 때만 다시 그림)
             ['settingsStoreName', 'pushRelayUrl'].forEach(id => { const el = document.getElementById(id); if (el) { setAdminLock(el, !isSuperAdmin); el.title = isSuperAdmin ? '' : '총관리자만 바꿀 수 있어요'; } });
             const badge = document.getElementById('settingsRoleBadge');
             if (badge) {
@@ -8915,7 +8922,62 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             c.cardId = id;
             return id;
         }
-        function cardLinkFor(cardId) { return `${DEFAULT_CARD_URL}?c=${encodeURIComponent(cardId)}`; }
+        /* ---------- 👥 직원 공용 명함 (V166) ----------
+           · 대표 명함: kanggun1983.github.io/ (강태훈 과장)
+           · 직원 공용 명함: kanggun1983.github.io/team/?s=직원번호 → 보낸 직원 이름·직함·번호·사진 (설정 → 직원 공용 명함)
+           · 직원번호가 없거나 '매장 이름·대표번호로 보이기'(퇴사·휴직)면 → 매장 이름 · 대표번호
+           · 총관리자가 [직원은 공용 명함으로 보내기]를 켜기 전에는 모두 대표 명함 그대로 (team 페이지를 올리기 전에 링크가 깨지지 않게) */
+        const TEAM_CARD_URL = DEFAULT_CARD_URL + 'team/';
+        let teamData = null, teamLoadError = null, teamUnsub = null;
+        function teamNormalize(d) {
+            const o = d && typeof d === 'object' ? d : {};
+            const staff = {};
+            Object.entries(o.staff || {}).forEach(([sid, p]) => { if (/^[a-z0-9]{3,12}$/.test(sid) && p && typeof p === 'object') staff[sid] = { key: '', name: '', title: '', phone: '', photo: '', active: true, ...p }; });
+            return { on: o.on === true, store: { name: '', phone: '', hours: '', intro: '', ...(o.store || {}) }, staff, updated: o.updated || '' };
+        }
+        function teamCardOn() { return !!(teamData && teamData.on); }
+        // 강CRM 직원 이름 → 공용 명함 직원번호 ('강태훈'과 '강태훈 과장'은 같은 사람)
+        function teamSidFor(name, data = teamData) {
+            if (!data || !String(name || '').trim()) return '';
+            const k = staffKeyName(name);
+            const list = Object.entries(data.staff || {});
+            const hit = list.find(([, p]) => staffKeyName(p.key || p.name) === k) || list.find(([, p]) => sameStaff(p.key || p.name, name));
+            return hit ? hit[0] : '';
+        }
+        function myTeamProfile() { const s = teamSidFor(getStaffName()); return s ? { sid: s, ...teamData.staff[s] } : null; }
+        // 어느 명함으로 보낼지: 직원은 공용 명함 · 👑 총관리자는 고를 수 있음 (이 폰에 기억 · 처음엔 강태훈 = 대표 명함)
+        function cardChoice() {
+            if (!teamCardOn()) return 'main';
+            if (!isSuperAdmin) return 'team';
+            let v = ''; try { v = localStorage.getItem('cardChoice') || ''; } catch (e) { v = ''; }
+            if (v === 'main' || v === 'team') return v;
+            return /강태훈/.test(getStaffName()) ? 'main' : 'team';
+        }
+        function setCardChoice(v) { try { localStorage.setItem('cardChoice', v === 'team' ? 'team' : 'main'); } catch (e) { /* 무시 */ } }
+        function myCardBase() { return cardChoice() === 'team' ? TEAM_CARD_URL : DEFAULT_CARD_URL; }
+        function myCardQs() { if (cardChoice() !== 'team') return ''; const p = myTeamProfile(); return p ? 's=' + p.sid : ''; }
+        function myCardUrl() { const q = myCardQs(); return myCardBase() + (q ? '?' + q : ''); }
+        function cardLinkFor(cardId) { const q = myCardQs(); return `${myCardBase()}?c=${encodeURIComponent(cardId)}${q ? '&' + q : ''}`; }
+        // 고객 화면에 누구로 보이는지 한 줄 (명함 보내기 창 · 설정)
+        function cardWhoLine() {
+            if (cardChoice() !== 'team') return { ok: true, text: '👑 대표 명함 · 강태훈 과장으로 보여요' };
+            const p = myTeamProfile(), st = (teamData && teamData.store) || {};
+            const storeTxt = `${st.name || 'LGU+ 진천점'} · ${st.phone ? formatPhone(st.phone) : '대표번호'}`;
+            if (!p) return { ok: false, text: `⚠️ 설정 → 직원 공용 명함에 '${getStaffName() || '내 이름'}' 프로필이 없어서 매장(${storeTxt})으로 보여요` };
+            if (p.active === false) return { ok: false, text: `🏪 '매장 이름·대표번호로 보이기'로 바뀌어 있어서 매장(${storeTxt})으로 보여요` };
+            return { ok: true, text: `👥 공용 명함 · ${p.name}${p.title ? ' ' + p.title : ''} · ${p.phone ? formatPhone(p.phone) : '번호 없음'}으로 보여요` };
+        }
+        function renderCardSendWhich() {
+            const el = document.getElementById('cardSendWhich');
+            if (!el) return;
+            if (!teamCardOn()) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+            const ch = cardChoice(), w = cardWhoLine();
+            const pick = (v, label) => `<button type="button" data-card-which="${v}" aria-pressed="${ch === v}" class="flex-1 h-11 rounded-xl text-sm font-bold ${ch === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${label}</button>`;
+            el.innerHTML = `${isSuperAdmin ? `<div class="flex gap-1 p-1 bg-gray-100 rounded-2xl" role="group" aria-label="보낼 명함">${pick('main', '👑 대표 명함')}${pick('team', '👥 직원 공용 명함')}</div>` : ''}
+                <p class="${isSuperAdmin ? 'mt-1.5 ' : ''}text-[13px] font-medium rounded-xl px-3 py-2 leading-snug ${w.ok ? 'text-indigo-900 bg-indigo-50' : 'text-amber-900 bg-amber-50 border border-amber-200'}">${escapeHtml(w.text)}</p>`;
+            el.classList.remove('hidden');
+            el.querySelectorAll('[data-card-which]').forEach(b => b.onclick = () => { setCardChoice(b.dataset.cardWhich); renderCardSendWhich(); });
+        }
         async function sendBizCard(c) {
             if (!c) return;
             if (!smsMobileDigits(c.phone)) return customAlert('휴대폰 번호가 있어야 명함을 보낼 수 있어요.');
@@ -9007,6 +9069,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('cardSendMemo').value = '';
             document.getElementById('cardSendSave').checked = true;
             renderCardSendMatch();
+            renderCardSendWhich();
             setCardSendStatus('');
             cardSendSheet.style.display = 'flex';
             if (!cardSendHistoryPushed) { pushAppState({ cardSend: true }); cardSendHistoryPushed = true; }
@@ -9070,7 +9133,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     // 저장 안 함 → 누구나 쓰는 명함 주소로 (누가 열었는지는 알 수 없음)
                     closeCardSendSheet(false, true);
                     updateAndRenderStats('sms');
-                    openCardLinkSheet(digits, name, DEFAULT_CARD_URL);
+                    openCardLinkSheet(digits, name, myCardUrl());
                     window.location.href = smsHref(digits, cardIntroMessage(name));
                 }
             } catch (e) {
@@ -9096,7 +9159,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 고객 직접 등록 QR은 [QR 그림 저장]으로 인쇄해서 계산대에 붙여도 돼요 (담당자 없이 = 매장 공용) */
         const qrShowEl = document.getElementById('qrShowSheet');
         let qrShowPushed = false, qrShowState = null;
-        function regQrLink(shared) { const st = getStaffName(); return `${DEFAULT_CARD_URL}?reg=1${!shared && st ? '&m=' + encodeURIComponent(st) : ''}`; }
+        // 공용 명함을 켰으면: 직원 QR = /team/?reg=1&s=직원번호&m=이름 · 매장 공용(인쇄용) QR = /team/?reg=1 (매장 이름·대표번호로 보임)
+        function regQrLink(shared) {
+            const st = getStaffName();
+            if (shared) return `${teamCardOn() ? TEAM_CARD_URL : DEFAULT_CARD_URL}?reg=1`;
+            const q = myCardQs();
+            return `${myCardBase()}?reg=1${q ? '&' + q : ''}${st ? '&m=' + encodeURIComponent(st) : ''}`;
+        }
         function renderQrShow() {
             const st = qrShowState; if (!st) return;
             const link = st.reg ? regQrLink(document.getElementById('qrShowShared').checked) : st.link;
@@ -9186,7 +9255,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     return showCardQr({ link: qrLinkOf(cardId), sub: `${name || '새 고객'} · ${formatPhone(digits)}`, hint: '강CRM에 미정 고객으로 저장했어요.\n고객 폰 카메라로 찍으면 이 고객 명함으로 바로 연결돼요.' });
                 }
                 closeCardSendSheet();
-                showCardQr({ link: DEFAULT_CARD_URL, sub: '공용 명함 (저장 안 함)', hint: '저장하지 않아서 누가 열었는지는 알 수 없어요.' });
+                showCardQr({ link: myCardUrl(), sub: `${cardChoice() === 'team' ? '직원 공용 명함' : '대표 명함'} (저장 안 함)`, hint: '저장하지 않아서 누가 열었는지는 알 수 없어요.' });
             } catch (e) {
                 console.error(e);
                 setCardSendStatus('QR을 만들지 못했어요. 인터넷 연결을 확인해주세요.', 'red');
@@ -9894,7 +9963,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         };
 
         // 📇 문자에 명함 링크 붙이기 (이미 들어 있으면 또 안 붙임)
-        function aiCardLink(c) { return c && c.cardId ? cardLinkFor(c.cardId) : DEFAULT_CARD_URL; }
+        function aiCardLink(c) { return c && c.cardId ? cardLinkFor(c.cardId) : myCardUrl(); }
         function updateAiCardHint() {
             const c = customerDB.find(x => x.id === aiSmsCustomerId);
             const el = document.getElementById('aiSmsCardHint');
@@ -9902,7 +9971,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function withCardLink(text, c) {
             const t = String(text || '').trim();
-            if (!document.getElementById('aiSmsCardChk').checked || !t || t.includes(DEFAULT_CARD_URL)) return t;
+            if (!document.getElementById('aiSmsCardChk').checked || !t || /kanggun1983\.github\.io\//.test(t)) return t;   // 대표·공용 명함 링크가 이미 있으면 또 안 붙임
             return `${t}\n\n📇 ${getStaffName() || '담당자'} 디지털 명함\n${aiCardLink(c)}`;
         }
         function markCardSent(c) {
@@ -11496,6 +11565,13 @@ familyStr + `\n` +
                 calcData = calcData || calcNormalize(null);
                 renderCalcSettings();
             });
+            teamUnsub = onSnapshot(doc(db, 'card_public', 'team'), snap => {   // 👥 직원 공용 명함
+                let d = null;
+                try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
+                teamData = teamNormalize(d);
+                teamLoadError = null;
+                onTeamData();
+            }, err => { console.error('직원 공용 명함 불러오기 실패:', err); teamLoadError = err; teamData = teamData || teamNormalize(null); onTeamData(); });
             staffStatsUnsub = onSnapshot(doc(db, 'smart_global', 'staff_stats'), snap => {
                 staffStatsDoc = snap.exists() ? snap.data() : {};
                 if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats();
@@ -11523,6 +11599,7 @@ familyStr + `\n` +
             if (typeof docFilesUnsub === 'function') { try { docFilesUnsub(); } catch (e) {} }
             if (staffStatsUnsub) { staffStatsUnsub(); staffStatsUnsub = null; }
             if (calcUnsub) { calcUnsub(); calcUnsub = null; }
+            if (teamUnsub) { teamUnsub(); teamUnsub = null; }
             if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
             if (cardNoticeUnsub) { cardNoticeUnsub(); cardNoticeUnsub = null; }
         }
@@ -11540,6 +11617,17 @@ familyStr + `\n` +
         /* ---------- 고객 찾기 · 표시 ---------- */
         // 🤝 지인이 받은 명함으로 들어온 상담요청 (명함이 내용 첫 줄에 '🤝 소개 명함: 명함번호'를 붙임)
         const CALC_REF_RE = /^🤝 소개 명함: ?([A-Za-z0-9_-]{2,40})[^\n]*(?:\n|$)/;
+        // 👥 직원 공용 명함에서 온 요청: 명함이 detail 끝에 '📇 명함: 공용 · 홍길동 (직원번호)'를 붙임
+        const CALC_TEAM_RE = /\n?📇 명함: 공용 · ([^\n]*?)(?: \(([a-z0-9]{3,12})\))?[ \t]*$/;
+        function calcTeamOf(r) {
+            const m = CALC_TEAM_RE.exec(String((r && r.detail) || ''));
+            if (!m) return null;
+            const sid = m[2] || '', p = sid && teamData && teamData.staff[sid] ? teamData.staff[sid] : null;
+            const shown = m[1].trim();
+            // 받을 직원: 명함에 직원으로 보였을 때만 (매장 정보로 보였으면 모두에게)
+            const key = p && shown !== '매장' ? (p.key || p.name || '') : '';
+            return { sid, shown, p, key };
+        }
         function calcRefOf(r) {
             const m = CALC_REF_RE.exec(String((r && r.detail) || ''));
             if (!m) return null;
@@ -11792,6 +11880,7 @@ familyStr + `\n` +
         /* ---------- 새 요청 알림 (앱이 열려 있을 때) ---------- */
         let calcToastTimer = null;
         function calcNotify(r) {
+            { const tm = calcTeamOf(r); if (tm && tm.key && !isSuperAdmin && !sameStaff(tm.key, getStaffName())) return; }   // 👥 공용 명함 요청은 그 직원 + 총관리자만
             const c = calcFindCustomer(r);
             const who = c ? (c.name || '고객') : (r.name || '새 고객');
             const isAsk = r.kind === 'ask';
@@ -12104,11 +12193,12 @@ familyStr + `\n` +
                         <div class="min-w-0 flex-1">
                             ${c ? `<button type="button" data-calc-open="${c.id}" class="text-[15px] font-bold text-indigo-700 underline underline-offset-2 truncate max-w-full text-left">${escapeHtml(name)}</button> <span class="text-xs font-medium text-gray-500">등록 고객</span>` : `<p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(name)} <span class="text-xs font-medium text-gray-500">새 고객</span></p>`}
                             <p class="text-xs text-gray-600">${escapeHtml(phone ? formatPhone(phone) : '연락처 없음')} · ${escapeHtml(calcAgo(r.at))}</p>
+                            ${(() => { const tm = calcTeamOf(r); return tm ? `<p class="text-xs font-bold text-indigo-800 mt-0.5">👥 공용 명함 · ${escapeHtml(tm.shown === '매장' ? '매장 정보로 보던 명함' : tm.shown)}${tm.key ? ` → ${escapeHtml(managerKey(tm.key))} 담당` : ''}</p>` : ''; })()}
                             ${(() => { const ref = calcRefOf(r); return ref ? `<p class="text-xs font-bold text-emerald-800 mt-0.5">🤝 ${ref.c ? `<button type="button" data-calc-open="${escapeHtml(ref.c.id)}" class="underline underline-offset-2">${escapeHtml(ref.c.name || '이름 없음')}</button> 고객이 받은 명함으로 들어온 지인` : '지인에게 받은 명함으로 들어왔어요'}</p>` : ''; })()}
                         </div>
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : (calcIsView(r) ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-700')}">${isAsk ? calcAskLabel(r) : calcViewLabel(r)}</span>
                     </div>
-                    <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '') || r.summary || '')}</p>
+                    <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '').replace(CALC_TEAM_RE, '') || r.summary || '')}</p>
                     ${r.quoteAt ? `<p class="text-xs font-bold text-emerald-800 pl-1"><i class="fa-solid fa-paper-plane"></i> 견적 보냄 · ${escapeHtml(calcAgo(r.quoteAt))}${r.quoteBy ? ' · ' + escapeHtml(r.quoteBy) : ''}${r.quoteSum ? ' · ' + escapeHtml(r.quoteSum) : ''}</p>` : ''}
                     ${calcIsReg(r) ? (r.regDone === 'Y' ? `<p class="text-xs font-bold text-emerald-800 pl-1">✅ 강CRM에 ${r.regLinked === 'Y' ? '이미 있던 고객에 연결' : '새 고객으로 등록'}하고 명함번호도 연결했어요</p>` : (r.regNeed === 'Y' ? `<p class="text-xs font-bold text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">⚠️ ${escapeHtml(r.regNote || '확인이 필요해요')}</p>${!calcSelMode && c ? `<button type="button" data-reg-link="${escapeHtml(r.id)}" class="w-full h-11 rounded-xl border-2 border-amber-300 bg-amber-50 text-amber-900 text-sm font-bold"><i class="fa-solid fa-link"></i> 본인 맞아요 · ${escapeHtml(c.name || '이 고객')} 카드에 연결</button>` : ''}` : '<p class="text-xs font-medium text-gray-500 pl-1">⏳ 강CRM에 등록하는 중…</p>')) : ''}
                     ${!calcSelMode && !calcIsReg(r) && !/^🏠/.test(String(r.summary || '')) && (digits || c) ? `<button type="button" data-calc-quote="${escapeHtml(r.id)}" class="w-full h-11 rounded-xl border-2 border-pink-200 bg-pink-50 text-pink-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-calculator"></i> ${r.quoteAt ? '견적 다시 내서 보내기' : '계산기로 견적 내서 보내기'}</button>` : ''}
@@ -14697,6 +14787,7 @@ familyStr + `\n` +
                     const v = r.data.version || 1;
                     add('알림 서버', '서버 연결', r.ok && r.data.ok ? 'ok' : 'bad', r.ok ? `kangcrm-alert v${r.data.build || v}${r.data.build && parseFloat(r.data.build) >= 3.2 ? ' (하루 두 번 약속 알림 가능)' : ''}` : `응답 ${r.status}`);
                     add('알림 서버', 'OneSignal 키', r.data.ready ? 'ok' : 'bad', r.data.ready ? '' : 'Cloudflare에 ONESIGNAL_APP_ID · ONESIGNAL_REST_KEY를 넣어주세요.');
+                    if (teamCardOn()) { const b36 = parseFloat(r.data.build || '0') >= 3.6; add('알림 서버', '👥 공용 명함 알림 (보낸 직원 + 총관리자)', b36 ? 'ok' : 'warn', b36 ? '공용 명함 견적요청은 그 명함을 보낸 직원과 👑 총관리자 폰으로만 가요' : '알림 서버를 v3.6으로 바꿔 배포해 주세요. 그 전엔 공용 명함 요청도 모든 직원에게 가요.'); }
                     if (d.alert && d.alert.interest === true) { const b35 = parseFloat(r.data.build || '0') >= 3.5; add('알림 서버', '👀 관심 고객 푸시 (켜짐)', b35 ? 'ok' : 'warn', b35 ? '견적 보다 나감 · 계산만 해봄도 직원 폰으로 알림 (아침 9시~밤 9시)' : "알림 서버를 v3.5로 바꿔 배포해 주세요. 그 전엔 알림 제목이 '명함 상담요청'으로 보여요."); }
                     add('알림 서버', '🆓 무료 AI 이미지 (v3 · Workers AI)', r.data.imageReady ? 'ok' : 'warn', r.data.imageReady ? '' : (v < 3 ? '알림 서버 코드를 v3로 바꿔 배포하고, 바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.' : '바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.'));
                     add('알림 서버', '아침 약속 알림 (v2 · FIREBASE_SA)', v < 2 ? 'bad' : (r.data.promReady ? 'ok' : 'bad'), v < 2 ? '알림 서버 코드를 v2로 바꿔 배포해 주세요.' : (r.data.promReady ? `Cron 트리거: 아침 9:30 '30 0 * * *'${r.data.build && parseFloat(r.data.build) >= 3.2 ? " · 오후 1시도 받으려면 '0 4 * * *' 하나 더" : ''}` : 'Cloudflare에 FIREBASE_SA(서비스 계정 JSON)를 넣어주세요.'));
@@ -14765,6 +14856,13 @@ familyStr + `\n` +
             try { const r = await fetch(DEFAULT_CARD_URL, { method: 'HEAD', cache: 'no-store' }); add('명함', '디지털 명함 페이지', r.ok ? 'ok' : 'bad', r.ok ? DEFAULT_CARD_URL : `응답 ${r.status}`); }
             catch (e) { add('명함', '디지털 명함 페이지', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
             add('명함', '유통망지원금 표시', 'ok', d.showDist === false ? '숨김' : '보임');
+            // 👥 직원 공용 명함
+            if (teamCardOn()) {
+                try { const r = await fetch(TEAM_CARD_URL, { method: 'HEAD', cache: 'no-store' }); add('명함', '👥 직원 공용 명함 페이지', r.ok ? 'ok' : 'bad', r.ok ? TEAM_CARD_URL : `응답 ${r.status} · 깃허브에 team 폴더를 올려주세요 (그 전엔 직원이 보낸 명함이 안 열려요)`); }
+                catch (e) { add('명함', '👥 직원 공용 명함 페이지', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
+                const tp = myTeamProfile();
+                add('명함', '👥 내 공용 명함 프로필', tp && tp.active !== false ? 'ok' : 'warn', tp ? (tp.active === false ? '매장 이름·대표번호로 보이는 중' : `${tp.name}${tp.title ? ' ' + tp.title : ''} · ${tp.phone ? formatPhone(tp.phone) : '대표번호'}`) : `설정 → 직원 공용 명함에 '${getStaffName() || '내 이름'}' 프로필이 없어요 (매장 정보로 보여요)`);
+            } else add('명함', '👥 직원 공용 명함', 'ok', '꺼짐 · 모두 대표 명함으로 보내요');
             diagRunning = false; renderDiag();
         }
         function renderDiag() {
@@ -14969,6 +15067,199 @@ familyStr + `\n` +
                 if (await calcSave(next)) { mvnoDraft = null; openCalcSheet('manage'); customAlert(`${D.brand} 요금제 ${plans.length}개를 명함에 반영했어요.`); }
             };
         }
+
+        /* =====================================================================
+           👥 직원 공용 명함 설정 (👑 총관리자) — card_public/team
+           · 매장 정보(이름·대표번호·영업시간) + 직원별 프로필(이름·직함·직통번호·사진)
+           · '🏪 매장 이름·대표번호로 보이기'를 켜면(퇴사·휴직) 그 직원이 이미 보낸 명함도 바로 매장 정보로 바뀜
+           · 바꾼 내용은 [저장]을 눌러야 명함에 반영 (입력 중에 화면이 다시 그려지지 않게)
+           ===================================================================== */
+        let teamDraft = null, teamDirty = false, teamPhotoSid = '';
+        const TEAM_MAX = 15;
+        const TEAM_DEF_STORE = { name: 'LGU+ 진천점', hours: '10:00 - 20:00 (연중무휴)' };
+        function teamStaffNames() {   // 강CRM 직원 이름 (로그인 계정에 묶인 이름 + 내 이름)
+            const m = new Map();
+            [...Object.values(staffByEmail()), getStaffName()].forEach(n => { const v = String(n || '').trim(); const k = staffKeyName(v); if (v && k !== '담당자미상' && !m.has(k)) m.set(k, v); });
+            return [...m.values()].sort((a, b) => a.localeCompare(b, 'ko'));
+        }
+        function onTeamData() {
+            if (!teamDirty) teamDraft = null;
+            renderTeamSettings();
+            if (cardSendSheet.style.display === 'flex') renderCardSendWhich();
+        }
+        function newTeamSid(exist) {
+            let s;
+            do { const a = new Uint8Array(5); crypto.getRandomValues(a); s = Array.from(a, b => CARD_ID_CHARS[b % CARD_ID_CHARS.length]).join(''); } while (exist[s] || /^\d+$/.test(s));
+            return s;
+        }
+        function teamMarkDirty(on = true) {
+            teamDirty = on;
+            const b = document.getElementById('teamSaveBtn'), n = document.getElementById('teamDirtyNote');
+            if (b) { b.disabled = !isSuperAdmin || !on; b.className = `w-full h-12 rounded-xl text-[15px] font-bold flex items-center justify-center gap-2 disabled:opacity-40 ${on ? 'bg-pink-600 text-white' : 'bg-gray-100 text-gray-500'}`; }
+            if (n) n.classList.toggle('hidden', !on);
+        }
+        function renderTeamSettings() {
+            const box = document.getElementById('teamSetBox');
+            if (!box) return;
+            if (!teamDraft) teamDraft = calcClone(teamData || teamNormalize(null));
+            const D = teamDraft, locked = !isSuperAdmin, dis = locked ? 'disabled' : '';
+            box.dataset.admin = isSuperAdmin ? '1' : '0';
+            const field = 'mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50';
+            const names = teamStaffNames();
+            const sids = Object.keys(D.staff).sort((a, b) => String(D.staff[a].name || D.staff[a].key).localeCompare(String(D.staff[b].name || D.staff[b].key), 'ko'));
+            const used = new Set(sids.map(s => staffKeyName(D.staff[s].key || D.staff[s].name)));
+            const missing = names.filter(n => !used.has(staffKeyName(n)));
+            const st = D.store || {};
+            const me = myTeamProfile();
+            const prof = (sid) => {
+                const p = D.staff[sid], retired = p.active === false;
+                const keyOpts = [...new Set([...(p.key ? [p.key] : []), ...names])];
+                const keyOk = !!p.key && names.some(n => staffKeyName(n) === staffKeyName(p.key));
+                return `<article data-team-sid="${sid}" class="rounded-xl border ${retired ? 'border-amber-300 bg-amber-50/60' : 'border-gray-200 bg-white'} p-3 space-y-2">
+                    <div class="flex items-center gap-3">
+                        ${p.photo ? `<img src="${escapeHtml(p.photo)}" alt="" class="w-14 h-14 rounded-full object-cover bg-gray-100 flex-shrink-0 ${retired ? 'opacity-40' : ''}">` : `<span class="w-14 h-14 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-user text-xl"></i></span>`}
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(p.name || '이름 없음')}${p.title ? ' ' + escapeHtml(p.title) : ''}</p>
+                            <p class="text-xs text-gray-600 truncate">${retired ? '🏪 지금은 매장 이름·대표번호로 보여요' : escapeHtml(p.phone ? formatPhone(p.phone) : '직통번호 없음 → 대표번호')} · 번호 ${sid}</p>
+                        </div>
+                    </div>
+                    <label class="block text-xs font-bold text-gray-600">강CRM 직원 <span class="font-normal text-gray-500">(이 직원이 보낸 명함 · 견적요청 알림을 받을 사람)</span>
+                        <select data-tf="key" ${dis} class="${field}"><option value="">고르세요</option>${keyOpts.map(n => `<option value="${escapeHtml(n)}" ${n === p.key ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>
+                    ${p.key && !keyOk ? `<p class="text-xs font-bold text-amber-800">⚠️ '${escapeHtml(p.key)}' 이름으로 로그인한 직원이 없어요. 알림이 안 갈 수 있어요.</p>` : ''}
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="text-xs font-bold text-gray-600">명함에 보일 이름<input data-tf="name" maxlength="12" value="${escapeHtml(p.name)}" ${dis} placeholder="홍길동" class="${field}"></label>
+                        <label class="text-xs font-bold text-gray-600">직함<input data-tf="title" maxlength="10" value="${escapeHtml(p.title)}" ${dis} placeholder="사원 · 대리" class="${field}"></label>
+                        <label class="col-span-2 text-xs font-bold text-gray-600">직통번호 <span class="font-normal text-gray-500">(명함 [전화] 버튼 · 비우면 대표번호)</span><input data-tf="phone" type="tel" inputmode="tel" maxlength="13" value="${escapeHtml(p.phone ? formatPhone(p.phone) : '')}" ${dis} placeholder="010-0000-0000" class="${field}"></label>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-team-photo ${dis} class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40"><i class="fa-solid fa-camera"></i> 사진 ${p.photo ? '바꾸기' : '넣기'}</button>
+                        <button type="button" data-team-nophoto ${dis || (p.photo ? '' : 'disabled')} class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 disabled:opacity-40">사진 빼기</button>
+                    </div>
+                    <label class="flex items-center justify-between gap-3 rounded-xl ${retired ? 'bg-amber-100' : 'bg-gray-50'} px-3 py-2 cursor-pointer">
+                        <span class="text-sm font-bold text-gray-900 leading-snug">🏪 매장 이름·대표번호로 보이기<br><span class="text-xs font-medium text-gray-600">퇴사·휴직 때 켜고 [저장] → 이 직원이 이미 보낸 명함도 바로 매장 정보로 바뀌고, 알림은 모든 직원에게 가요</span></span>
+                        <input type="checkbox" data-tf="retire" ${retired ? 'checked' : ''} ${dis} class="w-6 h-6 accent-amber-600 flex-shrink-0 disabled:opacity-40">
+                    </label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <a href="${TEAM_CARD_URL}?s=${sid}" target="_blank" rel="noopener" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-arrow-up-right-from-square"></i> 이 명함 보기</a>
+                        <button type="button" data-team-del ${dis} class="h-11 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700 disabled:opacity-40"><i class="fa-solid fa-trash-can"></i> 프로필 삭제</button>
+                    </div>
+                </article>`;
+            };
+            box.innerHTML = `
+                <p class="text-[13px] text-gray-700 leading-relaxed">직원이 강CRM에서 명함을 보내면(문자·QR·AI 문자) <b>공용 명함</b>으로 가고, 고객 화면엔 <b>보낸 직원 이름·직함·번호·사진</b>이 떠요. 그 명함에서 들어온 견적요청 알림은 <b>그 직원 + 👑 총관리자</b> 폰으로만 가요.</p>
+                ${teamLoadError ? `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">공용 명함 설정을 못 불러왔어요. 인터넷을 확인해주세요.</p>` : ''}
+                ${locked ? `<p class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">🔒 총관리자만 바꿀 수 있어요. (보기는 가능)</p>` : ''}
+                <div class="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
+                    <span class="flex-1 min-w-0 text-[13px] font-bold text-gray-800 break-all">${escapeHtml(shortCardLink(TEAM_CARD_URL))}</span>
+                    <button type="button" id="teamCopyBtn" class="flex-shrink-0 h-10 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">복사</button>
+                    <a href="${TEAM_CARD_URL}" target="_blank" rel="noopener" class="flex-shrink-0 h-10 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center">열기</a>
+                </div>
+                <label for="teamOnChk" class="flex items-center justify-between gap-3 rounded-xl border ${D.on ? 'border-indigo-200 bg-indigo-50/60' : 'border-gray-200'} px-3 py-2.5 cursor-pointer">
+                    <span class="text-sm font-bold text-gray-900 leading-snug">직원은 공용 명함으로 보내기<br><span class="text-xs font-medium text-gray-600">끄면 예전처럼 모두 대표 명함으로 가요. 👑 총관리자는 [명함 보내기]에서 대표·공용을 골라요. ⚠️ 깃허브에 team 폴더를 먼저 올려주세요</span></span>
+                    <input type="checkbox" id="teamOnChk" ${D.on ? 'checked' : ''} ${dis} class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                </label>
+                ${getStaffName() ? `<p class="text-xs font-medium ${me && me.active !== false ? 'text-indigo-900' : 'text-gray-600'} pl-1">내 프로필: ${me ? `${escapeHtml(me.name)}${me.title ? ' ' + escapeHtml(me.title) : ''}${me.active === false ? ' (매장 정보로 보이는 중)' : ''}` : '아직 없어요'}${teamCardOn() ? ` · 지금 [명함 보내기] → ${cardChoice() === 'team' ? '공용 명함' : '대표 명함'}` : ''}</p>` : ''}
+                <div class="border-t border-gray-100 pt-3 space-y-2">
+                    <p class="text-[14px] font-bold text-gray-900">매장 정보 <span class="text-xs font-medium text-gray-500">(프로필이 없거나 '매장으로 보이기'일 때)</span></p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="text-xs font-bold text-gray-600">매장 이름<input data-ts="name" maxlength="20" value="${escapeHtml(st.name)}" ${dis} placeholder="${TEAM_DEF_STORE.name}" class="${field}"></label>
+                        <label class="text-xs font-bold text-gray-600">대표번호<input data-ts="phone" type="tel" inputmode="tel" maxlength="13" value="${escapeHtml(st.phone ? formatPhone(st.phone) : '')}" ${dis} placeholder="043-000-0000" class="${field}"></label>
+                        <label class="col-span-2 text-xs font-bold text-gray-600">영업시간<input data-ts="hours" maxlength="30" value="${escapeHtml(st.hours)}" ${dis} placeholder="${TEAM_DEF_STORE.hours}" class="${field}"></label>
+                        <label class="col-span-2 text-xs font-bold text-gray-600">소개 문구 <span class="font-normal text-gray-500">(비우면 기본 문구)</span><textarea data-ts="intro" rows="2" maxlength="120" ${dis} class="mt-1 w-full p-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50 resize-none">${escapeHtml(st.intro)}</textarea></label>
+                    </div>
+                    ${st.phone ? '' : `<p class="text-xs font-bold text-amber-800 pl-1">대표번호를 비우면 대표님 번호(010-4444-3353)로 보여요.</p>`}
+                </div>
+                <div class="border-t border-gray-100 pt-3 space-y-2">
+                    <p class="text-[14px] font-bold text-gray-900">직원 프로필 <span class="text-xs font-medium text-gray-500">${sids.length}명</span></p>
+                    ${sids.map(prof).join('') || '<p class="text-sm text-gray-600 text-center py-4">아직 프로필이 없어요. 아래 [+ 직원 추가]로 넣어주세요.</p>'}
+                    ${missing.length ? `<p class="text-xs text-gray-600 pl-1">프로필 없는 직원: <b>${missing.map(escapeHtml).join(', ')}</b> → 이 직원이 보낸 공용 명함은 매장 정보로 보여요</p>` : ''}
+                    <button type="button" id="teamAddBtn" ${dis} class="w-full h-11 rounded-xl border-2 border-dashed border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40"><i class="fa-solid fa-plus"></i> 직원 추가${missing.length ? ` (${escapeHtml(missing[0])})` : ''}</button>
+                </div>
+                <p id="teamDirtyNote" class="hidden text-xs font-bold text-pink-700 text-center">저장 안 한 내용이 있어요 · [저장]을 눌러야 명함에 반영돼요</p>
+                <button type="button" id="teamSaveBtn" disabled class="w-full h-12 rounded-xl bg-gray-100 text-gray-500 text-[15px] font-bold">저장</button>
+                <p id="teamSaved" class="hidden text-xs font-bold text-green-700 text-center"><i class="fa-solid fa-check"></i> 저장됨 · 명함에 바로 반영돼요</p>`;
+            teamMarkDirty(teamDirty);
+            box.querySelector('#teamCopyBtn').onclick = async () => { const ok = await copyTextSafe(TEAM_CARD_URL); customAlert(ok ? '공용 명함 주소를 복사했어요.' : `복사가 막혔어요. 길게 눌러 복사해주세요.\n${TEAM_CARD_URL}`); };
+            if (locked) return;
+            box.querySelector('#teamOnChk').onchange = e => { D.on = e.target.checked; teamMarkDirty(); };
+            box.querySelectorAll('[data-ts]').forEach(el => el.oninput = () => { D.store = { ...(D.store || {}), [el.dataset.ts]: el.dataset.ts === 'phone' ? el.value.replace(/[^0-9]/g, '') : el.value.trim() }; teamMarkDirty(); });
+            box.querySelectorAll('[data-team-sid]').forEach(art => {
+                const sid = art.dataset.teamSid, p = D.staff[sid];
+                art.querySelectorAll('[data-tf]').forEach(el => {
+                    const k = el.dataset.tf;
+                    if (k === 'retire') el.onchange = () => { p.active = !el.checked; teamMarkDirty(); renderTeamSettings(); };
+                    else if (k === 'key') el.onchange = () => { p.key = el.value; if (!p.name && el.value) p.name = managerKey(el.value); teamMarkDirty(); renderTeamSettings(); };
+                    else el.oninput = () => { p[k] = k === 'phone' ? el.value.replace(/[^0-9]/g, '') : el.value.trim(); teamMarkDirty(); };
+                });
+                art.querySelector('[data-team-photo]').onclick = () => { teamPhotoSid = sid; const f = document.getElementById('teamPhotoFile'); f.value = ''; f.click(); };
+                art.querySelector('[data-team-nophoto]').onclick = () => { p.photo = ''; teamMarkDirty(); renderTeamSettings(); };
+                art.querySelector('[data-team-del]').onclick = async () => {
+                    if (!(await customConfirm(`${p.name || '이 직원'} 프로필을 삭제할까요?\n이 직원이 이미 보낸 공용 명함은 매장 이름·대표번호로 보여요.\n(퇴사·휴직이면 삭제 대신 '매장 이름·대표번호로 보이기'를 켜도 돼요)`))) return;
+                    delete D.staff[sid]; teamMarkDirty(); renderTeamSettings();
+                };
+            });
+            box.querySelector('#teamAddBtn').onclick = () => {
+                if (Object.keys(D.staff).length >= TEAM_MAX) return customAlert(`직원 프로필은 ${TEAM_MAX}명까지 넣을 수 있어요.`);
+                const key = missing[0] || '';
+                D.staff[newTeamSid(D.staff)] = { key, name: key ? managerKey(key) : '', title: '', phone: '', photo: '', active: true };
+                teamMarkDirty(); renderTeamSettings();
+            };
+            box.querySelector('#teamSaveBtn').onclick = () => saveTeamSettings();
+        }
+        async function saveTeamSettings() {
+            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            const D = teamDraft; if (!D) return;
+            const bad = [];
+            Object.entries(D.staff).forEach(([sid, p]) => {
+                const nm = p.name || p.key || sid;
+                if (!String(p.name || '').trim()) bad.push(`${nm}: 명함에 보일 이름을 넣어주세요`);
+                if (p.phone && !/^0\d{8,10}$/.test(p.phone)) bad.push(`${nm}: 직통번호를 확인해주세요`);
+                if (!p.key) bad.push(`${nm}: 강CRM 직원을 골라주세요 (알림 받을 사람)`);
+            });
+            const keys = Object.values(D.staff).filter(p => p.key).map(p => staffKeyName(p.key));
+            if (new Set(keys).size !== keys.length) bad.push('같은 강CRM 직원이 두 번 들어가 있어요');
+            if (D.store.phone && !/^0\d{8,10}$/.test(D.store.phone)) bad.push('대표번호를 확인해주세요');
+            if (bad.length) return customAlert(bad.join('\n'));
+            if (D.on && !teamCardOn() && !(await customConfirm("[직원은 공용 명함으로 보내기]를 켜요.\n깃허브(kanggun1983.github.io)에 team 폴더를 올렸나요?\n안 올렸으면 직원이 보낸 명함이 안 열려요."))) return;
+            const json = JSON.stringify({ ...D, updated: getTodayStr() });
+            if (json.length > 900000) return customAlert('사진이 너무 커서 저장할 수 없어요. 사진을 몇 개 빼주세요.');
+            const btn = document.getElementById('teamSaveBtn'); if (btn) btn.disabled = true;
+            try {
+                await saveDoc(doc(db, 'card_public', 'team'), { json, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+                teamData = teamNormalize(JSON.parse(json));
+                teamDirty = false; teamDraft = null;
+                renderTeamSettings();
+                const s = document.getElementById('teamSaved'); if (s) { s.classList.remove('hidden'); setTimeout(() => s.classList.add('hidden'), 2500); }
+            } catch (e) {
+                customAlert(koreanError(e, '저장'));
+                if (btn) btn.disabled = false;
+            }
+        }
+        // 📷 직원 사진 → 가운데를 정사각형으로 잘라 240px JPEG (60KB 안팎)
+        document.getElementById('teamPhotoFile').addEventListener('change', async e => {
+            const f = e.target.files && e.target.files[0];
+            const sid = teamPhotoSid; teamPhotoSid = '';
+            if (!f || !teamDraft || !teamDraft.staff[sid]) return;
+            try {
+                const url = URL.createObjectURL(f);
+                const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+                const side = Math.min(img.naturalWidth, img.naturalHeight);
+                const sx = (img.naturalWidth - side) / 2;
+                const sy = Math.max(0, Math.min(img.naturalHeight - side, (img.naturalHeight - side) / 2 - side * 0.08));   // 얼굴이 위쪽에 오게 살짝 위로
+                let out = '';
+                for (const [px, q] of [[240, 0.82], [240, 0.7], [200, 0.65], [160, 0.6]]) {
+                    const cv = document.createElement('canvas'); cv.width = cv.height = px;
+                    const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, px, px);
+                    g.drawImage(img, sx, sy, side, side, 0, 0, px, px);
+                    out = cv.toDataURL('image/jpeg', q);
+                    if (out.length <= 80000) break;
+                }
+                URL.revokeObjectURL(url);
+                teamDraft.staff[sid].photo = out;
+                teamMarkDirty(); renderTeamSettings();
+            } catch (err) { console.error(err); customAlert('사진을 읽지 못했어요. 다른 사진으로 해주세요.'); }
+        });
+        renderTeamSettings();
 
         /* =====================================================================
            🗂️ 설정 화면: 제목을 누르면 펼치고 접기 (펼친 칸은 이 폰에 기억)
