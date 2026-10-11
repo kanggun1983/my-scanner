@@ -893,7 +893,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V147</span>
+                    <span class="text-sm text-gray-600">V148</span>
                 </div>
             </section>
         </div>
@@ -1976,6 +1976,12 @@
                     <p class="text-xs font-bold text-gray-600 mb-1">어떤 홍보예요? <span class="font-normal text-gray-500">(휴대폰 매장용 그림 설정이 들어가요)</span></p>
                     <div class="grid grid-cols-4 gap-1.5" id="igPresets"></div>
                 </div>
+                <div class="rounded-xl border border-sky-200 bg-sky-50/60 p-3 space-y-2">
+                    <div class="flex items-center justify-between gap-2"><p class="text-[13px] font-bold text-sky-900">📱 실제 폰 사진 넣기 <span class="font-normal text-sky-800/80">(최대 3개 · 눌러서 고르기)</span></p><span class="flex gap-1.5 flex-shrink-0"><button type="button" id="igPhoneSearch" class="h-9 px-2.5 rounded-lg border border-sky-300 bg-white text-sky-800 text-xs font-bold">🔎 사진 찾기</button><button type="button" id="igPhoneAdd" class="h-9 px-3 rounded-lg bg-sky-600 text-white text-xs font-bold">+ 추가</button></span></div>
+                    <div id="igPhones" class="flex gap-2 overflow-x-auto pb-1"></div>
+                    <p id="igPhoneNote" class="text-[11px] text-sky-900/80 leading-snug">공식 홈페이지의 흰 배경 제품 사진을 저장해서 한 번 올려두면 계속 써요. 흰 배경은 자동으로 지워요. 고르면 AI는 폰 없이 배경만 그리고, 진짜 폰 사진을 가운데에 넣어요.</p>
+                    <input type="file" id="igPhoneFile" accept="image/*" class="hidden">
+                </div>
                 <label class="block text-xs font-bold text-gray-600">무엇을 그릴까요<textarea id="igPrompt" rows="3" class="mt-1 w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 font-normal resize-none" placeholder="예) 갤럭시 S26 가격 인상 전 마지막 재고 행사, 케이스 무료 증정"></textarea></label>
                 <div>
                     <p class="text-xs font-bold text-gray-600 mb-1">느낌</p>
@@ -2057,7 +2063,7 @@
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where, runTransaction, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -12063,10 +12069,107 @@ familyStr + `\n` +
             cute:    { ko: '귀엽고 친근한 3D 일러스트 스타일. 둥근 모양, 파스텔 분홍·민트, 따뜻한 느낌', en: 'cute glossy 3D clay render illustration, rounded shapes, pastel pink and mint colors, soft shadows, playful and friendly' },
             premium: { ko: '고급스러운 프리미엄 광고 스타일. 어두운 배경에 은은한 분홍·금빛 테두리 조명, 세련되고 차분하게', en: 'luxury premium advertisement, dark charcoal background with subtle magenta and gold rim lighting, elegant, cinematic, high contrast' }
         };
+        // 실제 폰 사진을 넣을 때: AI는 폰 없이 '무대·배경'만 그림
+        const IG_BG = {
+            new: 'an empty glossy circular podium stage in the center with dramatic spotlights, soft light particles and lens flare',
+            stock: 'an empty center stage surrounded by glowing motion light streaks and sparks, urgent energetic atmosphere',
+            gift: 'gift boxes with satin ribbons, wireless earbuds and floating confetti arranged around an empty center space on a glossy floor',
+            home: 'a cozy modern living room with a large wall-mounted TV and a glowing wifi router, warm evening light, empty foreground in the center',
+            switch: 'two empty glowing podiums with a bright arrow of light between them, upgrade concept',
+            thanks: 'pink and white balloons, confetti and a small gift box around an empty center, warm golden bokeh lights',
+            save: 'shiny coins and a cute pink piggy bank on the left and right sides, empty center stage, fresh and bright',
+            store: 'a softly blurred bright modern mobile phone store interior background with shallow depth of field, empty foreground'
+        };
         function igDetectPreset(text) { const t = String(text || ''); for (const [k, p] of Object.entries(IG_PRESETS)) if (p.kw.test(t)) return k; return 'gift'; }
-        let ig = { engine: localStorage.getItem('igEngine') || 'free', style: 'poster', aspect: '1:1', preset: 'gift', quality: localStorage.getItem('igQuality') || 'normal', onUse: null, file: null, url: '' };
+        let ig = { engine: localStorage.getItem('igEngine') || 'free', style: 'poster', aspect: '1:1', preset: 'gift', quality: localStorage.getItem('igQuality') || 'normal', phones: [], onUse: null, file: null, url: '' };
         const igSheet = document.getElementById('imgGenSheet');
         document.getElementById('igPresets').innerHTML = Object.entries(IG_PRESETS).map(([k, p]) => `<button type="button" data-ig-preset="${k}" class="min-h-[44px] px-1 py-1 rounded-lg border text-[11px] font-bold leading-tight">${p.emoji}<br>${p.label}</button>`).join('');
+        // ═══ 📱 기종 사진 모음 (Firestore phone_images · 직원 공용) ═══
+        let phoneLib = null, phoneLibLoading = null;
+        const phoneKey = (t) => String(t || '').toLowerCase().replace(/galaxy/g, '갤럭시').replace(/iphone/g, '아이폰').replace(/ultra/g, '울트라').replace(/plus|\+/g, '플러스').replace(/[\s·\-_()]/g, '');
+        function guessModelName(text) {
+            const m = String(text || '').match(/(갤럭시|아이폰|galaxy|iphone|버디|퀀텀|와이드|폴드|플립|z\s*플립|z\s*폴드)\s*[a-z]{0,2}\s*\d{1,2}\s*(울트라|프로\s*맥스|프로|맥스|플러스|엣지|fe|ultra|pro\s*max|pro|max|plus|edge|\+)?/i);
+            return m ? m[0].replace(/\s+/g, ' ').trim() : '';
+        }
+        async function loadPhoneLib(force = false) {
+            if (phoneLib && !force) return phoneLib;
+            if (phoneLibLoading && !force) return phoneLibLoading;
+            phoneLibLoading = (async () => {
+                try {
+                    const snap = await getDocs(collection(db, 'phone_images'));
+                    phoneLib = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.data).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+                } catch (e) { console.error('기종 사진 불러오기 실패', e); phoneLib = phoneLib || []; }
+                phoneLibLoading = null;
+                return phoneLib;
+            })();
+            return phoneLibLoading;
+        }
+        function renderPhones() {
+            const box = document.getElementById('igPhones');
+            if (!box) return;
+            if (!phoneLib) { box.innerHTML = '<span class="text-xs text-sky-900/70 py-2">불러오는 중…</span>'; return; }
+            if (!phoneLib.length) { box.innerHTML = '<span class="text-xs text-sky-900/70 py-2">아직 올린 기종 사진이 없어요. [+ 기종 사진 추가]로 올려주세요.</span>'; return; }
+            box.innerHTML = phoneLib.map(p => {
+                const on = ig.phones.includes(p.id);
+                const canDel = isSuperAdmin || (p.by && sameStaff(p.by, getStaffName()));
+                return `<div class="relative flex-shrink-0"><button type="button" data-ig-phone="${escapeHtml(p.id)}" aria-pressed="${on}" class="w-[74px] rounded-xl border-2 ${on ? 'border-sky-600 bg-white' : 'border-transparent bg-white/70'} p-1 flex flex-col items-center gap-0.5"><img src="${escapeHtml(p.data)}" alt="" class="h-14 w-full object-contain"><span class="text-[10px] font-bold text-gray-800 leading-tight line-clamp-2 text-center">${escapeHtml(p.name)}</span>${on ? '<span class="absolute top-1 left-1 w-5 h-5 rounded-full bg-sky-600 text-white text-[11px] font-bold flex items-center justify-center">✓</span>' : ''}</button>${canDel ? `<button type="button" data-ig-phone-del="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)} 사진 지우기" class="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-gray-800 text-white text-[11px]">×</button>` : ''}</div>`;
+            }).join('');
+        }
+        function autoPickPhones() {
+            if (!phoneLib || !phoneLib.length) return;
+            const t = phoneKey(document.getElementById('igPrompt').value + ' ' + document.getElementById('igHeadline').value);
+            // 이름이 긴 것부터 (S26 울트라가 S26보다 먼저)
+            const hits = [...phoneLib].sort((a, b) => phoneKey(b.name).length - phoneKey(a.name).length).filter(p => { const k = phoneKey(p.name); return k.length >= 3 && t.includes(k); });
+            ig.phones = hits.slice(0, 3).map(p => p.id);
+        }
+        // 흰 배경 지우기 (가장자리에서 배경색과 비슷한 곳만 지움) + 남은 부분만 잘라서 PNG
+        async function cutoutPhone(file) {
+            const im = await new Promise((res, rej) => { const x = new Image(); x.onload = () => res(x); x.onerror = () => rej(new Error('사진을 열지 못했어요.')); x.src = URL.createObjectURL(file); });
+            const sc = Math.min(1, 1200 / Math.max(im.naturalWidth, im.naturalHeight));
+            const W = Math.max(1, Math.round(im.naturalWidth * sc)), H = Math.max(1, Math.round(im.naturalHeight * sc));
+            const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+            const g = cv.getContext('2d', { willReadFrequently: true });
+            g.drawImage(im, 0, 0, W, H);
+            try { URL.revokeObjectURL(im.src); } catch (e) { /* 무시 */ }
+            const img = g.getImageData(0, 0, W, H), d = img.data;
+            const at = (x, y) => (y * W + x) * 4;
+            const corners = [[0, 0], [W - 1, 0], [0, H - 1], [W - 1, H - 1]].map(([x, y]) => at(x, y));
+            const hasAlpha = corners.some(i => d[i + 3] < 200);
+            let removed = false;
+            if (!hasAlpha) {
+                const avg = [0, 1, 2].map(k => corners.reduce((s, i) => s + d[i + k], 0) / 4);
+                const spread = Math.max(...corners.map(i => Math.abs(d[i] - avg[0]) + Math.abs(d[i + 1] - avg[1]) + Math.abs(d[i + 2] - avg[2])));
+                if (spread < 60) {   // 네 모서리 색이 거의 같음 = 단색 배경
+                    const dist = (i) => Math.abs(d[i] - avg[0]) + Math.abs(d[i + 1] - avg[1]) + Math.abs(d[i + 2] - avg[2]);
+                    const seen = new Uint8Array(W * H), stack = [];
+                    for (let x = 0; x < W; x++) { stack.push(x, 0, x, H - 1); }
+                    for (let y = 0; y < H; y++) { stack.push(0, y, W - 1, y); }
+                    while (stack.length) {
+                        const y = stack.pop(), x = stack.pop();
+                        if (x < 0 || y < 0 || x >= W || y >= H) continue;
+                        const p = y * W + x;
+                        if (seen[p]) continue;
+                        seen[p] = 1;
+                        const i = p * 4, dd = dist(i);
+                        if (dd > 72) continue;
+                        d[i + 3] = dd < 36 ? 0 : Math.round(255 * (dd - 36) / 36);   // 가장자리는 부드럽게
+                        stack.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+                    }
+                    removed = true;
+                }
+            }
+            g.putImageData(img, 0, 0);
+            // 남은 부분만 잘라내기
+            let x0 = W, y0 = H, x1 = -1, y1 = -1;
+            for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[at(x, y) + 3] > 20) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+            if (x1 < 0) throw new Error('사진에서 폰을 찾지 못했어요. 배경이 단순한 사진으로 다시 해주세요.');
+            const cw = x1 - x0 + 1, ch = y1 - y0 + 1;
+            const out = (maxSide) => { const k = Math.min(1, maxSide / Math.max(cw, ch)); const o = document.createElement('canvas'); o.width = Math.round(cw * k); o.height = Math.round(ch * k); o.getContext('2d').drawImage(cv, x0, y0, cw, ch, 0, 0, o.width, o.height); return { data: o.toDataURL('image/png'), w: o.width, h: o.height }; };
+            let r = out(640);
+            if (r.data.length > 700000) r = out(460);
+            if (r.data.length > 900000) r = out(340);
+            return { ...r, removed };
+        }
         function igStatus(msg, tone) { const el = document.getElementById('igStatus'); if (!msg) { el.classList.add('hidden'); return; } el.textContent = msg; el.className = `text-[13px] font-medium leading-relaxed ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`; }
         function igRender() {
             const keyOf = { igEngine: 'engine', igAspect: 'aspect', igQuality: 'quality' };
@@ -12092,8 +12195,11 @@ familyStr + `\n` +
             document.getElementById('igResult').classList.add('hidden');
             document.getElementById('igMake').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 만들기';
             igStatus('');
+            ig.phones = [];
             igRender();
+            renderPhones();
             igSheet.style.display = 'flex';
+            loadPhoneLib().then(() => { autoPickPhones(); renderPhones(); igRender(); });
         }
         function closeImageGen() { igSheet.style.display = 'none'; if (ig.url) { try { URL.revokeObjectURL(ig.url); } catch (e) { /* 무시 */ } } ig.url = ''; }
         // ChatGPT·Gemini에게 주는 '휴대폰 매장 포스터' 설명 (글씨까지 AI가 그림)
@@ -12130,7 +12236,9 @@ familyStr + `\n` +
             let last = null;
             for (const model of models) {
                 for (const withCfg of [true, false]) {
-                    const body = { contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], ...(withCfg ? { imageConfig: { aspectRatio: ig.aspect } } : {}) } };
+                    const refs = ig.phones.map(id => (phoneLib || []).find(p => p.id === id)).filter(Boolean).slice(0, 3);
+                    const reqParts = [{ text: refs.length ? `${prompt}\n[참고 사진] 첨부한 휴대폰 사진(${refs.map(r => r.name).join(', ')})의 모양·색·카메라 배치를 그대로 살려서 포스터에 넣어줘. 다른 휴대폰을 새로 지어내지 마.` : prompt }, ...refs.map(r => ({ inlineData: { mimeType: 'image/png', data: String(r.data).split(',')[1] || '' } }))];
+                    const body = { contents: [{ parts: reqParts }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'], ...(withCfg ? { imageConfig: { aspectRatio: ig.aspect } } : {}) } };
                     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey }, body: JSON.stringify(body) });
                     const j = await r.json().catch(() => ({}));
                     if (!r.ok) {
@@ -12185,13 +12293,16 @@ familyStr + `\n` +
         // 무료 그림 AI(FLUX)용 영어 장면 설명: 상황별 장면 + 느낌 + (Gemini로) 내 문구의 구체적인 내용 + 포스터 자리 비우기
         const IG_EN_TAIL = 'professional Korean mobile phone store advertisement key visual, ultra detailed, sharp focus, rich vibrant colors, high-end commercial quality, 4k';
         const IG_EN_NO = 'absolutely no text, no letters, no words, no numbers, no watermark, no logos, no brand names';
-        function igLayoutHint() { return ig.aspect === '16:9' ? 'main subject placed on the right half, left 45% of the frame kept simple and slightly dark for a headline' : 'main subject centered in the middle, top 28% and bottom 18% of the frame kept simple and uncluttered for a headline and footer'; }
+        function igLayoutHint() {
+            if (ig.phones.length) return ig.aspect === '16:9' ? 'the right half is an empty stage for placing a product later, left 45% simple and slightly dark for a headline' : 'the lower middle is an empty stage for placing a product later, top 30% simple and uncluttered for a headline';
+            return ig.aspect === '16:9' ? 'main subject placed on the right half, left 45% of the frame kept simple and slightly dark for a headline' : 'main subject centered in the middle, top 28% and bottom 18% of the frame kept simple and uncluttered for a headline and footer'; }
         async function igEnglishPrompt() {
             const what = document.getElementById('igPrompt').value.trim();
             const P = IG_PRESETS[ig.preset] || IG_PRESETS.gift, S = IG_STYLES[ig.style] || IG_STYLES.poster;
-            const base = `${P.en}, ${S.en}`;
+            const usePh = ig.phones.length > 0;
+            const base = usePh ? `${IG_BG[ig.preset] || IG_BG.gift}, ${S.en}, no smartphones, no phones, no devices, no screens in the scene` : `${P.en}, ${S.en}`;
             let extra = '';
-            if (geminiApiKey && what) {
+            if (geminiApiKey && what && !usePh) {
                 try {
                     const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: `휴대폰 매장 홍보 그림을 그릴 거야. 아래 한국어 문구에서 '그림으로 그릴 수 있는 구체적인 물건·분위기'만 골라 짧은 영어 구절(20단어 이내)로 바꿔줘.\n- 제품 이름은 상표 없이 모양으로 (예: 갤럭시 S26 → flagship Android smartphone with large triple camera, 아이폰 → premium smartphone with a dual camera)\n- 글자·숫자·가격·전화번호·사람은 빼\n- 그릴 게 없으면 빈 문자열\n문구: ${what}` }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { phrase: { type: 'STRING' } }, required: ['phrase'] } } }, { timeoutMs: 15000 });
                     extra = String((JSON.parse(text) || {}).phrase || '').replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -12218,6 +12329,38 @@ familyStr + `\n` +
             else { for (const ch of chars) { const t = cur + ch; if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = ch; } else cur = t; } if (cur) lines.push(cur); }
             return lines.length > maxLines ? null : lines;
         }
+        // 📱 진짜 폰 사진 얹기 (세로: 아래 가운데 · 가로: 오른쪽) · 그림자와 바닥 빛
+        async function igDrawPhones(g, W, H, wide, footH, topY = 0) {
+            const list = ig.phones.map(id => (phoneLib || []).find(p => p.id === id)).filter(Boolean).slice(0, 3);
+            if (!list.length) return;
+            const ims = await Promise.all(list.map(p => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = p.data; })));
+            const ok = ims.filter(Boolean);
+            if (!ok.length) return;
+            const top = wide ? H * 0.08 : Math.min(H * 0.62, Math.max(H * 0.36, topY || H * 0.40));   // 세로: 글씨 바로 아래부터 (너무 작아지지 않게 최소 26%는 남김)
+            const box = wide ? { x: W * 0.52, y: top, w: W * 0.44, h: H * 0.92 - footH - H * 0.04 } : { x: W * 0.06, y: top, w: W * 0.88, h: H - footH - top - H * 0.025 };
+            const n = ok.length, overlap = n > 1 ? 0.18 : 0;
+            // 높이를 맞추고 폭이 넘치면 줄임
+            let hgt = box.h;
+            const widthAt = (h) => ok.reduce((s, im, i) => s + (im.naturalWidth / im.naturalHeight) * h * (i ? (1 - overlap) : 1), 0);
+            if (widthAt(hgt) > box.w) hgt = hgt * box.w / widthAt(hgt);
+            const total = widthAt(hgt);
+            let x = box.x + (box.w - total) / 2;
+            const yBottom = box.y + box.h;
+            // 바닥 빛
+            const cx = box.x + box.w / 2, glow = g.createRadialGradient(cx, yBottom, 2, cx, yBottom, total * 0.62);
+            glow.addColorStop(0, 'rgba(255,255,255,0.55)'); glow.addColorStop(1, 'rgba(255,255,255,0)');
+            g.fillStyle = glow; g.beginPath(); g.ellipse(cx, yBottom - hgt * 0.01, total * 0.62, hgt * 0.07, 0, 0, Math.PI * 2); g.fill();
+            ok.forEach((im, i) => {
+                const w = (im.naturalWidth / im.naturalHeight) * hgt;
+                // 가운데 폰을 조금 크게 (3개일 때)
+                const k = n === 3 && i === 1 ? 1.06 : 1;
+                const dw = w * k, dh = hgt * k;
+                const dx = x - (dw - w) / 2, dy = yBottom - dh;
+                g.save(); g.shadowColor = 'rgba(0,0,0,0.45)'; g.shadowBlur = Math.round(H * 0.03); g.shadowOffsetY = Math.round(H * 0.012);
+                g.drawImage(im, dx, dy, dw, dh); g.restore();
+                x += w * (1 - overlap);
+            });
+        }
         async function igOverlay(blob) {
             const withText = document.getElementById('igWithText').checked;
             const head = document.getElementById('igHeadline').value.trim(), sub = document.getElementById('igSubline').value.trim(), tel = document.getElementById('igTel').value.trim();
@@ -12235,11 +12378,14 @@ familyStr + `\n` +
             const wide = W > H * 1.2;
             const store = msgStoreName(), P = IG_PRESETS[ig.preset] || IG_PRESETS.gift;
             const footH = withText ? Math.round(H * (wide ? 0.13 : 0.1)) : 0;
+            let phonesDrawn = false;
+            if (!(withText && (head || sub))) { await igDrawPhones(g, W, H, wide, footH); phonesDrawn = true; }
             if (withText && (head || sub)) {
                 // 글씨 자리 어둡게 (세로: 위쪽 · 가로: 왼쪽)
                 const grad = wide ? g.createLinearGradient(0, 0, W * 0.62, 0) : g.createLinearGradient(0, 0, 0, H * 0.5);
                 grad.addColorStop(0, 'rgba(20,0,30,0.82)'); grad.addColorStop(0.55, 'rgba(20,0,30,0.45)'); grad.addColorStop(1, 'rgba(20,0,30,0)');
                 g.fillStyle = grad; if (wide) g.fillRect(0, 0, W * 0.62, H); else g.fillRect(0, 0, W, H * 0.5);
+                const drawText = (D) => {
                 const areaX = wide ? W * 0.06 : W * 0.07, areaW = wide ? W * 0.5 : W * 0.86;
                 const center = !wide;
                 g.textAlign = center ? 'center' : 'left'; g.textBaseline = 'top';
@@ -12250,8 +12396,8 @@ familyStr + `\n` +
                 g.font = font(800, tp);
                 const tagT = P.tag, tw = g.measureText(tagT).width, tpadX = tp * 0.75, th = tp * 1.75;
                 const tx = center ? (W - tw) / 2 - tpadX : areaX;
-                g.fillStyle = '#ffe14d'; g.beginPath(); if (g.roundRect) g.roundRect(tx, y, tw + tpadX * 2, th, th / 2); else g.rect(tx, y, tw + tpadX * 2, th); g.fill();
-                g.fillStyle = '#3b0030'; g.textAlign = 'left'; g.fillText(tagT, tx + tpadX, y + (th - tp) / 2 + tp * 0.04);
+                if (D) { g.fillStyle = '#ffe14d'; g.beginPath(); if (g.roundRect) g.roundRect(tx, y, tw + tpadX * 2, th, th / 2); else g.rect(tx, y, tw + tpadX * 2, th); g.fill(); }
+                if (D) { g.fillStyle = '#3b0030'; g.textAlign = 'left'; g.fillText(tagT, tx + tpadX, y + (th - tp) / 2 + tp * 0.04); }
                 g.textAlign = center ? 'center' : 'left';
                 y += th + H * 0.025;
                 // 큰 제목 (최대 2줄, 자동 크기)
@@ -12260,8 +12406,8 @@ familyStr + `\n` +
                     while (px > 24) { g.font = font(900, px); lines = igWrap(g, head, areaW, 2); if (lines) break; px -= 4; }
                     lines = lines || [head];
                     lines.forEach(l => {
-                        g.lineJoin = 'round'; g.lineWidth = Math.max(6, px * 0.16); g.strokeStyle = 'rgba(40,0,40,0.75)'; g.strokeText(l, cx, y);
-                        g.fillStyle = '#ffffff'; g.fillText(l, cx, y);
+                        if (D) { g.lineJoin = 'round'; g.lineWidth = Math.max(6, px * 0.16); g.strokeStyle = 'rgba(40,0,40,0.75)'; g.strokeText(l, cx, y);
+                        g.fillStyle = '#ffffff'; g.fillText(l, cx, y); }
                         y += px * 1.14;
                     });
                     y += H * 0.012;
@@ -12270,8 +12416,13 @@ familyStr + `\n` +
                 if (sub) {
                     let sp = Math.round(H * (wide ? 0.06 : 0.048)), lines = null;
                     while (sp > 16) { g.font = font(800, sp); lines = igWrap(g, sub, areaW, 2); if (lines) break; sp -= 2; }
-                    (lines || [sub]).forEach(l => { g.lineWidth = Math.max(4, sp * 0.14); g.strokeStyle = 'rgba(40,0,40,0.7)'; g.strokeText(l, cx, y); g.fillStyle = '#ffe14d'; g.fillText(l, cx, y); y += sp * 1.2; });
+                    (lines || [sub]).forEach(l => { if (D) { g.lineWidth = Math.max(4, sp * 0.14); g.strokeStyle = 'rgba(40,0,40,0.7)'; g.strokeText(l, cx, y); g.fillStyle = '#ffe14d'; g.fillText(l, cx, y); } y += sp * 1.2; });
                 }
+                            return y;
+                };
+                const textBottom = drawText(false);   // 글씨가 끝나는 높이를 먼저 재고
+                await igDrawPhones(g, W, H, wide, footH, wide ? 0 : textBottom + H * 0.02); phonesDrawn = true;   // 폰은 그 아래에
+                drawText(true);
             }
             if (withText && (store || tel)) {
                 // 아래 분홍 매장 띠
@@ -12335,8 +12486,54 @@ familyStr + `\n` +
             let copied = false;
             try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); copied = true; } } catch (er) { copied = false; }
             const url = a.dataset.igApp === 'chatgpt' ? `https://chatgpt.com/?q=${encodeURIComponent(text)}` : 'https://gemini.google.com/app';
-            igStatus(copied ? '요청 문구를 복사했어요. 앱에 문구가 안 들어가 있으면 입력칸을 길게 눌러 [붙여넣기] 하세요. 그림이 나오면 저장하고 [만든 사진 가져오기]를 누르세요.' : '앱을 열었어요. 위 [무엇을 그릴까요] 내용을 앱에 적어주세요.', 'green');
+            if (ig.phones.length) {   // 고른 폰 사진도 폰에 저장해서 앱에 같이 첨부할 수 있게
+                (ig.phones.map(id => (phoneLib || []).find(p => p.id === id)).filter(Boolean)).forEach(p => { const a2 = document.createElement('a'); a2.href = p.data; a2.download = `${p.name}.png`; a2.click(); });
+            }
+            igStatus((ig.phones.length ? '고른 폰 사진을 저장했어요. 앱에서 사진도 같이 첨부하고 "이 폰 사진을 그대로 써줘"라고 하세요. ' : '') + (copied ? '요청 문구를 복사했어요. 앱에 문구가 안 들어가 있으면 입력칸을 길게 눌러 [붙여넣기] 하세요. 그림이 나오면 저장하고 [만든 사진 가져오기]를 누르세요.' : '앱을 열었어요. 위 [무엇을 그릴까요] 내용을 앱에 적어주세요.'), 'green');
             window.open(url, '_blank');
+        });
+        // 📱 기종 사진: 고르기 · 지우기 · 찾기 · 추가
+        document.getElementById('igPhones').addEventListener('click', async (e) => {
+            const del = e.target.closest('[data-ig-phone-del]');
+            if (del) {
+                const p = (phoneLib || []).find(x => x.id === del.dataset.igPhoneDel);
+                if (!p || !(await customConfirm(`'${p.name}' 사진을 지울까요?\n(다른 직원 화면에서도 없어져요)`))) return;
+                try { await deleteDoc(doc(db, 'phone_images', p.id)); phoneLib = phoneLib.filter(x => x.id !== p.id); ig.phones = ig.phones.filter(x => x !== p.id); renderPhones(); }
+                catch (er) { customAlert(koreanError(er, '삭제')); }
+                return;
+            }
+            const b = e.target.closest('[data-ig-phone]');
+            if (!b) return;
+            const id = b.dataset.igPhone;
+            if (ig.phones.includes(id)) ig.phones = ig.phones.filter(x => x !== id);
+            else if (ig.phones.length >= 3) { igStatus('폰 사진은 3개까지 넣을 수 있어요.', 'red'); return; }
+            else ig.phones.push(id);
+            renderPhones();
+        });
+        document.getElementById('igPhoneSearch').addEventListener('click', () => {
+            const name = guessModelName(document.getElementById('igPrompt').value + ' ' + document.getElementById('igHeadline').value) || '갤럭시 최신폰';
+            igStatus(`'${name}' 제품 사진을 찾는 창을 열었어요. 흰 배경의 공식 제품 사진을 길게 눌러 저장한 뒤 [+ 추가]로 올려주세요.`, 'green');
+            window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(name + ' 공식 제품 이미지 png')}`, '_blank');
+        });
+        document.getElementById('igPhoneAdd').addEventListener('click', () => { const i = document.getElementById('igPhoneFile'); i.value = ''; i.click(); });
+        document.getElementById('igPhoneFile').addEventListener('change', async (e) => {
+            const f = e.target.files && e.target.files[0];
+            if (!f) return;
+            if (!/^image\//.test(f.type || '')) { igStatus('사진 파일만 올릴 수 있어요.', 'red'); return; }
+            const guess = guessModelName(document.getElementById('igPrompt').value + ' ' + document.getElementById('igHeadline').value);
+            const name = (prompt('이 폰의 기종 이름을 적어주세요 (예: 갤럭시 S26 울트라)', guess) || '').trim().slice(0, 30);
+            if (!name) return;
+            igStatus('배경을 지우고 정리하는 중…', 'gray');
+            try {
+                const r = await cutoutPhone(f);
+                const id = 'p' + Date.now().toString(36);
+                const rec = { name, data: r.data, w: r.w, h: r.h, by: getStaffName() || '', at: new Date().toISOString() };
+                await saveDoc(doc(db, 'phone_images', id), rec);
+                phoneLib = [...(phoneLib || []), { id, ...rec }].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+                if (ig.phones.length < 3) ig.phones.push(id);
+                renderPhones();
+                igStatus(r.removed ? `'${name}' 사진을 올렸어요. 흰 배경을 지웠어요 — 모양이 이상하면 × 로 지우고 다른 사진으로 해주세요.` : `'${name}' 사진을 올렸어요. (배경이 단색이 아니라 그대로 넣었어요 · 흰 배경 사진이 가장 깔끔해요)`, 'green');
+            } catch (er) { console.error(er); igStatus(er.message || '사진을 올리지 못했어요.', 'red'); }
         });
         document.getElementById('igPickBtn').addEventListener('click', () => { const i = document.getElementById('igPickFile'); i.value = ''; i.click(); });
         document.getElementById('igPickFile').addEventListener('change', (e) => {
