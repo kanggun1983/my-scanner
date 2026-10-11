@@ -692,7 +692,7 @@
                         <input type="checkbox" id="promPushChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                     </label>
                     <button type="button" id="promPushTest" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">지금 한 번 보내보기</button>
-                    <p class="text-xs text-gray-500 leading-relaxed">받을 폰은 '명함 상담요청 → 이 폰으로 알림 받기'를 켜두세요. 보내는 시간은 알림 서버(Cloudflare)의 Cron 트리거로 정해요 (기본 오전 9시 30분).</p>
+                    <p class="text-xs text-gray-500 leading-relaxed">받을 폰은 '명함 상담요청 → 이 폰으로 알림 받기'를 켜두세요. 보내는 시간은 알림 서버(Cloudflare)의 Cron 트리거로 정해요: 오전 9시 30분 = '30 0 * * *' · 오후 1시도 받으려면 '0 4 * * *'를 하나 더 (오후 알림은 아직 처리 안 한 약속만 · 알림 서버 v3.2).</p>
                 </div>
             </section>
             <section class="space-y-2" aria-labelledby="setDriveTitle">
@@ -893,7 +893,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V151</span>
+                    <span class="text-sm text-gray-600">V153</span>
                 </div>
             </section>
         </div>
@@ -3593,6 +3593,7 @@
             else if (el.dataset.adminLocked) { el.disabled = false; delete el.dataset.adminLocked; }
         }
         function applyAdminLocks() {
+            { const xb = document.getElementById('exportExcelBtn'); if (xb) { xb.innerHTML = `<i class="fa-solid fa-file-excel"></i> ${isSuperAdmin ? '엑셀출력' : '내 고객 엑셀'}`; xb.title = isSuperAdmin ? '검색·필터된 고객을 엑셀로' : '내가 담당자인 고객만 엑셀로 출력돼요 (전체는 총관리자만)'; } }
             ADMIN_LOCK_SECTIONS.forEach(tid => {
                 const sec = document.querySelector(`section[aria-labelledby="${tid}"]`);
                 if (!sec) return;
@@ -4273,13 +4274,24 @@
             });
         });
 
+        // 📥 엑셀 출력: 👑 총관리자만 전체 · 직원은 '내가 담당자인 고객'만 (다른 직원·담당자 없는 고객은 빠짐)
+        function exportAllowed(c) { return isSuperAdmin || isMine(c); }
         document.getElementById('exportExcelBtn').addEventListener('click', async () => {
             let exportList = [];
+            const me = getStaffName();
+            if (!isSuperAdmin && !me) return customAlert('엑셀은 내 담당 고객만 출력돼요.\n설정 → 내 정보 → 직원 이름을 먼저 넣어주세요.');
 
             if (selectedIds.size === 0) {
-                const confirmAll = await customConfirm(`선택된 고객이 없습니다.\n현재 검색/필터링된 전체 고객(${globalFilteredDB.length}명)을 출력하시겠습니까?`);
-                if (!confirmAll) return;
-                exportList = globalFilteredDB;
+                if (isSuperAdmin) {
+                    const confirmAll = await customConfirm(`선택된 고객이 없습니다.\n현재 검색/필터링된 전체 고객(${globalFilteredDB.length}명)을 출력하시겠습니까?`);
+                    if (!confirmAll) return;
+                    exportList = globalFilteredDB;
+                } else {
+                    const mine = globalFilteredDB.filter(exportAllowed), cut = globalFilteredDB.length - mine.length;
+                    if (!mine.length) return customAlert(`엑셀은 내 담당 고객만 출력할 수 있어요.\n지금 목록에는 ${me}님 담당 고객이 없어요.\n(전체 출력은 👑 총관리자만 할 수 있어요)`);
+                    if (!(await customConfirm(`${me}님 담당 고객 ${mine.length}명을 엑셀로 출력할까요?${cut ? `\n(지금 목록의 다른 직원·담당자 없는 고객 ${cut}명은 빠져요)` : ''}\n\n전체 출력은 👑 총관리자만 할 수 있어요.`))) return;
+                    exportList = mine;
+                }
             } else {
                 exportList = customerDB.filter(c => selectedIds.has(c.id));
                 const visibleIds = new Set(globalFilteredDB.map(c => c.id));
@@ -4290,6 +4302,13 @@
                 }
             }
 
+            if (!isSuperAdmin) {   // 🔒 체크해서 고른 것 중 다른 직원 고객은 빼기
+                const before = exportList.length;
+                exportList = exportList.filter(exportAllowed);
+                const cut = before - exportList.length;
+                if (!exportList.length) return customAlert(`고른 고객 중 ${me}님 담당 고객이 없어요.\n엑셀은 내 담당 고객만 출력할 수 있어요. (전체 출력은 👑 총관리자만)`);
+                if (cut && !(await customConfirm(`고른 ${before}명 중 다른 직원·담당자 없는 고객 ${cut}명은 빼고\n${me}님 담당 ${exportList.length}명만 출력할까요?`))) return;
+            }
             { const hidden = exportList.filter(c => isActProtectedFor(c)).length;   // 🛡️ 개통 보호 고객은 담당자·관리자만
               if (hidden) { exportList = exportList.filter(c => !isActProtectedFor(c)); customAlert(`🛡️ 개통 보호 중인 다른 직원 고객 ${hidden}명은 빼고 출력해요.`); }
               if (!exportList.length) return; }
@@ -4340,7 +4359,7 @@
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            link.setAttribute("download", `고객목록_${getTodayStr()}.csv`);
+            link.setAttribute("download", `고객목록_${isSuperAdmin ? '' : (String(me).replace(/[\\/:*?"<>|\s]/g, '') + '_')}${getTodayStr()}.csv`);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -5399,7 +5418,8 @@
         function updateSelectionUI() {
             const n = selectedIds.size;
             document.getElementById('selectCount').textContent = n;
-            document.getElementById('selectExportLabel').textContent = n > 0 ? `엑셀로 내보내기 (${n}명)` : '엑셀로 내보내기';
+            { const m = isSuperAdmin ? n : customerDB.filter(c => selectedIds.has(c.id) && exportAllowed(c)).length;
+              document.getElementById('selectExportLabel').textContent = n > 0 ? (isSuperAdmin ? `엑셀로 내보내기 (${n}명)` : `내 고객만 엑셀로 (${m}명)`) : (isSuperAdmin ? '엑셀로 내보내기' : '내 고객만 엑셀로'); }
             const allVisible = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
             document.getElementById('selectAllVisibleBtn').textContent = allVisible ? '전체 해제' : '지금 목록 전체 선택';
         }
@@ -13384,10 +13404,10 @@ familyStr + `\n` +
                 try {
                     const r = await diagFetchJson(aUrl);
                     const v = r.data.version || 1;
-                    add('알림 서버', '서버 연결', r.ok && r.data.ok ? 'ok' : 'bad', r.ok ? `kangcrm-alert v${v}` : `응답 ${r.status}`);
+                    add('알림 서버', '서버 연결', r.ok && r.data.ok ? 'ok' : 'bad', r.ok ? `kangcrm-alert v${r.data.build || v}${r.data.build && parseFloat(r.data.build) >= 3.2 ? ' (하루 두 번 약속 알림 가능)' : ''}` : `응답 ${r.status}`);
                     add('알림 서버', 'OneSignal 키', r.data.ready ? 'ok' : 'bad', r.data.ready ? '' : 'Cloudflare에 ONESIGNAL_APP_ID · ONESIGNAL_REST_KEY를 넣어주세요.');
                     add('알림 서버', '🆓 무료 AI 이미지 (v3 · Workers AI)', r.data.imageReady ? 'ok' : 'warn', r.data.imageReady ? '' : (v < 3 ? '알림 서버 코드를 v3로 바꿔 배포하고, 바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.' : '바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.'));
-                    add('알림 서버', '아침 약속 알림 (v2 · FIREBASE_SA)', v < 2 ? 'bad' : (r.data.promReady ? 'ok' : 'bad'), v < 2 ? '알림 서버 코드를 v2로 바꿔 배포해 주세요.' : (r.data.promReady ? 'Cron 트리거(30 0 * * *)도 넣었는지 Cloudflare에서 확인해 주세요.' : 'Cloudflare에 FIREBASE_SA(서비스 계정 JSON)를 넣어주세요.'));
+                    add('알림 서버', '아침 약속 알림 (v2 · FIREBASE_SA)', v < 2 ? 'bad' : (r.data.promReady ? 'ok' : 'bad'), v < 2 ? '알림 서버 코드를 v2로 바꿔 배포해 주세요.' : (r.data.promReady ? `Cron 트리거: 아침 9:30 '30 0 * * *'${r.data.build && parseFloat(r.data.build) >= 3.2 ? " · 오후 1시도 받으려면 '0 4 * * *' 하나 더" : ''}` : 'Cloudflare에 FIREBASE_SA(서비스 계정 JSON)를 넣어주세요.'));
                 } catch (e) { add('알림 서버', '서버 연결', 'bad', '주소에 연결하지 못했어요. 주소를 확인해 주세요.'); }
             }
             add('알림 서버', '약속 알림 켜짐 (설정)', appSettings.promPushOn === true ? 'ok' : 'warn', appSettings.promPushOn === true ? '' : '설정 → 📅 약속 알림을 켜야 아침마다 와요.');
@@ -13398,7 +13418,7 @@ familyStr + `\n` +
                 if (!W.alertLastCron) add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '아직 기록이 없어요. 알림 서버 코드를 v3.1로 배포하면, 다음 Cron이 돌 때부터 여기 보여요.');
                 else {
                     const k = cronKst(W.alertCron);
-                    if (W.alertCronDaily === false) add('알림 서버', '자동 실행 (Cron)', 'bad', `알림 서버(kangcrm-alert)가 마지막으로 '${W.alertCron}'(자주 도는 Cron)으로 돌았어요 (${fmtSmsWhen(Date.parse(W.alertLastCron))}). 이 상태면 아침 약속 알림이 안 가요.\n고치기: Cloudflare → kangcrm-alert → 설정 → 트리거 이벤트 → Cron 트리거 ✏️ → '30 0 * * *'(매일 00:30 UTC = 한국 아침 9시 30분) 하나만 남기기. 10분·30분마다 도는 Cron은 중계 서버(kangcrm-push)에 넣는 거예요.\n고친 뒤에는 다음 아침 9시 30분에 한 번 돌고 나서 여기가 ✅로 바뀌어요.`);
+                    if (W.alertCronDaily === false) add('알림 서버', '자동 실행 (Cron)', 'bad', `알림 서버(kangcrm-alert)가 마지막으로 '${W.alertCron}'(자주 도는 Cron)으로 돌았어요 (${fmtSmsWhen(Date.parse(W.alertLastCron))}). 이 상태면 아침 약속 알림이 안 가요.\n고치기: Cloudflare → kangcrm-alert → 설정 → 트리거 이벤트 → Cron 트리거 ✏️ → '30 0 * * *'(매일 00:30 UTC = 한국 아침 9시 30분)로 바꾸기 (오후 1시도 받으려면 '0 4 * * *' 하나 더 · 앞에 */ 붙이면 안 돼요). 10분·30분마다 도는 Cron은 중계 서버(kangcrm-push)에 넣는 거예요.\n고친 뒤에는 다음 아침 9시 30분에 한 번 돌고 나서 여기가 ✅로 바뀌어요.`);
                     else add('알림 서버', '자동 실행 (Cron)', 'ok', `${W.alertCron}${k ? ` = 매일 한국 시간 ${k}` : ''} · 마지막 실행 ${fmtSmsWhen(Date.parse(W.alertLastCron))}`);
                 }
             } catch (e) { add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '기록을 읽지 못했어요.'); }
