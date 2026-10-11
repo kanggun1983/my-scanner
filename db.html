@@ -435,6 +435,7 @@
                 <button id="exportExcelBtn" class="hidden lg:flex bg-green-700 hover:bg-green-800 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
                     <i class="fa-solid fa-file-excel"></i> 엑셀출력
                 </button>
+                <button type="button" id="reassignBtn" class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap" title="체크한 고객의 담당자를 한 번에 바꿔요 (총관리자)"><i class="fa-solid fa-user-pen"></i> 담당자 바꾸기</button>
             </div>
 
             <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌 · 화면이 좁으면 옆으로 넘겨서 보기) -->
@@ -533,6 +534,8 @@
                 </select>
             </div>
 
+            <!-- 📋 지원금표 오래됨 안내 (👑 총관리자 · V167) -->
+            <div id="subsidyStale" class="hidden mb-2.5 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2"></div>
             <!-- 담당자별로 보는 중일 때 안내 -->
             <div id="managerBanner" class="hidden mb-2.5 flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-xl pl-3.5 pr-1 py-1">
                 <span class="min-w-0"><span id="managerBannerText" class="block text-sm font-bold text-indigo-900 truncate"></span><span class="block text-[11px] text-indigo-700">대시보드 타일·월 개통도 이 담당자 기준 · 오늘 연락은 매장 전체</span></span>
@@ -616,6 +619,10 @@
                     </div>
                     <button type="button" id="settingsLogoutBtn" class="w-full h-14 px-4 text-left text-[15px] font-medium text-red-700 hover:bg-red-50">로그아웃</button>
                 </div>
+            </section>
+            <section class="space-y-2" aria-labelledby="setStaffTitle">
+                <h3 id="setStaffTitle" class="text-[13px] font-bold text-gray-600 pl-1">👤 직원 계정 · 담당 넘기기</h3>
+                <div id="staffAcctBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-3"></div>
             </section>
             <section class="space-y-2" aria-labelledby="setAiTitle">
                 <h3 id="setAiTitle" class="text-[13px] font-bold text-gray-600 pl-1">AI 스캔</h3>
@@ -776,6 +783,21 @@
                         </label>
                     </div>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <p class="text-[14px] font-bold text-gray-900">⏰ 연락 약속 시간 · 💬 카톡 상담 <span class="text-xs font-medium text-gray-500">(V167)</span></p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <label class="text-xs font-bold text-gray-600">연락 약속<select id="calcReplyMin" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50"><option value="15">15분</option><option value="30">30분</option><option value="60">1시간</option><option value="120">2시간</option></select></label>
+                            <label class="text-xs font-bold text-gray-600">영업 시작<select id="calcReplyOpen" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50"><option value="7">7시</option><option value="8">8시</option><option value="9">9시</option><option value="10">10시</option><option value="11">11시</option><option value="12">12시</option></select></label>
+                            <label class="text-xs font-bold text-gray-600">영업 끝<select id="calcReplyClose" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50"><option value="17">17시</option><option value="18">18시</option><option value="19">19시</option><option value="20">20시</option><option value="21">21시</option><option value="22">22시</option><option value="23">23시</option></select></label>
+                        </div>
+                        <label for="calcReplyEsc" class="flex items-center justify-between gap-3 cursor-pointer">
+                            <span class="text-sm font-bold text-gray-900 leading-snug">⏰ 약속 시간이 지나도록 아무도 안 맡으면 👑 대표 폰에 알림<br><span class="text-xs font-medium text-gray-600">요청마다 한 번 · 영업시간 안에만 · 알림 서버 v3.7 (강CRM이 하나라도 켜져 있거나, 알림 서버에 10분마다 Cron이 있을 때)</span></span>
+                            <input type="checkbox" id="calcReplyEsc" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                        </label>
+                        <p class="text-xs text-gray-600 leading-relaxed">명함 [견적요청] 버튼 위에 "영업시간엔 보통 30분 안에 연락드려요", 보낸 뒤엔 "30분 안에 연락드릴게요" (영업시간 밖이면 "내일 오전 10시부터 바로")로 보여요. 강CRM '명함견적'에선 이 시간이 지나면 빨갛게 보여요.</p>
+                        <label class="block text-xs font-bold text-gray-600">💬 카카오톡 상담 주소<input type="url" id="calcKakao" inputmode="url" autocomplete="off" placeholder="https://pf.kakao.com/_hxkKzX/chat" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50"></label>
+                        <p class="text-xs text-gray-600 leading-relaxed">명함 견적요청 아래 · 보낸 뒤 화면 · 받은 견적 화면에 [💬 카톡으로 바로 물어보기]가 생겨요. 비우면 매장 카카오채널(pf.kakao.com/_hxkKzX) 1:1 채팅으로 가요.</p>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
                         <label for="bbOn" class="flex items-center justify-between gap-3 cursor-pointer">
                             <span class="text-[14px] font-bold text-gray-900 leading-snug">명함 맨 아래 고정 배너<br><span class="text-xs font-medium text-gray-600">스크롤 안 해도 항상 보여요 · 누르면 상담 신청 창</span></span>
                             <input type="checkbox" id="bbOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
@@ -911,7 +933,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V166</span>
+                    <span class="text-sm text-gray-600">V167</span>
                 </div>
             </section>
         </div>
@@ -931,6 +953,7 @@
         <!-- 선택 모드 아래 바 -->
         <div id="selectBar" class="hidden lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 px-4 pt-3" style="padding-bottom: max(16px, env(safe-area-inset-bottom));">
             <button type="button" id="selectExportBtn" class="w-full h-[52px] rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-base font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-file-arrow-down"></i><span id="selectExportLabel">엑셀로 내보내기</span></button>
+            <button type="button" id="selectReassignBtn" class="hidden mt-2 w-full h-12 rounded-2xl border-2 border-amber-500 bg-amber-50 text-amber-900 text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-user-pen"></i><span id="selectReassignLabel">👑 담당자 바꾸기</span></button>
         </div>
     </div>
 
@@ -3021,7 +3044,27 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 보안 규칙(Rules)에서 걸어야 합니다 - 여기서 막아도 Rules가 열려있으면
         // 개발자도구/API로 우회해 DB에 직접 접근할 수 있습니다.
         // 배열이 비어있으면(기본값) 기존과 동일하게 전원 접근 허용 상태입니다.
-        const ALLOWED_EMAILS = ['hogyu0921@gmail.com', 'a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 로그인할 수 있는 계정 (이 목록 밖은 바로 로그아웃)
+        const ALLOWED_EMAILS = ['hogyu0921@gmail.com', 'a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 예전 고정 목록 — V167부터는 설정 → 직원 계정(staff_accounts/list)이 정함 (목록이 아직 없을 때만 이걸로)
+        let staffAccounts = null;   // { emails:[], info:{email:{addedAt, addedBy, memo}} }
+        // 👤 이 계정이 들어올 수 있는지: 총관리자는 항상 · 직원은 강CRM 설정의 직원 계정 목록 (목록이 아직 없으면 예전 고정 목록)
+        async function checkStaffAccess(emailLc) {
+            if (SUPER_ADMIN_EMAILS.includes(emailLc)) return { ok: true };
+            try {
+                const snap = await getDoc(doc(db, 'staff_accounts', 'list'));
+                const remember = (ok) => { try { if (ok) localStorage.setItem('kcrmAccessOk', emailLc); else if (localStorage.getItem('kcrmAccessOk') === emailLc) localStorage.removeItem('kcrmAccessOk'); } catch (e) { /* 무시 */ } return { ok }; };
+                if (snap.exists()) {
+                    const d = snap.data() || {};
+                    staffAccounts = { emails: Array.isArray(d.emails) ? d.emails : [], info: d.info || {} };
+                    return remember(staffAccounts.emails.map(e => String(e).toLowerCase()).includes(emailLc));
+                }
+                return remember(ALLOWED_EMAILS.includes(emailLc));
+            } catch (e) {
+                if (/permission/i.test(String((e && e.code) || e))) return { ok: false };
+                // 인터넷이 잠깐 끊겼을 때: 예전 목록이거나, 이 폰에서 전에 들어온 적 있는 계정이면 그대로 (새로 추가한 직원이 지하철에서 앱을 열어도 튕기지 않게)
+                let before = ''; try { before = localStorage.getItem('kcrmAccessOk') || ''; } catch (e2) { /* 무시 */ }
+                return { ok: ALLOWED_EMAILS.includes(emailLc) || before === emailLc, offline: true };
+            }
+        }
         const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 👑 총관리자 — 매장 공용 설정을 바꿀 수 있음
 
         let db, auth, customerDB = [], currentFilter = 'all';
@@ -3384,9 +3427,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     errMsg.classList.remove('hidden');
                 });
 
-                onAuthStateChanged(auth, (user) => {
+                onAuthStateChanged(auth, async (user) => {
                     const emailLc = String((user && user.email) || '').trim().toLowerCase();
-                    if (user && (ALLOWED_EMAILS.length === 0 || ALLOWED_EMAILS.includes(emailLc))) {
+                    const access = user ? await checkStaffAccess(emailLc) : { ok: false };
+                    if (user && access.ok) {
                         isSuperAdmin = SUPER_ADMIN_EMAILS.includes(emailLc);
                         document.getElementById('loginOverlay').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
@@ -3396,6 +3440,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         applyAdminLocks();
                         attachDBListeners(); 
                         attachCalcListeners();   // 📱 명함 폰값계산 · 상담요청
+                        seedStaffAccounts().finally(() => { try { attachStaffAccounts(); } catch (e) { console.warn(e); } });   // 👤 직원 계정 목록 (V167)
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
                         const errMsg = document.getElementById('loginErrorMsg');
@@ -3410,6 +3455,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if(statsUnsubscribe) statsUnsubscribe();
                         if(settingsUnsubscribe) settingsUnsubscribe();
                         detachCalcListeners();
+                        if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
                         customerDB = [];
                     }
                 });
@@ -4549,6 +4595,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
                 if (isSuperAdmin && note) note.remove();
             });
+            try { syncReassignBtns(); } catch (e) { /* 준비 전 */ }
+            try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
+            try { renderSubsidyStale(); } catch (e) { /* 준비 전 */ }
             try { const tb = document.getElementById('teamSetBox'); if (tb && tb.dataset.admin !== (isSuperAdmin ? '1' : '0')) renderTeamSettings(); } catch (e) { /* 준비 전 */ }   // 👥 공용 명함 칸 (총관리자 여부가 바뀔 때만 다시 그림)
             ['settingsStoreName', 'pushRelayUrl'].forEach(id => { const el = document.getElementById(id); if (el) { setAdminLock(el, !isSuperAdmin); el.title = isSuperAdmin ? '' : '총관리자만 바꿀 수 있어요'; } });
             const badge = document.getElementById('settingsRoleBadge');
@@ -5215,6 +5264,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.querySelectorAll('.row-chk').forEach(chk => {
                 chk.checked = isChecked;
             });
+            try { syncReassignBtns(); } catch (err) { /* 준비 전 */ }
         });
 
         // 📥 엑셀 출력: 👑 총관리자만 전체 · 직원은 '내가 담당자인 고객'만 (다른 직원·담당자 없는 고객은 빠짐)
@@ -5316,6 +5366,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const total = document.querySelectorAll('.row-chk').length;
                 const checked = document.querySelectorAll('.row-chk:checked').length;
                 document.getElementById('selectAllChk').checked = (total > 0 && total === checked);
+                try { syncReassignBtns(); } catch (err) { /* 준비 전 */ }
             }
         });
 
@@ -6365,6 +6416,75 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
               document.getElementById('selectExportLabel').textContent = n > 0 ? (isSuperAdmin ? `엑셀로 내보내기 (${n}명)` : `내 고객만 엑셀로 (${m}명)`) : (isSuperAdmin ? '엑셀로 내보내기' : '내 고객만 엑셀로'); }
             const allVisible = globalFilteredDB.length > 0 && globalFilteredDB.every(c => selectedIds.has(c.id));
             document.getElementById('selectAllVisibleBtn').textContent = allVisible ? '전체 해제' : '지금 목록 전체 선택';
+            syncReassignBtns();
+        }
+        /* ---------- 👤 담당자 한꺼번에 바꾸기 (👑 총관리자 · V167) ----------
+           · 퇴사·휴직·담당 조정 때: 목록에서 고객을 고르고 → [담당자 바꾸기] → 새 담당자
+           · 담당자 잠금·개통 보호(M+6)는 '담당자' 기준이라 바꾸면 새 담당자가 바로 관리할 수 있어요
+           · 연락 기록에 "👤 담당자 변경 A → B (👑 이름)"이 남아요 · 개통직원(실적)은 그대로 */
+        function syncReassignBtns() {
+            const n = selectedIds.size;
+            const a = document.getElementById('reassignBtn'), b = document.getElementById('selectReassignBtn'), l = document.getElementById('selectReassignLabel');
+            if (a) { a.classList.toggle('hidden', !isSuperAdmin); a.classList.toggle('lg:flex', isSuperAdmin); a.innerHTML = `<i class="fa-solid fa-user-pen"></i> 담당자 바꾸기${n ? ` (${n})` : ''}`; }
+            if (b) b.classList.toggle('hidden', !isSuperAdmin);
+            if (l) l.textContent = n ? `👑 담당자 바꾸기 (${n}명)` : '👑 담당자 바꾸기';
+        }
+        function staffPickNames() {   // 고를 수 있는 담당자: 로그인한 직원 이름 + 지금 고객에 쓰인 담당자
+            const m = new Map();
+            const add = (v) => { v = String(v || '').trim(); const k = managerKey(v); if (!v || LOCK_EMPTY.has(k) || m.has(k)) return; m.set(k, v); };
+            Object.values(staffByEmail()).forEach(add); add(getStaffName());
+            return [...m.values()].sort((a, b) => a.localeCompare(b, 'ko'));
+        }
+        async function reassignCustomers(ids, opts = {}) {
+            if (!isSuperAdmin) return customAlert('담당자 한꺼번에 바꾸기는 총관리자만 할 수 있어요.');
+            const list = ids.map(id => customerDB.find(c => c.id === id)).filter(Boolean);
+            if (!list.length) return customAlert('담당자를 바꿀 고객을 먼저 골라주세요.\n(목록에서 [선택] → 고객 체크, 또는 👤 담당자로 거른 뒤 [지금 목록 전체 선택])');
+            const count = new Map(); list.forEach(c => { const k = ownerOf(c) || '없음'; count.set(k, (count.get(k) || 0) + 1); });
+            const nowTxt = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ');
+            const pick = await new Promise(res => {
+                const names = staffPickNames().filter(n => !(count.size === 1 && sameStaff(n, [...count.keys()][0])));
+                openActionSheet(`${list.length}명의 새 담당자 (지금: ${nowTxt})`, [
+                    ...names.map(n => ({ icon: 'fa-solid fa-user', label: n, sub: `${customerDB.filter(c => sameStaff(ownerOf(c), n)).length}명 담당 중`, onClick: () => res(n) })),
+                    { icon: 'fa-solid fa-keyboard', label: '직접 입력', sub: '목록에 없는 이름', onClick: () => { const v = prompt('새 담당자 이름을 적어주세요', ''); res(v && v.trim() ? v.trim() : null); } },
+                    { icon: 'fa-solid fa-user-slash', label: '담당자 비우기', sub: '누구나 고칠 수 있는 고객이 돼요', onClick: () => res('') }
+                ]);
+                const t = setInterval(() => { if (actionSheet.style.display !== 'flex') { clearInterval(t); setTimeout(() => res(undefined), 300); } }, 400);
+            });
+            if (pick === undefined || pick === null) return;
+            const label = pick || '없음';
+            if (!(await customConfirm(`${list.length}명의 담당자를 '${label}'(으)로 바꿀까요?\n지금: ${nowTxt}\n\n· 담당자 잠금·개통 보호도 새 담당자 기준이 돼요\n· 개통직원(실적)·연락 기록은 그대로예요\n· 연락 기록에 담당자 변경이 한 줄 남아요`))) return 'cancel';
+            const me = getStaffName() || '총관리자', stamp = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}]`;
+            let ok = 0, fail = 0;
+            const prog = document.getElementById('reassignProg') || (() => { const d = document.createElement('div'); d.id = 'reassignProg'; d.className = 'fixed left-1/2 -translate-x-1/2 bottom-24 z-[90] bg-gray-900 text-white text-sm font-bold rounded-2xl px-4 py-3 shadow-xl'; document.body.appendChild(d); return d; })();
+            prog.style.display = 'block';
+            for (let i = 0; i < list.length; i += 10) {
+                await Promise.all(list.slice(i, i + 10).map(async c => {
+                    try {
+                        await txCustomerUpdate(c.id, (cur) => {
+                            const old = String(cur.manager || '').trim();
+                            const cm = String(cur.contactManager || '').trim();
+                            return {
+                                manager: pick,
+                                ...((!cm || sameStaff(cm, old)) ? { contactManager: pick } : {}),
+                                contactHistory: appendLine(cur.contactHistory, `${stamp} 👤 담당자 변경 ${old || '없음'} → ${label} (👑 ${me})`),
+                                updatedAt: new Date().toISOString()
+                            };
+                        });
+                        ok++;
+                    } catch (e) { console.error('담당자 변경 실패', c.id, e); fail++; }
+                }));
+                prog.textContent = `담당자 바꾸는 중… ${Math.min(i + 10, list.length)} / ${list.length}`;
+            }
+            prog.style.display = 'none';
+            if (!opts.keepSelection) { selectedIds.clear(); if (selectionMode) setSelectionMode(false); else { renderDB(); } }
+            customAlert(`👤 ${ok}명의 담당자를 '${label}'(으)로 바꿨어요.${fail ? `\n⚠️ ${fail}명은 못 바꿨어요 (인터넷 확인 후 다시).` : ''}`);
+            return { ok, fail };
+        }
+        // 이 직원이 담당하는 고객 전부 → 다른 직원에게 (설정 → 직원 계정의 [담당 고객 넘기기])
+        function reassignFromStaff(name) {
+            const ids = customerDB.filter(c => !c.deletedAt && sameStaff(ownerOf(c), name)).map(c => c.id);
+            if (!ids.length) return customAlert(`'${name}' 담당 고객이 없어요.`);
+            return reassignCustomers(ids, { keepSelection: true });
         }
         document.getElementById('selectModeBtn').addEventListener('click', () => setSelectionMode(true));
         document.getElementById('selectExitBtn').addEventListener('click', () => setSelectionMode(false));
@@ -6375,6 +6495,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             updateSelectionUI();
         });
         document.getElementById('selectExportBtn').addEventListener('click', () => document.getElementById('exportExcelBtn').click());
+        document.getElementById('selectReassignBtn').addEventListener('click', () => reassignCustomers([...selectedIds]));
+        document.getElementById('reassignBtn').addEventListener('click', () => reassignCustomers([...selectedIds]));
 
         // ── 설정 화면 ──
         function renderSettings() {
@@ -6405,6 +6527,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
             { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
             applyAdminLocks();   // 👑 다시 그린 칸·버튼도 잠금 유지
+            try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
         }
         // 👤 직원 이름은 로그인 계정에 묶음 (매장 설정 staffByEmail) → 폰을 바꿔도 같은 이름 · 다른 직원 이름으로 바꿀 수 없음 (담당자 잠금 우회 방지)
         function staffByEmail() { return appSettings.staffByEmail || {}; }
@@ -11577,6 +11700,7 @@ familyStr + `\n` +
                 if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats();
             }, err => console.error('담당자별 푸시 실적 불러오기 실패:', err));
             calcReqFirstLoad = true;
+            startOverdueTimer();
             calcReqUnsub = onSnapshot(collection(db, 'card_requests'), snap => {
                 const list = [];
                 snap.forEach(d => list.push({ ...d.data(), id: d.id }));
@@ -11599,6 +11723,7 @@ familyStr + `\n` +
             if (typeof docFilesUnsub === 'function') { try { docFilesUnsub(); } catch (e) {} }
             if (staffStatsUnsub) { staffStatsUnsub(); staffStatsUnsub = null; }
             if (calcUnsub) { calcUnsub(); calcUnsub = null; }
+            clearInterval(overdueTimer); overdueTimer = null;
             if (teamUnsub) { teamUnsub(); teamUnsub = null; }
             if (calcReqUnsub) { calcReqUnsub(); calcReqUnsub = null; }
             if (cardNoticeUnsub) { cardNoticeUnsub(); cardNoticeUnsub = null; }
@@ -11610,13 +11735,59 @@ familyStr + `\n` +
             const now = Date.now(), DAY = 86400000;
             calcRequests.forEach(r => {
                 const at = Date.parse(r.at || '') || now, doneAt = Date.parse(r.doneAt || '') || at;
-                if ((r.done === 'Y' && now - doneAt > 30 * DAY) || now - at > 60 * DAY) deleteDoc(doc(db, 'card_requests', r.id)).catch(() => {});
+                if ((r.done === 'Y' && now - doneAt > 62 * DAY) || now - at > 62 * DAY) deleteDoc(doc(db, 'card_requests', r.id)).catch(() => {});   // V167: 지난달 성과까지 보이게 62일 보관
             });
         }
 
         /* ---------- 고객 찾기 · 표시 ---------- */
         // 🤝 지인이 받은 명함으로 들어온 상담요청 (명함이 내용 첫 줄에 '🤝 소개 명함: 명함번호'를 붙임)
         const CALC_REF_RE = /^🤝 소개 명함: ?([A-Za-z0-9_-]{2,40})[^\n]*(?:\n|$)/;
+        /* ---------- 🙋 요청 맡기 · ⏱ 경과 시간 · ⏰ 연락 약속 시간 (V167) ----------
+           · 직원이 [내가 맡을게요]를 누르거나 전화·문자·견적을 보내면 그 직원 이름이 요청에 붙어요 (두 명이 같은 고객에게 연락하지 않게)
+           · 영업시간 안에서 '연락 약속 시간'(기본 30분)이 지나도록 아무도 안 맡으면 빨갛게 → 알림 서버(v3.7)가 대표(총관리자) 폰에 알림
+           · 영업시간 밖에 온 요청은 다음 영업 시작부터 셈 */
+        function calcReply() {
+            const R = (calcData && calcData.reply) || {};
+            const num = (v, d) => Number.isFinite(Number(v)) && v !== '' && v !== null && v !== undefined ? Number(v) : d;
+            return { min: Math.max(5, num(R.min, 30)), open: num(R.open, 10), close: num(R.close, 20), esc: R.esc !== false };
+        }
+        function calcNeedsReply(r) { return !!r && r.kind === 'ask' && r.done !== 'Y' && !calcIsReg(r); }
+        function calcBizMinutes(atIso, nowMs = Date.now()) {
+            const at = Date.parse(atIso || ''); if (!isFinite(at)) return 0;
+            const R = calcReply(), d = new Date(nowMs);
+            const openT = new Date(d.getFullYear(), d.getMonth(), d.getDate(), R.open, 0, 0).getTime();
+            const closeT = new Date(d.getFullYear(), d.getMonth(), d.getDate(), R.close, 0, 0).getTime();
+            const start = Math.max(at, openT), end = Math.min(nowMs, closeT);
+            return end > start ? Math.floor((end - start) / 60000) : 0;
+        }
+        function calcOverdue(r) { return calcNeedsReply(r) && !r.claimBy && calcBizMinutes(r.at) >= calcReply().min; }
+        async function calcClaim(r, { force = false, contact = false } = {}) {
+            if (!r || !db) return;
+            const me = getStaffName() || '직원', patch = {};
+            if (r.done !== 'Y' && (!r.claimBy || force)) Object.assign(patch, { claimBy: me, claimAt: new Date().toISOString() });
+            if (contact && !r.contactAt) patch.contactAt = new Date().toISOString();
+            if (!Object.keys(patch).length) return;
+            Object.assign(r, patch);
+            try { await saveUpdate(doc(db, 'card_requests', r.id), patch); } catch (e) { console.warn('요청 맡기 기록 실패', e); }
+        }
+        // ⏰ 강CRM이 켜져 있는 동안 5분마다 알림 서버(v3.7)에 '연락 약속 시간 지난 요청' 확인을 부탁 (서버가 중복 없이 대표에게 알림)
+        let alertBuildCache = null, overdueTimer = null;
+        async function alertBuild() {
+            const url = calcData && calcData.alert && calcData.alert.url; if (!url) return 0;
+            if (alertBuildCache && alertBuildCache.url === url && Date.now() - alertBuildCache.at < 6 * 3600e3) return alertBuildCache.build;
+            try { const r = await fetch(url, { cache: 'no-store' }); const d = await r.json(); alertBuildCache = { url, at: Date.now(), build: parseFloat(d.build || '0') || 0 }; }
+            catch (e) { alertBuildCache = { url, at: Date.now() - 5 * 3600e3, build: 0 }; }   // 실패하면 1시간 뒤 다시
+            return alertBuildCache.build;
+        }
+        async function overduePing() {
+            try {
+                if (!calcReply().esc || !calcRequests.some(calcOverdue)) return;
+                if (calcRequests.filter(calcOverdue).every(r => r.escAt)) return;
+                if ((await alertBuild()) < 3.7) return;
+                await fetch(calcData.alert.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'overdue' }) });
+            } catch (e) { /* 다음에 다시 */ }
+        }
+        function startOverdueTimer() { clearInterval(overdueTimer); overdueTimer = setInterval(() => { overduePing(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'requests' && !calcSelMode) renderCalcRequests(); }, 5 * 60 * 1000); setTimeout(overduePing, 20000); }
         // 👥 직원 공용 명함에서 온 요청: 명함이 detail 끝에 '📇 명함: 공용 · 홍길동 (직원번호)'를 붙임
         const CALC_TEAM_RE = /\n?📇 명함: 공용 · ([^\n]*?)(?: \(([a-z0-9]{3,12})\))?[ \t]*$/;
         function calcTeamOf(r) {
@@ -11698,9 +11869,10 @@ familyStr + `\n` +
         }
         // 관심 기록 (kind 'calc'): 계산기만 써봄 · 👀 견적요청 화면에서 고르다 안 보냄
         const calcIsView = (r) => /^👀/.test(String((r && r.summary) || ''));
-        function calcViewLabel(r) { return calcIsView(r) ? '견적 보다 나감' : '계산만 해봄'; }
-        function calcAskShort(r) { if (!r || r.kind !== 'ask') return calcIsView(r) ? '견적 봄' : '계산'; const l = calcAskLabel(r); return l === '견적요청' ? '견적' : (l === '인터넷·TV 상담' ? '인터넷·TV' : (l === 'QR 등록' ? 'QR 등록' : '상담')); }
-        function calcSmsText(r) { if (r && r.kind !== 'ask' && calcIsView(r)) return '명함에서 알아보신 조건으로 견적 안내드릴게요.'; const l = calcAskLabel(r); return l === '견적요청' ? '명함으로 보내주신 견적요청 보고 연락드려요.' : (l === '인터넷·TV 상담' ? '신청하신 인터넷·TV 상담으로 연락드려요.' : '명함에서 계산해 보신 조건으로 안내드릴게요.'); }
+        const calcIsQuoteSeen = (r) => /^👀 받은 견적/.test(String((r && r.summary) || ''));   // V167: 고객이 명함에서 보낸 견적을 열어봄 · 방문 예약 누름
+        function calcViewLabel(r) { if (calcIsQuoteSeen(r)) return /방문 예약/.test(String(r.summary || '')) ? '견적 보고 방문 예약' : '받은 견적 확인'; return calcIsView(r) ? '견적 보다 나감' : '계산만 해봄'; }
+        function calcAskShort(r) { if (!r || r.kind !== 'ask') return calcIsQuoteSeen(r) ? (/방문 예약/.test(String(r.summary || '')) ? '예약 누름' : '견적 확인') : (calcIsView(r) ? '견적 봄' : '계산'); const l = calcAskLabel(r); return l === '견적요청' ? '견적' : (l === '인터넷·TV 상담' ? '인터넷·TV' : (l === 'QR 등록' ? 'QR 등록' : '상담')); }
+        function calcSmsText(r) { if (r && r.kind !== 'ask' && calcIsQuoteSeen(r)) return '보내드린 견적 확인하셨나요? 궁금한 점이나 원하시는 방문 시간 편하게 말씀해 주세요.'; if (r && r.kind !== 'ask' && calcIsView(r)) return '명함에서 알아보신 조건으로 견적 안내드릴게요.'; const l = calcAskLabel(r); return l === '견적요청' ? '명함으로 보내주신 견적요청 보고 연락드려요.' : (l === '인터넷·TV 상담' ? '신청하신 인터넷·TV 상담으로 연락드려요.' : '명함에서 계산해 보신 조건으로 안내드릴게요.'); }
         function calcFindCustomer(r) {
             if (r.cid) { const c = customerDB.find(x => x.cardId === r.cid) || customerDB.find(x => prevCardIdsOf(x).includes(r.cid)); if (c) return c; }   // 카드를 합친 고객은 예전 명함 번호로도
             const p = String(r.phone || '').replace(/\D/g, '');
@@ -11741,7 +11913,29 @@ familyStr + `\n` +
             const el = document.getElementById('calcManageSub');
             if (!el) return;
             const d = calcData || calcNormalize(null);
-            el.textContent = CALC_CARRIERS.map(k => { const C = d.carriers[k] || {}; return C.models && C.models.length ? `${k} ${C.date || '등록됨'}${C.hidden ? '(숨김)' : ''}` : `${k} 준비 중`; }).join(' · ');
+            el.textContent = CALC_CARRIERS.map(k => { const C = d.carriers[k] || {}; const age = subsidyAge(C); return C.models && C.models.length ? `${k} ${C.date || '등록됨'}${age !== null ? ` (${age}일 전 올림)` : ''}${C.hidden ? '(숨김)' : ''}` : `${k} 준비 중`; }).join(' · ');
+            renderSubsidyStale();
+        }
+        // 📋 지원금표를 올린 지 며칠 됐는지 (올린 날 uploadedAt 기준 · 없으면 모름)
+        const SUBSIDY_STALE_DAYS = 7;
+        function subsidyAge(C) {
+            const t = Date.parse(String((C && C.uploadedAt) || '').slice(0, 10));
+            return isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : null;
+        }
+        function renderSubsidyStale() {
+            const box = document.getElementById('subsidyStale');
+            if (!box) return;
+            const d = calcData;
+            let dismissed = ''; try { dismissed = localStorage.getItem('subsidyStaleOff') || ''; } catch (e) {}
+            const old = !d || !isSuperAdmin ? [] : CALC_CARRIERS.map(k => [k, d.carriers[k] || {}]).filter(([, C]) => C.models && C.models.length && C.ready && !C.hidden)
+                .map(([k, C]) => [k, subsidyAge(C)]).filter(([, a]) => a !== null && a >= SUBSIDY_STALE_DAYS);
+            if (!old.length || dismissed === getTodayStr()) { box.classList.add('hidden'); return; }
+            box.innerHTML = `<div class="flex items-start gap-2">
+                <p class="flex-1 min-w-0 text-[13px] font-bold text-amber-900 leading-snug">📋 지원금표가 오래됐어요 · ${old.map(([k, a]) => `${escapeHtml(k)} ${a}일 전`).join(' · ')}<span class="block text-xs font-medium text-amber-800">정책이 바뀌었으면 새로 올려주세요. 명함 견적·계산기가 이 표를 따라요.</span></p>
+                <div class="flex flex-col gap-1 flex-shrink-0"><button type="button" id="subsidyStaleGo" class="h-9 px-3 rounded-lg bg-amber-600 text-white text-xs font-bold">올리기</button><button type="button" id="subsidyStaleOff" class="h-8 px-2 rounded-lg text-xs font-bold text-amber-800">오늘은 그만</button></div></div>`;
+            box.classList.remove('hidden');
+            box.querySelector('#subsidyStaleGo').onclick = () => openCalcSheet('manage');
+            box.querySelector('#subsidyStaleOff').onclick = () => { try { localStorage.setItem('subsidyStaleOff', getTodayStr()); } catch (e) {} box.classList.add('hidden'); };
         }
         // 고객 화면 맨 위: 처리 안 한 상담요청을 바로 보여줌 → 누르면 등록 고객은 고객카드, 새 고객은 요청 목록
         function renderCalcStrip() {
@@ -11866,7 +12060,6 @@ familyStr + `\n` +
                 else if (/not subscribed|No recipients|no_recipients/i.test(detail)) msg = '알림 서버는 정상인데 알림 받기로 등록된 폰이 없어요.\n[이 폰은 알림 받는 중]을 눌러 껐다가 다시 켜주세요.';
                 else if (res.status === 429) msg = '알림을 짧은 시간에 너무 많이 보내서 알림 서버가 잠깐 막았어요.\n10분 뒤에 다시 해주세요. (알림 서버 v3.3부터 10분에 20번까지)';
                 else if (res.status === 403) msg = '알림 서버가 이 주소를 막았어요. (주소 확인 필요)';
-                else if (res.status === 429) msg = '테스트를 너무 자주 했어요. 10분 뒤에 다시 해주세요.';
                 else if (/설정 필요/.test(detail)) msg = '알림 서버에 ONESIGNAL_APP_ID / ONESIGNAL_REST_KEY가 안 들어가 있어요.';
                 else if (/auth|key|403|401/i.test(detail)) msg = 'OneSignal 키가 틀렸어요. Cloudflare의 ONESIGNAL_REST_KEY를 다시 넣어주세요.\n' + detail;
                 else msg = `알림 서버 오류 (${res.status})\n${detail}`;
@@ -11956,6 +12149,7 @@ familyStr + `\n` +
             else if (calcSheetMode === 'range') renderRangeSheet();
             else if (calcSheetMode === 'promAdd') renderPromAdd();
             else if (calcSheetMode === 'staff') renderStaffStats();
+            else if (calcSheetMode === 'funnel') renderCalcFunnel();
             else if (manage) {
                 document.getElementById('calcSheetTitle').textContent = '명함 폰값계산';
                 document.getElementById('calcSheetSub').textContent = isSuperAdmin ? '엑셀을 올리면 명함 금액이 바로 바뀌어요' : '🔒 총관리자만 바꿀 수 있어요 (보기는 가능)';
@@ -12174,6 +12368,7 @@ familyStr + `\n` +
                     <button type="button" id="calcAlertBtn" class="flex-1 min-w-0 h-11 px-3 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 ${alertOn === 'on' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-pink-600 text-white'}">
                         <i class="fa-solid ${alertOn === 'on' ? 'fa-bell' : 'fa-bell-slash'}"></i><span class="truncate">${alertOn === 'on' ? '이 폰은 알림 받는 중' : '이 폰으로 알림 받기'}</span></button>
                     ${alertOn === 'on' ? '<button type="button" id="calcAlertTest" class="flex-shrink-0 h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">테스트</button>' : ''}
+                    <button type="button" id="calcFunnelBtn" class="flex-shrink-0 h-11 px-3 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">📊 성과</button>
                     ${list.length ? `<button type="button" id="calcSelToggle" class="flex-shrink-0 h-11 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">${calcSelMode ? '선택 취소' : '선택'}</button>` : ''}
                 </div>`;
             if (calcReqError) html += `<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-snug">요청 목록을 못 불러왔어요. Firebase 보안 규칙에 card_requests 칸이 들어갔는지 확인해주세요.</p>`;
@@ -12187,7 +12382,8 @@ familyStr + `\n` +
                 const phone = (c && c.phone) || r.phone || '';
                 const digits = String(phone).replace(/\D/g, '');
                 const picked = calcSel.has(r.id);
-                html += `<article ${calcSelMode ? `data-calc-pick="${escapeHtml(r.id)}" role="checkbox" aria-checked="${picked}" tabindex="0"` : ''} class="rounded-2xl border ${picked ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50/40' : (isAsk && r.done !== 'Y' ? 'border-pink-300 bg-pink-50/40' : 'border-gray-200 bg-white')} p-3 space-y-2 ${calcSelMode ? 'cursor-pointer' : ''}">
+                const over = calcOverdue(r), bizM = calcNeedsReply(r) ? calcBizMinutes(r.at) : 0, mine = r.claimBy && sameStaff(r.claimBy, getStaffName());
+                html += `<article ${calcSelMode ? `data-calc-pick="${escapeHtml(r.id)}" role="checkbox" aria-checked="${picked}" tabindex="0"` : ''} class="rounded-2xl border ${picked ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50/40' : (over ? 'border-red-400 ring-1 ring-red-200 bg-red-50/40' : (isAsk && r.done !== 'Y' ? 'border-pink-300 bg-pink-50/40' : 'border-gray-200 bg-white'))} p-3 space-y-2 ${calcSelMode ? 'cursor-pointer' : ''}">
                     <div class="flex items-start justify-between gap-2">
                         ${calcSelMode ? `<span class="flex-shrink-0 w-6 h-6 mt-0.5 rounded-md border-2 ${picked ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-gray-300 bg-white'} flex items-center justify-center text-xs">${picked ? '<i class="fa-solid fa-check"></i>' : ''}</span>` : ''}
                         <div class="min-w-0 flex-1">
@@ -12199,6 +12395,10 @@ familyStr + `\n` +
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : (calcIsView(r) ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-700')}">${isAsk ? calcAskLabel(r) : calcViewLabel(r)}</span>
                     </div>
                     <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '').replace(CALC_TEAM_RE, '') || r.summary || '')}</p>
+                    ${calcNeedsReply(r) ? `<div class="flex items-center gap-2">
+                        <p class="flex-1 min-w-0 text-xs font-bold leading-snug ${r.claimBy ? 'text-indigo-800' : (over ? 'text-red-700' : 'text-gray-600')}">${r.claimBy ? `🙋 ${escapeHtml(r.claimBy)} 처리 중 · ${escapeHtml(calcAgo(r.claimAt))}` : (over ? `⏰ ${bizM}분째 아무도 안 맡았어요` : (bizM ? `⏱ ${bizM}분 지남 · 아직 아무도 안 맡았어요` : (Date.now() - (Date.parse(r.at || '') || Date.now()) > 5 * 60000 ? '🌙 영업시간 밖에 온 요청 · 문 열면 바로 연락해 주세요' : '⏱ 방금 들어왔어요 · 아직 아무도 안 맡았어요')))}${r.escAt ? ' · 👑 대표님께 알림 감' : ''}</p>
+                        ${calcSelMode ? '' : (r.claimBy ? (mine ? `<button type="button" data-calc-unclaim="${escapeHtml(r.id)}" class="flex-shrink-0 h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">맡기 취소</button>` : `<button type="button" data-calc-claim="${escapeHtml(r.id)}" data-force="1" class="flex-shrink-0 h-9 px-3 rounded-lg border border-indigo-300 bg-white text-xs font-bold text-indigo-800">내가 이어받기</button>`) : `<button type="button" data-calc-claim="${escapeHtml(r.id)}" class="flex-shrink-0 h-9 px-3 rounded-lg ${over ? 'bg-red-600' : 'bg-indigo-600'} text-white text-xs font-bold">🙋 내가 맡을게요</button>`)}
+                    </div>` : ''}
                     ${r.quoteAt ? `<p class="text-xs font-bold text-emerald-800 pl-1"><i class="fa-solid fa-paper-plane"></i> 견적 보냄 · ${escapeHtml(calcAgo(r.quoteAt))}${r.quoteBy ? ' · ' + escapeHtml(r.quoteBy) : ''}${r.quoteSum ? ' · ' + escapeHtml(r.quoteSum) : ''}</p>` : ''}
                     ${calcIsReg(r) ? (r.regDone === 'Y' ? `<p class="text-xs font-bold text-emerald-800 pl-1">✅ 강CRM에 ${r.regLinked === 'Y' ? '이미 있던 고객에 연결' : '새 고객으로 등록'}하고 명함번호도 연결했어요</p>` : (r.regNeed === 'Y' ? `<p class="text-xs font-bold text-amber-800 bg-amber-50 rounded-lg px-2 py-1.5">⚠️ ${escapeHtml(r.regNote || '확인이 필요해요')}</p>${!calcSelMode && c ? `<button type="button" data-reg-link="${escapeHtml(r.id)}" class="w-full h-11 rounded-xl border-2 border-amber-300 bg-amber-50 text-amber-900 text-sm font-bold"><i class="fa-solid fa-link"></i> 본인 맞아요 · ${escapeHtml(c.name || '이 고객')} 카드에 연결</button>` : ''}` : '<p class="text-xs font-medium text-gray-500 pl-1">⏳ 강CRM에 등록하는 중…</p>')) : ''}
                     ${!calcSelMode && !calcIsReg(r) && !/^🏠/.test(String(r.summary || '')) && (digits || c) ? `<button type="button" data-calc-quote="${escapeHtml(r.id)}" class="w-full h-11 rounded-xl border-2 border-pink-200 bg-pink-50 text-pink-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-calculator"></i> ${r.quoteAt ? '견적 다시 내서 보내기' : '계산기로 견적 내서 보내기'}</button>` : ''}
@@ -12245,6 +12445,19 @@ familyStr + `\n` +
                 if (fail) customAlert(`${fail}건은 못 지웠어요. 인터넷 연결을 확인하고 다시 해주세요.`);
             };
             body.querySelectorAll('[data-calc-open]').forEach(b => b.onclick = () => { const id = b.dataset.calcOpen; closeCalcSheet(); setTimeout(() => window.openProfileCard(id), 0); });
+            body.querySelectorAll('[data-calc-claim]').forEach(b => b.onclick = async () => {
+                const r = calcRequests.find(x => x.id === b.dataset.calcClaim); if (!r) return;
+                if (b.dataset.force && !(await customConfirm(`${r.claimBy}님이 맡은 요청이에요.\n내가 이어받을까요? (${r.claimBy}님께도 말해주세요)`))) return;
+                b.disabled = true; await calcClaim(r, { force: !!b.dataset.force }); renderCalcRequests();
+            });
+            body.querySelectorAll('[data-calc-unclaim]').forEach(b => b.onclick = async () => {
+                const r = calcRequests.find(x => x.id === b.dataset.calcUnclaim); if (!r) return;
+                b.disabled = true; r.claimBy = ''; r.claimAt = '';
+                try { await saveUpdate(doc(db, 'card_requests', r.id), { claimBy: '', claimAt: '' }); } catch (e) { customAlert(koreanError(e, '저장')); }
+                renderCalcRequests();
+            });
+            body.querySelectorAll('[data-calc-contact]').forEach(a => a.addEventListener('click', () => { const r = calcRequests.find(x => x.id === a.dataset.calcContact); if (r) calcClaim(r, { contact: true }); }));
+            { const fb = document.getElementById('calcFunnelBtn'); if (fb) fb.onclick = () => openCalcSheet('funnel'); }
             body.querySelectorAll('[data-calc-quote]').forEach(b => b.onclick = () => { const r = calcRequests.find(x => x.id === b.dataset.calcQuote); if (r) openQuoteFromRequest(r); });
             body.querySelectorAll('[data-reg-link]').forEach(b => b.onclick = () => { const r = calcRequests.find(x => x.id === b.dataset.regLink); if (r) qrRegLinkExisting(r); });
             body.querySelectorAll('[data-calc-done]').forEach(b => b.onclick = async () => {
@@ -12256,6 +12469,66 @@ familyStr + `\n` +
                     await saveUpdate(doc(db, 'card_requests', r.id), undo ? { done: '', doneAt: '', doneBy: '' } : { done: 'Y', doneAt: new Date().toISOString(), doneBy: getStaffName() || '' });
                 } catch (e) { b.disabled = false; customAlert(koreanError(e, '처리')); }
             });
+        }
+
+        /* ---------- 📊 명함 성과 (V167) — 요청 → 연락 → 견적 → 방문 → 개통 ----------
+           · 요청: 견적요청 · 인터넷/TV 상담 · 계산기 상담요청 (QR 등록 · 관심 고객 기록은 따로 셈)
+           · 연락: 누가 맡았거나(🙋) 전화·문자·견적을 보낸 요청 · 방문/개통: 그 고객 카드의 방문일·개통일이 요청 날 이후
+           · 담당: 맡은 직원 → 견적 보낸 직원 → 공용 명함 주인 순 · 요청은 62일 보관이라 지난달까지 볼 수 있어요 */
+        let funnelPeriod = 'month';
+        function funnelRange(p) {
+            const d = new Date(), y = d.getFullYear(), m = d.getMonth();
+            if (p === 'last') return [new Date(y, m - 1, 1), new Date(y, m, 1)];
+            if (p === 'week') { const a = new Date(y, m, d.getDate() - 6); return [a, new Date(y, m, d.getDate() + 1)]; }
+            return [new Date(y, m, 1), new Date(y, m + 1, 1)];
+        }
+        function funnelRow(r) {
+            const c = (r.custId && customerDB.find(x => x.id === r.custId)) || calcFindCustomer(r);
+            const day = String(r.at || '').slice(0, 10);
+            const ref = CALC_REF_RE.test(String(r.detail || '')), tm = calcTeamOf(r);
+            const ch = ref ? '🤝 지인 소개' : (tm ? '👥 공용 명함' : '📇 대표 명함');
+            const form = /^🏠/.test(String(r.summary || '')) ? '🏠 인터넷·TV' : (/^📱 견적요청/.test(String(r.summary || '')) ? '📱 견적요청' : '🧮 계산기 상담');
+            const who = managerKey(r.claimBy || r.quoteBy || (tm && tm.key) || r.doneBy || '') || '미배정';
+            const contacted = !!(r.claimBy || r.contactAt || r.quoteAt || r.done === 'Y');
+            const visited = !!(c && String(c.visitDate || '').slice(0, 10) >= day && String(c.visitDate || '') !== '');
+            const actDate = form === '🏠 인터넷·TV' ? (c && (c.wiredDate || c.activationDate)) : (c && c.activationDate);
+            const opened = !!(actDate && String(actDate).slice(0, 10) >= day);
+            return { ch, form, who, contacted, quoted: !!r.quoteAt, visited: visited || opened, opened };
+        }
+        function renderCalcFunnel() {
+            document.getElementById('calcSheetTitle').textContent = '📊 명함 성과';
+            document.getElementById('calcSheetSub').textContent = '명함으로 들어온 요청이 개통까지 몇 명 이어졌는지';
+            const [a, b] = funnelRange(funnelPeriod);
+            const inP = calcRequests.filter(r => { const t = Date.parse(r.at || ''); return t >= a.getTime() && t < b.getTime(); });
+            const reqs = inP.filter(r => r.kind === 'ask' && !calcIsReg(r));
+            const regs = inP.filter(calcIsReg).length, views = inP.filter(r => r.kind !== 'ask').length;
+            const rows = reqs.map(funnelRow);
+            const agg = (key) => { const m = new Map(); rows.forEach(x => { const k = x[key]; const o = m.get(k) || { n: 0, c: 0, q: 0, v: 0, o: 0 }; o.n++; if (x.contacted) o.c++; if (x.quoted) o.q++; if (x.visited) o.v++; if (x.opened) o.o++; m.set(k, o); }); return [...m.entries()].sort((p, q) => q[1].n - p[1].n); };
+            const sum = rows.reduce((o, x) => ({ n: o.n + 1, c: o.c + (x.contacted ? 1 : 0), q: o.q + (x.quoted ? 1 : 0), v: o.v + (x.visited ? 1 : 0), o: o.o + (x.opened ? 1 : 0) }), { n: 0, c: 0, q: 0, v: 0, o: 0 });
+            const pct = (x, n) => n ? Math.round(x * 100 / n) + '%' : '-';
+            const table = (title, list) => `<div class="rounded-2xl border border-gray-200 overflow-hidden">
+                <p class="px-3 pt-2.5 pb-1 text-[13px] font-bold text-gray-700">${title}</p>
+                <div class="grid text-[13px]" style="grid-template-columns: minmax(0,1.6fr) repeat(5, minmax(0,1fr)) minmax(0,1.1fr);">
+                    ${['', '요청', '연락', '견적', '방문', '개통', '개통률'].map((h, i) => `<span class="px-2 py-1.5 bg-gray-50 text-xs font-bold text-gray-600 ${i ? 'text-right' : ''}">${h}</span>`).join('')}
+                    ${list.map(([k, o]) => [k, o.n, o.c, o.q, o.v, o.o, pct(o.o, o.n)].map((v, i) => `<span class="px-2 py-1.5 border-t border-gray-100 ${i ? 'text-right tabular-nums' : 'font-bold text-gray-900 truncate'} ${i === 6 ? 'font-bold text-emerald-700' : ''}">${escapeHtml(String(v))}</span>`).join('')).join('') || '<span class="col-span-7 px-3 py-4 text-center text-sm text-gray-500">이 기간 요청이 없어요</span>'}
+                </div></div>`;
+            const chip = (k, l) => `<button type="button" data-fun-p="${k}" class="flex-1 h-10 rounded-xl text-sm font-bold ${funnelPeriod === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${l}</button>`;
+            const step = (l, n, sub) => `<div class="rounded-xl bg-white border border-gray-200 px-2 py-2 text-center"><p class="text-xs font-bold text-gray-600">${l}</p><p class="text-[20px] font-extrabold text-gray-900 leading-tight">${n}</p><p class="text-[11px] text-gray-500">${sub}</p></div>`;
+            document.getElementById('calcSheetBody').innerHTML = `
+                <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl">${chip('month', '이번 달')}${chip('last', '지난달')}${chip('week', '최근 7일')}</div>
+                <div class="grid grid-cols-5 gap-1.5">${step('요청', sum.n, '명함')}${step('연락', sum.c, pct(sum.c, sum.n))}${step('견적', sum.q, pct(sum.q, sum.n))}${step('방문', sum.v, pct(sum.v, sum.n))}${step('개통', sum.o, pct(sum.o, sum.n))}</div>
+                <p class="text-xs text-gray-600 pl-1">🆕 QR 고객 등록 ${regs}명 · 👀 관심 고객 기록 ${views}건 (위 숫자엔 안 들어가요)</p>
+                ${table('👤 담당 직원별', agg('who'))}
+                ${table('📇 어디서 들어왔나', agg('ch'))}
+                ${table('📝 무엇으로 요청했나', agg('form'))}
+                <ul class="text-xs text-gray-500 leading-relaxed space-y-1 pl-1">
+                    <li><b class="text-gray-700">연락</b> 🙋 맡기 · 전화/문자 · 견적 보내기 · 완료 처리 중 하나라도 한 요청</li>
+                    <li><b class="text-gray-700">방문·개통</b> 그 고객 카드의 방문일·개통일(인터넷·TV는 유선 개통일)이 요청한 날 이후면 셈 — 처음 온 손님은 고객으로 저장해야 이어져요</li>
+                    <li><b class="text-gray-700">담당</b> 맡은 직원 → 견적 보낸 직원 → 공용 명함 주인 → 완료한 직원 순 · 요청은 62일 보관</li>
+                </ul>
+                <button type="button" id="funBack" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">← 명함 견적요청으로</button>`;
+            document.querySelectorAll('[data-fun-p]').forEach(x => x.onclick = () => { funnelPeriod = x.dataset.funP; renderCalcFunnel(); });
+            document.getElementById('funBack').onclick = () => openCalcSheet('requests');
         }
 
         /* ---------- 설정: 명함 폰값계산 ---------- */
@@ -12347,7 +12620,28 @@ familyStr + `\n` +
             const ai = document.getElementById('calcAlertInterest');
             ai.checked = !!(d.alert && d.alert.interest === true);
             ai.disabled = locked;
+            { const R = calcReply();
+              [['calcReplyMin', R.min], ['calcReplyOpen', R.open], ['calcReplyClose', R.close]].forEach(([id, v]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = String(v); el.disabled = locked; });
+              const es = document.getElementById('calcReplyEsc'); es.checked = R.esc; es.disabled = locked;
+              const kk = document.getElementById('calcKakao'); if (document.activeElement !== kk) kk.value = d.kakao || ''; kk.disabled = locked; }
         }
+        // ⏰ 연락 약속 시간 · 💬 카톡 상담 주소 (총관리자 · 명함과 강CRM이 같이 써요)
+        ['calcReplyMin', 'calcReplyOpen', 'calcReplyClose', 'calcReplyEsc'].forEach(id => document.getElementById(id).addEventListener('change', async e => {
+            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            const next = calcNormalize(calcData), R = calcReply();
+            const val = id === 'calcReplyEsc' ? e.target.checked : Number(e.target.value);
+            const key = { calcReplyMin: 'min', calcReplyOpen: 'open', calcReplyClose: 'close', calcReplyEsc: 'esc' }[id];
+            next.reply = { min: R.min, open: R.open, close: R.close, esc: R.esc, [key]: val };
+            if (next.reply.open >= next.reply.close) { customAlert('영업 끝 시간이 시작보다 늦어야 해요.'); renderCalcSettings(); return; }
+            if (!(await calcSave(next, true))) renderCalcSettings();
+        }));
+        document.getElementById('calcKakao').addEventListener('change', async e => {
+            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            const v = e.target.value.trim();
+            if (v && !/^https:\/\/(pf\.kakao\.com|open\.kakao\.com|qr\.kakao\.com|talk\.kakao\.com)\//.test(v)) { customAlert('카카오톡 채널(pf.kakao.com/…) 또는 오픈채팅(open.kakao.com/…) 주소를 넣어주세요.'); renderCalcSettings(); return; }
+            const next = calcNormalize(calcData); next.kakao = v;
+            if (!(await calcSave(next, true))) renderCalcSettings();
+        });
         document.getElementById('calcDistKeep').addEventListener('change', e => {
             const v = Math.round(Number(e.target.value) || 0);
             if (v < 1 || v > 730) { customAlert('유지 일수는 1~730 사이로 넣어주세요.'); e.target.value = (calcData || {}).distKeep || 186; return; }
@@ -14778,6 +15072,13 @@ familyStr + `\n` +
                 if (r.ok) { deleteDoc(doc(db, 'card_requests', tid)).catch(() => {}); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'ok', '명함에서 보낸 요청이 강CRM에 들어올 수 있어요.'); }
                 else { const t = await r.text().catch(() => ''); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'bad', r.status === 403 ? `규칙이 막고 있어요 (403). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]해 주세요. 그 전까지 명함 요청은 강CRM에 안 들어오고 문자로만 와요.` : `저장 실패 (${r.status}) ${t.slice(0, 80)}`); }
             } catch (e) { add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'warn', `시험하지 못했어요: ${e.message || e}`); }
+            // 🧪 규칙이 V167(직원 계정 · 보낸 견적)인지: 로그인 없이 card_quotes 하나를 읽어 봄 → 404면 새 규칙 (없는 번호) · 403이면 예전 규칙
+            try {
+                const r = await fetch(`https://firestore.googleapis.com/v1/projects/${myFirebaseConfig.projectId}/databases/(default)/documents/card_quotes/zzdiag?key=${myFirebaseConfig.apiKey}`, { cache: 'no-store' });
+                add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', r.status === 404 || r.ok ? 'ok' : 'bad', r.status === 404 || r.ok ? '새 규칙이에요' : `예전 규칙이에요 (${r.status}). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]. 그 전엔 고객 명함에 '받은 견적'이 안 보이고, 설정의 직원 계정 추가가 적용되지 않아요.`);
+            } catch (e) { add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
+            add('Firebase', '👤 직원 계정 목록', staffAccounts ? 'ok' : 'warn', staffAccounts ? `직원 ${staffAccounts.emails.length}명 + 👑 총관리자 ${SUPER_ADMIN_EMAILS.length}명` : '아직 없어요 — 👑 총관리자가 강CRM V167을 한 번 열면 예전 목록으로 만들어져요 (새 규칙 게시 전에)');
+            let W0 = {}; try { const ws0 = await getDoc(doc(db, 'smart_global', 'worker_status')); W0 = ws0.exists() ? ws0.data() : {}; } catch (e) { W0 = {}; }
             // 2. 알림 서버
             const aUrl = d.alert && d.alert.url;
             if (!aUrl) add('알림 서버', '상담 알림 서버 주소', 'bad', '설정 → 명함 폰값계산 → 상담 알림 서버에 주소를 넣어주세요.');
@@ -14787,6 +15088,7 @@ familyStr + `\n` +
                     const v = r.data.version || 1;
                     add('알림 서버', '서버 연결', r.ok && r.data.ok ? 'ok' : 'bad', r.ok ? `kangcrm-alert v${r.data.build || v}${r.data.build && parseFloat(r.data.build) >= 3.2 ? ' (하루 두 번 약속 알림 가능)' : ''}` : `응답 ${r.status}`);
                     add('알림 서버', 'OneSignal 키', r.data.ready ? 'ok' : 'bad', r.data.ready ? '' : 'Cloudflare에 ONESIGNAL_APP_ID · ONESIGNAL_REST_KEY를 넣어주세요.');
+                    { const R = calcReply(); if (R.esc) { const b37 = parseFloat(r.data.build || '0') >= 3.7; add('알림 서버', `⏰ 연락 약속 ${R.min}분 지나면 대표 알림`, b37 && r.data.promReady ? 'ok' : 'warn', b37 ? (r.data.promReady ? `영업시간 ${R.open}~${R.close}시 · 강CRM이 켜져 있으면 5분마다 확인${W0.alertLastTick ? ' · 알림 서버 10분 Cron도 돌아요' : ' · 강CRM을 아무도 안 켤 때도 보내려면 알림 서버에 10분마다 Cron 추가 (관리자 가이드 8장)'}` : 'FIREBASE_SA가 있어야 해요 (아침 약속 알림과 같은 값)') : '알림 서버를 v3.7로 바꿔 배포해 주세요. 그 전엔 빨간 표시만 보이고 대표 폰 알림은 안 가요.'); } }
                     if (teamCardOn()) { const b36 = parseFloat(r.data.build || '0') >= 3.6; add('알림 서버', '👥 공용 명함 알림 (보낸 직원 + 총관리자)', b36 ? 'ok' : 'warn', b36 ? '공용 명함 견적요청은 그 명함을 보낸 직원과 👑 총관리자 폰으로만 가요' : '알림 서버를 v3.6으로 바꿔 배포해 주세요. 그 전엔 공용 명함 요청도 모든 직원에게 가요.'); }
                     if (d.alert && d.alert.interest === true) { const b35 = parseFloat(r.data.build || '0') >= 3.5; add('알림 서버', '👀 관심 고객 푸시 (켜짐)', b35 ? 'ok' : 'warn', b35 ? '견적 보다 나감 · 계산만 해봄도 직원 폰으로 알림 (아침 9시~밤 9시)' : "알림 서버를 v3.5로 바꿔 배포해 주세요. 그 전엔 알림 제목이 '명함 상담요청'으로 보여요."); }
                     add('알림 서버', '🆓 무료 AI 이미지 (v3 · Workers AI)', r.data.imageReady ? 'ok' : 'warn', r.data.imageReady ? '' : (v < 3 ? '알림 서버 코드를 v3로 바꿔 배포하고, 바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.' : '바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.'));
@@ -14801,8 +15103,10 @@ familyStr + `\n` +
                 if (!W.alertLastCron) add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '아직 기록이 없어요. 알림 서버 코드를 v3.1로 배포하면, 다음 Cron이 돌 때부터 여기 보여요.');
                 else {
                     const k = cronKst(W.alertCron);
-                    if (W.alertCronDaily === false) add('알림 서버', '자동 실행 (Cron)', 'bad', `알림 서버(kangcrm-alert)가 마지막으로 '${W.alertCron}'(자주 도는 Cron)으로 돌았어요 (${fmtSmsWhen(Date.parse(W.alertLastCron))}). 이 상태면 아침 약속 알림이 안 가요.\n고치기: Cloudflare → kangcrm-alert → 설정 → 트리거 이벤트 → Cron 트리거 ✏️ → '30 0 * * *'(매일 00:30 UTC = 한국 아침 9시 30분)로 바꾸기 (오후 1시도 받으려면 '0 4 * * *' 하나 더 · 앞에 */ 붙이면 안 돼요). 10분·30분마다 도는 Cron은 중계 서버(kangcrm-push)에 넣는 거예요.\n고친 뒤에는 다음 아침 9시 30분에 한 번 돌고 나서 여기가 ✅로 바뀌어요.`);
-                    else add('알림 서버', '자동 실행 (Cron)', 'ok', `${W.alertCron}${k ? ` = 매일 한국 시간 ${k}` : ''} · 마지막 실행 ${fmtSmsWhen(Date.parse(W.alertLastCron))}`);
+                    if (W.alertCronDaily === false && W.alertLastTick) add('알림 서버', '자동 실행 (Cron)', 'warn', `⏰ 10분 확인 Cron은 돌고 있어요 (${fmtSmsWhen(Date.parse(W.alertLastTick))}). 아침 약속 알림 Cron('30 0 * * *')이 한 번 돌면 여기가 ✅로 바뀌어요 — Cloudflare → kangcrm-alert → 트리거에 같이 있는지 확인해 주세요.`);
+                    else if (W.alertCronDaily === false) add('알림 서버', '자동 실행 (Cron)', 'bad', `알림 서버(kangcrm-alert)가 마지막으로 '${W.alertCron}'(자주 도는 Cron)으로 돌았어요 (${fmtSmsWhen(Date.parse(W.alertLastCron))}). 이 상태면 아침 약속 알림이 안 가요.\n고치기: Cloudflare → kangcrm-alert → 설정 → 트리거 이벤트 → Cron 트리거 ✏️ → '30 0 * * *'(매일 00:30 UTC = 한국 아침 9시 30분)로 바꾸기 (오후 1시도 받으려면 '0 4 * * *' 하나 더 · 앞에 */ 붙이면 안 돼요). 10분·30분마다 도는 Cron은 중계 서버(kangcrm-push)에 넣는 거예요.\n고친 뒤에는 다음 아침 9시 30분에 한 번 돌고 나서 여기가 ✅로 바뀌어요.`);
+                    else if (Date.now() - Date.parse(W.alertLastCron) > 26 * 3600e3) add('알림 서버', '자동 실행 (Cron)', 'warn', `아침 약속 알림 Cron이 하루 넘게 안 돌았어요 (마지막 ${fmtSmsWhen(Date.parse(W.alertLastCron))}). Cloudflare → kangcrm-alert → 트리거에 '30 0 * * *'가 있는지 확인해 주세요.`);
+                    else add('알림 서버', '자동 실행 (Cron)', 'ok', `${W.alertCron}${k ? ` = 매일 한국 시간 ${k}` : ''} · 마지막 실행 ${fmtSmsWhen(Date.parse(W.alertLastCron))}${W.alertLastTick ? ` · ⏰ 10분 확인 ${fmtSmsWhen(Date.parse(W.alertLastTick))}` : ''}`);
                 }
             } catch (e) { add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '기록을 읽지 못했어요.'); }
             // 3. 이 폰
@@ -15067,6 +15371,109 @@ familyStr + `\n` +
                 if (await calcSave(next)) { mvnoDraft = null; openCalcSheet('manage'); customAlert(`${D.brand} 요금제 ${plans.length}개를 명함에 반영했어요.`); }
             };
         }
+
+        /* =====================================================================
+           👤 직원 계정 (👑 총관리자 · V167) — staff_accounts/list
+           · 여기서 추가한 구글 계정만 강CRM·악세정산 연결에 들어올 수 있어요 (Firebase 규칙이 이 목록을 봐요)
+           · 총관리자 두 계정은 코드에 고정 · 지우면 그 직원은 바로 못 들어와요 (담당 고객은 그대로 → [담당 고객 넘기기])
+           ===================================================================== */
+        let staffAcctUnsub = null;
+        const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+        async function seedStaffAccounts() {   // 처음 한 번: 예전 고정 목록을 그대로 옮김 (총관리자 폰에서)
+            if (!isSuperAdmin || !db) return;
+            try {
+                const snap = await getDoc(doc(db, 'staff_accounts', 'list'));
+                if (snap.exists()) return;
+                const emails = ALLOWED_EMAILS.map(e => e.toLowerCase()).filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+                const info = {}; emails.forEach(e => info[e] = { addedAt: getTodayStr(), addedBy: '기존 목록' });
+                await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+            } catch (e) { console.warn('직원 계정 목록 만들기 실패', e); }
+        }
+        function attachStaffAccounts() {
+            if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
+            staffAcctUnsub = onSnapshot(doc(db, 'staff_accounts', 'list'), snap => {
+                const d = snap.exists() ? (snap.data() || {}) : null;
+                staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {} } : null;
+                const me = myEmail().toLowerCase();
+                if (staffAccounts && me && !SUPER_ADMIN_EMAILS.includes(me) && !staffAccounts.emails.includes(me)) {   // 이 계정이 목록에서 빠졌으면 바로 로그아웃
+                    customAlert('총관리자가 이 계정의 강CRM 사용을 멈췄어요. 로그아웃할게요.');
+                    try { signOut(auth); } catch (e) { /* 무시 */ }
+                    return;
+                }
+                renderStaffAccounts();
+            }, err => { console.warn('직원 계정 목록 불러오기 실패', err); renderStaffAccounts(); });
+        }
+        function staffCustomerCount(name) { return name ? customerDB.filter(c => !c.deletedAt && sameStaff(ownerOf(c), name)).length : 0; }
+        function renderStaffAccounts() {
+            const box = document.getElementById('staffAcctBox');
+            if (!box) return;
+            if (document.activeElement && document.activeElement.id === 'saNewEmail') return;   // 입력 중엔 다시 그리지 않음
+            const locked = !isSuperAdmin, byEmail = staffByEmail();
+            const list = staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+            const row = (em, fixed) => {
+                const nm = byEmail[em] || (staffAccounts && staffAccounts.info[em] && staffAccounts.info[em].memo) || '';
+                const n = staffCustomerCount(byEmail[em] || '');
+                const inf = staffAccounts && staffAccounts.info[em];
+                return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
+                    <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
+                    <p class="text-xs text-gray-600">${fixed ? '총관리자 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                    ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
+                </div>`;
+            };
+            // 지금 고객에는 담당자로 남아 있는데 계정이 없는 이름 (예전 직원)
+            const known = new Set([...SUPER_ADMIN_EMAILS, ...list].map(e => managerKey(byEmail[e] || '')).filter(Boolean));
+            const orphan = [...new Set(customerDB.filter(c => !c.deletedAt).map(c => ownerOf(c)).filter(Boolean))].filter(k => ![...known].some(x => sameStaff(x, k)));
+            box.innerHTML = `
+                <p class="text-[13px] text-gray-700 leading-relaxed">여기 있는 구글 계정만 강CRM과 악세정산 강CRM 연결에 들어올 수 있어요. 직원이 그만두면 <b>[담당 고객 넘기기]</b> → <b>[계정 지우기]</b> 순서로 해주세요.</p>
+                ${locked ? '<p class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">🔒 총관리자만 바꿀 수 있어요. (보기는 가능)</p>' : ''}
+                ${!staffAccounts && !locked ? '<p class="text-xs font-bold text-indigo-900 bg-indigo-50 rounded-xl px-3 py-2">처음이라 예전 계정 목록을 옮기는 중이에요…</p>' : ''}
+                ${SUPER_ADMIN_EMAILS.map(e => row(e, true)).join('')}
+                ${list.map(e => row(e, false)).join('') || '<p class="text-sm text-gray-600 text-center py-2">직원 계정이 없어요.</p>'}
+                ${orphan.length && !locked ? `<div class="rounded-xl bg-gray-50 px-3 py-2 space-y-1.5"><p class="text-xs font-bold text-gray-700">계정 없이 담당자로만 남은 이름</p>${orphan.map(k => `<div class="flex items-center justify-between gap-2"><span class="text-sm text-gray-800">${escapeHtml(k)} · ${staffCustomerCount(k)}명</span><button type="button" data-sa-move="${escapeHtml(k)}" class="h-9 px-3 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-900">넘기기</button></div>`).join('')}</div>` : ''}
+                ${locked ? '' : `<div class="flex gap-2 pt-1">
+                    <input type="email" id="saNewEmail" inputmode="email" autocomplete="off" placeholder="새 직원 구글 계정 (○○○@gmail.com)" class="flex-1 min-w-0 h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900">
+                    <button type="button" id="saAddBtn" class="flex-shrink-0 h-11 px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">추가</button>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed">추가하면 그 직원이 바로 구글 로그인할 수 있어요. 로그인 뒤 설정 → 직원 이름을 적으면 위 목록에 이름이 붙어요. (Firebase 규칙이 V167 이상이어야 해요)</p>`}`;
+            if (locked) return;
+            box.querySelectorAll('[data-sa-move]').forEach(b => b.onclick = () => reassignFromStaff(b.dataset.saMove));
+            box.querySelectorAll('[data-sa-del]').forEach(b => b.onclick = () => removeStaffAccount(b.dataset.saDel));
+            const add = box.querySelector('#saAddBtn'); if (add) add.onclick = () => addStaffAccount(box.querySelector('#saNewEmail').value);
+        }
+        async function writeStaffAccounts(emails, info) {
+            await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+        }
+        async function addStaffAccount(raw) {
+            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            const em = String(raw || '').trim().toLowerCase();
+            if (!EMAIL_RE.test(em)) return customAlert('구글 계정 이메일을 확인해주세요. (예: hong123@gmail.com)');
+            if (SUPER_ADMIN_EMAILS.includes(em)) return customAlert('총관리자 계정은 이미 들어올 수 있어요.');
+            const cur = staffAccounts || { emails: ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e)), info: {} };
+            if (cur.emails.includes(em)) return customAlert('이미 있는 계정이에요.');
+            try {
+                await writeStaffAccounts([...cur.emails, em], { ...cur.info, [em]: { addedAt: getTodayStr(), addedBy: getStaffName() || '총관리자' } });
+                customAlert(`${em} 계정을 추가했어요.\n그 직원 폰에서 강CRM을 열고 구글 로그인 → 설정 → 직원 이름을 적게 해주세요.`);
+            } catch (e) { customAlert(koreanError(e, '저장')); }
+        }
+        async function removeStaffAccount(em) {
+            if (!isSuperAdmin || !staffAccounts) return;
+            const nm = staffByEmail()[em] || '';
+            const n = staffCustomerCount(nm);
+            if (!(await customConfirm(`${nm ? nm + ' (' + em + ')' : em} 계정을 지울까요?\n지우면 그 직원은 바로 강CRM·악세정산 연결에 못 들어와요.${n ? `\n\n⚠️ 아직 담당 고객이 ${n}명 있어요. 먼저 [담당 고객 넘기기]를 하는 게 좋아요.` : ''}`))) return;
+            const info = { ...staffAccounts.info }; delete info[em];
+            try { await writeStaffAccounts(staffAccounts.emails.filter(e => e !== em), info); }
+            catch (e) { return customAlert(koreanError(e, '저장')); }
+            const sid = nm && teamData ? teamSidFor(nm) : '';
+            if (sid && teamData.staff[sid].active !== false && await customConfirm(`👥 직원 공용 명함에서 ${nm} 명함도 '매장 이름·대표번호'로 바꿀까요?\n(이미 보낸 명함도 바로 매장 정보로 보여요)`)) {
+                try {
+                    const next = calcClone(teamData); next.staff[sid].active = false;
+                    await saveDoc(doc(db, 'card_public', 'team'), { json: JSON.stringify({ ...next, updated: getTodayStr() }), updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+                    teamData = teamNormalize(next); teamDirty = false; teamDraft = null; renderTeamSettings();
+                } catch (e) { customAlert(koreanError(e, '저장')); }
+            }
+            customAlert(`계정을 지웠어요.${n ? `\n${nm} 담당 고객 ${n}명은 그대로예요 → [담당 고객 넘기기]로 정리해주세요.` : ''}\n그 직원이 알던 비밀번호(중계 서버 등)는 관리자 가이드 3장대로 바꿔주세요.`);
+        }
+        renderStaffAccounts();
 
         /* =====================================================================
            👥 직원 공용 명함 설정 (👑 총관리자) — card_public/team
@@ -15397,6 +15804,11 @@ familyStr + `\n` +
                     <input type="checkbox" id="qsCompare" class="w-6 h-6 accent-indigo-600 flex-shrink-0">
                 </label>
                 <label id="qsDoneRow" class="hidden flex items-center gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsDone" checked class="w-5 h-5 accent-indigo-600"> 보내면 이 견적요청을 처리 완료로</label>
+                <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-2">
+                    <label id="qsSaveRow" class="hidden flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsSave" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>강CRM에 고객으로 저장<span class="block text-xs font-normal text-gray-500">미정 · 담당: 나 — 저장해야 재연락 약속·견적 다시 보기·성과(방문·개통)가 이어져요</span></span></label>
+                    <label class="flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsFollow" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📅 2일 뒤 재연락 약속 넣기<span class="block text-xs font-normal text-gray-500">답이 없으면 그날 대시보드 '약속'과 아침 알림에 떠요</span></span></label>
+                    <label class="flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsLink" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📄 '견적 다시 보기 · 방문 예약' 링크 같이 보내기<span class="block text-xs font-normal text-gray-500">고객 명함에서 이 견적을 다시 보고 바로 방문 예약·카톡 문의를 할 수 있어요</span></span></label>
+                </div>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="qsCopy" class="h-12 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800"><i class="fa-regular fa-copy"></i> 복사 (카톡용)</button>
                     <button type="button" id="qsSms" class="h-12 rounded-xl bg-pink-600 text-white text-[15px] font-bold"><i class="fa-solid fa-comment-sms"></i> 문자로 보내기</button>
@@ -15431,7 +15843,70 @@ familyStr + `\n` +
         }
         function qsRefreshWho() {
             const c = qsCustomer();
-            qsEl.querySelector('#qsWho').textContent = c ? `✅ 등록 고객 ${c.name || ''} — 보내면 연락 기록·보낸 문자에 남아요` : '등록 안 된 번호예요 — 문자앱만 열려요 (통화 후 고객으로 등록해 주세요)';
+            qsEl.querySelector('#qsWho').textContent = c ? `✅ 등록 고객 ${c.name || ''} — 보내면 연락 기록·보낸 문자에 남아요` : '등록 안 된 번호예요 — 아래 [강CRM에 고객으로 저장]을 켜두면 보내면서 저장해요';
+            qsEl.querySelector('#qsSaveRow').classList.toggle('hidden', !!c);
+        }
+        /* 📤 견적 보낼 때 같이 (V167)
+           · 등록 안 된 번호 + [고객으로 저장] → 미정 고객 (담당: 나 · 명함번호) — 견적요청 고객은 연락에 동의한 분이에요
+           · [2일 뒤 재연락] → 그 고객 '재연락' 약속 (이미 더 빠른 재연락이 있으면 그대로) · 담당자 잠금이면 담당자에게 맡김
+           · [견적 다시 보기 링크] → 견적을 card_quotes/명함번호에 저장 → 고객 명함 맨 위 '📄 받은 견적'에 보이고 [방문 예약] */
+        async function qsCreateCustomer(phone, name) {
+            const digits = phone.replace(/\D/g, ''), staff = getStaffName(), cardId = newCardId(), today = getTodayStr();
+            const exists = customerDB.find(x => x.id === digits) || trashDB.find(x => x.id === digits);
+            if (exists) return exists.deletedAt ? null : exists;
+            await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), {
+                name: name || '', phone: formatPhone(digits), salesStatus: '미정', regStore: msgStoreName(), cardId,
+                manager: staff, contactManager: staff, memo: `[${today.slice(5).replace('-', '/')} ${staff || '직원'}] 명함 견적요청으로 견적 보내며 등록`, regDate: today, regBy: staff,
+                createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+            }, { merge: true }));
+            if (name) writeCardWho(cardId, maskName(name));
+            const c = { id: digits, name: name || '', phone: formatPhone(digits), cardId, manager: staff, salesStatus: '미정' };
+            if (!customerDB.some(x => x.id === digits)) customerDB.push(c);
+            return c;
+        }
+        function qsQuoteBody(txt) {   // 문자 전체에서 링크 줄을 뺀 견적 본문
+            return String(txt || '').replace(/\n*📄 (견적 다시 보기 · 방문 예약|명함 · 방문 예약)\n[^\n]+\s*$/, '').trim();
+        }
+        // 명함에서 읽는 견적(card_quotes)은 링크만 알면 열려서, 고객 이름은 가려서 저장 (예: 홍○동님)
+        function qsMaskNames(t, names) {
+            let out = String(t || '');
+            [...new Set((names || []).map(n => String(n || '').trim()).filter(n => n.length >= 2 && maskName(n)))].sort((a, b) => b.length - a.length).forEach(n => { out = out.split(n).join(maskName(n)); });
+            return out;
+        }
+        function qsSenderLabel() {   // 고객 명함에 보일 '보낸 사람' (공용 명함이면 내 프로필 이름·직함)
+            if (cardChoice() === 'team') { const p = myTeamProfile(); if (p && p.active !== false) return `${p.name}${p.title ? ' ' + p.title : ''}`; }
+            return getStaffName() || msgStoreName();
+        }
+        async function qsAddFollowUp(c) {
+            if (!c) return 'none';
+            if (isLockedFor(c) && !isSuperAdmin) return 'locked';
+            const d = addDaysStr(getTodayStr(), 2), me = getStaffName() || '';
+            try {
+                await txCustomerUpdate(c.id, (cur) => {
+                    if (cur.promCallDate && !cur.promCallChk && String(cur.promCallDate) <= d) return {};   // 더 빠른 재연락이 이미 있음
+                    return { promCallDate: d, promCallChk: false, promCallMemo: '📤 견적 보낸 뒤 답 확인 (자동)', promCallBy: me, updatedAt: new Date().toISOString() };
+                });
+                return 'ok';
+            } catch (e) { console.warn('재연락 약속 실패', e); return 'fail'; }
+        }
+        async function qsPrepare() {
+            const phone = qsEl.querySelector('#qsPhone').value.replace(/\D/g, '');
+            let c = qsCustomer(), created = false;
+            if (!c && qsEl.querySelector('#qsSave').checked && /^01\d{8,9}$/.test(phone)) {
+                try { c = await qsCreateCustomer(phone, qsEl.querySelector('#qsName').value.trim()); created = !!c; } catch (e) { console.error('고객 저장 실패', e); }
+            }
+            let text = qsEl.querySelector('#qsText').value.trim(), cardId = '';
+            const wantLink = qsEl.querySelector('#qsLink').checked;
+            if (c && wantLink && !(isLockedFor(c) && !isSuperAdmin && !c.cardId)) { try { cardId = await ensureCardId(c); } catch (e) { cardId = c.cardId || ''; } }
+            if (wantLink && !/kanggun1983\.github\.io\//.test(text)) {
+                text += `\n\n📄 ${cardId ? '견적 다시 보기 · 방문 예약' : '명함 · 방문 예약'}\n${shortCardLink(cardId ? cardLinkFor(cardId) : myCardUrl())}`;
+            }
+            if (cardId) {
+                const d = qsData || {};
+                saveDoc(doc(db, 'card_quotes', cardId), { text: qsMaskNames(qsQuoteBody(text), [c.name, qsEl.querySelector('#qsName').value.trim()]).slice(0, 1800), summary: String(d.summary || '').slice(0, 160), kind: d.kind === 'mvno' ? 'mvno' : 'phone', by: qsSenderLabel().slice(0, 30), store: msgStoreName(), at: new Date().toISOString() }).catch(e => console.warn('견적 저장 실패', e));
+            }
+            const follow = qsEl.querySelector('#qsFollow').checked ? await qsAddFollowUp(c) : 'off';
+            return { text, c, phone, created, follow };
         }
         function openQuoteSend(d) {
             qsData = d;
@@ -15455,31 +15930,37 @@ familyStr + `\n` +
             const ta = qsEl.querySelector('#qsText'); const first = ta.value.split('\n')[0];
             if (/님, /.test(first)) ta.value = ta.value.replace(first, `${msgName(e.target.value.trim())}님, ${first.split('님, ').slice(1).join('님, ')}`);
         });
-        async function qsAfterSend(via) {
+        async function qsAfterSend(via, prep = {}) {
             const ctx = pcalQuoteCtx, d = qsData || {};
             if (ctx && ctx.rid) {
-                const patch = { quoteAt: new Date().toISOString(), quoteBy: getStaffName() || '', quoteSum: ((qsCompareOn() && d.textCompare) ? '📊 비교 · ' : '') + String(d.summary || '').slice(0, 120), quoteVia: via };
+                const r0 = calcRequests.find(x => x.id === ctx.rid) || {};
+                const patch = { quoteAt: new Date().toISOString(), quoteBy: getStaffName() || '', quoteSum: ((qsCompareOn() && d.textCompare) ? '📊 비교 · ' : '') + String(d.summary || '').slice(0, 120), quoteVia: via,
+                    ...(r0.claimBy ? {} : { claimBy: getStaffName() || '직원', claimAt: new Date().toISOString() }), ...(prep.c ? { custId: prep.c.id } : {}) };
                 if (qsEl.querySelector('#qsDone').checked) Object.assign(patch, { done: 'Y', doneAt: new Date().toISOString(), doneBy: getStaffName() || '' });
                 try { await saveUpdate(doc(db, 'card_requests', ctx.rid), patch); } catch (e) { console.error('견적 기록 실패', e); }
             }
         }
+        const qsNote = (p) => [p.created ? '👤 강CRM에 고객으로 저장했어요' : '', p.follow === 'ok' ? '📅 2일 뒤 재연락 약속을 넣었어요' : (p.follow === 'locked' ? '📅 다른 직원 담당 고객이라 재연락 약속은 담당자에게 맡겼어요' : '')].filter(Boolean).join('\n');
         qsEl.querySelector('#qsCopy').onclick = async () => {
-            const txt = qsEl.querySelector('#qsText').value;
-            try { await navigator.clipboard.writeText(txt); } catch (e) { const ta = qsEl.querySelector('#qsText'); ta.select(); try { document.execCommand('copy'); } catch (e2) {} }
-            await qsAfterSend('copy');
-            customAlert('견적을 복사했어요. 카톡 대화창에 붙여넣어 주세요.');
+            if (!qsEl.querySelector('#qsText').value.trim()) return customAlert('보낼 문구가 비어 있어요.');
+            const prep = await qsPrepare();
+            qsEl.querySelector('#qsText').value = prep.text;
+            const ok = await copyTextSafe(prep.text);
+            if (!ok) { const ta = qsEl.querySelector('#qsText'); ta.select(); }
+            await qsAfterSend('copy', prep);
+            customAlert(`${ok ? '견적을 복사했어요. 카톡 대화창에 붙여넣어 주세요.' : '자동 복사가 막혔어요. 글을 길게 눌러 복사해주세요.'}${qsNote(prep) ? '\n\n' + qsNote(prep) : ''}`);
         };
         qsEl.querySelector('#qsSms').onclick = async () => {
             const phone = qsEl.querySelector('#qsPhone').value.replace(/\D/g, '');
             if (!/^01\d{8,9}$/.test(phone)) return customAlert('받는 분 번호를 정확히 넣어주세요.');
-            const txt = qsEl.querySelector('#qsText').value.trim();
-            if (!txt) return customAlert('보낼 문구가 비어 있어요.');
-            const c = qsCustomer();
-            await qsAfterSend('sms');
+            if (!qsEl.querySelector('#qsText').value.trim()) return customAlert('보낼 문구가 비어 있어요.');
+            const prep = await qsPrepare();
+            await qsAfterSend('sms', prep);
             closeQuoteSend();
-            if (c) await window.logActionAndCall(c.id, 'sms', phone, '견적', txt);
-            else window.location.href = smsHref(phone, txt);
+            if (prep.c) await window.logActionAndCall(prep.c.id, 'sms', phone, '견적', prep.text);
+            else window.location.href = smsHref(phone, prep.text);
         };
+        ['qsFollow', 'qsLink'].forEach(id => { const el = qsEl.querySelector('#' + id); try { const v = localStorage.getItem('qs_' + id); if (v !== null) el.checked = v === '1'; } catch (e) {} el.addEventListener('change', () => { try { localStorage.setItem('qs_' + id, el.checked ? '1' : '0'); } catch (e) {} }); });
         window.addEventListener('message', (e) => {
             const fr = pcalEl.querySelector('iframe');
             if (!fr || e.source !== fr.contentWindow) return;
