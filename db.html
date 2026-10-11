@@ -893,7 +893,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V146</span>
+                    <span class="text-sm text-gray-600">V147</span>
                 </div>
             </section>
         </div>
@@ -1968,6 +1968,14 @@
                     <button type="button" data-ig-engine="openai" role="radio" class="h-10 rounded-lg text-sm font-bold">ChatGPT</button>
                 </div>
                 <p id="igEngineNote" class="text-[12px] text-gray-600 leading-snug -mt-1"></p>
+                <div id="igQualityBox" class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-emerald-50 border border-emerald-200" role="radiogroup" aria-label="무료 그림 품질">
+                    <button type="button" data-ig-quality="normal" role="radio" class="h-9 rounded-lg text-xs font-bold">보통 (하루 약 90장)</button>
+                    <button type="button" data-ig-quality="best" role="radio" class="h-9 rounded-lg text-xs font-bold">✨ 고화질 (하루 3~4장)</button>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-gray-600 mb-1">어떤 홍보예요? <span class="font-normal text-gray-500">(휴대폰 매장용 그림 설정이 들어가요)</span></p>
+                    <div class="grid grid-cols-4 gap-1.5" id="igPresets"></div>
+                </div>
                 <label class="block text-xs font-bold text-gray-600">무엇을 그릴까요<textarea id="igPrompt" rows="3" class="mt-1 w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 font-normal resize-none" placeholder="예) 갤럭시 S26 가격 인상 전 마지막 재고 행사, 케이스 무료 증정"></textarea></label>
                 <div>
                     <p class="text-xs font-bold text-gray-600 mb-1">느낌</p>
@@ -1980,6 +1988,10 @@
                 </div>
                 <label class="flex items-center gap-2 text-[14px] font-bold text-gray-800"><input type="checkbox" id="igWithText" class="w-5 h-5 accent-indigo-600" checked> 이미지에 큰 글씨 넣기</label>
                 <input id="igHeadline" maxlength="24" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900" placeholder="큰 글씨 (짧을수록 정확해요 · 예: 마지막 재고 특가)">
+                <div class="grid grid-cols-2 gap-2">
+                    <input id="igSubline" maxlength="30" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900" placeholder="작은 글씨 (예: 케이스 무료 증정)">
+                    <input id="igTel" maxlength="16" inputmode="tel" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900" placeholder="매장 전화 (아래 띠)">
+                </div>
                 <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100" role="radiogroup" aria-label="이미지 모양">
                     <button type="button" data-ig-aspect="1:1" role="radio" class="h-9 rounded-lg text-xs font-bold">정사각형 (문자)</button>
                     <button type="button" data-ig-aspect="16:9" role="radio" class="h-9 rounded-lg text-xs font-bold">가로 (푸시)</button>
@@ -12018,46 +12030,86 @@ familyStr + `\n` +
         // 🎨 AI로 이미지 만들기 (Gemini 이미지 모델 또는 ChatGPT 이미지) → 푸시 사진 · 홍보/생일 문자 사진 · AI 문자 링크
         //    · 둘 다 유료 (결제 등록된 키만) · 키는 이 폰에만 저장
         // ═════════════════════════════════════════════
-        const IG_STYLES = {
-            poster: '휴대폰 매장 행사 포스터 스타일. 밝고 시원한 색, 큼직한 구도, 반짝이는 강조 효과',
-            photo: '깔끔한 제품 광고 사진 스타일. 밝은 스튜디오 조명, 단순한 배경, 고급스러운 질감',
-            cute: '귀엽고 친근한 일러스트 스타일. 둥근 모양, 파스텔 색, 따뜻한 느낌',
-            premium: '고급스러운 프리미엄 광고 스타일. 어두운 배경에 은은한 빛, 세련되고 차분한 느낌'
+        // 📱 휴대폰 매장 홍보용 그림 설정 (상황별) — en: 무료 그림 AI(FLUX)용 장면 · ko: ChatGPT·Gemini용 설명 · tag: 그림 위 작은 딱지
+        const IG_PRESETS = {
+            new:    { emoji: '📱', label: '신제품·사전예약', head: '사전예약 시작', tag: 'NEW 사전예약', kw: /사전\s*예약|출시|신제품|신상|언박싱|런칭/,
+                      en: 'three sleek modern flagship smartphones in different colors standing upright on a glossy reflective podium, dramatic studio spotlights, soft light particles and lens flare, premium product launch',
+                      ko: '신제품 출시·사전예약 느낌. 최신 스마트폰 3대가 반짝이는 단상 위에 서 있고 조명이 비추는 고급 런칭 무대' },
+            stock:  { emoji: '⏰', label: '재고·가격인상 전', head: '가격 인상 전 마지막 기회', tag: '마감 임박', kw: /인상|재고|마감|마지막|한정|소진|품절|서둘/,
+                      en: 'a single premium smartphone floating at a dynamic angle with glowing motion light streaks and sparks, urgent limited-time atmosphere, energetic composition',
+                      ko: '한정 수량·가격 인상 전 마감 임박 느낌. 스마트폰 한 대가 빛줄기와 함께 역동적으로 떠 있는 긴박한 분위기' },
+            gift:   { emoji: '🎁', label: '사은품·행사', head: '사은품 증정 이벤트', tag: '매장 행사', kw: /사은품|증정|행사|이벤트|할인|선물|경품|특가|혜택/,
+                      en: 'a smartphone surrounded by gift boxes with satin ribbons, wireless earbuds, a phone case, smartwatch and floating confetti, festive celebration, flat-lay',
+                      ko: '사은품 증정 행사 느낌. 스마트폰 주변에 리본 달린 선물상자·무선이어폰·케이스·스마트워치·색종이가 흩날리는 축제 분위기' },
+            home:   { emoji: '🌐', label: '인터넷·TV', head: '인터넷·TV 특별 혜택', tag: '인터넷·TV', kw: /인터넷|TV|티비|와이파이|wifi|결합|기가|IPTV/i,
+                      en: 'a cozy modern living room with a large wall-mounted TV, a glowing wifi router on a shelf, comfortable sofa, warm evening lamp light, no people',
+                      ko: '인터넷·TV 결합 느낌. 큰 TV와 와이파이 공유기가 있는 아늑한 거실, 따뜻한 저녁 조명 (사람 없이)' },
+            switch: { emoji: '🔄', label: '기변·번호이동', head: '기기변경 특별 혜택', tag: '기기변경 혜택', kw: /기변|기기\s*변경|번호\s*이동|교체|바꾸|갈아/,
+                      en: 'an old scratched smartphone on the left and a shiny brand-new smartphone on the right with a bright glowing arrow of light between them, upgrade concept',
+                      ko: '기기변경·번호이동 혜택 느낌. 낡은 폰에서 새 폰으로 빛나는 화살표가 이어지는 업그레이드 그림' },
+            thanks: { emoji: '🎂', label: '생일·감사', head: '늘 감사합니다', tag: '감사합니다', kw: /생일|축하|감사|고마|기념/,
+                      en: 'an elegant birthday cake with lit candles, pink and white balloons, a small gift box, warm golden bokeh lights, heartfelt celebration',
+                      ko: '생일·감사 카드 느낌. 촛불 켠 케이크와 분홍 풍선, 작은 선물상자, 따뜻한 빛망울' },
+            save:   { emoji: '💳', label: '요금 절약·알뜰', head: '통신비 절약 상담', tag: '요금 절약', kw: /알뜰|요금|절약|아끼|저렴|통신비|유심/,
+                      en: 'a smartphone with stacks of shiny coins and a cute pink piggy bank, savings concept, fresh and bright',
+                      ko: '통신비 절약 느낌. 스마트폰 옆에 동전 더미와 귀여운 분홍 돼지저금통, 산뜻하고 밝게' },
+            store:  { emoji: '🏪', label: '매장 안내', head: '매장 안내', tag: '매장 안내', kw: /오픈|개업|매장|위치|오시는|영업|주차|안내/,
+                      en: 'a bright modern mobile phone store interior with display tables of smartphones and accessories, clean shelves, welcoming warm lighting, no people, wide angle',
+                      ko: '휴대폰 매장 안내 느낌. 스마트폰과 액세서리가 진열된 밝고 깔끔한 매장 내부 (사람 없이)' }
         };
-        let ig = { engine: localStorage.getItem('igEngine') || 'free', style: 'poster', aspect: '1:1', onUse: null, file: null, url: '' };
+        const IG_STYLES = {
+            poster:  { ko: '한국 휴대폰 매장 전단지·포스터 스타일. 분홍(#e6007e)과 보라 그라데이션, 반짝이는 효과, 큼직하고 시원한 구도', en: 'bold vibrant advertising poster style, vivid magenta (#e6007e) to deep purple gradient background, glowing neon accents, sparkling highlights' },
+            photo:   { ko: '깔끔한 제품 광고 사진 스타일. 밝은 스튜디오 조명, 단순한 배경, 고급스러운 질감', en: 'clean premium commercial product photography, bright soft studio lighting, seamless light pink backdrop, realistic reflections, crisp detail' },
+            cute:    { ko: '귀엽고 친근한 3D 일러스트 스타일. 둥근 모양, 파스텔 분홍·민트, 따뜻한 느낌', en: 'cute glossy 3D clay render illustration, rounded shapes, pastel pink and mint colors, soft shadows, playful and friendly' },
+            premium: { ko: '고급스러운 프리미엄 광고 스타일. 어두운 배경에 은은한 분홍·금빛 테두리 조명, 세련되고 차분하게', en: 'luxury premium advertisement, dark charcoal background with subtle magenta and gold rim lighting, elegant, cinematic, high contrast' }
+        };
+        function igDetectPreset(text) { const t = String(text || ''); for (const [k, p] of Object.entries(IG_PRESETS)) if (p.kw.test(t)) return k; return 'gift'; }
+        let ig = { engine: localStorage.getItem('igEngine') || 'free', style: 'poster', aspect: '1:1', preset: 'gift', quality: localStorage.getItem('igQuality') || 'normal', onUse: null, file: null, url: '' };
         const igSheet = document.getElementById('imgGenSheet');
+        document.getElementById('igPresets').innerHTML = Object.entries(IG_PRESETS).map(([k, p]) => `<button type="button" data-ig-preset="${k}" class="min-h-[44px] px-1 py-1 rounded-lg border text-[11px] font-bold leading-tight">${p.emoji}<br>${p.label}</button>`).join('');
         function igStatus(msg, tone) { const el = document.getElementById('igStatus'); if (!msg) { el.classList.add('hidden'); return; } el.textContent = msg; el.className = `text-[13px] font-medium leading-relaxed ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`; }
         function igRender() {
-            const seg = (sel, key) => document.querySelectorAll(sel).forEach(b => { const on = b.dataset[key] === ig[key === 'igEngine' ? 'engine' : (key === 'igAspect' ? 'aspect' : 'style')]; b.setAttribute('aria-checked', on ? 'true' : 'false'); b.classList.toggle('bg-white', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-indigo-700', on); b.classList.toggle('text-gray-500', !on); });
-            seg('[data-ig-engine]', 'igEngine'); seg('[data-ig-aspect]', 'igAspect');
-            document.querySelectorAll('[data-ig-style]').forEach(b => { const on = b.dataset.igStyle === ig.style; b.classList.toggle('border-indigo-500', on); b.classList.toggle('bg-indigo-50', on); b.classList.toggle('text-indigo-800', on); b.classList.toggle('border-gray-200', !on); b.classList.toggle('text-gray-700', !on); });
-            document.getElementById('igHeadline').disabled = !document.getElementById('igWithText').checked;
+            const keyOf = { igEngine: 'engine', igAspect: 'aspect', igQuality: 'quality' };
+            const seg = (sel, key) => document.querySelectorAll(sel).forEach(b => { const on = b.dataset[key] === ig[keyOf[key]]; b.setAttribute('aria-checked', on ? 'true' : 'false'); b.classList.toggle('bg-white', on); b.classList.toggle('shadow-sm', on); b.classList.toggle('text-indigo-700', on); b.classList.toggle('text-gray-500', !on); });
+            seg('[data-ig-engine]', 'igEngine'); seg('[data-ig-aspect]', 'igAspect'); seg('[data-ig-quality]', 'igQuality');
+            const pick = (sel, attr, val) => document.querySelectorAll(sel).forEach(b => { const on = b.dataset[attr] === val; b.classList.toggle('border-indigo-500', on); b.classList.toggle('bg-indigo-50', on); b.classList.toggle('text-indigo-800', on); b.classList.toggle('border-gray-200', !on); b.classList.toggle('text-gray-700', !on); });
+            pick('[data-ig-style]', 'igStyle', ig.style); pick('[data-ig-preset]', 'igPreset', ig.preset);
+            document.getElementById('igQualityBox').style.display = ig.engine === 'free' ? '' : 'none';
+            const wt = document.getElementById('igWithText').checked;
+            ['igHeadline', 'igSubline', 'igTel'].forEach(id => { document.getElementById(id).disabled = !wt; });
             document.getElementById('igUse').disabled = !ig.file;
-            document.getElementById('igEngineNote').textContent = ig.engine === 'free' ? '무료 · 매장 알림 서버(Cloudflare)로 그려요. 큰 글씨는 강CRM이 정확하게 써 넣어요.' : (ig.engine === 'gemini' ? '유료(장당 약 50~100원) · 결제를 켠 Gemini 키가 필요해요. 그림 안 글씨도 AI가 써요.' : '유료(장당 약 50~100원) · AI 키 설정에 OpenAI 키가 필요해요. 그림 안 글씨도 AI가 써요.');
+            document.getElementById('igEngineNote').textContent = ig.engine === 'free' ? '무료 · 매장 알림 서버(Cloudflare)가 그림을 그리고, 큰 글씨·작은 글씨·매장 띠는 강CRM이 포스터처럼 정확하게 얹어요.' : (ig.engine === 'gemini' ? '유료(장당 약 50~100원) · 결제를 켠 Gemini 키가 필요해요. 글씨까지 AI가 포스터로 그려요.' : '유료(장당 약 50~100원) · AI 키 설정에 OpenAI 키가 필요해요. 글씨까지 AI가 포스터로 그려요.');
         }
         function cleanTplText(t) { return String(t || '').replace(/\{이름\}\s*님?\s*[,!.~]?\s*/g, '').replace(/\{(이름|매장|담당자|약속|단말기|사진)\}/g, (m, k) => k === '매장' ? msgStoreName() : '').replace(/\(광고\)/g, '').replace(/https?:\/\/\S+/g, '').replace(/[ \t]+/g, ' ').replace(/\n{2,}/g, '\n').trim(); }
-        function openImageGen({ title, prompt, headline, aspect, onUse }) {
-            ig = { ...ig, aspect: aspect || '1:1', onUse, file: null, url: '' };
+        function openImageGen({ title, prompt, headline, sub, aspect, preset, onUse }) {
+            const pr = String(prompt || '').slice(0, 600);
+            ig = { ...ig, aspect: aspect || '1:1', preset: preset || igDetectPreset(pr), onUse, file: null, url: '' };
             document.getElementById('igSub').textContent = title || '문구를 적으면 AI가 행사·안내 이미지를 그려줘요';
-            document.getElementById('igPrompt').value = String(prompt || '').slice(0, 600);
-            document.getElementById('igHeadline').value = String(headline || '').slice(0, 24);
+            document.getElementById('igPrompt').value = pr;
+            document.getElementById('igHeadline').value = String(headline || (IG_PRESETS[ig.preset] || {}).head || '').slice(0, 24);
+            document.getElementById('igSubline').value = String(sub || '').slice(0, 30);
+            try { document.getElementById('igTel').value = localStorage.getItem('igTel') || ''; } catch (e) { /* 무시 */ }
             document.getElementById('igResult').classList.add('hidden');
+            document.getElementById('igMake').innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> 만들기';
             igStatus('');
             igRender();
             igSheet.style.display = 'flex';
         }
         function closeImageGen() { igSheet.style.display = 'none'; if (ig.url) { try { URL.revokeObjectURL(ig.url); } catch (e) { /* 무시 */ } } ig.url = ''; }
+        // ChatGPT·Gemini에게 주는 '휴대폰 매장 포스터' 설명 (글씨까지 AI가 그림)
         function igBuildPrompt() {
             const what = document.getElementById('igPrompt').value.trim();
             const withText = document.getElementById('igWithText').checked;
-            const head = document.getElementById('igHeadline').value.trim();
+            const head = document.getElementById('igHeadline').value.trim(), sub = document.getElementById('igSubline').value.trim(), tel = document.getElementById('igTel').value.trim();
+            const P = IG_PRESETS[ig.preset] || IG_PRESETS.gift, S = IG_STYLES[ig.style] || IG_STYLES.poster;
             return [
-                `휴대폰 매장 "${msgStoreName()}"이 고객에게 보내는 안내 이미지를 1장 만들어줘.`,
-                `내용: ${what || '매장 이벤트 안내'}`,
-                `스타일: ${IG_STYLES[ig.style] || IG_STYLES.poster}. 포인트 색은 분홍(#e6007e).`,
-                withText && head ? `이미지 안에 한국어 문구 "${head}"만 크고 또렷하게 한 번 넣어줘. 맞춤법을 정확히 지키고, 그 밖의 글자·숫자는 넣지 마.` : '이미지 안에 글자·숫자를 넣지 마.',
-                '실제 회사 로고·상표·워터마크, 실제 사람 얼굴이나 유명인은 넣지 마. 휴대폰 화면에서 작게 봐도 잘 보이게 단순하게.',
-                ig.aspect === '16:9' ? '가로로 긴 화면(16:9)에 맞게 구성해줘.' : '정사각형(1:1) 구도로 만들어줘.'
+                `휴대폰 매장 홍보 이미지를 1장 만들어줘. ${ig.aspect === '16:9' ? '가로형(16:9, 1920×1080)' : '정사각형(1:1, 1080×1080)'}.`,
+                `[매장] ${msgStoreName()}${tel ? ` · 전화 ${tel}` : ''}`,
+                `[주제] ${P.label} — ${what || '매장 행사 안내'}`,
+                `[그림] ${P.ko}. 스마트폰이 돋보이게.`,
+                `[디자인] ${S.ko}. 휴대폰 화면에서 작게 봐도 한눈에 들어오게, 요소는 3~4개로 단순하게.`,
+                withText && head ? `[글씨] 가장 크게 굵은 한글 고딕으로 "${head}"${sub ? `, 그 아래 작게 "${sub}"` : ''}. 맨 아래에 분홍 띠를 두고 "${msgStoreName()}${tel ? '  ' + tel : ''}". 맞춤법을 정확히 지키고 이 문구 말고 다른 글자·숫자는 넣지 마.` : '[글씨] 그림 안에 글자·숫자는 넣지 마.',
+                '[금지] 실제 회사 로고·상표(삼성·애플·통신사 로고 등), 워터마크, 실존 인물 얼굴.'
             ].join('\n');
         }
         function igFriendly(err, engine) {
@@ -12130,67 +12182,109 @@ familyStr + `\n` +
             }
             return url;
         }
+        // 무료 그림 AI(FLUX)용 영어 장면 설명: 상황별 장면 + 느낌 + (Gemini로) 내 문구의 구체적인 내용 + 포스터 자리 비우기
+        const IG_EN_TAIL = 'professional Korean mobile phone store advertisement key visual, ultra detailed, sharp focus, rich vibrant colors, high-end commercial quality, 4k';
+        const IG_EN_NO = 'absolutely no text, no letters, no words, no numbers, no watermark, no logos, no brand names';
+        function igLayoutHint() { return ig.aspect === '16:9' ? 'main subject placed on the right half, left 45% of the frame kept simple and slightly dark for a headline' : 'main subject centered in the middle, top 28% and bottom 18% of the frame kept simple and uncluttered for a headline and footer'; }
         async function igEnglishPrompt() {
-            const what = document.getElementById('igPrompt').value.trim() || '휴대폰 매장 이벤트';
-            const base = `${IG_STYLES[ig.style] || IG_STYLES.poster}. 내용: ${what}`;
-            if (!geminiApiKey) return `Promotional illustration for a mobile phone store event, ${ig.style === 'cute' ? 'cute pastel illustration' : (ig.style === 'premium' ? 'premium dark elegant ad' : 'bright modern poster')}, pink accent color #e6007e, smartphones, gift boxes, sparkles, clean composition with empty space at the bottom for a headline, no text, no letters, no logos`;
-            try {
-                const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: `다음 한국어 설명을 이미지 생성 AI(FLUX)용 영어 프롬프트 한 문단(60단어 이내)으로 바꿔줘. 휴대폰 매장 홍보 이미지야. 포인트 색 분홍(#e6007e). 아래쪽 1/3은 글씨를 넣을 수 있게 단순하게 비워줘. 그림 안에 글자·숫자·로고·실제 상표·실제 인물은 절대 넣지 말라고 꼭 써줘 ("no text, no letters, no logos").\n설명: ${base}` }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { prompt: { type: 'STRING' } }, required: ['prompt'] } } }, { timeoutMs: 20000 });
-                const p = String((JSON.parse(text) || {}).prompt || '').trim();
-                if (p) return p;
-            } catch (e) { console.warn('영어 프롬프트 만들기 실패 → 기본 문구', e); }
-            return `Promotional illustration for a mobile phone store, ${what.replace(/[^\x20-\x7E]/g, ' ').trim()} pink accent #e6007e, clean, empty space at bottom, no text, no letters, no logos`;
+            const what = document.getElementById('igPrompt').value.trim();
+            const P = IG_PRESETS[ig.preset] || IG_PRESETS.gift, S = IG_STYLES[ig.style] || IG_STYLES.poster;
+            const base = `${P.en}, ${S.en}`;
+            let extra = '';
+            if (geminiApiKey && what) {
+                try {
+                    const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: `휴대폰 매장 홍보 그림을 그릴 거야. 아래 한국어 문구에서 '그림으로 그릴 수 있는 구체적인 물건·분위기'만 골라 짧은 영어 구절(20단어 이내)로 바꿔줘.\n- 제품 이름은 상표 없이 모양으로 (예: 갤럭시 S26 → flagship Android smartphone with large triple camera, 아이폰 → premium smartphone with a dual camera)\n- 글자·숫자·가격·전화번호·사람은 빼\n- 그릴 게 없으면 빈 문자열\n문구: ${what}` }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { phrase: { type: 'STRING' } }, required: ['phrase'] } } }, { timeoutMs: 15000 });
+                    extra = String((JSON.parse(text) || {}).phrase || '').replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+                } catch (e) { console.warn('구체 내용 뽑기 실패 → 기본 장면만', e); }
+            }
+            return [extra ? `${extra}, ${base}` : base, igLayoutHint(), IG_EN_TAIL, IG_EN_NO].join('. ');
         }
         async function igFree() {
             const url = await igFreeServer();
             igStatus('그림 설명을 정리하는 중…', 'gray');
             const prompt = await igEnglishPrompt();
-            igStatus('무료 AI가 그리는 중… (5~20초)', 'gray');
-            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'image', prompt, aspect: ig.aspect }) });
+            igStatus(ig.quality === 'best' ? '고화질로 그리는 중… (20~60초)' : '무료 AI가 그리는 중… (5~20초)', 'gray');
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'image', prompt, aspect: ig.aspect, quality: ig.quality }) });
             const j = await r.json().catch(() => ({}));
             if (!r.ok || !j.ok || !j.image) throw { message: r.status === 429 ? 'free-limit' : (j.error === 'no-ai' ? 'free-setup' : `free ${j.error || r.status}`), detail: j.detail || '' };
             const mime = String(j.image).startsWith('iVBOR') ? 'image/png' : 'image/jpeg';
-            return { blob: await igOverlay(b64ToBlob(j.image, mime)) };
+            return { blob: await igOverlay(b64ToBlob(j.image, mime)), model: j.model || '' };
         }
-        // ✍️ 그림 위에 한글 큰 글씨 + 매장 이름 (아래쪽 어둡게 깔고 흰 글씨 · 자동 크기)
+        // ✍️ 포스터처럼 꾸미기: 위 딱지 + 큰 제목 + 작은 글씨(노란색) + 아래 분홍 매장 띠 (한글은 앱이 직접 써서 틀리지 않음)
+        function igWrap(g, text, maxW, maxLines) {
+            const chars = [...text]; const lines = []; let cur = '';
+            const words = text.split(/\s+/);
+            if (words.length > 1) { for (const w of words) { const t = cur ? cur + ' ' + w : w; if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; } if (cur) lines.push(cur); }
+            else { for (const ch of chars) { const t = cur + ch; if (g.measureText(t).width > maxW && cur) { lines.push(cur); cur = ch; } else cur = t; } if (cur) lines.push(cur); }
+            return lines.length > maxLines ? null : lines;
+        }
         async function igOverlay(blob) {
-            const withText = document.getElementById('igWithText').checked, head = document.getElementById('igHeadline').value.trim();
+            const withText = document.getElementById('igWithText').checked;
+            const head = document.getElementById('igHeadline').value.trim(), sub = document.getElementById('igSubline').value.trim(), tel = document.getElementById('igTel').value.trim();
             const bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
-            const W = bmp.naturalWidth || 1024, H = bmp.naturalHeight || 1024;
+            const W0 = bmp.naturalWidth || 1024, H0 = bmp.naturalHeight || 1024;
+            const scale = Math.max(1, 1080 / Math.max(W0, H0));   // 작게 오면 1080으로 키워서 글씨가 또렷하게
+            const W = Math.round(W0 * scale), H = Math.round(H0 * scale);
             const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
             const g = cv.getContext('2d');
+            g.imageSmoothingQuality = 'high';
             g.drawImage(bmp, 0, 0, W, H);
             try { URL.revokeObjectURL(bmp.src); } catch (e) { /* 무시 */ }
-            const font = (px) => `900 ${px}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif`;
-            if (withText && head) {
-                const bandH = Math.round(H * (W > H ? 0.38 : 0.32));
-                const grad = g.createLinearGradient(0, H - bandH, 0, H);
-                grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(0.35, 'rgba(0,0,0,0.55)'); grad.addColorStop(1, 'rgba(0,0,0,0.78)');
-                g.fillStyle = grad; g.fillRect(0, H - bandH, W, bandH);
-                // 너무 길면 두 줄로
-                const words = head.split(/\s+/);
-                let lines = [head];
-                if (head.length > 9 && words.length > 1) { const mid = Math.ceil(words.length / 2); lines = [words.slice(0, mid).join(' '), words.slice(mid).join(' ')]; }
-                let px = Math.round(H * (lines.length > 1 ? 0.085 : 0.11));
-                g.font = font(px);
-                while (px > 20 && Math.max(...lines.map(l => g.measureText(l).width)) > W * 0.88) { px -= 4; g.font = font(px); }
-                g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-                const gap = px * 1.18, baseY = H - Math.round(H * 0.075) - (lines.length - 1) * gap - px * 0.35;
-                lines.forEach((l, i) => {
-                    const y = baseY + i * gap;
-                    g.lineWidth = Math.max(4, px * 0.12); g.strokeStyle = 'rgba(0,0,0,0.55)'; g.strokeText(l, W / 2, y);
-                    g.fillStyle = '#ffffff'; g.fillText(l, W / 2, y);
-                });
+            const FONT = 'Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif';
+            const font = (wt, px) => `${wt} ${px}px ${FONT}`;
+            const wide = W > H * 1.2;
+            const store = msgStoreName(), P = IG_PRESETS[ig.preset] || IG_PRESETS.gift;
+            const footH = withText ? Math.round(H * (wide ? 0.13 : 0.1)) : 0;
+            if (withText && (head || sub)) {
+                // 글씨 자리 어둡게 (세로: 위쪽 · 가로: 왼쪽)
+                const grad = wide ? g.createLinearGradient(0, 0, W * 0.62, 0) : g.createLinearGradient(0, 0, 0, H * 0.5);
+                grad.addColorStop(0, 'rgba(20,0,30,0.82)'); grad.addColorStop(0.55, 'rgba(20,0,30,0.45)'); grad.addColorStop(1, 'rgba(20,0,30,0)');
+                g.fillStyle = grad; if (wide) g.fillRect(0, 0, W * 0.62, H); else g.fillRect(0, 0, W, H * 0.5);
+                const areaX = wide ? W * 0.06 : W * 0.07, areaW = wide ? W * 0.5 : W * 0.86;
+                const center = !wide;
+                g.textAlign = center ? 'center' : 'left'; g.textBaseline = 'top';
+                const cx = center ? W / 2 : areaX;
+                let y = wide ? H * 0.14 : H * 0.06;
+                // 딱지 (상황 이름)
+                const tp = Math.round(H * (wide ? 0.05 : 0.036));
+                g.font = font(800, tp);
+                const tagT = P.tag, tw = g.measureText(tagT).width, tpadX = tp * 0.75, th = tp * 1.75;
+                const tx = center ? (W - tw) / 2 - tpadX : areaX;
+                g.fillStyle = '#ffe14d'; g.beginPath(); if (g.roundRect) g.roundRect(tx, y, tw + tpadX * 2, th, th / 2); else g.rect(tx, y, tw + tpadX * 2, th); g.fill();
+                g.fillStyle = '#3b0030'; g.textAlign = 'left'; g.fillText(tagT, tx + tpadX, y + (th - tp) / 2 + tp * 0.04);
+                g.textAlign = center ? 'center' : 'left';
+                y += th + H * 0.025;
+                // 큰 제목 (최대 2줄, 자동 크기)
+                if (head) {
+                    let px = Math.round(H * (wide ? 0.13 : 0.105)), lines = null;
+                    while (px > 24) { g.font = font(900, px); lines = igWrap(g, head, areaW, 2); if (lines) break; px -= 4; }
+                    lines = lines || [head];
+                    lines.forEach(l => {
+                        g.lineJoin = 'round'; g.lineWidth = Math.max(6, px * 0.16); g.strokeStyle = 'rgba(40,0,40,0.75)'; g.strokeText(l, cx, y);
+                        g.fillStyle = '#ffffff'; g.fillText(l, cx, y);
+                        y += px * 1.14;
+                    });
+                    y += H * 0.012;
+                }
+                // 작은 글씨 (노란색)
+                if (sub) {
+                    let sp = Math.round(H * (wide ? 0.06 : 0.048)), lines = null;
+                    while (sp > 16) { g.font = font(800, sp); lines = igWrap(g, sub, areaW, 2); if (lines) break; sp -= 2; }
+                    (lines || [sub]).forEach(l => { g.lineWidth = Math.max(4, sp * 0.14); g.strokeStyle = 'rgba(40,0,40,0.7)'; g.strokeText(l, cx, y); g.fillStyle = '#ffe14d'; g.fillText(l, cx, y); y += sp * 1.2; });
+                }
             }
-            // 매장 이름 (오른쪽 아래 작은 분홍 띠)
-            const store = msgStoreName();
-            if (store) {
-                const sp = Math.round(H * 0.034); g.font = `800 ${sp}px Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
-                const tw = g.measureText(store).width, padX = sp * 0.7, bh = sp * 1.7, x = W - tw - padX * 2 - W * 0.03, y = H * 0.03;
-                g.fillStyle = '#e6007e'; g.beginPath(); if (g.roundRect) g.roundRect(x, y, tw + padX * 2, bh, bh / 2); else g.rect(x, y, tw + padX * 2, bh); g.fill(); g.lineWidth = Math.max(2, sp * 0.08); g.strokeStyle = 'rgba(255,255,255,0.9)'; g.stroke();
-                g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(store, x + padX, y + bh / 2 + 1);
+            if (withText && (store || tel)) {
+                // 아래 분홍 매장 띠
+                g.fillStyle = '#e6007e'; g.fillRect(0, H - footH, W, footH);
+                g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, H - footH, W, Math.max(2, footH * 0.05));
+                const fp = Math.round(footH * 0.4);
+                g.textBaseline = 'middle'; g.fillStyle = '#ffffff';
+                g.font = font(900, fp); g.textAlign = 'left';
+                const fy = H - footH / 2;
+                g.fillText(store, W * 0.05, fy);
+                if (tel) { g.font = font(800, fp); g.textAlign = 'right'; g.fillText(`☎ ${tel}`, W * 0.95, fy); }
             }
-            return await new Promise(res => cv.toBlob(b => res(b || blob), 'image/jpeg', 0.9));
+            return await new Promise(res => cv.toBlob(b => res(b || blob), 'image/jpeg', 0.92));
         }
         function b64ToBlob(b64, mime) { const bin = atob(b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: mime || 'image/png' }); }
         document.getElementById('igMake').addEventListener('click', async () => {
@@ -12206,7 +12300,8 @@ familyStr + `\n` +
                 ig.url = URL.createObjectURL(blob);
                 document.getElementById('igImg').src = ig.url;
                 document.getElementById('igResult').classList.remove('hidden');
-                igStatus('다 그렸어요. 글씨가 맞는지 확인하고 [이 이미지 쓰기]를 눌러주세요. 마음에 안 들면 [만들기]를 한 번 더.', 'green');
+                const mname = { 'flux-2-klein-4b': 'FLUX.2', 'flux-1-schnell': 'FLUX.1 (보통)', 'lucid-origin': '고화질', 'phoenix-1.0': '고화질' }[out.model] || '';
+                igStatus(`다 그렸어요${mname ? ` (${mname})` : ''}. 글씨가 맞는지 확인하고 [이 이미지 쓰기]를 눌러주세요. 마음에 안 들면 [다시 만들기] — 매번 다른 그림이 나와요.`, 'green');
                 btn.innerHTML = '<i class="fa-solid fa-rotate"></i> 다시 만들기';
             } catch (e) { console.error('이미지 만들기 실패', e); igStatus(igFriendly(e, ig.engine), 'red'); }
             finally { btn.disabled = false; igRender(); }
@@ -12222,9 +12317,16 @@ familyStr + `\n` +
             if (e.target === igSheet) { closeImageGen(); return; }
             const en = e.target.closest('[data-ig-engine]'); if (en) { ig.engine = en.dataset.igEngine; try { localStorage.setItem('igEngine', ig.engine); } catch (er) { /* 무시 */ } igRender(); return; }
             const st = e.target.closest('[data-ig-style]'); if (st) { ig.style = st.dataset.igStyle; igRender(); return; }
-            const as = e.target.closest('[data-ig-aspect]'); if (as) { ig.aspect = as.dataset.igAspect; igRender(); }
+            const as = e.target.closest('[data-ig-aspect]'); if (as) { ig.aspect = as.dataset.igAspect; igRender(); return; }
+            const pr = e.target.closest('[data-ig-preset]'); if (pr) {
+                const hEl = document.getElementById('igHeadline'), was = (IG_PRESETS[ig.preset] || {}).head || '';
+                ig.preset = pr.dataset.igPreset;
+                if (!hEl.value.trim() || hEl.value.trim() === was) hEl.value = IG_PRESETS[ig.preset].head;   // 기본 제목이면 같이 바꿔줌
+                igRender(); return; }
+            const qu = e.target.closest('[data-ig-quality]'); if (qu) { ig.quality = qu.dataset.igQuality; try { localStorage.setItem('igQuality', ig.quality); } catch (er) { /* 무시 */ } igRender(); }
         });
         document.getElementById('igWithText').addEventListener('change', igRender);
+        document.getElementById('igTel').addEventListener('change', (e) => { try { localStorage.setItem('igTel', e.target.value.trim()); } catch (er) { /* 무시 */ } });
         // 📱 앱(무료)으로: 요청 문구 복사 → 앱 열기 → 저장한 사진 가져오기
         igSheet.addEventListener('click', async (e) => {
             const a = e.target.closest('[data-ig-app]');
