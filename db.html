@@ -893,7 +893,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V149</span>
+                    <span class="text-sm text-gray-600">V150</span>
                 </div>
             </section>
         </div>
@@ -1237,6 +1237,7 @@
                                 <i class="fa-solid fa-pen text-sm"></i>
                             </button>
                         </div>
+                        <p id="modalPrevPhones" class="hidden text-xs font-medium text-gray-500 mt-0.5"></p>
                     </div>
                     
                     <div class="flex flex-col gap-2 w-full md:max-w-[300px]">
@@ -2143,6 +2144,93 @@
             }
         }
         const appendLine = (old, line) => (old && String(old).trim()) ? `${old}\n${line}` : line;
+        // 📱 번호가 바뀐 고객: 예전 번호를 prevPhones(보이는 기록)·prevIds(숫자만, 찾기용)에 남김
+        function phoneDigits(v) { return String(v || '').replace(/\D/g, ''); }
+        function prevIdsOf(c) { return Array.isArray(c && c.prevIds) ? c.prevIds.map(String).filter(Boolean) : []; }
+        function prevPhonesOf(c) { return Array.isArray(c && c.prevPhones) ? c.prevPhones.filter(p => p && phoneDigits(p.phone)) : []; }
+        function prevCardIdsOf(c) { return Array.isArray(c && c.prevCardIds) ? c.prevCardIds.map(String).filter(Boolean) : []; }
+        // 이 번호를 예전에 쓰던 고객 (지금 이 번호로 등록된 고객이 없을 때 안내용)
+        function prevOwnerOf(num, { includeTrash = true } = {}) {
+            const d = phoneDigits(num);
+            if (!d) return null;
+            return customerDB.find(c => prevIdsOf(c).includes(d)) || (includeTrash ? trashDB.find(c => prevIdsOf(c).includes(d)) : null) || null;
+        }
+        function prevPhonesText(c, max = 3) {
+            const list = prevPhonesOf(c).slice(-max).reverse();
+            return list.map(p => `${formatPhone(p.phone)}${p.until ? ` (${String(p.until).slice(2).replace(/-/g, '.')}까지)` : ''}`).join(', ');
+        }
+        // 🔀 두 고객 카드 합치기 (번호를 이미 있는 고객 번호로 바꿀 때)
+        //   · 빈 칸은 서로 채우고, 둘 다 적힌 칸은 '지금 고치는 카드(primary)' 값을 씀
+        //   · 메모·연락 기록·문자 기록·서류 개수는 합치고, 덮인 상대 카드 값은 메모에 한 줄로 남김 (예전: 상대 카드 내용이 통째로 사라졌음)
+        const MERGE_NOTE_KEYS = { name: '이름', salesStatus: '영업상태', manager: '담당자', activationDate: '개통일', device: '단말기', plan: '요금제', carrier: '통신사', dob: '생년월일', discountType: '할인', openStore: '개통점', installment: '할부', fee: '요금' };
+        function mergeCustomerDocs(primary, other, { by = '', today = getTodayStr(), otherId = '' } = {}) {
+            const P = primary || {}, O = other || {};
+            const blank = v => v === undefined || v === null || (typeof v === 'string' && !v.trim());
+            const out = {};
+            const notes = [];
+            const keys = new Set([...Object.keys(O), ...Object.keys(P)]);
+            keys.delete('id');
+            // 약속은 날짜·메모·완료·잡은 사람을 한 묶음으로
+            const promKeys = new Set();
+            keys.forEach(k => { const m = /^prom([A-Za-z0-9]+?)Date$/.exec(k); if (m) promKeys.add(m[1]); });
+            const unitRe = (K) => new RegExp(`^prom${K}(Date|Memo|Chk|By|Store|From|Key)$`);
+            const handled = new Set();
+            promKeys.forEach(K => {
+                const re = unitRe(K), unit = [...keys].filter(k => re.test(k));
+                unit.forEach(k => handled.add(k));
+                const pD = String(P[`prom${K}Date`] || ''), oD = String(O[`prom${K}Date`] || '');
+                const src = pD ? P : (oD ? O : P);
+                unit.forEach(k => { if (src[k] !== undefined) out[k] = src[k]; else if (P[k] !== undefined) out[k] = P[k]; });
+                if (pD && oD && pD !== oD && !O[`prom${K}Chk`]) notes.push(`${(PROMISE_DEFS.find(t => t.key === K) || { label: K }).label} ${oD.slice(5).replace('-', '/')}`);
+            });
+            const joinText = (a, b) => { const x = String(a || '').trim(), y = String(b || '').trim(); if (!x) return y; if (!y || x.includes(y)) return x; if (y.includes(x)) return y; return `${x}\n${y}`; };
+            keys.forEach(k => {
+                if (handled.has(k)) return;
+                const p = P[k], o = O[k];
+                if (k === 'memo' || k === 'obMemo' || k === 'prospectMemo') { out[k] = joinText(p, o); return; }
+                if (k === 'contactHistory') {
+                    const lines = [...new Set([...String(o || '').split('\n'), ...String(p || '').split('\n')].map(s => s.trim()).filter(Boolean))];
+                    lines.sort((a, b) => { const sa = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(a) || [])[1] || '', sb = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(b) || [])[1] || ''; return sa < sb ? -1 : (sa > sb ? 1 : 0); });
+                    out[k] = lines.join('\n'); return;
+                }
+                if (k === 'smsLog') {
+                    const all = [...(Array.isArray(o) ? o : []), ...(Array.isArray(p) ? p : [])];
+                    const seen = new Set();
+                    out[k] = all.filter(x => { const key = JSON.stringify(x); if (seen.has(key)) return false; seen.add(key); return true; }).sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).slice(-20);
+                    return;
+                }
+                if (k === 'docCount' || k === 'missedCalls') { out[k] = (Number(p) || 0) + (Number(o) || 0); return; }
+                if (k === 'marketingDeny' || k === 'bizCardInstalled') { out[k] = p === true || o === true; return; }
+                if (k === 'regDate' || k === 'createdAt' || k === 'bizCardInstalledAt') { const v = [p, o].filter(x => !blank(x)).map(String).sort()[0]; if (v !== undefined) out[k] = v; return; }
+                if (k === 'lastContactDate' || k === 'bizCardSentAt' || k === 'updatedAt') { const v = [p, o].filter(x => !blank(x)).map(String).sort().pop(); if (v !== undefined) out[k] = v; return; }
+                if (k === 'prevPhones' || k === 'prevIds' || k === 'prevCardIds' || k === 'cardId' || k === 'pushSubscribed' || k === 'contactManager') return;   // 아래에서
+                out[k] = blank(p) ? o : p;
+                if (MERGE_NOTE_KEYS[k] && !blank(p) && !blank(o) && String(p).trim() !== String(o).trim()) notes.push(`${MERGE_NOTE_KEYS[k]} ${String(o).trim().slice(0, 20)}`);
+            });
+            // 최근 연락 담당은 더 최근에 연락한 쪽
+            out.contactManager = String(P.lastContactDate || '') >= String(O.lastContactDate || '') ? (P.contactManager || O.contactManager || '') : (O.contactManager || P.contactManager || '');
+            // 명함 번호: 둘 다 있으면 알림을 받는 쪽을 남기고, 다른 하나는 prevCardIds (예전 링크로 온 상담요청도 이 고객으로)
+            const pC = String(P.cardId || ''), oC = String(O.cardId || '');
+            let keepC = pC || oC, dropC = '';
+            if (pC && oC && pC !== oC) { keepC = (O.pushSubscribed === true && P.pushSubscribed !== true) ? oC : pC; dropC = keepC === pC ? oC : pC; }
+            if (keepC) out.cardId = keepC;
+            out.pushSubscribed = keepC ? ((keepC === pC ? P : O).pushSubscribed === true) : (P.pushSubscribed === true || O.pushSubscribed === true);
+            const cards = [...new Set([...prevCardIdsOf(O), ...prevCardIdsOf(P), dropC].filter(x => x && x !== keepC))];
+            if (cards.length) out.prevCardIds = cards;
+            out.prevPhones = [...prevPhonesOf(O), ...prevPhonesOf(P)];
+            out.deletedAt = '';
+            out.mergedAt = today;
+            const otherLabel = `${otherId ? formatPhone(otherId) + ' ' : ''}카드${O.name ? `(${O.name})` : ''}`;
+            out.memo = appendLine(out.memo, `[카드 합침 ${today}${by ? ' · ' + by : ''}] ${otherLabel}를 합쳤어요.${notes.length ? ` 그 카드에 있던 다른 값: ${notes.slice(0, 8).join(', ')}` : ''}`);
+            return out;
+        }
+        // 번호 변경 기록 정리 (같은 번호는 한 번만 · 지금 번호는 빼기 · 최근 10개)
+        function finalizePrevPhones(list, currentId) {
+            const seen = new Set(), outList = [];
+            [...list].reverse().forEach(p => { const d = phoneDigits(p && p.phone); if (!d || d === currentId || seen.has(d)) return; seen.add(d); outList.unshift({ phone: formatPhone(d), until: p.until || '', by: p.by || '' }); });
+            const kept = outList.slice(-10);
+            return { prevPhones: kept, prevIds: kept.map(p => phoneDigits(p.phone)) };
+        }
         // 📨 약속·생일·번호·수신거부·삭제처럼 자동 안내에 영향 주는 칸을 고치면 잠시 뒤 예약 목록도 맞춤 (예전엔 최대 3시간 뒤에야 반영)
         const SMS_RELATED = /^(prom[A-Za-z0-9]+(Date|Chk)|dob|phone|marketingDeny|deletedAt|salesStatus|pushSubscribed|cardId|name)$/;
         let smsResyncTimer = null;
@@ -2152,7 +2240,57 @@
                 try { if (pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn'))) syncAutoSms({ force: true }); } catch (e) { console.error(e); }
             }, 15000);
         }
-        function noteCustomerWrite(ref, data) { try { if (refCol(ref) === 'smart_customers' && data && Object.keys(data).some(k => SMS_RELATED.test(k))) scheduleSmsResync(); } catch (e) { /* 무시 */ } }
+        function noteCustomerWrite(ref, data) {
+            try {
+                if (refCol(ref) !== 'smart_customers' || !data) return;
+                if (Object.keys(data).some(k => SMS_RELATED.test(k))) scheduleSmsResync();
+                if ('name' in data || 'cardId' in data) scheduleCardWho(ref.id, data);
+            } catch (e) { /* 무시 */ }
+        }
+        // 📇 명함 본인 확인용 '가린 이름' (card_who/명함번호 = { n: '강○숙' })
+        //   명함 링크를 받은 지인이 열면 "강○숙 고객님 본인이세요?"로 물어봐서, 남의 알림·상담으로 섞이지 않게 (명함 V2.5)
+        function maskName(n) {
+            if (isNoName(n)) return '';
+            const ch = [...String(n).trim().replace(/\s+/g, '')];
+            if (ch.length <= 1) return ch.join('');
+            if (ch.length === 2) return ch[0] + '○';
+            return ch[0] + '○'.repeat(Math.min(ch.length - 2, 3)) + ch[ch.length - 1];
+        }
+        let cardWhoCache = null, cardWhoRunning = false, cardWhoStarted = false;
+        const cardWhoTimers = {};
+        function writeCardWho(cardId, n) {
+            if (!db || !/^[A-Za-z0-9_-]{2,40}$/.test(String(cardId || ''))) return Promise.resolve();
+            if (cardWhoCache && cardWhoCache.get(cardId) === n) return Promise.resolve();
+            return setDoc(doc(db, 'card_who', cardId), { n, at: getTodayStr() }).then(() => { if (cardWhoCache) cardWhoCache.set(cardId, n); }).catch(e => console.warn('명함 확인 이름 저장 실패', e));
+        }
+        function scheduleCardWho(id, data) {
+            clearTimeout(cardWhoTimers[id]);
+            cardWhoTimers[id] = setTimeout(() => {
+                const c = customerDB.find(x => x.id === id) || {};
+                const cardId = data.cardId || c.cardId;
+                if (!cardId) return;
+                const n = maskName('name' in data ? data.name : c.name);
+                writeCardWho(cardId, n);
+                prevCardIdsOf(c).forEach(pc => writeCardWho(pc, n));
+            }, 1500);
+        }
+        // 앱을 열 때 한 번 (폰마다 6시간에 한 번): 명함 번호가 있는 고객의 가린 이름을 맞춤
+        async function syncCardWho(force = false) {
+            if (!db || !dbLoaded || dbLoadError || cardWhoRunning || !customerDB.length) return;
+            if (!force && Date.now() - Number(localStorage.getItem('cardWhoAt') || 0) < 6 * 3600 * 1000) return;
+            cardWhoRunning = true;
+            try {
+                const snap = await getDocs(collection(db, 'card_who'));
+                const have = new Map();
+                snap.forEach(d => have.set(d.id, String((d.data() || {}).n ?? '\u0000')));
+                cardWhoCache = new Map(have);
+                const todo = [];
+                customerDB.forEach(c => { const n = maskName(c.name); [c.cardId, ...prevCardIdsOf(c)].forEach(cid => { if (cid && have.get(cid) !== n) todo.push([cid, n]); }); });
+                for (let i = 0; i < todo.length; i += 20) await Promise.all(todo.slice(i, i + 20).map(([cid, n]) => writeCardWho(cid, n)));
+                localStorage.setItem('cardWhoAt', String(Date.now()));
+            } catch (e) { console.warn('명함 확인 이름 맞추기 실패', e); }
+            finally { cardWhoRunning = false; }
+        }
         function saveDoc(ref, data, opts) { data = stampCustomerWrite(ref, data); noteCustomerWrite(ref, data); return opts ? setDoc(ref, stripUndefined(data), opts) : setDoc(ref, stripUndefined(data)); }
         function saveUpdate(ref, data) { noteCustomerWrite(ref, data); return updateDoc(ref, stripUndefined(stampCustomerWrite(ref, data))); }
         // ⚠️ 오류를 알아듣기 쉬운 한국어로 (영어 오류문이 그대로 뜨지 않게)
@@ -2737,6 +2875,7 @@
             if (!existing) {
                 const trashed = trashDB.find(c => c.id === cleanPhone);
                 if (trashed) customAlert(`🗑️ 휴지통에 있는 고객이에요${trashed.name ? ' (' + trashed.name + ')' : ''}.\n저장하면 휴지통에서 복구되고 이번 내용이 합쳐져요.`);
+                else { const po = prevOwnerOf(cleanPhone); if (po) customAlert(`📱 ${po.name || '이름 없음'} 고객이 예전에 쓰던 번호예요 (지금 번호 ${formatPhone(po.phone)}).\n\n· 같은 분이면: 저장하지 말고 그 고객 카드를 열어서 써주세요\n· 번호가 다른 분께 넘어간 거면: 새 고객으로 저장해도 돼요`); }
                 return;
             }
 
@@ -2769,6 +2908,7 @@
 
         document.getElementById('editPhoneBtn').addEventListener('click', () => {
             const phoneInput = document.getElementById('modalPhone');
+            { const pp = document.getElementById('modalPrevPhones'); const c = customerDB.find(x => x.id === currentDetailId); const t = c ? prevPhonesText(c, 3) : ''; pp.textContent = `번호를 바꾸면 지금 번호는 '이전 번호'로 남아요.${t ? ` (이전 번호: ${t})` : ''}`; pp.classList.remove('hidden'); }
             phoneInput.readOnly = false;
             phoneInput.classList.remove('border-transparent');
             phoneInput.classList.add('border-gray-400');
@@ -4381,7 +4521,8 @@
                 const matchSearch = !query
                     || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.cardId, c.visitPurpose, c.regStore]
                         .some(v => String(v || '').toLowerCase().includes(query))
-                    || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)));
+                    || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)))
+                    || (/^\d{4,}$/.test(qDigits) && prevIdsOf(c).some(p => p.includes(qDigits)));   // 📱 예전 번호로도 찾기
                 
                 if (!matchSearch) return false;
 
@@ -4489,6 +4630,7 @@
             syncAutoSms();
             checkCardLinks();
             checkRecentCardLinks();
+            if (!cardWhoStarted) { cardWhoStarted = true; setTimeout(() => syncCardWho(), 20000); }
 
             // 검색어·필터·정렬이 바뀌면 폰 카드 목록은 처음 30명부터 다시
             const listSig = `${currentFilter}|${query}|${currentSort}|${listRange.from}|${listRange.to}|${listRange.base}|${listActType}|${listCarrier}|${CARD_PAGE_SIZE}`;
@@ -5475,6 +5617,7 @@
             
             const phoneInput = document.getElementById('modalPhone');
             phoneInput.value = formatPhone(c.phone || '');
+            { const pp = document.getElementById('modalPrevPhones'); const t = prevPhonesText(c, 3); pp.textContent = t ? `📱 이전 번호: ${t}` : ''; pp.classList.toggle('hidden', !t); }
             phoneInput.readOnly = true;
             phoneInput.classList.remove('border-gray-400');
             phoneInput.classList.add('border-transparent');
@@ -5731,6 +5874,7 @@
                 headerRow('수신동의', consentHtml),
                 headerRow('개통점', c.openStore ? e(c.openStore) : '<span class="text-gray-400">-</span>'),
                 headerRow('등록점', c.regStore ? e(c.regStore) : '<span class="text-gray-400">-</span>'),
+                prevPhonesOf(c).length ? headerRow('이전 번호', `<span class="font-medium">${e(prevPhonesText(c, 5))}</span>`) : '',
                 headerRow('명함 링크', c.cardId ? `<span class="font-mono">${e(c.cardId)}</span> <span class="text-gray-400 font-medium">· ${c.pushSubscribed === true ? '알림 받는 중' : (c.bizCardInstalled === true ? '명함 열어봄 (알림은 아직)' : (c.bizCardSentAt ? `${e(formatShortDate(c.bizCardSentAt))} 보냄` : '아직 안 보냄'))}</span> <button type="button" data-paction="cardrefresh" class="ml-1 h-8 px-2 rounded-lg border border-gray-300 bg-white text-[11px] font-bold text-gray-700 align-middle"><i class="fa-solid fa-rotate"></i> 새로고침</button>` : '<span class="text-gray-400">[명함 보내기]로 개인 링크를 보내면 설치·알림을 자동으로 확인해요</span>'),
                 headerRow('디지털 명함', c.bizCardInstalled === true ? `<span class="text-pink-600">설치함</span>${c.bizCardInstalledAt ? ` <span class="text-gray-400 font-medium">(${e(c.bizCardInstalledAt)})</span>` : ''}` : '<span class="text-gray-400">미설치</span>'),
                 legalText ? headerRow('법정대리인', e(legalText)) : '',
@@ -6675,6 +6819,14 @@
         let pushStatsLoading = false;
         let pushStatsFailAt = 0;
         function pushRelayReady() { return isHttpsUrl(pushRelayUrl()) && !!pushRelayPw(); }
+        // 🏷️ 푸시 종류 (자동 푸시 제목 모양으로 구분: '🎂 생일 축하드려요!' · '📅 ○○ 안내' · '(광고) ○○ 소식' · 그 밖 = 직원이 직접 보낸 푸시)
+        function pushKindOf(heading) {
+            const h = String(heading || '').trim();
+            if (/^🎂/.test(h)) return { kind: 'bday', label: '🎂 생일' };
+            if (/^📅 .+ 안내$/.test(h)) return { kind: 'task', label: '📅 변경업무' };
+            if (/^\(광고\)/.test(h)) return { kind: 'promo', label: '📢 홍보' };
+            return { kind: 'manual', label: '✍️ 직접' };
+        }
         function loadPushStatsCache() { try { const c = JSON.parse(localStorage.getItem('pushStatsCache') || 'null'); return c && typeof c === 'object' ? c : null; } catch (e) { return null; } }
         function savePushStatsCache(c) { try { localStorage.setItem('pushStatsCache', JSON.stringify(c)); } catch (e) { /* 무시 */ } }
         function summarizePushItems(items, now = new Date()) {
@@ -6685,7 +6837,10 @@
             const scheduledOf = (n) => Number(n.sendAfter || 0) > nowSec;
             const month = list.filter(n => whenOf(n) >= monthStart);
             const sent = month.filter(n => !scheduledOf(n));
+            const kinds = { bday: 0, task: 0, promo: 0, manual: 0 };
+            sent.forEach(n => { kinds[pushKindOf(n.heading).kind]++; });
             return {
+                kinds,
                 count: sent.length,
                 delivered: sent.reduce((a, n) => a + (Number(n.successful) || 0), 0),
                 clicks: sent.reduce((a, n) => a + (Number(n.converted) || 0), 0),
@@ -6738,8 +6893,9 @@
             if (cache && cache.error === 'old') return customAlert('푸시 실적을 보려면 Cloudflare의 중계 서버 코드를 새 버전으로 바꿔주세요.\n(PC에서 [</> 코드] → 전체 지우고 붙여넣기 → [배포])');
             if (!cache || !Array.isArray(cache.items)) return customAlert('푸시 실적을 불러오지 못했어요.\n잠시 뒤 다시 눌러주세요.');
             const sum = summarizePushItems(cache.items);
-            const lines = sum.recent.map(r => `• ${formatPushWhen(r.at)}${r.scheduled ? ' (예약)' : ''}  ${r.title}\n   보냄 ${r.delivered.toLocaleString()}명 · 클릭 ${r.clicks.toLocaleString()}`);
-            customAlert(`📣 ${new Date().getMonth() + 1}월 푸시 ${sum.count}건 · 보냄 ${sum.delivered.toLocaleString()}명 · 클릭 ${sum.clicks.toLocaleString()}${sum.scheduled ? ` · 예약 ${sum.scheduled}건` : ''}\n\n최근 보낸 알림\n${lines.join('\n') || '아직 보낸 알림이 없어요.'}\n\n※ '보냄'은 알림이 전달된 사람 수예요.`);
+            const lines = sum.recent.map(r => `• ${formatPushWhen(r.at)}${r.scheduled ? ' (예약)' : ''}  [${pushKindOf(r.title).label}] ${r.title}\n   보냄 ${r.delivered.toLocaleString()}명 · 클릭 ${r.clicks.toLocaleString()}`);
+            const K = sum.kinds || {}, kLine = [K.bday ? `🎂 생일 ${K.bday}` : '', K.task ? `📅 변경업무 ${K.task}` : '', K.promo ? `📢 홍보 ${K.promo}` : '', K.manual ? `✍️ 직접 ${K.manual}` : ''].filter(Boolean).join(' · ');
+            customAlert(`📣 ${new Date().getMonth() + 1}월 푸시 ${sum.count}건 · 보냄 ${sum.delivered.toLocaleString()}명 · 클릭 ${sum.clicks.toLocaleString()}${sum.scheduled ? ` · 예약 ${sum.scheduled}건` : ''}${kLine ? `\n종류: ${kLine}` : ''}\n\n최근 보낸 알림\n${lines.join('\n') || '아직 보낸 알림이 없어요.'}\n\n※ '보냄'은 알림이 전달된 사람 수예요.`);
         });
 
         // ═════════════════════════════════════════════
@@ -6984,7 +7140,9 @@
             }
         }
         function saveSmsStats(list) {
-            try { localStorage.setItem('smsStatsCache', JSON.stringify({ at: Date.now(), queued: (list.queued || []).length, todaySent: list.todaySent || 0, ready: !!list.ready })); } catch (e) { /* 무시 */ }
+            const ks = (list.queued || []).map(smsKindOf);
+            const kinds = { bday: ks.filter(k => k.kind === 'bday').length, task: ks.filter(k => k.kind === 'task').length, promo: ks.filter(k => k.kind === 'promo').length, push: ks.filter(k => k.push).length };
+            try { localStorage.setItem('smsStatsCache', JSON.stringify({ at: Date.now(), queued: (list.queued || []).length, todaySent: list.todaySent || 0, ready: !!list.ready, kinds })); } catch (e) { /* 무시 */ }
         }
         function renderSmsStats() {
             const row = document.getElementById('smsStatsRow'), text = document.getElementById('smsStatsText');
@@ -6995,7 +7153,8 @@
             row.classList.toggle('hidden', !on);
             row.classList.toggle('flex', !!on);
             if (!on) return;
-            text.innerHTML = c ? `<b class="font-bold text-gray-900">자동 안내 예약 ${c.queued}건</b> · 오늘 보냄 ${c.todaySent}건${c.ready === false ? ' · <span class="text-red-600">매장 폰 연결 확인 필요</span>' : ''}` : '자동 문자';
+            const K = c && c.kinds, kParts = K ? [K.bday ? `🎂 생일 ${K.bday}` : '', K.task ? `📅 변경업무 ${K.task}` : '', K.promo ? `📢 홍보 ${K.promo}` : '', K.push ? `🔔 푸시 ${K.push}` : ''].filter(Boolean) : [];
+            text.innerHTML = c ? `<b class="font-bold text-gray-900">자동 안내 예약 ${c.queued}건</b>${kParts.length ? ` <span class="text-gray-600">(${kParts.join(' · ')})</span>` : ''} · 오늘 보냄 ${c.todaySent}건${c.ready === false ? ' · <span class="text-red-600">매장 폰 연결 확인 필요</span>' : ''}` : '자동 문자';
         }
         // 예약 목록을 고객 데이터와 맞추기 (없는 건 예약, 바뀐 건 다시 예약, 필요 없어진 자동 문자는 취소)
         // 두 번 겹쳐 부르면: 강제 맞추기는 지금 것이 끝난 뒤 한 번 더 (예전엔 그냥 건너뛰어서 '시작했어요'가 떠도 예약이 안 들어갈 수 있었음)
@@ -7036,11 +7195,15 @@
                 const nowMs = Date.now(), hourNow = new Date().getHours();
                 const sentIds = new Set((Array.isArray(list.sent) ? list.sent : []).map(x => x && x.id).filter(Boolean));
                 const sched = appSettings.smsSched || {};
+                // 번호가 바뀐 고객은 예전 번호로 예약했던 같은 안내도 '이미 나간 것'으로 봄 (새 번호로 한 번 더 가지 않게)
+                const custBySafe = new Map(customerDB.map(c => [String(c.id).replace(/[^A-Za-z0-9_-]/g, ''), c]));
+                const altIds = (id) => { const k = smsKindOf({ id }); const c = k.custId && custBySafe.get(k.custId); return c ? prevIdsOf(c).map(p => id.replace(`-${k.custId}-`, `-${p}-`)) : []; };
                 const desired = buildAutoSmsItems().filter(d => {
                     if (byId.has(d.id)) return true;
-                    if (sentIds.has(d.id) || sentIds.has(String(d.id).replace(/-p$/, ''))) return false;
+                    const ids = [d.id, ...(/^a[pb]-/.test(d.id) ? altIds(d.id) : [])];
+                    if (ids.some(i => sentIds.has(i) || sentIds.has(String(i).replace(/-p$/, '')))) return false;
                     if (/^a[pb]-/.test(d.id)) {
-                        const prev = Number(sched[d.id] || 0);
+                        const prev = Math.max(...ids.map(i => Number(sched[i] || 0)));
                         if (prev && prev <= nowMs + 60 * 1000) return false;
                         if (d.sendAt <= nowMs + 2 * 60 * 1000 && (hourNow < 8 || hourNow >= 21)) return false;   // 밤에는 지난 안내를 늦게 보내지 않음
                     }
@@ -7094,26 +7257,88 @@
             const d = new Date(Number(ms));
             return `${d.getMonth() + 1}/${d.getDate()}(${'일월화수목금토'[d.getDay()]}) ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
         }
+        // 🏷️ 예약·보낸 문자가 무슨 안내인지 (예약 번호 모양으로 구분)
+        //   ab-○ 생일 · ap-○-Plan/Addon/Ins-날짜 변경업무(요금제·부가·보험) · apm-○ 홍보 · diagtest- 시험 · 그 밖 = 직접 예약 · 끝이 -p면 푸시
+        const SMS_KIND_STYLE = {
+            bday: { icon: '🎂', group: '생일', cls: 'bg-pink-50 text-pink-800 border-pink-200' },
+            task: { icon: '📅', group: '변경업무', cls: 'bg-amber-50 text-amber-900 border-amber-200' },
+            promo: { icon: '📢', group: '홍보', cls: 'bg-violet-50 text-violet-800 border-violet-200' },
+            test: { icon: '🧪', group: '시험', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+            manual: { icon: '✉️', group: '직접 예약', cls: 'bg-sky-50 text-sky-800 border-sky-200' }
+        };
+        function smsKindOf(x) {
+            const id = String((x && x.id) || '');
+            const push = (x && x.channel === 'push') || /-p$/.test(id);
+            let kind = 'manual', label = '직접 예약', custId = '';
+            let m;
+            if ((m = /^ab-(.+)-\d{4}(?:-p)?$/.exec(id))) { kind = 'bday'; label = '생일'; custId = m[1]; }
+            else if ((m = /^ap-(.+)-(Plan|Addon[2-4]?|Ins)-\d{8}(?:-p)?$/.exec(id))) { kind = 'task'; label = (SMS_PROMISE_TYPES.find(t => t.key === m[2]) || { label: '변경업무' }).label; custId = m[1]; }
+            else if (/^apm-/.test(id)) { kind = 'promo'; label = '홍보'; const mm = /^apm-\d{12}-(.+?)(?:-p)?$/.exec(id); custId = mm ? mm[1] : ''; }
+            else if (/^diagtest-/.test(id)) { kind = 'test'; label = '연결 시험'; }
+            else if (x && x.auto) { kind = 'task'; label = '자동 안내'; }
+            return { kind, label, push, custId, ...SMS_KIND_STYLE[kind] };
+        }
+        function smsKindBadges(k) {
+            return `<span class="inline-flex items-center gap-0.5 text-[11px] font-bold border rounded-md px-1.5 py-px ${k.cls}">${k.icon} ${escapeHtml(k.label)}</span>`
+                + (k.push ? ' <span class="inline-flex items-center text-[11px] font-bold text-white bg-indigo-500 rounded-md px-1.5 py-px">🔔 푸시</span>' : ' <span class="inline-flex items-center text-[11px] font-bold text-gray-700 bg-gray-100 rounded-md px-1.5 py-px">💬 문자</span>');
+        }
+        // 미리보기: 서버는 앞 40자만 줘서 링크로 꽉 차 보였음 → 강CRM이 만든 전체 문구에서 링크는 🖼️로 줄여서
+        function smsNicePreview(text) {
+            return String(text || '').replace(/https?:\/\/\S+/g, '🖼️').replace(/^\(광고\)\s*/, '').replace(/\s+/g, ' ').trim();
+        }
+        let smsListFilter = 'all';
         function renderSmsList() {
             const body = document.getElementById('smsListBody');
             const L = smsListData;
             if (!L) { body.innerHTML = '<p class="text-sm text-gray-500 py-6 text-center">불러오는 중…</p>'; return; }
             if (L.error) { body.innerHTML = `<p class="text-sm text-red-700 py-4">${escapeHtml(L.error)}</p>`; return; }
             document.getElementById('smsListSub').textContent = `보낼 예정 ${L.queued.length}건 · 오늘 보냄 ${L.todaySent || 0}건`;
-            const q = L.queued.map(x => `<div class="flex items-start gap-2 p-3 rounded-xl border border-gray-200 bg-white">
-                    <div class="min-w-0 flex-1">
-                        <p class="text-[13px] font-bold text-gray-900">${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sendAt))}</span> ${x.auto ? '<span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 rounded px-1">자동</span>' : ''} ${x.channel === 'push' ? '<span class="text-[10px] font-bold text-white bg-indigo-500 rounded px-1">🔔 푸시</span>' : ''}</p>
-                        <p class="text-[13px] text-gray-700 truncate">${escapeHtml(x.preview || '')}</p>
+            let local = new Map();
+            try { local = new Map(buildAutoSmsItems().map(d => [d.id, d])); } catch (e) { /* 고객 목록 전이면 서버 미리보기 */ }
+            const byCust = new Map(customerDB.map(c => [String(c.id).replace(/[^A-Za-z0-9_-]/g, ''), c]));
+            const rows = L.queued.map(x => ({ x, k: smsKindOf(x) }));
+            const sentRows = (L.sent || []).slice(0, 20).map(x => ({ x, k: smsKindOf(x) }));
+            const count = (f) => rows.filter(r => f(r)).length;
+            const FILTERS = [
+                ['all', '전체', () => true],
+                ['bday', '🎂 생일', r => r.k.kind === 'bday'],
+                ['task', '📅 변경업무', r => r.k.kind === 'task'],
+                ['promo', '📢 홍보', r => r.k.kind === 'promo'],
+                ['manual', '✉️ 직접', r => r.k.kind === 'manual' || r.k.kind === 'test'],
+                ['sms', '💬 문자', r => !r.k.push],
+                ['push', '🔔 푸시', r => r.k.push]
+            ];
+            const fdef = FILTERS.find(f => f[0] === smsListFilter) || FILTERS[0];
+            const chips = FILTERS.filter(f => f[0] === 'all' || count(f[2]) > 0).map(([key, label, fn]) => `<button type="button" data-sms-filter="${key}" aria-pressed="${smsListFilter === key}" class="flex-shrink-0 h-9 px-3 rounded-full border text-xs font-bold ${smsListFilter === key ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}">${label} ${count(fn)}</button>`).join('');
+            const whoHtml = (x, k) => {
+                const c = k.custId && byCust.get(k.custId);
+                const nm = escapeHtml(x.name || (c && c.name) || x.to || '');
+                return c ? `<button type="button" data-sms-open="${escapeHtml(c.id)}" class="font-bold text-indigo-700 underline underline-offset-2">${nm}</button>` : nm;
+            };
+            const previewOf = (x) => {
+                const d = local.get(x.id);
+                if (d) return smsNicePreview(d.channel === 'push' ? `${d.heading ? d.heading + ' · ' : ''}${d.text}` : d.text);
+                return smsNicePreview(x.preview || '');
+            };
+            const clamp = 'style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden"';
+            const shown = rows.filter(fdef[2]);
+            const q = shown.map(({ x, k }) => `<div class="flex items-start gap-2 p-3 rounded-xl border border-gray-200 bg-white">
+                    <div class="min-w-0 flex-1 space-y-1">
+                        <p class="text-[13px] font-bold text-gray-900">${whoHtml(x, k)} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sendAt))}</span></p>
+                        <p class="flex flex-wrap gap-1">${smsKindBadges(k)}</p>
+                        <p class="text-[13px] text-gray-700 leading-snug" ${clamp}>${escapeHtml(previewOf(x))}</p>
                     </div>
                     <button type="button" data-sms-cancel="${escapeHtml(x.id)}" data-sms-auto="${x.auto ? 1 : 0}" class="flex-shrink-0 h-9 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-700 bg-white">취소</button>
-                </div>`).join('') || '<p class="text-sm text-gray-500 py-2">보낼 예정인 문자가 없어요.</p>';
-            const sent = (L.sent || []).slice(0, 20).map(x => `<div class="p-3 rounded-xl ${x.ok ? 'bg-gray-50' : 'bg-red-50'}">
-                    <p class="text-[13px] font-bold text-gray-900">${x.state === 'sending' ? '⏳' : (x.ok ? '✅' : '❌')} ${escapeHtml(x.name || x.to || '')} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span> ${x.channel === 'push' ? '<span class="text-[10px] font-bold text-white bg-indigo-500 rounded px-1">🔔 푸시</span>' : ''} ${x.encrypted ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 rounded px-1">🔐</span>' : ''}</p>
-                    <p class="text-[13px] text-gray-700 truncate">${escapeHtml(x.preview || '')}</p>
+                </div>`).join('') || `<p class="text-sm text-gray-500 py-2">${smsListFilter === 'all' ? '보낼 예정인 문자가 없어요.' : '이 종류로 보낼 예정인 건 없어요.'}</p>`;
+            const sent = sentRows.filter(fdef[2]).map(({ x, k }) => `<div class="p-3 rounded-xl ${x.ok ? 'bg-gray-50' : 'bg-red-50'} space-y-1">
+                    <p class="text-[13px] font-bold text-gray-900">${x.state === 'sending' ? '⏳' : (x.ok ? '✅' : '❌')} ${whoHtml(x, k)} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span> ${x.encrypted ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 rounded px-1">🔐</span>' : ''}</p>
+                    ${x.id ? `<p class="flex flex-wrap gap-1">${smsKindBadges(k)}</p>` : (x.channel === 'push' ? '<p><span class="text-[11px] font-bold text-white bg-indigo-500 rounded-md px-1.5 py-px">🔔 푸시</span></p>' : '')}
+                    <p class="text-[13px] text-gray-700 leading-snug" ${clamp}>${escapeHtml(smsNicePreview(x.preview || ''))}</p>
                     ${x.ok ? '' : (x.state === 'sending' ? '<p class="text-xs text-gray-600">보내는 중이에요. 오래 이대로면 SMSGate 앱 MESSAGES에서 확인해주세요.</p>' : `<p class="text-xs text-red-700">${escapeHtml(x.error || '보내지 못했어요')}</p>`)}
                 </div>`).join('') || '<p class="text-sm text-gray-500 py-2">아직 보낸 문자가 없어요.</p>';
             body.innerHTML = `${L.ready === false ? '<p class="text-[13px] font-medium text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">매장 폰 연결이 안 돼 있어요. 중계 서버 금고에 SMSGATE_USER·SMSGATE_PASS를 넣어주세요.</p>' : ''}${L.e2e ? '<p class="text-xs font-bold text-emerald-800 pl-1">🔐 종단간 암호화로 보내는 중</p>' : ''}
-                <p class="text-[13px] font-bold text-gray-700 pl-1">보낼 예정</p>${q}
+                ${rows.length ? `<div class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1" role="group" aria-label="종류별로 보기">${chips}</div>` : ''}
+                <p class="text-[13px] font-bold text-gray-700 pl-1">보낼 예정${smsListFilter !== 'all' ? ` · ${fdef[1]}` : ''}</p>${q}
                 <p class="text-[13px] font-bold text-gray-700 pl-1 pt-2">최근 보낸 문자</p>${sent}`;
         }
         async function openSmsListSheet() {
@@ -7140,6 +7365,10 @@
         document.getElementById('smsListBtn').addEventListener('click', openSmsListSheet);
         document.getElementById('smsStatsRow').addEventListener('click', openSmsListSheet);
         document.getElementById('smsListBody').addEventListener('click', async (e) => {
+            const f = e.target && e.target.closest ? e.target.closest('[data-sms-filter]') : null;
+            if (f) { smsListFilter = f.dataset.smsFilter; renderSmsList(); return; }
+            const o = e.target && e.target.closest ? e.target.closest('[data-sms-open]') : null;
+            if (o) { const id = o.dataset.smsOpen; closeSmsListSheet(); setTimeout(() => window.openProfileCard(id), 0); return; }
             const b = e.target && e.target.closest ? e.target.closest('[data-sms-cancel]') : null;
             if (!b) return;
             const id = b.dataset.smsCancel, isAuto = b.dataset.smsAuto === '1';
@@ -7659,7 +7888,7 @@
             document.getElementById('cardSendSaveRow').classList.toggle('hidden', !!(found || trashed));
             if (found) { matchEl.textContent = `이미 등록된 고객이에요: ${found.name || '이름 없음'} → 이 고객의 개인 링크로 보내요.`; matchEl.classList.remove('hidden'); }
             else if (trashed) { matchEl.textContent = `휴지통에 있는 고객이에요: ${trashed.name || '이름 없음'} → 보내면 고객 목록으로 되돌려요.`; matchEl.classList.remove('hidden'); }
-            else matchEl.classList.add('hidden');
+            else { const po = digits && prevOwnerOf(digits); if (po) { matchEl.textContent = `📱 ${po.name || '이름 없음'} 고객이 예전에 쓰던 번호예요 (지금 ${formatPhone(po.phone)}). 같은 분이면 그 고객 카드에서 보내주세요.`; matchEl.classList.remove('hidden'); } else matchEl.classList.add('hidden'); }
             return { digits, found, trashed };
         }
         const VISIT_PURPOSES = ['단순CS', '휴대폰문의', '변경업무', '요금수납'];
@@ -8780,11 +9009,20 @@ ${AI_TONES[aiSmsTone]}
                 else return customAlert("연락처는 필수입니다.");
             }
 
+            let mergeTarget = null;
             if (newId !== currentDetailId) {
                 const exists = customerDB.find(x => x.id === newId) || trashDB.find(x => x.id === newId);
                 if (exists) {
-                    const confirmOverwrite = await customConfirm("이미 등록된 다른 고객의 연락처입니다.\n이 번호로 덮어쓰시겠습니까?\n(기존 데이터는 삭제/통합됩니다)");
-                    if (!confirmOverwrite) return;
+                    // 🔀 이미 있는 고객 번호 → 두 카드를 합침 (그 고객 담당자·개통 보호도 확인)
+                    if (!protectGate(exists)) return;
+                    if (!(await lockGate(exists, '카드 합치기'))) return;
+                    const inTrash = !customerDB.some(x => x.id === newId);
+                    const ok = await customConfirm(`${formatPhone(newId)}는 이미 ${exists.name || '이름 없음'} 고객 카드${inTrash ? '(휴지통)' : ''}가 있어요.\n두 카드를 하나로 합칠까요?\n\n· 빈 칸은 서로 채우고, 둘 다 적힌 칸은 지금 카드 내용을 써요\n· 메모·연락 기록·서류는 모두 합쳐요\n· 덮이는 그 카드 값은 메모에 한 줄로 남겨요\n· 지금 번호 ${formatPhone(currentDetailId)}는 '이전 번호'로 기록돼요`);
+                    if (!ok) return;
+                    mergeTarget = exists;
+                } else {
+                    const prevOwner = prevOwnerOf(newId);
+                    if (prevOwner && prevOwner.id !== currentDetailId && !(await customConfirm(`${formatPhone(newId)}는 ${prevOwner.name || '이름 없음'} 고객이 예전에 쓰던 번호예요.\n그래도 이 번호로 바꿀까요?`))) return;
                 }
             }
 
@@ -8845,8 +9083,23 @@ ${AI_TONES[aiSmsTone]}
                 if (newId !== currentDetailId) {
                     // 번호 변경: 예전 문서 내용을 새 번호로 옮김 (예전 id 값은 빼고 저장 → 목록에서 옛 번호로 꼬이던 문제 수정)
                     const { id: _oldId, ...oldData } = customerDB.find(x => x.id === currentDetailId) || {};
-                    const finalData = { ...oldData, ...updatedData, deletedAt: '' };
-                    await saveDoc(doc(db, 'smart_customers', newId), finalData, { merge: true });
+                    const me = getStaffName() || '', today = getTodayStr();
+                    const moving = { ...oldData, ...updatedData };
+                    let finalData;
+                    if (mergeTarget) {
+                        // 최신 값으로 합치기 (그 사이 다른 폰에서 고쳤을 수 있음)
+                        let tgt = mergeTarget;
+                        try { const s = await getDoc(doc(db, 'smart_customers', newId)); if (s.exists()) tgt = s.data(); } catch (e) { /* 이 폰 값으로 */ }
+                        const { id: _tid, ...tgtData } = tgt;
+                        finalData = mergeCustomerDocs(moving, tgtData, { by: me, today, otherId: newId });
+                    } else {
+                        finalData = { ...moving, deletedAt: '', prevPhones: prevPhonesOf(oldData) };
+                    }
+                    // 📱 이전 번호 기록 (보이는 기록 + 찾기용 숫자)
+                    const prevNow = [...(finalData.prevPhones || []), { phone: formatPhone(currentDetailId), until: today, by: me }];
+                    Object.assign(finalData, finalizePrevPhones(prevNow, newId));
+                    finalData.contactHistory = appendLine(finalData.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 📱 번호 변경 ${formatPhone(currentDetailId)} → ${formatPhone(newId)}${mergeTarget ? ' (카드 합침)' : ''} (담당: ${me || '직원'})`);
+                    await saveDoc(doc(db, 'smart_customers', newId), stripUndefined(finalData), mergeTarget ? undefined : { merge: true });
                     await deleteDoc(doc(db, 'smart_customers', currentDetailId));
                 } else {
                     await saveDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
@@ -9591,6 +9844,10 @@ familyStr + `\n` +
                     }
                     const existing = customerDB.find(x => x.id === targetId) || trashDB.find(x => x.id === targetId);
                     const existingInTrash = !!existing && !customerDB.some(x => x.id === targetId);
+                    if (!existing) {   // 📱 예전에 다른 고객이 쓰던 번호면 한 번 확인
+                        const po = prevOwnerOf(targetId);
+                        if (po && !(await customConfirm(`${formatPhone(targetId)}는 ${po.name || '이름 없음'} 고객이 예전에 쓰던 번호예요 (지금 번호 ${formatPhone(po.phone)}).\n같은 분이면 [취소] 후 그 고객 카드에서 개통등록 해주세요.\n\n번호가 다른 분께 넘어간 거면 [확인] → 새 고객으로 등록해요.`))) return false;
+                    }
                     if (existing) {
                         // 예전엔 기존 고객의 통신사가 '미정'으로, 담당자·법대·주민번호·생년월일이 빈칸으로 덮어써졌음
                         const ok = await customConfirm(existingInTrash
@@ -10073,8 +10330,16 @@ familyStr + `\n` +
         }
 
         /* ---------- 고객 찾기 · 표시 ---------- */
+        // 🤝 지인이 받은 명함으로 들어온 상담요청 (명함이 내용 첫 줄에 '🤝 소개 명함: 명함번호'를 붙임)
+        const CALC_REF_RE = /^🤝 소개 명함: ?([A-Za-z0-9_-]{2,40})[^\n]*(?:\n|$)/;
+        function calcRefOf(r) {
+            const m = CALC_REF_RE.exec(String((r && r.detail) || ''));
+            if (!m) return null;
+            const c = customerDB.find(x => x.cardId === m[1]) || customerDB.find(x => prevCardIdsOf(x).includes(m[1])) || null;
+            return { cid: m[1], c };
+        }
         function calcFindCustomer(r) {
-            if (r.cid) { const c = customerDB.find(x => x.cardId === r.cid); if (c) return c; }
+            if (r.cid) { const c = customerDB.find(x => x.cardId === r.cid) || customerDB.find(x => prevCardIdsOf(x).includes(r.cid)); if (c) return c; }   // 카드를 합친 고객은 예전 명함 번호로도
             const p = String(r.phone || '').replace(/\D/g, '');
             if (p.length >= 10) return customerDB.find(x => String(x.phone || '').replace(/\D/g, '') === p) || null;
             return null;
@@ -10563,10 +10828,11 @@ familyStr + `\n` +
                         <div class="min-w-0 flex-1">
                             ${c ? `<button type="button" data-calc-open="${c.id}" class="text-[15px] font-bold text-indigo-700 underline underline-offset-2 truncate max-w-full text-left">${escapeHtml(name)}</button> <span class="text-xs font-medium text-gray-500">등록 고객</span>` : `<p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(name)} <span class="text-xs font-medium text-gray-500">새 고객</span></p>`}
                             <p class="text-xs text-gray-600">${escapeHtml(phone ? formatPhone(phone) : '연락처 없음')} · ${escapeHtml(calcAgo(r.at))}</p>
+                            ${(() => { const ref = calcRefOf(r); return ref ? `<p class="text-xs font-bold text-emerald-800 mt-0.5">🤝 ${ref.c ? `<button type="button" data-calc-open="${escapeHtml(ref.c.id)}" class="underline underline-offset-2">${escapeHtml(ref.c.name || '이름 없음')}</button> 고객이 받은 명함으로 들어온 지인` : '지인에게 받은 명함으로 들어왔어요'}</p>` : ''; })()}
                         </div>
                         <span class="flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isAsk ? 'bg-pink-100 text-pink-800' : 'bg-gray-100 text-gray-700'}">${isAsk ? '상담요청' : '계산만 해봄'}</span>
                     </div>
-                    <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(r.detail || r.summary || '')}</p>
+                    <p class="text-[13px] text-gray-800 leading-relaxed whitespace-pre-wrap bg-white rounded-xl border border-gray-100 px-3 py-2">${escapeHtml(String(r.detail || '').replace(CALC_REF_RE, '') || r.summary || '')}</p>
                     <div class="grid grid-cols-4 gap-1.5 ${calcSelMode ? 'hidden' : ''}">
                         ${digits ? `<a href="tel:${digits}" data-calc-contact="${escapeHtml(r.id)}" class="h-11 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center justify-center gap-1"><i class="fa-solid fa-phone"></i>전화</a>
                         <a href="${smsHref(digits, `${msgName(c ? c : (r.name || ''))}님, ${msgStoreName()} ${getStaffName() || ''}입니다. 명함에서 계산해 보신 조건으로 안내드릴게요.`)}" data-calc-contact="${escapeHtml(r.id)}" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center justify-center gap-1"><i class="fa-solid fa-comment-dots"></i>문자</a>` : '<span class="col-span-2 text-xs text-gray-500 self-center">연락처가 없어요</span>'}
@@ -12731,7 +12997,8 @@ familyStr + `\n` +
         let docFiles = [], docFilesUnsub = null, gisToken = null, gisTokenExp = 0, docFilesError = null, docFilesLoaded = false;
         // 📎 고객별 서류 개수: 고객 정보에 저장된 개수(누가 올렸든) + 이 폰에서 보이는 기록 중 큰 값
         function docCountOf(c) {
-            const mine = docFiles.filter(f => f.customerId === c.id).length;
+            const ids = [c.id, ...prevIdsOf(c)];   // 번호가 바뀐 고객은 예전 번호로 올린 서류도
+            const mine = docFiles.filter(f => ids.includes(f.customerId)).length;
             return Math.max(Number(c.docCount) || 0, mine);
         }
         // 👑 총관리자 폰: 실제 기록 수와 다르면 고객 정보의 개수를 맞춤 (예전에 올린 서류도 목록에 표시되게)
@@ -12741,7 +13008,7 @@ familyStr + `\n` +
             const cnt = new Map();
             docFiles.forEach(f => cnt.set(f.customerId, (cnt.get(f.customerId) || 0) + 1));
             customerDB.forEach(c => {
-                const real = cnt.get(c.id) || 0, cur = Number(c.docCount) || 0;
+                const real = [c.id, ...prevIdsOf(c)].reduce((a, id) => a + (cnt.get(id) || 0), 0), cur = Number(c.docCount) || 0;
                 const key = c.id + ':' + real;
                 if (real === cur || docSynced.has(key)) return;
                 docSynced.add(key);
@@ -12882,7 +13149,8 @@ familyStr + `\n` +
 
         // 고객카드 안 '서류' 칸
         function buildDocFilesHtml(c) {
-            const list = docFiles.filter(f => f.customerId === c.id);
+            const ids = [c.id, ...prevIdsOf(c)];   // 번호가 바뀌기 전에 올린 서류도 같이
+            const list = docFiles.filter(f => ids.includes(f.customerId));
             const others = Math.max(0, (Number(c.docCount) || 0) - list.length);
             const mode = driveMode();
             let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2">
@@ -12935,7 +13203,7 @@ familyStr + `\n` +
                 if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)`))) return;
                 try {
                     await deleteDoc(doc(db, 'doc_files', f.id));
-                    const cc = customerDB.find(x => x.id === f.customerId);
+                    const cc = customerDB.find(x => x.id === f.customerId) || prevOwnerOf(f.customerId, { includeTrash: false });
                     if (cc && (Number(cc.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', cc.id), { docCount: increment(-1) }, { merge: true }).catch(() => {});
                 } catch (e) { customAlert(koreanError(e, '삭제')); }
             }
