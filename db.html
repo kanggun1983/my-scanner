@@ -937,7 +937,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V168</span>
+                    <span class="text-sm text-gray-600">V169</span>
                 </div>
             </section>
         </div>
@@ -15879,10 +15879,15 @@ familyStr + `\n` +
             return String(txt || '').replace(/\n*📄 (견적 다시 보기 · 방문 예약|명함 · 방문 예약)\n[^\n]+\s*$/, '').trim();
         }
         // 명함에서 읽는 견적(card_quotes)은 링크만 알면 열려서, 고객 이름은 가려서 저장 (예: 홍○동님)
-        function qsMaskNames(t, names) {
+        // V169: 보내는 직원 이름(keep)은 고객 이름과 같거나 겹쳐도 그대로 (예: 강태훈 고객에게 강태훈 과장이 보낼 때 서명까지 가려지던 것) — 'OO님'은 고객 호칭이라 가림
+        function qsMaskNames(t, names, keep) {
             let out = String(t || '');
+            const hold = [], esc = (x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            [...new Set((keep || []).flatMap(k => { const v = String(k || '').trim(); return [v, v.split(/\s+/)[0]]; }).filter(v => v.length >= 2))]
+                .sort((a, b) => b.length - a.length)
+                .forEach(v => { out = out.replace(new RegExp(esc(v) + '(?!\\s*님)', 'g'), () => { hold.push(v); return `\u0000${hold.length - 1}\u0000`; }); });
             [...new Set((names || []).map(n => String(n || '').trim()).filter(n => n.length >= 2 && maskName(n)))].sort((a, b) => b.length - a.length).forEach(n => { out = out.split(n).join(maskName(n)); });
-            return out;
+            return out.replace(/\u0000(\d+)\u0000/g, (m, i) => hold[Number(i)] || '');
         }
         function qsSenderLabel() {   // 고객 명함에 보일 '보낸 사람' (공용 명함이면 내 프로필 이름·직함)
             if (cardChoice() === 'team') { const p = myTeamProfile(); if (p && p.active !== false) return `${p.name}${p.title ? ' ' + p.title : ''}`; }
@@ -15914,7 +15919,7 @@ familyStr + `\n` +
             }
             if (cardId) {
                 const d = qsData || {};
-                saveDoc(doc(db, 'card_quotes', cardId), { text: qsMaskNames(qsQuoteBody(text), [c.name, qsEl.querySelector('#qsName').value.trim()]).slice(0, 1800), summary: String(d.summary || '').slice(0, 160), kind: d.kind === 'mvno' ? 'mvno' : 'phone', by: qsSenderLabel().slice(0, 30), store: msgStoreName(), at: new Date().toISOString() }).catch(e => console.warn('견적 저장 실패', e));
+                saveDoc(doc(db, 'card_quotes', cardId), { text: qsMaskNames(qsQuoteBody(text), [c.name, qsEl.querySelector('#qsName').value.trim()], [getStaffName(), qsSenderLabel()]).slice(0, 1800), summary: String(d.summary || '').slice(0, 160), kind: d.kind === 'mvno' ? 'mvno' : 'phone', by: qsSenderLabel().slice(0, 30), store: msgStoreName(), at: new Date().toISOString() }).catch(e => console.warn('견적 저장 실패', e));
             }
             const follow = qsEl.querySelector('#qsFollow').checked ? await qsAddFollowUp(c) : 'off';
             return { text, c, phone, created, follow };
