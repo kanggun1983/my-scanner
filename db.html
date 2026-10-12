@@ -1008,7 +1008,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V183</span>
+                    <span class="text-sm text-gray-600">V184</span>
                 </div>
             </section>
         </div>
@@ -3301,7 +3301,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             clearTimeout(smsResyncTimer);
             smsResyncTimer = setTimeout(() => {
                 try { if (pushRelayReady() && (smsSetting('smsAutoPromOn') || smsSetting('smsAutoBdayOn') || smsSetting('smsAutoPromoOn') || smsSetting('smsAutoVisitOn') || smsSetting('smsAutoActOn'))) syncAutoSms({ force: true }); } catch (e) { console.error(e); }
-            }, 15000);
+            }, 60000);   // V184: 15초 → 1분 (여러 고객을 고쳐도 한 번에 맞춰서 중계 서버 무료 한도 아끼기)
         }
         function noteCustomerWrite(ref, data) {
             try {
@@ -8566,7 +8566,25 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return `${t}\n\n📇 ${custStaffName(c) || msgStoreName()} 명함\n${autoCardLink(c)}`;
         }
         // 문구·명함 링크·리뷰 주소·사진이 바뀌면 이미 예약된 자동 문자도 새 내용으로 다시 넣기 위한 표시 (종류별)
+        //   (중계 서버 v11부터는 예약마다 내용 표시(h)가 있어서 이 표시 대신 '정말 바뀐 것만' 다시 보내요 → 무료 쓰기 한도 아끼기)
+        //   V184: 문자(s.)·푸시(p.) 따로 → 푸시 쪽만 바뀌면 푸시만 다시 (홍보 문자 수백 건을 괜히 다시 쓰지 않게)
         function autoTextSigs() {
+            const h = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
+            return {
+                's.task': h([smsSetting('smsTplProm'), smsCardOn('prom')]),
+                's.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
+                's.visit': h([smsSetting('smsTplVisit'), smsCardOn('visit')]),
+                's.act': h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays')]),
+                's.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo')]),
+                'p.task': h([smsSetting('smsTplProm'), 'pn1']),
+                'p.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', 'pn1']),
+                'p.visit': h([smsSetting('smsTplVisit'), 'pn1']),
+                'p.act': h([smsSetting('smsTplAct'), reviewUrl(), smsSetting('smsActDays'), 'pn1']),
+                'p.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', 'pn1'])
+            };
+        }
+        // V183까지 쓰던 표시 (종류별 하나) — V183에서 이미 새 내용(푸시 주소 포함)으로 맞췄으면 V184로 바꿀 때 다시 넣지 않으려고
+        function autoTextSigsV183() {
             const h = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
             return {
                 task: h([smsSetting('smsTplProm'), smsCardOn('prom'), 'pn1']),
@@ -8575,6 +8593,17 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 act: h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays'), 'pn1']),
                 promo: h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo'), 'pn1'])
             };
+        }
+        // 예약 내용 표시 — 중계 서버 v11의 recHash와 똑같이 계산 (바뀐 예약만 다시 보내기)
+        function autoItemHash(d) {
+            const ch = d.channel === 'push' ? 'push' : 'sms';
+            const text = String(d.text || '').trim().slice(0, 1000);
+            const url = ch === 'push' && /^https:\/\/\S+$/.test(d.url || '') && String(d.url).length <= 3000 ? String(d.url) : '';
+            const mms = ch === 'sms' && /^https:\/\/\S+$/.test(d.mmsImage || '') ? d.mmsImage : '';
+            const str = `${text}|${url}|${mms}|${String(d.heading || '').slice(0, 80)}`;
+            let h = 0x811c9dc5;
+            for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+            return h.toString(36);
         }
         function smsSendAt(dateStr, time) {
             const d = parseDateString(dateStr);
@@ -8947,15 +8976,26 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 });
                 const desiredIds = new Set(desired.map(d => d.id));
                 const sigNow = autoTextSigs(), sigOld = (appSettings.smsTextSig && typeof appSettings.smsTextSig === 'object') ? appSettings.smsTextSig : {};
-                const rewrite = new Set(Object.keys(sigNow).filter(k => sigOld[k] !== undefined && sigOld[k] !== sigNow[k]));   // V179: 문구 끝·명함 링크·리뷰 주소만 바뀌어도 다시 넣기
+                // V179: 문구 끝·명함 링크·리뷰 주소만 바뀌어도 다시 넣기 (예전 서버용)
+                //   V184 처음: V183 표시가 지금 설정과 같으면 이미 맞춘 것 → 다시 안 넣음 · 다르면(그 사이 고침·더 예전 버전) 한 번 · 표시가 아예 없으면 푸시만 (주소 붙이기)
+                const legacy = autoTextSigsV183();
+                const rewrite = new Set(Object.keys(sigNow).filter(k => {
+                    if (sigOld[k] !== undefined) return sigOld[k] !== sigNow[k];
+                    const old = sigOld[k.slice(2)];
+                    return old !== undefined ? old !== legacy[k.slice(2)] : k.startsWith('p.');
+                }));
                 // 바뀐 것만 다시 예약 (번호는 숫자만 비교 · 이미 보낼 시각이 된 건 '곧바로'끼리 같은 것으로 봄 → 맞출 때마다 뒤로 밀리지 않게)
                 const digits = v => String(v || '').replace(/\D/g, '');
                 const toAdd = desired.filter(d => {
                     const q = byId.get(d.id);
                     if (!q) return true;
-                    if (rewrite.has(smsKindOf(d).kind)) return true;
                     const qAt = Number(q.sendAt) || 0, bothDue = qAt <= nowMs + 2 * 60 * 1000 && d.sendAt <= nowMs + 2 * 60 * 1000;
-                    return digits(q.to) !== digits(smsIntl(d.to)) || (q.channel || 'sms') !== (d.channel || 'sms') || String(q.preview || '') !== d.text.slice(0, String(q.preview || '').length || 40) || (!!q.mms !== !!d.mmsImage) || (!bothDue && Math.abs(qAt - d.sendAt) > 5 * 60 * 1000);
+                    const timeOff = !bothDue && Math.abs(qAt - d.sendAt) > 5 * 60 * 1000;
+                    if (digits(q.to) !== digits(smsIntl(d.to)) || (q.channel || 'sms') !== (d.channel || 'sms') || timeOff) return true;
+                    if (q.h) return q.h !== autoItemHash(d);   // 중계 서버 v11: 내용이 정말 바뀐 것만
+                    const kk = smsKindOf(d);
+                    if (rewrite.has((kk.push ? 'p.' : 's.') + kk.kind)) return true;
+                    return String(q.preview || '') !== d.text.slice(0, String(q.preview || '').length || 40) || (!!q.mms !== !!d.mmsImage);
                 });
                 // 지금 홍보의 보낼 시각이 지나 서버가 차례로 보내는 중인 것은 취소하지 않기
                 //   [V154] 예전엔 15분만 기다렸음 → 서버는 10분에 5건(암호화)·20건씩 보내서 50명이면 1시간 넘게 걸리는데,
@@ -16484,7 +16524,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V183';
+        const APP_VER = 'V184';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
