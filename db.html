@@ -794,8 +794,12 @@
                             <input type="checkbox" id="calcReplyEsc" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                         </label>
                         <p class="text-xs text-gray-600 leading-relaxed">명함 [견적요청] 버튼 위에 "영업시간엔 보통 30분 안에 연락드려요", 보낸 뒤엔 "30분 안에 연락드릴게요" (영업시간 밖이면 "내일 오전 10시부터 바로")로 보여요. 강CRM '명함견적'에선 이 시간이 지나면 빨갛게 보여요.</p>
+                        <label for="calcKakaoOn" class="flex items-center justify-between gap-3 cursor-pointer pt-1">
+                            <span class="text-sm font-bold text-gray-900 leading-snug">💬 명함 견적에 '카톡 문의' 버튼 보이기<br><span class="text-xs font-medium text-gray-600">견적요청 아래 · 보낸 뒤 화면 · 받은 견적 화면 · 상담 신청 뒤 화면의 노란 카톡 버튼. 끄면 고객 명함에서 바로 사라져요 (명함 맨 위 카카오톡 버튼은 그대로)</span></span>
+                            <input type="checkbox" id="calcKakaoOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                        </label>
                         <label class="block text-xs font-bold text-gray-600">💬 카카오톡 상담 주소<input type="url" id="calcKakao" inputmode="url" autocomplete="off" placeholder="https://pf.kakao.com/_hxkKzX/chat" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50"></label>
-                        <p class="text-xs text-gray-600 leading-relaxed">명함 견적요청 아래 · 보낸 뒤 화면 · 받은 견적 화면에 [💬 카톡으로 바로 물어보기]가 생겨요. 비우면 매장 카카오채널(pf.kakao.com/_hxkKzX) 1:1 채팅으로 가요.</p>
+                        <p class="text-xs text-gray-600 leading-relaxed">위 버튼을 누르면 가는 주소예요. 비우면 매장 카카오채널(pf.kakao.com/_hxkKzX) 1:1 채팅으로 가요.</p>
                     </div>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
                         <label for="bbOn" class="flex items-center justify-between gap-3 cursor-pointer">
@@ -933,7 +937,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V167</span>
+                    <span class="text-sm text-gray-600">V168</span>
                 </div>
             </section>
         </div>
@@ -12623,7 +12627,8 @@ familyStr + `\n` +
             { const R = calcReply();
               [['calcReplyMin', R.min], ['calcReplyOpen', R.open], ['calcReplyClose', R.close]].forEach(([id, v]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = String(v); el.disabled = locked; });
               const es = document.getElementById('calcReplyEsc'); es.checked = R.esc; es.disabled = locked;
-              const kk = document.getElementById('calcKakao'); if (document.activeElement !== kk) kk.value = d.kakao || ''; kk.disabled = locked; }
+              const kk = document.getElementById('calcKakao'); if (document.activeElement !== kk) kk.value = d.kakao || ''; kk.disabled = locked;
+              const ko = document.getElementById('calcKakaoOn'); ko.checked = d.kakaoOn !== false; ko.disabled = locked; }
         }
         // ⏰ 연락 약속 시간 · 💬 카톡 상담 주소 (총관리자 · 명함과 강CRM이 같이 써요)
         ['calcReplyMin', 'calcReplyOpen', 'calcReplyClose', 'calcReplyEsc'].forEach(id => document.getElementById(id).addEventListener('change', async e => {
@@ -12641,6 +12646,12 @@ familyStr + `\n` +
             if (v && !/^https:\/\/(pf\.kakao\.com|open\.kakao\.com|qr\.kakao\.com|talk\.kakao\.com)\//.test(v)) { customAlert('카카오톡 채널(pf.kakao.com/…) 또는 오픈채팅(open.kakao.com/…) 주소를 넣어주세요.'); renderCalcSettings(); return; }
             const next = calcNormalize(calcData); next.kakao = v;
             if (!(await calcSave(next, true))) renderCalcSettings();
+        });
+        // 💬 명함 견적 화면의 '카톡 문의' 버튼 켜고 끄기 (V168 · 총관리자)
+        document.getElementById('calcKakaoOn').addEventListener('change', async e => {
+            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            const next = calcNormalize(calcData); next.kakaoOn = e.target.checked;
+            if (!(await calcSave(next, true))) e.target.checked = !e.target.checked;
         });
         document.getElementById('calcDistKeep').addEventListener('change', e => {
             const v = Math.round(Number(e.target.value) || 0);
@@ -15807,7 +15818,7 @@ familyStr + `\n` +
                 <div class="rounded-xl bg-gray-50 border border-gray-100 px-3 py-2.5 space-y-2">
                     <label id="qsSaveRow" class="hidden flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsSave" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>강CRM에 고객으로 저장<span class="block text-xs font-normal text-gray-500">미정 · 담당: 나 — 저장해야 재연락 약속·견적 다시 보기·성과(방문·개통)가 이어져요</span></span></label>
                     <label class="flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsFollow" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📅 2일 뒤 재연락 약속 넣기<span class="block text-xs font-normal text-gray-500">답이 없으면 그날 대시보드 '약속'과 아침 알림에 떠요</span></span></label>
-                    <label class="flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsLink" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📄 '견적 다시 보기 · 방문 예약' 링크 같이 보내기<span class="block text-xs font-normal text-gray-500">고객 명함에서 이 견적을 다시 보고 바로 방문 예약·카톡 문의를 할 수 있어요</span></span></label>
+                    <label class="flex items-start gap-2 text-sm font-bold text-gray-800 cursor-pointer"><input type="checkbox" id="qsLink" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📄 '견적 다시 보기 · 방문 예약' 링크 같이 보내기<span class="block text-xs font-normal text-gray-500">고객 명함에서 이 견적을 다시 보고 바로 방문 예약·문의를 할 수 있어요</span></span></label>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="button" id="qsCopy" class="h-12 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800"><i class="fa-regular fa-copy"></i> 복사 (카톡용)</button>
