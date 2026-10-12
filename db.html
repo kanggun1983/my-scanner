@@ -924,7 +924,7 @@
                             <label class="text-xs font-bold text-gray-600">보내는 시각<input type="time" id="smsSendTime" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
                             <p id="smsSenderInfo" class="text-xs text-gray-600 leading-snug pb-1"></p>
                         </div>
-                        <p class="text-xs text-gray-500 leading-relaxed">문구에 <b>{이름} {매장} {담당자} {약속} {단말기} {사진}</b>을 넣으면 고객마다 바꿔서 보내요 ({사진}을 안 넣으면 생일 문자 맨 끝에 붙어요). 매장 이름·담당자는 위 '내 정보'에서 바꿔요. 행사·할인 문구를 넣으면 광고 문자라서 (광고) 표시와 수신거부 안내가 필요해요.</p>
+                        <p class="text-xs text-gray-500 leading-relaxed">문구에 <b>{이름} {매장} {담당자} {약속} {단말기} {사진}</b>을 넣으면 고객마다 바꿔서 보내요 ({사진}을 안 넣으면 생일 문자 맨 끝에 붙어요). <b>{담당자}</b>는 그 고객카드의 담당자 이름 (담당자가 없으면 아래 '보내는 사람' 이름) · 매장 이름은 위 '내 정보'에서 바꿔요. 행사·할인 문구를 넣으면 광고 문자라서 (광고) 표시와 수신거부 안내가 필요해요.</p>
                         <p id="smsAutoSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                     </div>
                     <button type="button" id="smsListBtn" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800">예약된 문자 보기</button>
@@ -949,7 +949,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V171</span>
+                    <span class="text-sm text-gray-600">V172</span>
                 </div>
             </section>
         </div>
@@ -8074,7 +8074,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function msgStaffName({ auto = false } = {}) { return (auto ? String(appSettings.smsSenderName || '').trim() : '') || getStaffName(); }
         // AI가 남긴 [매장명]·[담당자] 같은 빈칸 표시를 실제 이름으로 (담당자가 없으면 그 자리는 지움)
         function fillMsgPlaceholders(text, opts = {}) {
-            const staff = msgStaffName(opts);
+            const staff = opts.staff || msgStaffName(opts);
             return String(text || '')
                 .replace(/[\[{]\s*(매장명|매장 ?이름|매장|상호명?)\s*[\]}]/g, msgStoreName())
                 .replace(staff ? /[\[{]\s*(담당자명?|담당 ?직원|직원명|직원 ?이름|이름\(직원\))\s*[\]}]/g : /\s?[\[{]\s*(담당자명?|담당 ?직원|직원명|직원 ?이름|이름\(직원\))\s*[\]}]/g, staff)
@@ -8119,13 +8119,21 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const raw = typeof cOrName === 'string' ? cOrName : (cOrName && cOrName.name);
             return isNoName(raw) ? NO_NAME_WORD : String(raw).trim();
         }
+        // 👤 자동 문자의 {담당자} = 그 고객카드의 담당자 (V172) — 직원 이름에 직함이 있으면 같이 ('강태훈' → '강태훈 과장') · 담당자가 없으면 설정 저장한 사람
+        function custStaffName(c) {
+            const own = ownerOf(c);
+            if (!own) return '';
+            const known = [...Object.values(staffByEmail()), String(appSettings.smsSenderName || ''), getStaffName()].map(n => String(n || '').trim()).filter(n => n && sameStaff(n, own));
+            const raw = String((c && c.manager) || '').trim();
+            return [raw, ...known].sort((a, b) => b.length - a.length)[0] || own;
+        }
         function fillSmsTemplate(tpl, c, extra = {}) {
-            const staff = msgStaffName({ auto: true });
+            const staff = custStaffName(c) || msgStaffName({ auto: true });
             const map = { '이름': msgName(c), '매장': msgStoreName(), '담당자': staff, '단말기': String(c.device || '').trim(), '사진': '', ...extra };
             let t = String(tpl || '');
             if (!staff) t = t.replace(/\s?\{담당자\}/g, '');   // 직원 이름이 없으면 '{매장} {담당자}입니다' → '{매장}입니다'
             if (!map['사진']) t = t.replace(/\n?[^\S\n]*\{사진\}/g, '');
-            return fillMsgPlaceholders(t.replace(/\{(이름|매장|담당자|약속|단말기|사진)\}/g, (m, k) => map[k] !== undefined ? map[k] : ''), { auto: true }).trim();
+            return fillMsgPlaceholders(t.replace(/\{(이름|매장|담당자|약속|단말기|사진)\}/g, (m, k) => map[k] !== undefined ? map[k] : ''), { auto: true, staff }).trim();
         }
         function smsSendAt(dateStr, time) {
             const d = parseDateString(dateStr);
@@ -8672,7 +8680,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             renderJuminClean();
             fillRegStoreDefault();   // 매장 이름이 도착·변경되면 스캔 화면 등록점도 (직접 고친 게 아니면)
             const sender = msgStaffName({ auto: true });
-            document.getElementById('smsSenderInfo').textContent = `보내는 사람: ${msgStoreName()}${sender ? ' ' + sender : ''}${sender ? '' : ' (담당자 이름은 내 정보의 직원 이름)'}`;
+            document.getElementById('smsSenderInfo').textContent = `{담당자} = 고객카드 담당자 · 담당자가 없는 고객은 ${msgStoreName()}${sender ? ' ' + sender : ''}`;
         }
         let smsSavedTimer = null;
         async function saveSmsSettings() {
@@ -15591,7 +15599,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V171';
+        const APP_VER = 'V172';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
