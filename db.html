@@ -949,7 +949,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V173</span>
+                    <span class="text-sm text-gray-600">V174</span>
                 </div>
             </section>
         </div>
@@ -4317,14 +4317,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
 
         // 아직 체크(완료) 안 된 약속 날짜들
-        function getOpenPromiseDates(c) {
-            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promAddon2Date, c.promAddon2Chk], [c.promAddon3Date, c.promAddon3Chk], [c.promAddon4Date, c.promAddon4Chk], [c.promInsDate, c.promInsChk], [c.promCardDate, c.promCardChk], [c.promAccDate, c.promAccChk], [c.promVisitDate, c.promVisitChk], [c.promOtherDate, c.promOtherChk], [c.promCallDate, c.promCallChk]]
+        function getOpenPromiseDates(c, opts = {}) {   // opts.noVisit: 방문 약속은 빼고 (대시보드 '약속' 칸은 '방문약속' 칸과 따로 · V174)
+            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promAddon2Date, c.promAddon2Chk], [c.promAddon3Date, c.promAddon3Chk], [c.promAddon4Date, c.promAddon4Chk], [c.promInsDate, c.promInsChk], [c.promCardDate, c.promCardChk], [c.promAccDate, c.promAccChk], [opts.noVisit ? '' : c.promVisitDate, c.promVisitChk], [c.promOtherDate, c.promOtherChk], [c.promCallDate, c.promCallChk]]
                 .filter(([d, chk]) => d && d.length >= 10 && !chk)
                 .map(([d]) => d);
         }
-        function getPromiseDueInfo(c) {
+        function getPromiseDueInfo(c, opts = {}) {
             const today = getTodayStr();
-            const open = getOpenPromiseDates(c);
+            const open = getOpenPromiseDates(c, opts);
             const t = new Date();
             const lim = new Date(t.getFullYear(), t.getMonth(), t.getDate() + PROMISE_DAYS_AHEAD);
             const limStr = `${lim.getFullYear()}-${String(lim.getMonth() + 1).padStart(2, '0')}-${String(lim.getDate()).padStart(2, '0')}`;
@@ -5394,13 +5394,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             let mobileCount = 0;
             let wiredCount = 0, wiredExpired = 0;
             let birthdayCount = 0, birthdayToday = 0;
-            let visitCount = 0, visitToday = 0;
+            let visitCount = 0, visitToday = 0, visitOverdue = 0;
 
             customerDB.filter(matchesManagerFilter).forEach(c => {   // 👤 담당자를 골랐으면 그 담당자 고객만 셈
                 if (c.salesStatus === '방문약속' || (c.promVisitDate && !c.promVisitChk)) visitCount++;
                 if (c.promVisitDate && !c.promVisitChk && String(c.promVisitDate).slice(0, 10) === getTodayStr()) visitToday++;
+                if (c.promVisitDate && !c.promVisitChk && String(c.promVisitDate).length >= 10 && String(c.promVisitDate).slice(0, 10) < getTodayStr()) visitOverdue++;   // 지난 방문 약속 (예전엔 '약속' 칸의 지연에 섞여 있었음)
 
-                const p = getPromiseDueInfo(c);
+                const p = getPromiseDueInfo(c, { noVisit: true });   // 방문 약속은 '방문약속' 칸에서만
                 if (p.today || p.overdue || p.soon) promiseCount++;
                 if (p.today) promiseToday++;
                 if (p.overdue) promiseOverdue++;
@@ -5420,7 +5421,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
             setText('dashVisitCount', visitCount);
-            setText('dashVisitSub', visitToday ? `오늘 ${visitToday}명` : '방문 예정');
+            setText('dashVisitSub', visitOverdue ? `지연 ${visitOverdue}명` : (visitToday ? `오늘 ${visitToday}명` : '방문 예정'));
+            { const vs = document.getElementById('dashVisitSub'); if (vs) { vs.classList.toggle('text-red-700', visitOverdue > 0); vs.classList.toggle('font-bold', visitOverdue > 0); vs.classList.toggle('text-gray-600', !visitOverdue); } }
             setText('dashPromiseCount', promiseCount);
             setText('dashPromiseSub', promiseOverdue > 0 ? `지연 ${promiseOverdue}명` : (promiseToday > 0 ? `오늘 ${promiseToday}명` : `${PROMISE_DAYS_AHEAD}일 안`));
             setText('dashMobileCount', mobileCount);
@@ -5447,7 +5449,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         const DASH_FILTER_LABELS = {
             visit_promise: (n) => `방문약속 고객만 보는 중 (${n}명)`,
-            today_promise: (n) => `지연·오늘·${PROMISE_DAYS_AHEAD}일 안 약속 고객만 보는 중 (${n}명)`,
+            today_promise: (n) => `지연·오늘·${PROMISE_DAYS_AHEAD}일 안 약속 고객만 보는 중 (${n}명 · 방문 약속은 '방문약속' 칸)`,
             today_act: (n) => { if (!n) return '🔍 오늘 개통한 고객이 아직 없어요'; const need = globalFilteredDB.filter(c => actCheckSummary(c).problems > 0).length; return `🔍 오늘 개통 ${n}명 점검 중${need ? ` · 확인 필요 ${need}명` : ' · 모두 확인 완료 ✅'}`; },
             yday_act: (n) => { if (!n) return '🔍 전일 개통한 고객이 없어요'; const need = globalFilteredDB.filter(c => actCheckSummary(c).problems > 0).length; return `🔍 전일 개통 ${n}명 점검 중${need ? ` · 확인 필요 ${need}명` : ' · 모두 확인 완료 ✅'}`; },
             target_dashboard: (n) => `무선 만료타겟만 보는 중 (${n}명)`,
@@ -5563,7 +5565,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 // 대시보드 타일 필터 (대시보드 숫자와 같은 함수 사용 → 숫자와 목록이 항상 일치)
                 if (currentFilter === 'visit_promise' || currentFilter === 'status_visit') return c.salesStatus === '방문약속' || !!(c.promVisitDate && !c.promVisitChk);
                 if (currentFilter === 'today_promise') {
-                    const p = getPromiseDueInfo(c);
+                    const p = getPromiseDueInfo(c, { noVisit: true });
                     return p.today || p.overdue || p.soon;
                 }
                 if (currentFilter === 'today_act') return isTodayActivation(c);   // 🔍 오늘 개통 점검
@@ -5671,7 +5673,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
 
             // 정렬: 기본(최근 방문순)일 때는 필터마다 맞는 순서, 직접 고른 정렬이 있으면 그걸로
-            const FILTER_SORTS = ['promise', 'today_promise', 'today_act', 'yday_act', 'wired_target', 'birthday'];
+            const FILTER_SORTS = ['promise', 'today_promise', 'visit_promise', 'today_act', 'yday_act', 'wired_target', 'birthday'];
             const useFilterSort = currentSort === 'visit' && FILTER_SORTS.includes(currentFilter);
             const sortLabelEl = document.getElementById('sortLabel');
             if (sortLabelEl) sortLabelEl.textContent = useFilterSort ? '급한 순' : (SORT_OPTIONS.find(o => o.key === currentSort) || SORT_OPTIONS[0]).label;
@@ -5693,9 +5695,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 globalFilteredDB.sort((a, b) => actKey(a).localeCompare(actKey(b)) || byVisitDesc(a, b));
             } else if (!useFilterSort && currentSort === 'name') {
                 globalFilteredDB.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+            } else if (currentFilter === 'visit_promise') {
+                // 🏬 방문 약속 날짜 순 (지난 약속이 맨 위 · 날짜 없는 '방문약속' 상태 고객은 아래)
+                const vd = (c) => (c.promVisitDate && !c.promVisitChk && String(c.promVisitDate).length >= 10) ? String(c.promVisitDate).slice(0, 10) : '9999-12-31';
+                globalFilteredDB.sort((a, b) => vd(a).localeCompare(vd(b)) || byVisitDesc(a, b));
             } else if (currentFilter === 'promise' || currentFilter === 'today_promise') {
                 // 아직 처리 안 된 약속 중 가장 빠른 날짜 순 (밀린 약속이 맨 위, 전부 완료한 고객은 맨 아래)
-                const minOpenDate = (c) => { const d = getOpenPromiseDates(c).sort(); return d.length ? d[0] : '9999-12-31'; };
+                const minOpenDate = (c) => { const d = getOpenPromiseDates(c, { noVisit: currentFilter === 'today_promise' }).sort(); return d.length ? d[0] : '9999-12-31'; };
                 globalFilteredDB.sort((a, b) => minOpenDate(a).localeCompare(minOpenDate(b)));
             } else if (currentFilter === 'today_act' || currentFilter === 'yday_act') {
                 // 빠진 게 많은 고객부터 (다 채운 고객은 아래로)
@@ -15600,7 +15606,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V173';
+        const APP_VER = 'V174';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
