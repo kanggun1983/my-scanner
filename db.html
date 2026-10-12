@@ -937,7 +937,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V169</span>
+                    <span class="text-sm text-gray-600">V170</span>
                 </div>
             </section>
         </div>
@@ -3445,6 +3445,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         attachDBListeners(); 
                         attachCalcListeners();   // 📱 명함 폰값계산 · 상담요청
                         seedStaffAccounts().finally(() => { try { attachStaffAccounts(); } catch (e) { console.warn(e); } });   // 👤 직원 계정 목록 (V167)
+                        try { startAccessLog(); } catch (e) { console.warn(e); }   // 🕒 직원 접속 기록 (V170)
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
                         const errMsg = document.getElementById('loginErrorMsg');
@@ -3460,6 +3461,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if(settingsUnsubscribe) settingsUnsubscribe();
                         detachCalcListeners();
                         if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
+                        try { stopAccessLog(); } catch (e) { /* 무시 */ }
                         customerDB = [];
                     }
                 });
@@ -15089,6 +15091,7 @@ familyStr + `\n` +
                 add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', r.status === 404 || r.ok ? 'ok' : 'bad', r.status === 404 || r.ok ? '새 규칙이에요' : `예전 규칙이에요 (${r.status}). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]. 그 전엔 고객 명함에 '받은 견적'이 안 보이고, 설정의 직원 계정 추가가 적용되지 않아요.`);
             } catch (e) { add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
             add('Firebase', '👤 직원 계정 목록', staffAccounts ? 'ok' : 'warn', staffAccounts ? `직원 ${staffAccounts.emails.length}명 + 👑 총관리자 ${SUPER_ADMIN_EMAILS.length}명` : '아직 없어요 — 👑 총관리자가 강CRM V167을 한 번 열면 예전 목록으로 만들어져요 (새 규칙 게시 전에)');
+            add('Firebase', '🕒 직원 접속 기록 (V170)', accessWrite.ok === false ? 'warn' : 'ok', accessWrite.ok === false ? `이 폰 접속 기록을 못 남겼어요 (${accessWrite.err}). Firebase 규칙을 새 파일(V170)로 게시했는지 확인해주세요` : (isSuperAdmin ? `${Object.keys(accessMap).length}개 계정 기록 중 · 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · [접속 기록]` : '이 폰 접속이 기록되고 있어요 (총관리자만 봐요)'));
             let W0 = {}; try { const ws0 = await getDoc(doc(db, 'smart_global', 'worker_status')); W0 = ws0.exists() ? ws0.data() : {}; } catch (e) { W0 = {}; }
             // 2. 알림 서버
             const aUrl = d.alert && d.alert.url;
@@ -15428,6 +15431,7 @@ familyStr + `\n` +
                 return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
                     <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
                     <p class="text-xs text-gray-600">${fixed ? '총관리자 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                    ${locked ? '' : accessLineHtml(em)}
                     ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
                 </div>`;
             };
@@ -15449,6 +15453,7 @@ familyStr + `\n` +
             if (locked) return;
             box.querySelectorAll('[data-sa-move]').forEach(b => b.onclick = () => reassignFromStaff(b.dataset.saMove));
             box.querySelectorAll('[data-sa-del]').forEach(b => b.onclick = () => removeStaffAccount(b.dataset.saDel));
+            box.querySelectorAll('[data-sa-log]').forEach(b => b.onclick = () => openAccessSheet(b.dataset.saLog));
             const add = box.querySelector('#saAddBtn'); if (add) add.onclick = () => addStaffAccount(box.querySelector('#saNewEmail').value);
         }
         async function writeStaffAccounts(emails, info) {
@@ -15483,6 +15488,116 @@ familyStr + `\n` +
                 } catch (e) { customAlert(koreanError(e, '저장')); }
             }
             customAlert(`계정을 지웠어요.${n ? `\n${nm} 담당 고객 ${n}명은 그대로예요 → [담당 고객 넘기기]로 정리해주세요.` : ''}\n그 직원이 알던 비밀번호(중계 서버 등)는 관리자 가이드 3장대로 바꿔주세요.`);
+        }
+
+        /* =====================================================================
+           🕒 직원 접속 기록 (V170) — staff_access/{이메일}
+           · 강CRM을 열 때(로그인 확인 뒤) · 다른 앱에 10분 넘게 갔다가 돌아올 때 = '접속' 1번
+           · 화면을 켜 두고 쓰는 동안 10분마다 · 나갈 때 '마지막 활동' 시간만 고침
+           · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
+           · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
+           ===================================================================== */
+        const APP_VER = 'V170';
+        const ACCESS_GAP = 10 * 60e3;
+        let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
+        function accessDevice() {
+            const ua = navigator.userAgent || '';
+            const os = /iPhone|iPad|iPod/i.test(ua) ? '아이폰' : /Android/i.test(ua) ? '안드로이드' : /Windows/i.test(ua) ? 'PC' : /Macintosh|Mac OS/i.test(ua) ? '맥' : '기타';
+            let app = '브라우저';
+            try { if ((window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone) app = '앱'; } catch (e) { /* 무시 */ }
+            if (app !== '앱') app = /SamsungBrowser/i.test(ua) ? '삼성 인터넷' : /KAKAOTALK/i.test(ua) ? '카톡 안' : /CriOS|Chrome/i.test(ua) ? '크롬' : /Safari/i.test(ua) ? '사파리' : '브라우저';
+            return `${os} ${app}`;
+        }
+        const accHM = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        const accYmd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const ACC_W = ['일', '월', '화', '수', '목', '금', '토'];
+        const accMD = (ymd) => { const d = parseDateString(ymd); return d && !isNaN(d.getTime()) ? `${d.getMonth() + 1}/${d.getDate()} (${ACC_W[d.getDay()]})` : ymd; };
+        async function logAccess(kind) {   // 'open' 접속 · 'beat' 마지막 활동만
+            const em = accessEmail; if (!em || !db) return;
+            const ref = doc(db, 'staff_access', em), now = new Date(), iso = now.toISOString(), day = getTodayStr(), hm = accHM(now), dev = accessDevice();
+            try {
+                if (kind === 'open') {
+                    const snap = await getDoc(ref), d = snap.exists() ? (snap.data() || {}) : {};
+                    const days = { ...(d.days || {}) }, cut = addDaysStr(day, -40);
+                    Object.keys(days).forEach(k => { if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < cut) delete days[k]; });
+                    const t = days[day] || {};
+                    days[day] = { first: t.first || hm, last: hm, n: (Number(t.n) || 0) + 1 };
+                    const recent = [{ at: iso, ver: APP_VER, dev }, ...(Array.isArray(d.recent) ? d.recent : [])].slice(0, 30);
+                    await setDoc(ref, { email: em, name: getStaffName() || '', lastAt: iso, lastOpenAt: iso, lastVer: APP_VER, lastDev: dev, days, recent });
+                } else {
+                    await setDoc(ref, { email: em, name: getStaffName() || '', lastAt: iso, lastVer: APP_VER, lastDev: dev, days: { [day]: { last: hm } } }, { merge: true });
+                }
+                accessWrite = { ok: true, err: '' };
+            } catch (e) { accessWrite = { ok: false, err: String((e && e.code) || e) }; console.warn('접속 기록 실패', e); }
+        }
+        function startAccessLog() {
+            const em = myEmail().toLowerCase();
+            if (!em || accessEmail === em) return;
+            accessEmail = em;
+            logAccess('open');
+            clearInterval(accessHbTimer);
+            accessHbTimer = setInterval(() => { if (document.visibilityState === 'visible') logAccess('beat'); }, ACCESS_GAP);
+            if (accessUnsub) { accessUnsub(); accessUnsub = null; }
+            if (isSuperAdmin) accessUnsub = onSnapshot(collection(db, 'staff_access'), snap => {
+                const m = {}; snap.forEach(x => { m[x.id] = x.data() || {}; }); accessMap = m;
+                try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
+                const sh = document.getElementById('accessSheet'); if (sh && sh.dataset.em) openAccessSheet(sh.dataset.em);
+            }, err => console.warn('접속 기록 불러오기 실패', err));
+        }
+        function stopAccessLog() {
+            accessEmail = ''; clearInterval(accessHbTimer); accessHbTimer = null;
+            if (accessUnsub) { accessUnsub(); accessUnsub = null; } accessMap = {};
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (!accessEmail) return;
+            if (document.visibilityState === 'hidden') { accessHiddenAt = Date.now(); logAccess('beat'); return; }
+            if (accessHiddenAt && Date.now() - accessHiddenAt > ACCESS_GAP) logAccess('open'); else logAccess('beat');
+            accessHiddenAt = 0;
+        });
+        function accessAgo(iso) {
+            const t = Date.parse(iso || ''); if (!isFinite(t)) return '';
+            const d = new Date(t), today = getTodayStr(), ymd = accYmd(d);
+            if (ymd === today) return `오늘 ${accHM(d)}`;
+            if (ymd === addDaysStr(today, -1)) return `어제 ${accHM(d)}`;
+            const days = Math.round((parseDateString(today) - parseDateString(ymd)) / 86400e3);
+            return `${accMD(ymd)} ${accHM(d)} (${days}일 전)`;
+        }
+        function accessLineHtml(em) {
+            const a = accessMap[em];
+            const btn = `<button type="button" data-sa-log="${escapeHtml(em)}" class="flex-shrink-0 text-xs font-bold text-indigo-700 underline underline-offset-2">접속 기록</button>`;
+            if (!a || !a.lastAt) return `<div class="flex items-center justify-between gap-2"><span class="text-xs text-gray-500">🕒 접속 기록 없음 <span class="text-gray-400">(V170을 연 뒤부터 남아요)</span></span>${btn}</div>`;
+            const live = Date.now() - Date.parse(a.lastAt) < ACCESS_GAP + 2 * 60e3;
+            const old = a.lastVer && a.lastVer !== APP_VER;
+            const today = (a.days || {})[getTodayStr()];
+            const main = live ? `<span class="font-bold text-green-700">🟢 지금 접속 중</span>` : `🕒 마지막 ${escapeHtml(accessAgo(a.lastAt))}`;
+            const todayTxt = today && today.first ? ` · 오늘 ${escapeHtml(today.first)} 처음${today.n ? ` · ${Number(today.n)}번` : ''}` : '';
+            return `<div class="flex items-start justify-between gap-2"><span class="text-xs text-gray-700 leading-relaxed">${main}${todayTxt} · ${escapeHtml(a.lastDev || '')}${old ? `<br><span class="font-bold text-amber-800">⚠️ 예전 화면(${escapeHtml(a.lastVer)})이에요 → 그 폰에서 강CRM을 완전히 닫았다 다시 열기</span>` : ''}</span>${btn}</div>`;
+        }
+        function openAccessSheet(em) {
+            if (!isSuperAdmin) return;
+            let sh = document.getElementById('accessSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'accessSheet';
+                sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', e => { if (e.target === sh || e.target.closest('[data-acc-close]')) { sh.remove(); } });
+                document.body.appendChild(sh);
+            }
+            sh.dataset.em = em;
+            const a = accessMap[em] || {}, nm = staffByEmail()[em] || a.name || '(이름 아직 없음)';
+            const today = getTodayStr(), rows = [];
+            for (let i = 0; i < 14; i++) {
+                const k = addDaysStr(today, -i), t = (a.days || {})[k], wd = parseDateString(k).getDay();
+                rows.push(`<tr class="${t ? '' : 'text-gray-400'} ${wd === 0 ? 'bg-red-50/40' : ''}"><td class="py-1.5 pr-2 whitespace-nowrap">${accMD(k)}${i === 0 ? ' · 오늘' : ''}</td><td class="py-1.5 pr-2 tabular-nums">${t ? `${escapeHtml(t.first || t.last || '')} ~ ${escapeHtml(t.last || '')}` : '접속 안 함'}</td><td class="py-1.5 text-right tabular-nums">${t && t.n ? `${Number(t.n)}번` : ''}</td></tr>`);
+            }
+            const rec = (Array.isArray(a.recent) ? a.recent : []).map(r => { const d = new Date(r.at); return isNaN(d) ? '' : `<li class="flex justify-between gap-2 py-1 border-b border-gray-100"><span class="tabular-nums">${accMD(accYmd(d))} ${accHM(d)}</span><span class="text-gray-600 text-right">${escapeHtml(r.dev || '')} · <span class="${r.ver !== APP_VER ? 'text-amber-800 font-bold' : ''}">${escapeHtml(r.ver || '')}</span></span></li>`; }).join('');
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[88vh] overflow-y-auto p-4 space-y-3">
+                <div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-[17px] font-bold text-gray-900">🕒 ${escapeHtml(nm)} 접속 기록</p><p class="text-xs text-gray-500 truncate">${escapeHtml(em)}</p></div><button type="button" data-acc-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                ${a.lastAt ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-800 leading-relaxed">마지막 활동 <b>${escapeHtml(accessAgo(a.lastAt))}</b><br>${escapeHtml(a.lastDev || '')} · 강CRM ${escapeHtml(a.lastVer || '')}${a.lastVer && a.lastVer !== APP_VER ? ` <b class="text-amber-800">(예전 화면 · 지금은 ${APP_VER})</b>` : ''}</div>` : `<p class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700">아직 기록이 없어요. 이 직원 폰에서 강CRM ${APP_VER} 이상을 열면 그때부터 남아요.</p>`}
+                <div><p class="text-sm font-bold text-gray-900 mb-1">날짜별 (최근 2주)</p><table class="w-full text-[13px] text-gray-800"><tbody>${rows.join('')}</tbody></table></div>
+                ${rec ? `<div><p class="text-sm font-bold text-gray-900 mb-1">최근 접속 ${Math.min(30, (a.recent || []).length)}번</p><ul class="text-[13px] text-gray-800">${rec}</ul></div>` : ''}
+                <p class="text-xs text-gray-500 leading-relaxed">강CRM을 열 때 · 다른 앱에 10분 넘게 있다가 돌아올 때 '접속' 1번으로 세요. 켜 두고 쓰는 동안엔 10분마다 마지막 활동 시간만 고쳐요. 40일 지난 날짜는 지워져요.</p>
+                <button type="button" data-acc-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button>
+            </div>`;
         }
         renderStaffAccounts();
 
