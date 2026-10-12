@@ -1008,7 +1008,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V181</span>
+                    <span class="text-sm text-gray-600">V183</span>
                 </div>
             </section>
         </div>
@@ -8534,6 +8534,21 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function reviewUrl() { return normReviewUrl(((typeof calcData !== 'undefined' && calcData) || {}).reviewUrl); }
         const reviewLine = (rv) => rv ? `\n\n⭐ 리뷰 한 줄 남겨주시면 큰 힘이 돼요!\n${rv}` : '';   // 주소는 따로 한 줄 (문자에서 길게 꺾이지 않게)
+        // 🙏 개통 안부 푸시 (V182): 리뷰 주소가 있으면 '⭐ 눌러서 리뷰…' 한 줄 + 알림을 누르면 리뷰 화면 (중계 서버 v10 · 예전 서버면 명함이 열리고 명함의 [⭐ 리뷰 쓰기])
+        function actPush(c, tpl, per, rv) {
+            const body = fillSmsTemplate(tpl, c, { '리뷰': '', '개통기간': per });
+            return { heading: `🙏 개통 ${per} 안부`, text: rv ? `${body}\n⭐ 눌러서 리뷰 한 줄 남겨주세요` : body, popBody: rv ? `${body}\n\n남겨주신 리뷰 한 줄이 매장에 큰 힘이 돼요 🙏` : body, rv: !!rv };
+        }
+        /* 🔔 자동 푸시를 누르면 → 고객 명함이 열리고 '🔔 받은 알림' 창으로 내용이 떠요 (V183 · 명함 공지 창과 같은 모양)
+           · 주소 = 그 고객 명함 링크(?c=명함번호 · 직원 고객은 공용 명함) + #pn=알림 내용 · 개통 안부는 창에 [⭐ 리뷰 쓰기] 버튼 (명함 V4.3)
+           · 중계 서버 v10이 예약 푸시에 주소를 붙여줘요 (v9면 명함만 열림) */
+        function cardPushUrl(c, id, heading, body, image, rv) {
+            try {
+                const j = JSON.stringify({ id: String(id || '').slice(0, 20), h: String(heading || '').slice(0, 60), b: String(body || '').slice(0, 300), i: /^https:\/\//.test(image || '') ? image : '', ...(rv ? { rv: 1 } : {}) });
+                const b64 = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+                return `${autoCardLink(c)}#pn=${b64}`;
+            } catch (e) { return autoCardLink(c); }
+        }
         /* 📇 자동 문자에 명함 링크 (V179 · 문구마다 켜고 끄기 · 문자에만 · 푸시는 눌러도 명함이 열려서 안 붙임)
            · 어느 명함: 고객카드 담당자 기준 — 👑 대표·담당 없음 = 대표 명함 / 직원 = 👥 공용 명함(그 직원으로) / 공용 명함이 꺼져 있으면 대표 명함
            · 명함번호(cardId)가 있는 고객은 개인 링크(?c=) → 고객이 열면 강CRM '명함견적'·푸시와 이어져요 */
@@ -8554,11 +8569,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function autoTextSigs() {
             const h = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
             return {
-                task: h([smsSetting('smsTplProm'), smsCardOn('prom')]),
-                bday: h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
-                visit: h([smsSetting('smsTplVisit'), smsCardOn('visit')]),
-                act: h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays')]),
-                promo: h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo')])
+                task: h([smsSetting('smsTplProm'), smsCardOn('prom'), 'pn1']),
+                bday: h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday'), 'pn1']),
+                visit: h([smsSetting('smsTplVisit'), smsCardOn('visit'), 'pn1']),
+                act: h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays'), 'pn1']),
+                promo: h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo'), 'pn1'])
             };
         }
         function smsSendAt(dateStr, time) {
@@ -8615,7 +8630,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (autoSmsOn() && base.to) out.push(base);   // 문자는 휴대폰 번호가 있을 때만
             if (autoPushOn() && c.pushSubscribed === true && c.cardId) {
                 // 문자를 따로 보내므로 푸시에는 번호를 안 넣음 (푸시가 안 돼도 문자로 한 번 더 가지 않게)
-                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl() });
+                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl(), url: push.url || cardPushUrl(c, base.id, push.heading, push.popBody || push.text, push.image, push.rv) });   // url: 누르면 명함 + 🔔 받은 알림 창 (중계 서버 v10)
             }
             return out;
         }
@@ -8829,7 +8844,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             const id = `aa-${safeId}-${ad.replace(/-/g, '')}`;
                             const rv = reviewUrl();
                             const aText = fillSmsTemplate(smsSetting('smsTplAct'), c, { '리뷰': reviewLine(rv) });
-                            items.push(...autoItemsFor(c, { id, to: phone, name: c.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: withAutoCard(aText, c, 'act') }, { heading: `🙏 개통 ${actPeriodLabel(smsSetting('smsActDays'))} 안부`, text: fillSmsTemplate(smsSetting('smsTplAct'), c, { '리뷰': '' }) }).filter(it => !skip.has(it.id)));
+                            items.push(...autoItemsFor(c, { id, to: phone, name: c.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: withAutoCard(aText, c, 'act') }, actPush(c, smsSetting('smsTplAct'), actPeriodLabel(smsSetting('smsActDays')), rv)).filter(it => !skip.has(it.id)));
                         }
                     }
                 }
@@ -9684,7 +9699,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (!/\{개통기간\}/.test(tpl)) { const fixed = (/(\d+\s*일|\d+\s*주|한\s*달\s*반|한\s*달|두\s*달|보름)(이|가)?\s*(됐|되었|지났)/.exec(tpl) || [])[1]; if (fixed && fixed.replace(/\s/g, '') !== per.replace(/\s/g, '')) warns.push(`📆 문구에 '${fixed}'이(가) 적혀 있는데 '개통 며칠 뒤'는 ${days}일(${per})이에요. 기간 자리에 {개통기간}을 쓰면 고른 날짜에 맞게 '${per}'처럼 바뀌어요.`); }
                     if (hasTag && !rv) warns.push("⭐ 리뷰 주소가 비어 있어서 {리뷰} 줄이 빠졌어요 → 개통 안부 문구 아래 '⭐ 리뷰 주소'에 넣어주세요.");
                     else if (!hasTag && rv) warns.push('문구에 {리뷰}가 없어서 리뷰 주소가 안 들어가요. 넣고 싶은 자리에 {리뷰}를 적어주세요.');
-                    return { warn: warns.join('\n'), sms: { text: withAutoCard(fillSmsTemplate(tpl, c, { '리뷰': reviewLine(rv), '개통기간': per }), c, 'act') }, push: { heading: `🙏 개통 ${per} 안부`, text: fillSmsTemplate(tpl, c, { '리뷰': '', '개통기간': per }) } };
+                    return { warn: warns.join('\n'), sms: { text: withAutoCard(fillSmsTemplate(tpl, c, { '리뷰': reviewLine(rv), '개통기간': per }), c, 'act') }, push: actPush(c, tpl, per, rv) };
                 }
                 const pImg = String(appSettings.smsPromoImage || '').trim();
                 return { sms: mmsActive() && pImg ? { text: promoText(c, false, { noLink: true }), mmsImage: pImg, linkText: promoText(c, false) } : { text: promoText(c, false) }, push: { heading: `(광고) ${msgStoreName()} 소식`, text: promoText(c, true), image: pImg } };
@@ -9737,12 +9752,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <div class="flex justify-start"><div class="max-w-[88%] rounded-2xl rounded-tl-md bg-gray-100 border border-gray-200 px-3.5 py-2.5 space-y-2">${B.sms.mmsImage ? `<img src="${escapeHtml(B.sms.mmsImage)}" alt="사진 문자 사진" class="w-full max-h-40 object-cover rounded-lg">` : ''}<p class="text-[14px] text-gray-900 leading-relaxed whitespace-pre-wrap break-words" style="overflow-wrap:anywhere">${escapeHtml(B.sms.text)}</p></div></div>
                 </div>
                 <div>
-                    <p class="text-sm font-bold text-gray-900 mb-1.5">🔔 푸시 <span class="text-xs font-medium text-gray-500">명함 알림을 켠 고객 폰 알림창</span></p>
+                    <p class="text-sm font-bold text-gray-900 mb-1.5">🔔 푸시 <span class="text-xs font-medium text-gray-500">명함 알림을 켠 고객 폰 알림창 · 누르면 명함이 열리고 '🔔 받은 알림' 창${B.push.rv ? ' + [⭐ 리뷰 쓰기] 버튼' : ''}</span></p>
                     <div class="rounded-2xl bg-white border border-gray-200 shadow-sm p-3 flex gap-2.5">
                         <img src="${escapeHtml(icon)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-gray-100">
                         <div class="min-w-0 flex-1"><p class="text-[11px] text-gray-500">Chrome · kanggun1983.github.io · 지금</p><p class="text-[14px] font-bold text-gray-900 truncate">${escapeHtml(B.push.heading)}</p><p class="text-[13px] text-gray-700 leading-snug whitespace-pre-wrap break-words" style="overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(B.push.text)}</p>${B.push.image ? `<img src="${escapeHtml(B.push.image)}" alt="" class="mt-2 w-full max-h-36 object-cover rounded-lg">` : ''}</div>
                     </div>
                 </div>
+                ${(Number((() => { try { return localStorage.getItem('relayVersion'); } catch (e) { return 0; } })()) || 0) < 10 ? '<p class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-relaxed">🔗 예약된 자동 푸시를 눌렀을 때 명함에 \'🔔 받은 알림\' 창이 뜨게 하려면 중계 서버(kangcrm-push)를 <b>v10</b>으로 바꿔주세요. 지금 서버에선 명함만 열려요. (아래 [🔔 이 폰으로 푸시] 시험은 지금도 돼요)</p>' : ''}
                 ${B.warn ? `<p class="text-[13px] font-bold text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2 leading-relaxed whitespace-pre-line">${escapeHtml(B.warn)}</p>` : ''}
                 <p class="text-xs text-gray-600" style="overflow-wrap:anywhere">📇 명함 링크: ${smsCardOn(tplTestKind === 'prom' ? 'prom' : tplTestKind) ? `<b class="text-indigo-700">켜짐</b> · 문자 끝에 ${escapeHtml(autoCardLink(c))}` : '꺼짐 (문구 아래 \'📇 문자에 명함 링크 붙이기\'로 켜요)'}</p>
                 ${off ? `<p class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">지금 ${off}은(는) 꺼져 있어요 (위 '보내는 방법'). 미리보기·테스트는 돼요.</p>` : ''}
@@ -9778,7 +9794,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try {
                 await refreshStaffAlert();
                 const icon = autoPushIconUrl();
-                await callPushRelay({ pushTo: [staffOneSignalId()], heading: B.push.heading, content: B.push.text, image: B.push.image || undefined, icon: icon || undefined });
+                await callPushRelay({ pushTo: [staffOneSignalId()], heading: B.push.heading, content: B.push.text, image: B.push.image || undefined, icon: icon || undefined, url: cardPushUrl(c, 'test' + Date.now().toString(36), B.push.heading, B.push.popBody || B.push.text, B.push.image, B.push.rv) });
                 setMsg('✅ 이 폰으로 보냈어요. 강CRM을 잠깐 닫고 알림창을 보세요 (고객 폰에도 이 모양으로 떠요).', 'green');
             } catch (e) { setMsg(`❌ ${/알림을 꺼두었거나/.test(e.message || '') ? "이 폰이 알림 등록이 안 돼 있어요. '이 폰으로 알림 받기'를 껐다 켜주세요." : (e.message || '보내지 못했어요.')}`, 'red'); }
             btn.disabled = false;
@@ -16468,7 +16484,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V181';
+        const APP_VER = 'V183';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
