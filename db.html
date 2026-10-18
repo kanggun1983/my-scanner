@@ -161,6 +161,9 @@
             <button id="tabDB" onclick="switchTab('db')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
                 <i class="fa-solid fa-database text-lg"></i> 고객 DB 목록
             </button>
+            <button id="tabStock" onclick="switchTab('stock')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
+                <i class="fa-solid fa-boxes-stacked text-lg"></i> 재고
+            </button>
             <button id="tabSettings" onclick="switchTab('settings')" class="flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all">
                 <i class="fa-solid fa-sliders text-lg"></i> 설정
             </button>
@@ -590,6 +593,21 @@
             
             <!-- 페이지네이션 (넓은 화면의 표 전용) -->
             <div id="paginationContainer" class="hidden lg:flex justify-center items-center gap-1 mt-4"></div>
+        </div>
+
+        <!-- 📦 재고 (V189) -->
+        <div id="stockView" class="hidden max-w-2xl w-full mx-auto px-1 lg:px-0 space-y-3 pb-4">
+            <div class="flex items-end justify-between gap-2"><h2 class="text-[22px] font-bold text-gray-900 tracking-tight">재고</h2><p id="stockSheetInfo" class="text-xs font-medium text-gray-500 text-right pb-1"></p></div>
+            <div id="stockSummary" class="grid grid-cols-3 gap-2"></div>
+            <div class="grid grid-cols-3 gap-2">
+                <label class="min-h-[76px] rounded-2xl border border-indigo-200 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-center cursor-pointer px-1 focus-within:ring-2 focus-within:ring-indigo-300"><input type="file" id="stockScanIn" accept="image/*" class="sr-only"><i class="fa-solid fa-camera text-xl text-indigo-600" aria-hidden="true"></i><b class="text-[14px] text-indigo-900">재고표 사진</b><span class="text-[11px] text-indigo-700">AI가 읽어요</span></label>
+                <label class="min-h-[76px] rounded-2xl border border-emerald-200 bg-emerald-50 flex flex-col items-center justify-center gap-0.5 text-center cursor-pointer px-1 focus-within:ring-2 focus-within:ring-emerald-300"><input type="file" id="stockXlsIn" accept=".xlsx,.xls,.csv" class="sr-only"><i class="fa-solid fa-file-excel text-xl text-emerald-600" aria-hidden="true"></i><b class="text-[14px] text-emerald-900">엑셀 파일</b><span class="text-[11px] text-emerald-700">재고표 그대로</span></label>
+                <button type="button" id="stockAddBtn" class="min-h-[76px] rounded-2xl border border-gray-300 bg-white flex flex-col items-center justify-center gap-0.5 text-center px-1"><i class="fa-solid fa-pen text-xl text-gray-600" aria-hidden="true"></i><b class="text-[14px] text-gray-900">직접 입력</b><span class="text-[11px] text-gray-500">한 대씩 · 여러 대</span></button>
+            </div>
+            <div id="stockDealerHint"></div>
+            <div class="flex items-center gap-2 bg-white border border-gray-300 rounded-2xl px-3 h-12 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><i class="fa-solid fa-magnifying-glass text-gray-400" aria-hidden="true"></i><label for="stockSearch" class="sr-only">재고 찾기</label><input type="text" id="stockSearch" autocomplete="off" enterkeyhint="search" placeholder="모델 · 색상 · 일련번호 끝자리 · 고객 이름" class="flex-1 min-w-0 h-full bg-transparent text-[15px] text-gray-900 outline-none"></div>
+            <div id="stockChips" class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"></div>
+            <div id="stockList" class="space-y-3"></div>
         </div>
 
         <!-- ⚙️ 설정 -->
@@ -1083,7 +1101,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V188</span>
+                    <span class="text-sm text-gray-600">V189</span>
                 </div>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
@@ -1095,9 +1113,10 @@
         </div>
 
         <!-- 📱 폰 아래 탭 (엄지로 누르기 쉬운 위치) -->
-        <nav id="bottomNav" aria-label="주요 메뉴" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 grid grid-cols-3" style="padding-bottom: env(safe-area-inset-bottom);">
+        <nav id="bottomNav" aria-label="주요 메뉴" class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-gray-200 grid grid-cols-4" style="padding-bottom: env(safe-area-inset-bottom);">
             <button type="button" id="navScanner" onclick="switchTab('scanner')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-camera text-xl"></i>스캔</button>
             <button type="button" id="navDB" onclick="switchTab('db')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-users text-xl"></i>고객</button>
+            <button type="button" id="navStock" onclick="switchTab('stock')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-boxes-stacked text-xl"></i>재고</button>
             <button type="button" id="navSettings" onclick="switchTab('settings')" class="h-16 flex flex-col items-center justify-center gap-1 text-xs font-medium text-gray-600"><i class="fa-solid fa-sliders text-xl"></i>설정</button>
         </nav>
 
@@ -3228,6 +3247,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         let currentReportType = 'mobile';
         let dbUnsubscribe = null;
         let statsUnsubscribe = null;
+        let stockUnsubscribe = null;   // 📦 재고 (V189)
         let settingsUnsubscribe = null;
         // 🛡️ 저장 전 빈 값(undefined) 정리 — Firestore는 undefined가 한 칸이라도 있으면 저장 전체를 거절함
         //    (예전: '명함 보내기'로 등록한 고객을 스캔해서 저장하면 법대 이름 같은 빈 칸 때문에 저장 실패)
@@ -3715,6 +3735,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if(dbUnsubscribe) dbUnsubscribe();
                         if(statsUnsubscribe) statsUnsubscribe();
                         if(settingsUnsubscribe) settingsUnsubscribe();
+                        if (stockUnsubscribe) { stockUnsubscribe(); stockUnsubscribe = null; }
                         detachCalcListeners();
                         if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
                         try { stopAccessLog(); } catch (e) { /* 무시 */ }
@@ -3988,6 +4009,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 // 예전: 여기서 자동 약속 칸만 다시 그려서, 설정 탭에서 새로고침하면 중계 서버 주소 칸이 빈 채로 남았음
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
             }, (error) => console.error('매장 설정 불러오기 실패:', error));
+
+            if (stockUnsubscribe) stockUnsubscribe();
+            stockUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stock'), (snap) => {   // 📦 재고 (문서 하나라 읽기 1번)
+                stockData = snap.exists() ? (snap.data() || {}) : { items: [] };
+                stockLoaded = true;
+                stockRefresh();
+            }, (error) => console.error('재고 불러오기 실패:', error));
 
             statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
                 if (docSnap.exists()) {
@@ -4436,12 +4464,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const TOP_TAB_ON = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
         const TOP_TAB_OFF = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
         window.switchTab = function(tabId) {
-            if (!['scanner', 'db', 'settings'].includes(tabId)) tabId = 'db';
+            if (!['scanner', 'db', 'stock', 'settings'].includes(tabId)) tabId = 'db';
             setTimeout(() => { try { syncScanSaveBar(); if (tabId === 'scanner') fillRegStoreDefault(); } catch (e) { /* 준비 전 */ } }, 0);
             if (tabId !== 'db' && selectionMode) setSelectionMode(false);
-            const views = { scanner: 'scannerView', db: 'dbView', settings: 'settingsView' };
-            const tops = { scanner: 'tabScanner', db: 'tabDB', settings: 'tabSettings' };
-            const navs = { scanner: 'navScanner', db: 'navDB', settings: 'navSettings' };
+            const views = { scanner: 'scannerView', db: 'dbView', stock: 'stockView', settings: 'settingsView' };
+            const tops = { scanner: 'tabScanner', db: 'tabDB', stock: 'tabStock', settings: 'tabSettings' };
+            const navs = { scanner: 'navScanner', db: 'navDB', stock: 'navStock', settings: 'navSettings' };
             Object.keys(views).forEach(k => {
                 const on = k === tabId;
                 document.getElementById(views[k]).classList.toggle('hidden', !on);
@@ -4456,6 +4484,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try { localStorage.setItem('lastTab', tabId); } catch (e) { /* 저장 못 해도 동작엔 지장 없음 */ }
             if (tabId === 'db') renderDB();
             if (tabId === 'settings') renderSettings();
+            if (tabId === 'stock') { try { renderStock(); } catch (e) { console.warn(e); } }
             if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
         };
 
@@ -4695,7 +4724,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         };
 
         // 긴 변 2000px / 품질 0.85 (예전 1200px·0.7은 폰 스크린샷의 작은 글씨·금액이 뭉개져 오인식 위험)
-        function compressImage(file, callback) {
+        function compressImage(file, callback, maxSide = 2000) {
             const r = new FileReader();
             r.onerror = () => callback(null);
             r.onload = e => {
@@ -4703,7 +4732,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 img.onerror = () => callback(null); // HEIC 등 브라우저가 못 여는 사진
                 img.onload = () => {
                     const canvas = document.createElement('canvas');
-                    let w = img.width, h = img.height, max = 2000;
+                    let w = img.width, h = img.height, max = maxSide;
                     if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
                     canvas.width = Math.round(w); canvas.height = Math.round(h);
                     canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -14973,6 +15002,7 @@ familyStr + `\n` +
 
         function openActReg(c, mode) {
             arItems = []; arPickerOpen = false; arPresetEdit = false; arDealer = null; arPlanSrc = 'auto'; arUsimTouched = false;
+            arStockHit = null; arStockAuto = { model: '', color: '' }; arStockPickOpen = false; arStockPickAll = false;   // 📦 재고 (V189)
             arCust = c || null;
             arMode = mode || 'mobile';
             arEl.style.display = 'flex';
@@ -15086,6 +15116,7 @@ familyStr + `\n` +
                     ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${storeHtml}
                     ${arIn('ar-manager', '개통직원', getStaffName() || '')}
+                    ${stockItems().some(x => stockSt(x) === '재고' && stockIsDev(x)) ? '<button type="button" id="arStockJump" class="col-span-2 -mt-0.5 text-left text-xs font-bold text-teal-700 leading-relaxed">📦 재고 단말이면 <u>단말기 일련번호</u>만 치세요 → 거래처 · 통신사 · 모델이 자동으로 들어가요 ↓</button>' : ''}
                     <p id="ar-dealer-note" class="col-span-2 hidden text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 leading-relaxed"></p>
                     ${!DL.length && isSuperAdmin ? '<p class="col-span-2 text-xs text-gray-500">💡 설정 → 🏪 매장 운영 → 개통 후 자동 약속에서 거래처를 등록하면, 여기서 고르기만 해도 요금제·부가·보험 유지가 자동으로 들어가요.</p>' : ''}
                     <div data-carwrap class="min-w-0 col-span-2">${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], car0, { req: true })}</div>
@@ -15127,11 +15158,15 @@ familyStr + `\n` +
                     <label data-tg="ar-tg-fam" class="col-span-2 block ${tgFam ? '' : 'hidden'}"><span class="block text-xs font-bold text-gray-600 mb-1">가족정보</span><textarea id="ar-family" rows="2" placeholder="예) 배우자 홍길순 010-0000-0000" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">${escapeHtml(c.repFamily || '')}</textarea></label>
                     <div id="ar-legal" data-tg="ar-minor" class="col-span-2 grid grid-cols-2 gap-2 ${legalOn ? '' : 'hidden'}">${arIn('ar-legal-name', '법정대리인 이름', c.legalName || '')}${arIn('ar-legal-phone', '법정대리인 연락처', c.legalPhone || '', { type: 'tel' })}${arIn('ar-legal-dob', '법정대리인 생년월일', formatDob(c.legalDob || ''), { ph: '1970-01-01', span: true })}</div>
                     </div>`, arTogs([['ar-tg-net', '인터넷·중고폰', tgNet], ['ar-tg-fam', '가족', tgFam], ['ar-minor', '미성년자', legalOn]]));
+                const stockLive = stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x));
+                if (stockLive.length) html += `<datalist id="arStockList">${arStockOptions()}</datalist>`;
                 html += arSec('단말기 · 유심', `<div class="grid grid-cols-2 gap-2">
                     <div data-dev class="col-span-2 grid grid-cols-2 gap-2">
+                        ${stockLive.length ? `<button type="button" id="arStockBtn" class="col-span-2 h-11 rounded-xl border border-teal-300 bg-teal-50 text-[14px] font-bold text-teal-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> 재고에서 고르기 <span id="arStockCnt" class="font-medium text-teal-700"></span></button><div id="arStockPick" class="col-span-2 hidden"></div>` : ''}
+                        ${arIn('ar-serial', '단말기 일련번호', '', stockLive.length ? { span: true, list: 'arStockList', ph: '끝자리만 쳐도 재고에서 찾아요' } : { span: true })}
+                        <p id="ar-stock-note" class="col-span-2 hidden text-xs font-bold rounded-lg px-2.5 py-1.5 leading-relaxed"></p>
                         ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
                         ${arIn('ar-color', '색상', '', {})}
-                        ${arIn('ar-serial', '단말기 일련번호', '', { span: true })}
                     </div>
                     ${arIn('ar-usim', '유심 모델명', '', {})}
                     ${arIn('ar-usimserial', '유심 일련번호', '', {})}
@@ -15253,7 +15288,7 @@ familyStr + `\n` +
             if (dEl) dEl.addEventListener('change', () => { renderArItems(); arRecalc(); });
             const cEl2 = document.getElementById('ar-carrier');
             if (cEl2) cEl2.addEventListener('change', () => renderArPicker());
-            if (arMode === 'mobile') { arSetPlanKeep(arDefaultPlanCode()); arSyncVis(); arApplyDealer(arDealer); }   // 거래처 조건 (요금제 유지 · 부가·보험 줄)
+            if (arMode === 'mobile') { arSetPlanKeep(arDefaultPlanCode()); arSyncVis(); arApplyDealer(arDealer); arStockHit = null; arStockSync(); }   // 거래처 조건 (요금제 유지 · 부가·보험 줄) · 📦 재고 수
             else renderArItems();
             arRecalc();
         }
@@ -15511,6 +15546,7 @@ familyStr + `\n` +
             btn.disabled = true;
             try {
                 await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
+                if (isM) stockAfterActSave(digits, upd.name, arVal('ar-date'));   // 📦 재고에서 고른 단말 → '개통'
                 const fEl = document.getElementById('ar-files');
                 const files = fEl ? [...(fEl.files || [])] : [];
                 closeActReg();
@@ -15525,6 +15561,525 @@ familyStr + `\n` +
             } catch (e) { fail(koreanError(e, '저장')); }
             btn.disabled = false;
         };
+
+        /* ═════════════════════════════════════════════
+           📦 재고 (V189) — smart_global/stock 문서 하나 { items, sheet, notes, dealerOrder }
+           · item = { id, dealer, kind '단말'|'유심', model, color, serial, qty(유심), memo, st '재고'|'개통'|'정리', at, by, sd, to, tp, sb, o }
+           · 넣기: 📷 재고표 사진(AI) · 📄 엑셀 파일 · ✏️ 직접 입력 (여러 대 한 번에)
+           · 개통등록에서 일련번호(끝자리만도) → 재고에서 찾아 거래처·모델·색상·통신사 자동 → 저장하면 '개통'
+           · 개통·정리된 것은 60일 뒤 자동으로 지움 (문서가 커지지 않게)
+           ═════════════════════════════════════════════ */
+        let stockData = { items: [] }, stockLoaded = false, stockFilter = '', stockQuery = '';
+        const STOCK_KEEP_DAYS = 60;
+        const stockNorm = (v) => String(v ?? '').toUpperCase().replace(/[\s\-.:_/]/g, '');
+        const stockKey = (v) => String(v || '').replace(/\s/g, '').toUpperCase();
+        const stockSt = (x) => x.st || '재고';
+        const stockIsDev = (x) => x.kind !== '유심';
+        function stockItems() { return Array.isArray(stockData.items) ? stockData.items.filter(x => x && x.id) : []; }
+        function stockNewId() { return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+        function stockToast(t) { showUploadToast(t); clearTimeout(stockToast.t); stockToast.t = setTimeout(hideUploadToast, 1800); }
+        // 거래처 → 통신사 (거래처 설정에 있으면 그 통신사 · 없으면 이름 앞글자: LG태성 → LG U+)
+        function stockCarrierOf(dealer) {
+            const d = dealerByName(dealer); if (d && d.carrier) return d.carrier;
+            const n = stockKey(dealer);
+            if (/^(LG|엘지|U\+|유플)/.test(n)) return 'LG U+';
+            if (/^(SK|에스케이)/.test(n)) return 'SKT';
+            if (/^(KT|케이티)/.test(n)) return 'KT';
+            return '';
+        }
+        // 일련번호 맞추기: 같거나, 짧은 쪽이 5자리 이상이고 긴 쪽 끝과 같으면 (재고표엔 끝 6~7자리만 적는 경우가 많아서)
+        function stockSerialMatch(a, b) {
+            a = stockNorm(a); b = stockNorm(b);
+            if (!a || !b) return false;
+            if (a === b) return true;
+            const [sh, lo] = a.length <= b.length ? [a, b] : [b, a];
+            return sh.length >= 5 && lo.endsWith(sh);
+        }
+        function stockFind(serial, sts = ['재고']) { return stockItems().filter(x => stockIsDev(x) && sts.includes(stockSt(x)) && stockSerialMatch(x.serial, serial)); }
+        function stockClean(x) {
+            const o = { id: String(x.id || stockNewId()), dealer: String(x.dealer || '').trim().slice(0, 30), kind: x.kind === '유심' ? '유심' : '단말', model: String(x.model || '').trim().slice(0, 40), color: String(x.color || '').trim().slice(0, 20),
+                serial: String(x.serial || '').trim().slice(0, 40), memo: String(x.memo || '').trim().slice(0, 60), st: ['개통', '정리'].includes(x.st) ? x.st : '재고', at: String(x.at || getTodayStr()), by: String(x.by || getStaffName() || ''), o: Number(x.o) || 0 };
+            if (o.kind === '유심') o.qty = Math.max(0, Math.min(9999, parseInt(x.qty, 10) || 0));
+            if (o.st !== '재고') { o.sd = String(x.sd || getTodayStr()); if (x.to) o.to = String(x.to).slice(0, 30); if (x.tp) o.tp = String(x.tp).slice(0, 20); if (x.sb) o.sb = String(x.sb).slice(0, 20); }
+            return o;
+        }
+        function stockPrune(items) {
+            const cut = new Date(Date.now() - STOCK_KEEP_DAYS * 86400000).toISOString().slice(0, 10);
+            return items.filter(x => stockSt(x) === '재고' || String(x.sd || x.at || '') >= cut);
+        }
+        // 여러 폰이 같이 고쳐도 안 덮어쓰게 (읽고 → 고치고 → 저장을 한 번에)
+        async function stockTx(build) {
+            const ref = doc(db, 'smart_global', 'stock');
+            return runTransaction(db, async (tx) => {
+                const snap = await tx.get(ref);
+                const cur = snap.exists() ? (snap.data() || {}) : {};
+                const base = { items: (Array.isArray(cur.items) ? cur.items : []).map(stockClean), notes: cur.notes && typeof cur.notes === 'object' ? cur.notes : {}, dealerOrder: Array.isArray(cur.dealerOrder) ? cur.dealerOrder : [], ...(cur.sheet ? { sheet: cur.sheet } : {}) };
+                const next = build(base) || base;
+                next.items = stockPrune((next.items || []).map(stockClean));
+                const out = stripUndefined({ ...next, updatedAt: new Date().toISOString(), updatedBy: getStaffName() || '' });
+                tx.set(ref, out);
+                stockData = out;   // 화면은 바로 (실시간 신호가 곧 다시 옴)
+                return out;
+            });
+        }
+        function stockDealerNames(withSettings = false) {
+            const seen = [], add = (n) => { n = String(n || '').trim(); if (n && !seen.some(x => stockKey(x) === stockKey(n))) seen.push(n); };
+            (Array.isArray(stockData.dealerOrder) ? stockData.dealerOrder : []).filter(n => withSettings || stockItems().some(x => stockKey(x.dealer) === stockKey(n))).forEach(add);
+            stockItems().forEach(x => add(x.dealer));
+            if (withSettings) dealerList().forEach(d => add(d.name));
+            return seen;
+        }
+        function stockNotesOf(dealer) { const n = stockData.notes || {}; const k = Object.keys(n).find(x => stockKey(x) === stockKey(dealer)); return k && Array.isArray(n[k]) ? n[k] : []; }
+        function stockRefresh() {
+            try { if (!document.getElementById('stockView').classList.contains('hidden')) renderStock(); } catch (e) { console.warn(e); }
+            try { if (arEl.style.display === 'flex' && arMode === 'mobile') arStockSync(); } catch (e) { /* 준비 전 */ }
+        }
+        const STOCK_CAR_TONE = { 'LG U+': 'bg-pink-50 text-pink-700 border-pink-200', 'SKT': 'bg-orange-50 text-orange-700 border-orange-200', 'KT': 'bg-red-50 text-red-700 border-red-200' };
+        const stockMD = (d) => (d ? String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/') : '');
+        function renderStock() {
+            const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
+            const devs = live.filter(stockIsDev), usims = live.filter(x => !stockIsDev(x));
+            const month = getTodayStr().slice(0, 7);
+            const sold = all.filter(x => stockSt(x) === '개통').sort((a, b) => String(b.sd || '').localeCompare(String(a.sd || '')));
+            const cleaned = all.filter(x => stockSt(x) === '정리');
+            const sh = stockData.sheet;
+            document.getElementById('stockSheetInfo').textContent = sh && sh.date ? `📋 ${stockMD(sh.date)} 재고표 · ${sh.src || ''}${sh.by ? ' · ' + sh.by : ''}` : (stockData.updatedAt ? `${stockMD(String(stockData.updatedAt).slice(0, 10))} 고침${stockData.updatedBy ? ' · ' + stockData.updatedBy : ''}` : '');
+            const box = (n, label, tone) => `<div class="rounded-2xl border ${tone} px-3 py-2.5"><p class="text-[12px] font-bold opacity-80">${label}</p><p class="text-[24px] font-extrabold leading-tight">${n}</p></div>`;
+            document.getElementById('stockSummary').innerHTML = box(`${devs.length}<span class="text-sm font-bold">대</span>`, '📱 단말 재고', 'border-gray-200 bg-white text-gray-900')
+                + box(`${usims.reduce((t, u) => t + (Number(u.qty) || 0), 0)}<span class="text-sm font-bold">개</span>`, '💳 유심', 'border-gray-200 bg-white text-gray-900')
+                + box(`${sold.filter(x => String(x.sd || '').startsWith(month)).length}<span class="text-sm font-bold">대</span>`, `✅ ${Number(month.slice(5))}월 개통`, 'border-emerald-200 bg-emerald-50 text-emerald-900');
+            const dealers = stockDealerNames().filter(n => live.some(x => stockKey(x.dealer) === stockKey(n)));
+            // 👑 거래처 설정에 없는 곳 → 한 번에 추가 (통신사는 이름으로)
+            const miss = dealers.filter(n => !dealerByName(n));
+            document.getElementById('stockDealerHint').innerHTML = miss.length && isSuperAdmin ? `<div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 leading-relaxed">🏢 거래처 설정에 없는 곳: <b>${miss.map(escapeHtml).join(' · ')}</b><br><span class="text-xs text-amber-800">설정에 넣어두면 개통등록에서 일련번호만 쳐도 통신사 · 요금제 · 부가·보험 약속까지 자동이에요.</span><button type="button" id="stockDealerAdd" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-sm font-bold">🏢 ${miss.length}곳 거래처 설정에 넣기</button></div>` : '';
+            if (stockFilter && stockFilter !== '__sold' && stockFilter !== '__clean' && !dealers.some(n => stockKey(n) === stockKey(stockFilter))) stockFilter = '';
+            const chip = (v, label) => `<button type="button" data-stk-f="${escapeHtml(v)}" class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${stockKey(stockFilter) === stockKey(v) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${label}</button>`;
+            document.getElementById('stockChips').innerHTML = all.length ? [chip('', `전체 ${devs.length}`), ...dealers.map(n => chip(n, `${escapeHtml(n)} ${devs.filter(x => stockKey(x.dealer) === stockKey(n)).length}`)), sold.length ? chip('__sold', `✅ 개통됨 ${sold.length}`) : '', cleaned.length ? chip('__clean', `🧹 정리됨 ${cleaned.length}`) : ''].join('') : '';
+            const q = stockNorm(stockQuery);
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q));
+            const listEl = document.getElementById('stockList');
+            if (!all.length) { listEl.innerHTML = `<div class="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center"><p class="text-3xl mb-2">📦</p><p class="text-[15px] font-bold text-gray-900">아직 재고가 없어요</p><p class="text-[13px] text-gray-600 mt-1 leading-relaxed">위 <b>📷 재고표 사진</b>을 찍거나 <b>📄 엑셀 파일</b>을 올리면<br>거래처별로 한 번에 들어가요.</p></div>`; return; }
+            if (stockFilter === '__sold' || stockFilter === '__clean') {
+                const rows = (stockFilter === '__sold' ? sold : cleaned).filter(hit);
+                listEl.innerHTML = `<section class="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">${rows.length ? rows.map(x => `<div class="flex items-center gap-2 px-3 py-2.5">
+                    <div class="flex-1 min-w-0"><p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.model || '-')} <span class="font-medium text-gray-600">${escapeHtml(x.color || '')}</span> <span class="font-mono text-[13px] text-gray-500">${escapeHtml(x.serial || '')}</span></p>
+                    <p class="text-xs text-gray-600 truncate">${escapeHtml(x.dealer || '')} → ${x.tp ? `<button type="button" data-stk-cust="${escapeHtml(x.tp)}" class="font-bold text-indigo-700 underline underline-offset-2">${escapeHtml(x.to || '고객')}</button>` : escapeHtml(x.to || (stockSt(x) === '정리' ? '정리' : '-'))} · ${stockMD(x.sd)}${x.sb ? ' · ' + escapeHtml(x.sb) : ''}</p></div>
+                    <button type="button" data-stk-back="${escapeHtml(x.id)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ 재고로</button></div>`).join('') : '<p class="px-3 py-6 text-center text-sm text-gray-500">없어요</p>'}</section>
+                    <p class="text-xs text-gray-500 px-1">개통 취소된 단말은 [↩ 재고로]를 누르면 다시 재고에 들어가요. ${STOCK_KEEP_DAYS}일 지난 기록은 자동으로 지워져요.</p>`;
+                return;
+            }
+            const groups = (stockFilter ? dealers.filter(n => stockKey(n) === stockKey(stockFilter)) : dealers).map(n => {
+                const mine = live.filter(x => stockKey(x.dealer) === stockKey(n) && hit(x)).sort((a, b) => (a.o || 0) - (b.o || 0));
+                return { n, dev: mine.filter(stockIsDev), usim: mine.filter(x => !stockIsDev(x)) };
+            }).filter(g => g.dev.length || g.usim.length || (!q && stockNotesOf(g.n).length));
+            listEl.innerHTML = groups.length ? groups.map(g => {
+                const car = stockCarrierOf(g.n), models = [];
+                g.dev.forEach(x => { const m = models.find(y => stockKey(y.m) === stockKey(x.model)); if (m) m.list.push(x); else models.push({ m: x.model, list: [x] }); });
+                return `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                    <div class="flex items-center justify-between gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200"><h3 class="text-[16px] font-extrabold text-gray-900 truncate">${escapeHtml(g.n)}${car ? ` <span class="ml-1 align-middle text-[11px] font-bold border rounded-full px-2 py-0.5 ${STOCK_CAR_TONE[car] || 'bg-gray-50 text-gray-600 border-gray-200'}">${escapeHtml(car)}</span>` : ''}</h3><span class="flex-shrink-0 text-[13px] font-bold text-gray-600">${g.dev.length}대${g.usim.length ? ` · 유심 ${g.usim.reduce((t, u) => t + (Number(u.qty) || 0), 0)}` : ''}</span></div>
+                    ${models.map(m => `<div class="border-b border-gray-100 last:border-b-0"><div class="flex items-center justify-between px-3 pt-2.5 pb-0.5"><span class="text-[15px] font-extrabold text-gray-900">${escapeHtml(m.m || '모델 없음')}</span><span class="text-xs font-bold text-gray-500">${m.list.length}대</span></div>
+                        ${m.list.map(x => `<button type="button" data-stk="${escapeHtml(x.id)}" class="w-full flex items-center gap-2 pl-5 pr-3 min-h-[44px] text-left hover:bg-gray-50"><span class="w-[72px] flex-shrink-0 text-[14px] text-gray-700 truncate">${escapeHtml(x.color || '-')}</span><span class="flex-1 min-w-0 font-mono text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.serial || '(일련번호 없음)')}</span>${x.memo ? `<span class="flex-shrink-0 max-w-[96px] truncate text-[11px] font-bold text-red-700 bg-red-50 border border-red-100 rounded px-1.5 py-0.5">${escapeHtml(x.memo)}</span>` : ''}<i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`).join('')}
+                    ${g.usim.length ? `<div class="px-3 py-2.5 bg-gray-50/70 border-t border-gray-100"><p class="text-xs font-bold text-gray-500 mb-1.5">💳 유심</p><div class="flex flex-wrap gap-1.5">${g.usim.map(u => `<button type="button" data-stk="${escapeHtml(u.id)}" class="min-h-[36px] px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${escapeHtml(u.model || '유심')} <span class="text-indigo-700">${Number(u.qty) || 0}개</span>${u.memo ? ` <span class="font-medium text-gray-500">· ${escapeHtml(u.memo)}</span>` : ''}</button>`).join('')}</div></div>` : ''}
+                    ${!q && stockNotesOf(g.n).length ? `<p class="px-3 py-2 text-xs text-gray-600 border-t border-gray-100">📝 ${stockNotesOf(g.n).map(escapeHtml).join(' · ')}</p>` : ''}
+                </section>`;
+            }).join('') : `<p class="px-1 py-6 text-center text-sm text-gray-500">${q ? `'${escapeHtml(stockQuery)}' 재고가 없어요` : '재고가 없어요'}</p>`;
+        }
+        document.getElementById('stockSearch').addEventListener('input', (e) => { stockQuery = e.target.value; renderStock(); });
+        document.getElementById('stockChips').addEventListener('click', (e) => { const b = e.target.closest('[data-stk-f]'); if (!b) return; stockFilter = b.dataset.stkF; renderStock(); });
+        document.getElementById('stockAddBtn').addEventListener('click', () => openStockEdit(''));
+        document.getElementById('stockDealerHint').addEventListener('click', (e) => {
+            if (!e.target.closest('#stockDealerAdd') || !isSuperAdmin) return;
+            const miss = stockDealerNames().filter(n => !dealerByName(n));
+            if (!miss.length) return;
+            saveDealers([...dealerList(), ...miss.map((n, i) => ({ id: 'd' + Date.now().toString(36) + i, name: n, carrier: stockCarrierOf(n), plan: '', addons: [{ name: '', code: '' }, { name: '', code: '' }, { name: '', code: '' }], ins: { name: '', code: '' } }))], true);
+            renderStock();
+            customAlert(`거래처 ${miss.length}곳을 설정에 넣었어요 (통신사는 이름으로 골라뒀어요).\n부가·보험 유지 조건은 설정 → 🏪 매장 운영 → 🏢 거래처별 유지 조건에서 넣어주세요.`);
+        });
+        document.getElementById('stockList').addEventListener('click', async (e) => {
+            const cu = e.target.closest('[data-stk-cust]'); if (cu) { window.openProfileCard(cu.dataset.stkCust); return; }
+            const bk = e.target.closest('[data-stk-back]');
+            if (bk) {
+                const it = stockItems().find(x => x.id === bk.dataset.stkBack); if (!it) return;
+                if (!(await customConfirm(`${it.model || ''} ${it.serial || ''}\n다시 재고로 넣을까요?${it.to ? `\n(${it.to}님 개통 취소)` : ''}`))) return;
+                try { await stockTx(cur => ({ ...cur, items: cur.items.map(x => x.id === it.id ? { ...x, st: '재고', sd: '', to: '', tp: '', sb: '' } : x) })); renderStock(); stockToast('↩ 재고로 넣었어요'); } catch (err) { customAlert(koreanError(err, '저장')); }
+                return;
+            }
+            const b = e.target.closest('[data-stk]'); if (b) openStockEdit(b.dataset.stk);
+        });
+
+        // ── 재고 창 (직접 입력 · 고치기 · 재고표 확인) ──
+        const stEl = document.createElement('div');
+        stEl.id = 'stockModal';
+        stEl.className = 'fixed inset-0 z-[66] hidden flex-col bg-gray-50';
+        stEl.innerHTML = `
+            <header class="flex-shrink-0 bg-white border-b border-gray-200 px-2 flex items-center gap-1" style="padding-top: env(safe-area-inset-top, 0px);">
+                <button type="button" id="stClose" aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h2 id="stTitle" class="flex-1 text-[17px] font-bold text-gray-900 truncate">재고</h2>
+                <button type="button" id="stSave" class="h-11 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold"><i class="fa-solid fa-check"></i> <span id="stSaveLabel">저장</span></button>
+            </header>
+            <div id="stBody" class="flex-1 overflow-y-auto px-3 pt-3 space-y-3" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
+        document.body.appendChild(stEl);
+        let stPushed = false, stMode = '', stEditId = '', stImp = null;
+        const stBody = stEl.querySelector('#stBody');
+        function openStockModal(mode) { stMode = mode; stEl.style.display = 'flex'; stBody.scrollTop = 0; if (!stPushed) { pushAppState({ stock: true }); stPushed = true; } }
+        function closeStockModal(fromPop = false) {
+            if (stEl.style.display !== 'flex') return;
+            stEl.style.display = 'none'; stImp = null;
+            if (stPushed) { stPushed = false; if (!fromPop) historyBackSilently(); }
+        }
+        { const prev = window.__actRegBack; window.__actRegBack = () => { if (stEl.style.display === 'flex') { closeStockModal(true); return true; } return prev ? prev() : false; }; }
+        stEl.querySelector('#stClose').onclick = async () => { if (stMode === 'import' && !(await customConfirm('읽은 재고표를 저장하지 않고 닫을까요?'))) return; closeStockModal(); };
+        stEl.querySelector('#stSave').onclick = () => (stMode === 'import' ? stockSaveImport() : stockSaveEdit());
+        const stCls = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+        function openStockEdit(id) {
+            const it = id ? stockItems().find(x => x.id === id) : null;
+            stEditId = it ? it.id : '';
+            document.getElementById('stTitle').textContent = it ? '재고 고치기' : '재고 직접 넣기';
+            document.getElementById('stSaveLabel').textContent = '저장';
+            const dealers = stockDealerNames(true);
+            const dl0 = it ? it.dealer : (stockFilter && !stockFilter.startsWith('__') ? stockFilter : (dealers[0] || ''));
+            const kind = it ? it.kind : '단말';
+            const opts = (arr) => [...new Set(arr.filter(Boolean))].slice(0, 200).map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+            const lbl = (t, inner, extra = '') => `<label class="block min-w-0 ${extra}"><span class="block text-xs font-bold text-gray-600 mb-1">${t}</span>${inner}</label>`;
+            stBody.innerHTML = `<datalist id="stModels">${opts(stockItems().map(x => x.model))}</datalist><datalist id="stColors">${opts(['블랙', '화이트', '실버', '그레이', '블루', '바이올렛', '크림', ...stockItems().map(x => x.color)])}</datalist>
+                <section class="bg-white rounded-2xl border border-gray-200 p-3 space-y-3">
+                    ${lbl('거래처', `<select id="st-dealer" class="${stCls}">${dealers.map(n => `<option value="${escapeHtml(n)}" ${stockKey(n) === stockKey(dl0) ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}<option value="__new" ${dealers.length ? '' : 'selected'}>✏️ 새 거래처</option></select><input id="st-dealer-new" placeholder="예) LG태성" class="${stCls} mt-1.5 ${dealers.length ? 'hidden' : ''}">`)}
+                    <div class="flex gap-1.5">${[['단말', '📱 단말기'], ['유심', '💳 유심']].map(([v, l]) => `<label class="flex-1 h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1.5 text-sm font-bold cursor-pointer has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-800"><input type="radio" name="st-kind" value="${v}" ${v === kind ? 'checked' : ''} class="accent-indigo-600">${l}</label>`).join('')}</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        ${lbl('모델명', `<input id="st-model" list="stModels" value="${escapeHtml(it ? it.model : '')}" placeholder="예) S948 · A176 · IP18PR" class="${stCls} font-bold">`)}
+                        <div data-st-dev class="min-w-0">${lbl('색상', `<input id="st-color" list="stColors" value="${escapeHtml(it ? it.color : '')}" placeholder="예) 블랙" class="${stCls}">`)}</div>
+                        <div data-st-usim class="min-w-0 hidden">${lbl('수량', `<input id="st-qty" inputmode="numeric" value="${it && it.kind === '유심' ? Number(it.qty) || 0 : ''}" placeholder="0" class="${stCls} text-right">`)}</div>
+                    </div>
+                    <div data-st-dev>${it ? lbl('일련번호', `<input id="st-serial" value="${escapeHtml(it.serial)}" class="${stCls} font-mono">`) : lbl('일련번호 <span class="font-normal text-gray-500">(같은 모델·색상 여러 대면 한 줄에 하나씩)</span>', `<textarea id="st-serials" rows="4" placeholder="325581&#10;305371" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] font-mono text-gray-900 bg-white"></textarea>`)}</div>
+                    ${lbl('메모', `<input id="st-memo" value="${escapeHtml(it ? it.memo : '')}" placeholder="예) 개통취소 · 고품 · 사용중" class="${stCls}">`)}
+                </section>
+                ${it ? `<section class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
+                    <p class="text-[13px] text-gray-700">${stockSt(it) === '재고' ? `📦 재고 · ${stockMD(it.at)} 넣음${it.by ? ' · ' + escapeHtml(it.by) : ''}` : `${stockSt(it) === '개통' ? '✅ 개통' : '🧹 정리'} · ${escapeHtml(it.to || '')} ${stockMD(it.sd)}`}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        ${stockSt(it) === '재고' ? `<button type="button" id="stClean" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">🧹 재고에서 빼기</button>` : `<button type="button" id="stBack" class="h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-sm font-bold text-indigo-800">↩ 재고로 되돌리기</button>`}
+                        <button type="button" id="stDel" class="h-11 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-700">🗑 지우기</button>
+                    </div></section>` : `<p class="text-xs text-gray-500 px-1 leading-relaxed">일련번호는 재고표처럼 끝 6~7자리만 적어도 돼요. 개통등록에서 그 끝자리를 치면 이 재고를 찾아서 거래처가 자동으로 골라져요.</p>`}`;
+            const syncKind = () => { const k = (stBody.querySelector('input[name="st-kind"]:checked') || {}).value; stBody.querySelectorAll('[data-st-dev]').forEach(x => x.classList.toggle('hidden', k === '유심')); stBody.querySelectorAll('[data-st-usim]').forEach(x => x.classList.toggle('hidden', k !== '유심')); };
+            stBody.querySelectorAll('input[name="st-kind"]').forEach(r => r.addEventListener('change', syncKind)); syncKind();
+            const ds = document.getElementById('st-dealer'), dn = document.getElementById('st-dealer-new');
+            ds.addEventListener('change', () => { dn.classList.toggle('hidden', ds.value !== '__new'); if (ds.value === '__new') dn.focus(); });
+            const act = async (patch, msg, confirmMsg) => {
+                if (confirmMsg && !(await customConfirm(confirmMsg))) return;
+                try { await stockTx(cur => ({ ...cur, items: patch === 'del' ? cur.items.filter(x => x.id !== it.id) : cur.items.map(x => x.id === it.id ? { ...x, ...patch } : x) })); closeStockModal(); renderStock(); stockToast(msg); } catch (err) { customAlert(koreanError(err, '저장')); }
+            };
+            const bc = document.getElementById('stClean'), bb = document.getElementById('stBack'), bd = document.getElementById('stDel');
+            if (bc) bc.onclick = () => act({ st: '정리', sd: getTodayStr(), to: '' }, '🧹 재고에서 뺐어요 (정리됨에 남아요)');
+            if (bb) bb.onclick = () => act({ st: '재고', sd: '', to: '', tp: '', sb: '' }, '↩ 재고로 넣었어요');
+            if (bd) bd.onclick = () => act('del', '🗑 지웠어요', `${it.model || ''} ${it.serial || ''}\n완전히 지울까요?`);
+            openStockModal('edit');
+            if (!it) setTimeout(() => { const m = document.getElementById('st-model'); if (m && dealers.length) m.focus(); }, 50);
+        }
+        async function stockSaveEdit() {
+            const v = (id) => String((document.getElementById(id) || {}).value || '').trim();
+            const ds = v('st-dealer'), dealer = ds === '__new' ? v('st-dealer-new') : ds;
+            const kind = (stBody.querySelector('input[name="st-kind"]:checked') || {}).value === '유심' ? '유심' : '단말';
+            if (!dealer) return customAlert('거래처를 골라주세요.');
+            if (!v('st-model')) return customAlert(kind === '유심' ? '유심 모델(예: C4920)을 넣어주세요.' : '모델명을 넣어주세요.');
+            const base = { dealer, kind, model: v('st-model'), color: kind === '유심' ? '' : v('st-color'), memo: v('st-memo'), ...(kind === '유심' ? { qty: parseInt(v('st-qty').replace(/[^0-9]/g, ''), 10) || 0, serial: '' } : {}) };
+            try {
+                if (stEditId) {
+                    await stockTx(cur => ({ ...cur, items: cur.items.map(x => x.id === stEditId ? { ...x, ...base, ...(kind === '단말' ? { serial: v('st-serial') } : {}) } : x) }));
+                    closeStockModal(); renderStock(); stockToast('저장했어요');
+                    return;
+                }
+                let added = 0, dup = [];
+                if (kind === '유심') {
+                    await stockTx(cur => { const items = cur.items.slice(); const ex = items.find(x => !stockIsDev(x) && stockSt(x) === '재고' && stockKey(x.dealer) === stockKey(dealer) && stockKey(x.model) === stockKey(base.model) && stockKey(x.memo) === stockKey(base.memo)); if (ex) Object.assign(ex, { qty: base.qty }); else items.push({ ...base, o: Date.now() }); added = 1; return { ...cur, items }; });
+                } else {
+                    const serials = v('st-serials').split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
+                    if (!serials.length) return customAlert('일련번호를 넣어주세요.\n(같은 모델 여러 대면 한 줄에 하나씩)');
+                    await stockTx(cur => {
+                        const items = cur.items.slice(); added = 0; dup = [];
+                        serials.forEach((sn, i) => {
+                            if (items.some(x => stockIsDev(x) && stockSt(x) === '재고' && stockNorm(x.serial) === stockNorm(sn))) { dup.push(sn); return; }
+                            items.push({ ...base, serial: sn, o: Date.now() + i }); added++;
+                        });
+                        return { ...cur, items, dealerOrder: cur.dealerOrder.some(n => stockKey(n) === stockKey(dealer)) ? cur.dealerOrder : [...cur.dealerOrder, dealer] };
+                    });
+                }
+                closeStockModal(); stockFilter = ''; renderStock();
+                if (dup.length) customAlert(`${added}대 넣었어요.\n이미 재고에 있는 일련번호는 뺐어요: ${dup.join(', ')}`); else stockToast(`📦 ${kind === '유심' ? '유심' : added + '대'} 넣었어요`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+
+        // ── 재고표 읽기: 엑셀 (머리글 '모델명 · 색상 · 일련번호'가 거래처마다 옆으로) ──
+        function stockCellStr(v) {
+            if (v === null || v === undefined) return '';
+            if (typeof v === 'number') return Number.isInteger(v) ? String(v) : String(v);
+            return String(v).replace(/\s+/g, ' ').trim();
+        }
+        function stockParseRows(rows) {
+            rows = Array.isArray(rows) ? rows : [];
+            const out = { store: '', date: '', items: [], notes: {} };
+            const cell = (r, c) => stockCellStr((rows[r] || [])[c]);
+            const isModelHead = (t) => t.replace(/\s/g, '') === '모델명';
+            let hr = -1;
+            for (let r = 0; r < Math.min(rows.length, 40) && hr < 0; r++) if ((rows[r] || []).some(v => isModelHead(stockCellStr(v)))) hr = r;
+            if (hr < 0) return null;
+            for (let r = 0; r < hr; r++) (rows[r] || []).forEach(v => {
+                const t = stockCellStr(v); if (!t) return;
+                const m = t.match(/(\d{4})\s*[년.\-/]\s*(\d{1,2})\s*[월.\-/]\s*(\d{1,2})/);
+                if (m) { if (!out.date) out.date = `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`; }
+                else if (!out.store && r < hr - 1) out.store = t;
+            });
+            const H = rows[hr] || [], groups = [];
+            H.forEach((v, c) => { if (isModelHead(stockCellStr(v))) groups.push({ c }); });
+            groups.forEach((g, gi) => {
+                const end = gi + 1 < groups.length ? groups[gi + 1].c : g.c + 4;
+                g.cc = g.c + 1; g.sc = g.c + 2;
+                for (let c = g.c + 1; c < Math.min(end, g.c + 5); c++) { const t = cell(hr, c).replace(/\s/g, ''); if (t === '색상' || t === '컬러') g.cc = c; if (/일련|시리얼|IMEI|S\/N/i.test(t)) g.sc = c; }
+                let name = '';
+                for (let rr = hr - 1; rr >= Math.max(0, hr - 2) && !name; rr--) for (let c = g.c; c < end && !name; c++) { const t = cell(rr, c); if (t && !/\d{4}\s*년|^\d{4}[.\-/]/.test(t) && t !== out.store) name = t; }
+                g.dealer = name || `거래처${gi + 1}`; g.lm = ''; g.lc = '';
+            });
+            for (let r = hr + 1; r < rows.length; r++) groups.forEach((g, gi) => {
+                let model = cell(r, g.c), color = cell(r, g.cc), serial = cell(r, g.sc), memo = '';
+                if (!model && !color && !serial) return;
+                if (isModelHead(model)) return;
+                if (/유심|고품/.test(color)) {   // 💳 유심 줄: 일련번호 칸 = 개수
+                    const n = parseInt((serial.match(/\d+/) || ['0'])[0], 10) || 0, rest = serial.replace(/\d+/g, '').trim();
+                    out.items.push({ dealer: g.dealer, kind: '유심', model: model || '유심', qty: n, memo: [color === '고품' ? '고품' : '', rest].filter(Boolean).join(' '), o: r * 10 + gi });
+                    return;
+                }
+                if (model && !color && !serial) { (out.notes[g.dealer] = out.notes[g.dealer] || []).push(model); return; }   // 📝 'SK 유심은 공용' 같은 글
+                if (/취소|반품|불량|고장|분실|대기/.test(model)) { memo = model; model = g.lm; if (!color) color = g.lc; }
+                else if (!model) { model = g.lm; if (!color) color = g.lc; }
+                else g.lm = model;
+                if (color) g.lc = color;
+                out.items.push({ dealer: g.dealer, kind: '단말', model, color, serial: serial.replace(/\s/g, ''), memo, o: r * 10 + gi });
+            });
+            return out;
+        }
+        async function stockExcel(file) {
+            showUploadToast('📄 엑셀 읽는 중…');
+            try {
+                const XLSX = await loadSheetJS();
+                const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+                let best = null;
+                wb.SheetNames.forEach(sn => {
+                    const p = stockParseRows(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null, blankrows: true }));
+                    if (p && p.items.length && (!best || String(p.date || '') > String(best.date || ''))) best = { ...p, sheet: sn };   // 날짜별 시트가 여러 개면 가장 최근 날짜
+                });
+                hideUploadToast();
+                if (!best) return customAlert("이 엑셀에서 재고표를 못 찾았어요.\n거래처마다 '모델명 · 색상 · 일련번호' 머리글이 있는 표여야 해요.");
+                openStockImport(best.items, { store: best.store, date: best.date, notes: best.notes, sheet: best.sheet }, '엑셀');
+            } catch (e) { hideUploadToast(); customAlert('엑셀을 읽지 못했어요.\n' + (e.message || '')); }
+        }
+        // ── 재고표 읽기: 사진 (AI) ──
+        async function stockScan(file) {
+            if (!geminiApiKey) return customAlert('재고표 사진을 읽으려면 AI 키가 필요해요.\n설정 → 🔌 연결 → AI 키를 먼저 넣어주세요.\n(📄 엑셀 파일 · ✏️ 직접 입력은 키 없이 돼요)');
+            showUploadToast('📷 재고표 읽는 중… (20~40초)');
+            const b64 = await new Promise(res => compressImage(file, res, 2600));
+            if (!b64) { hideUploadToast(); return customAlert('사진을 열 수 없어요.\n화면 캡처나 카메라로 다시 찍어주세요.'); }
+            const prompt = `휴대폰 매장의 '재고관리표' 사진이야. 표를 빠짐없이 읽어서 JSON으로 줘.
+표 모양: 맨 위에 매장 이름과 날짜. 그 아래 거래처(예: LG태성, LG뉴에이스, SK상상, SK라온, KT성원)마다 [모델명 | 색상 | 일련번호] 3칸씩 옆으로 이어져 있어.
+규칙:
+1. 거래처 칸마다 위에서 아래로 따로 읽어. 한 줄 = 한 대.
+2. 모델명 칸이 비어 있으면 같은 거래처 바로 위 모델과 같아. 색상 칸도 비어 있으면 바로 위 색상과 같아.
+3. 모델명 칸에 '개통취소' 같은 글(빨간 글씨 등)이 있으면 model은 바로 위 모델로 하고 note에 그 글을 넣어.
+4. serial은 보이는 그대로 숫자·영문만 (띄어쓰기 없이). 7.03814E+13처럼 지수로 보이면 그대로 적어. 0을 O로 바꾸지 마.
+5. 아래쪽 유심 줄: 색상 칸이 '유심'이나 '고품'이면 kind '유심', 모델명 칸 = model, 일련번호 칸의 숫자 = qty, 숫자 말고 글(사용중·착1 등)은 note. '고품'이면 note에 '고품'.
+6. 칸 안의 안내 글(예: 'SK 유심은 공용', '리셋 후 사용가능')만 있는 줄은 kind '메모', 글은 note.
+7. dealer는 그 칸 맨 위 거래처 이름 그대로. 단말기는 kind '단말'.
+8. date는 YYYY-MM-DD, store는 매장 이름.`;
+            const payload = { contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: b64.split(',')[1] } }] }],
+                generationConfig: { responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { store: { type: 'STRING' }, date: { type: 'STRING' },
+                    items: { type: 'ARRAY', items: { type: 'OBJECT', properties: { dealer: { type: 'STRING' }, kind: { type: 'STRING' }, model: { type: 'STRING' }, color: { type: 'STRING' }, serial: { type: 'STRING' }, qty: { type: 'INTEGER' }, note: { type: 'STRING' } } } } } } } };
+            try {
+                const { text } = await callGemini(payload, { timeoutMs: 90000, onRetry: (m) => showUploadToast(`📷 다른 AI(${m})로 다시 읽는 중…`) });
+                let j; try { j = JSON.parse(text); } catch (e) { j = JSON.parse(String(text).slice(String(text).indexOf('{'), String(text).lastIndexOf('}') + 1)); }
+                const notes = {}, items = [];
+                (Array.isArray(j.items) ? j.items : []).forEach((x, i) => {
+                    const dealer = String(x.dealer || '').trim() || '거래처', k = String(x.kind || '');
+                    if (/메모/.test(k)) { if (x.note) (notes[dealer] = notes[dealer] || []).push(String(x.note)); return; }
+                    if (/유심/.test(k)) items.push({ dealer, kind: '유심', model: String(x.model || '유심'), qty: parseInt(x.qty, 10) || 0, memo: String(x.note || ''), o: i });
+                    else items.push({ dealer, kind: '단말', model: String(x.model || ''), color: String(x.color || ''), serial: String(x.serial || '').replace(/\s/g, ''), memo: String(x.note || ''), o: i });
+                });
+                hideUploadToast();
+                if (!items.length) return customAlert('표에서 재고를 못 찾았어요.\n표 전체가 나오게, 밝은 곳에서 반듯하게 다시 찍어주세요.');
+                openStockImport(items, { store: j.store || '', date: /^\d{4}-\d{2}-\d{2}$/.test(j.date || '') ? j.date : getTodayStr(), notes }, '사진');
+            } catch (e) { hideUploadToast(); customAlert(e.reason || e.message || '재고표를 읽지 못했어요.'); }
+        }
+        document.getElementById('stockScanIn').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) stockScan(f); });
+        document.getElementById('stockXlsIn').addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; if (f) stockExcel(f); });
+
+        // ── 읽은 재고표 확인 → 저장 (새 것만 추가 · 있던 건 그대로 · 표에 없는 재고는 골라서 정리) ──
+        const STK_IMP_TAG = { new: ['🆕 새', 'bg-emerald-50 text-emerald-800 border-emerald-200'], same: ['✔ 있음', 'bg-gray-50 text-gray-600 border-gray-200'], sold: ['✅ 개통됨', 'bg-amber-50 text-amber-800 border-amber-200'], qty: ['💳 수량', 'bg-indigo-50 text-indigo-800 border-indigo-200'], check: ['⚠ 확인', 'bg-red-50 text-red-700 border-red-200'], noserial: ['⚠ 번호 없음', 'bg-red-50 text-red-700 border-red-200'] };
+        function stockImpStatus(r) {
+            if (r.kind === '유심') return 'qty';
+            if (!r.serial) return 'noserial';
+            if (/E\+/i.test(r.serial)) return 'check';
+            const ms = stockItems().filter(x => stockIsDev(x) && stockSerialMatch(x.serial, r.serial));
+            if (ms.some(x => stockSt(x) === '재고')) return 'same';
+            if (ms.some(x => stockSt(x) === '개통')) return 'sold';
+            return 'new';
+        }
+        function openStockImport(items, meta, src) {
+            stImp = { rows: items.map((x, i) => ({ ...x, i })), meta: meta || {}, src, clean: false };
+            stImp.rows.forEach(r => { r.status = stockImpStatus(r); r.on = r.status !== 'sold'; });
+            renderStockImport();
+            openStockModal('import');
+        }
+        function stockImpMissing() {
+            const on = stImp.rows.filter(r => r.on && r.kind !== '유심' && r.serial);
+            return stockItems().filter(x => stockIsDev(x) && stockSt(x) === '재고' && !on.some(r => stockSerialMatch(x.serial, r.serial)));
+        }
+        function renderStockImport() {
+            const R = stImp.rows, m = stImp.meta;
+            const cnt = (st) => R.filter(r => r.status === st).length;
+            document.getElementById('stTitle').textContent = `재고표 확인${m.date ? ' · ' + stockMD(m.date) : ''}`;
+            document.getElementById('stSaveLabel').textContent = `${R.filter(r => r.on).length}줄 저장`;
+            const dealers = []; R.forEach(r => { if (!dealers.some(d => stockKey(d) === stockKey(r.dealer))) dealers.push(r.dealer); });
+            Object.keys(m.notes || {}).forEach(d => { if (!dealers.some(x => stockKey(x) === stockKey(d))) dealers.push(d); });
+            const miss = stockImpMissing();
+            const inp = (r, f, cls, ph = '') => `<input data-imp="${r.i}" data-f="${f}" value="${escapeHtml(f === 'qty' ? String(r.qty || 0) : (r[f] || ''))}" placeholder="${ph}" ${f === 'qty' ? 'inputmode="numeric"' : ''} class="${cls} h-9 px-1.5 border border-gray-300 rounded-lg text-[13px] bg-white min-w-0">`;
+            stBody.innerHTML = `<section class="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5 space-y-1">
+                    <p class="text-[14px] font-bold text-indigo-900">📋 ${escapeHtml(m.store || '재고표')}${m.date ? ' · ' + escapeHtml(m.date) : ''} <span class="font-medium text-indigo-700">(${escapeHtml(stImp.src || '')}${m.sheet ? ' · ' + escapeHtml(m.sheet) + ' 시트' : ''})</span></p>
+                    <p class="text-[13px] text-indigo-900">🆕 새 재고 <b>${cnt('new')}</b>대 · ✔ 이미 있음 ${cnt('same')}대${cnt('sold') ? ` · ✅ 개통됐던 ${cnt('sold')}대` : ''} · 💳 유심 ${cnt('qty')}종${cnt('check') + cnt('noserial') ? ` · <b class="text-red-700">⚠ 확인 ${cnt('check') + cnt('noserial')}줄</b>` : ''}</p>
+                    <p class="text-xs text-gray-600 leading-relaxed">${stImp.src === '사진' ? 'AI가 읽은 거라 틀린 글자가 있을 수 있어요. 바로 고치고, ' : ''}넣지 않을 줄은 체크를 빼요. 거래처 이름도 눌러서 고칠 수 있어요.</p>
+                </section>
+                ${dealers.map(d => {
+                    const rows = R.filter(r => stockKey(r.dealer) === stockKey(d)), notes = Object.keys(m.notes || {}).filter(k => stockKey(k) === stockKey(d)).flatMap(k => m.notes[k]);
+                    return `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                        <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200"><input data-imp-dealer="${escapeHtml(d)}" value="${escapeHtml(d)}" aria-label="거래처 이름" class="flex-1 min-w-0 h-9 px-2 border border-gray-300 rounded-lg text-[15px] font-extrabold text-gray-900 bg-white"><span class="flex-shrink-0 text-xs font-bold text-gray-600">${rows.filter(r => r.kind !== '유심').length}대${stockCarrierOf(d) ? ' · ' + escapeHtml(stockCarrierOf(d)) : ''}</span></div>
+                        <div class="divide-y divide-gray-100">${rows.map(r => `<div class="px-2 py-1.5 ${r.on ? '' : 'opacity-50'}"><div class="flex items-center gap-1.5">
+                            <input type="checkbox" data-imp-on="${r.i}" ${r.on ? 'checked' : ''} aria-label="이 줄 넣기" class="w-5 h-5 flex-shrink-0 accent-indigo-600">
+                            ${r.kind === '유심' ? `<span class="flex-shrink-0 text-[12px] font-bold text-gray-500">💳</span>${inp(r, 'model', 'flex-1 font-bold')}${inp(r, 'qty', 'w-14 text-right')}<span class="text-xs text-gray-500">개</span>${inp(r, 'memo', 'w-20', '메모')}`
+                                : `${inp(r, 'model', 'w-[70px] font-bold', '모델')}${inp(r, 'color', 'w-[58px]', '색상')}${inp(r, 'serial', 'flex-1 font-mono', '일련번호')}`}
+                            <span class="flex-shrink-0 text-[10px] font-bold border rounded px-1 py-0.5 ${(STK_IMP_TAG[r.status] || STK_IMP_TAG.new)[1]}">${(STK_IMP_TAG[r.status] || STK_IMP_TAG.new)[0]}</span></div>${r.memo && r.kind !== '유심' ? `<p class="pl-7 pt-0.5 text-[11px] font-bold text-red-700">📝 ${escapeHtml(r.memo)}</p>` : ''}</div>`).join('')}</div>
+                        ${notes.length ? `<p class="px-3 py-2 text-xs text-gray-600 border-t border-gray-100">📝 ${notes.map(escapeHtml).join(' · ')}</p>` : ''}
+                    </section>`;
+                }).join('')}
+                ${miss.length ? `<label class="flex items-start gap-2.5 rounded-2xl border border-gray-200 bg-white px-3 py-3 cursor-pointer"><input type="checkbox" id="stImpClean" ${stImp.clean ? 'checked' : ''} class="w-5 h-5 mt-0.5 flex-shrink-0 accent-indigo-600"><span class="min-w-0"><b class="text-[14px] text-gray-900">표에 없는 재고 ${miss.length}대 정리</b> <span class="text-[13px] text-gray-600">(재고에서 빼기)</span><br><span class="text-xs text-gray-600 break-all">${miss.slice(0, 5).map(x => `${escapeHtml(x.dealer)} ${escapeHtml(x.model)} ${escapeHtml(x.serial)}`).join(' · ')}${miss.length > 5 ? ` 외 ${miss.length - 5}대` : ''}</span><br><span class="text-xs text-gray-500">팔렸는데 개통등록을 안 했거나 다른 곳으로 간 단말이에요. 정리해도 ${STOCK_KEEP_DAYS}일 동안 '🧹 정리됨'에 남아요.</span></span></label>` : ''}`;
+        }
+        stBody.addEventListener('change', (e) => {
+            if (stMode !== 'import' || !stImp) return;
+            const t = e.target;
+            if (t.id === 'stImpClean') { stImp.clean = t.checked; return; }
+            if (t.dataset.impOn !== undefined) { const r = stImp.rows[+t.dataset.impOn]; if (r) r.on = t.checked; renderStockImport(); return; }
+            if (t.dataset.impDealer !== undefined) { const old = t.dataset.impDealer, nv = t.value.trim(); if (!nv) { t.value = old; return; } stImp.rows.forEach(r => { if (stockKey(r.dealer) === stockKey(old)) r.dealer = nv; }); const n = stImp.meta.notes || {}; Object.keys(n).forEach(k => { if (stockKey(k) === stockKey(old) && k !== nv) { n[nv] = [...(n[nv] || []), ...n[k]]; delete n[k]; } }); renderStockImport(); return; }
+            if (t.dataset.imp !== undefined) {
+                const r = stImp.rows[+t.dataset.imp]; if (!r) return;
+                const f = t.dataset.f;
+                r[f] = f === 'qty' ? (parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0) : (f === 'serial' ? t.value.replace(/\s/g, '') : t.value.trim());
+                const prev = r.status; r.status = stockImpStatus(r); if (prev === 'sold' && r.status !== 'sold') r.on = true;
+                renderStockImport();
+            }
+        });
+        async function stockSaveImport() {
+            if (!stImp) return;
+            const rows = stImp.rows.filter(r => r.on), m = stImp.meta, today = getTodayStr();
+            if (!rows.length) return customAlert('넣을 줄이 없어요. 체크를 확인해주세요.');
+            const clean = !!stImp.clean, missIds = clean ? stockImpMissing().map(x => x.id) : [];
+            let nNew = 0, nBack = 0, nUsim = 0;
+            try {
+                await stockTx(cur => {
+                    const items = cur.items.slice(); nNew = 0; nBack = 0; nUsim = 0;
+                    rows.forEach(r => {
+                        if (r.kind === '유심') {
+                            const ex = items.find(x => !stockIsDev(x) && stockSt(x) === '재고' && stockKey(x.dealer) === stockKey(r.dealer) && stockKey(x.model) === stockKey(r.model) && stockKey(x.memo) === stockKey(r.memo));   // 같은 유심이라도 메모(사용중·고품)가 다르면 따로
+                            if (ex) Object.assign(ex, { qty: r.qty, o: r.o || 0 }); else items.push({ dealer: r.dealer, kind: '유심', model: r.model, qty: r.qty, memo: r.memo || '', at: today, o: r.o || 0 });
+                            nUsim++; return;
+                        }
+                        const ex = r.serial ? items.find(x => stockIsDev(x) && stockSerialMatch(x.serial, r.serial) && stockSt(x) !== '정리') || items.find(x => stockIsDev(x) && stockSerialMatch(x.serial, r.serial)) : null;
+                        if (ex) {
+                            if (stockSt(ex) !== '재고') { Object.assign(ex, { st: '재고', sd: '', to: '', tp: '', sb: '' }); nBack++; }
+                            Object.assign(ex, { dealer: r.dealer, model: r.model || ex.model, color: r.color || ex.color, memo: r.memo || '', o: r.o || 0 });
+                        } else { items.push({ dealer: r.dealer, kind: '단말', model: r.model, color: r.color, serial: r.serial, memo: r.memo || '', at: today, o: r.o || 0 }); nNew++; }
+                    });
+                    items.forEach(x => { if (missIds.includes(x.id) && stockSt(x) === '재고') Object.assign(x, { st: '정리', sd: today, to: '표에 없음' }); });
+                    const order = []; rows.forEach(r => { if (!order.some(d => stockKey(d) === stockKey(r.dealer))) order.push(r.dealer); });
+                    const notes = { ...cur.notes }; Object.keys(notes).forEach(k => { if (order.some(d => stockKey(d) === stockKey(k))) delete notes[k]; }); Object.assign(notes, m.notes || {});
+                    return { ...cur, items, notes, dealerOrder: [...order, ...cur.dealerOrder.filter(d => !order.some(o => stockKey(o) === stockKey(d)))], sheet: { date: m.date || today, store: m.store || '', src: stImp.src || '', at: new Date().toISOString(), by: getStaffName() || '', n: rows.length } };
+                });
+                closeStockModal(); stockFilter = ''; stockQuery = ''; const se = document.getElementById('stockSearch'); if (se) se.value = ''; renderStock();
+                customAlert(`📦 재고표를 저장했어요.\n🆕 새 재고 ${nNew}대${nBack ? ` · ↩ 다시 재고 ${nBack}대` : ''} · 💳 유심 ${nUsim}종${missIds.length ? ` · 🧹 정리 ${missIds.length}대` : ''}`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+
+        // ── 개통등록 ↔ 재고: 일련번호(끝자리만도) → 거래처 · 모델 · 색상 · 통신사 자동 ──
+        let arStockHit = null, arStockAuto = { model: '', color: '' }, arStockPickOpen = false, arStockPickAll = false, arStockT = null;
+        function arStockOptions() { return stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x) && x.serial).map(x => `<option value="${escapeHtml(x.serial)}">${escapeHtml(`${x.model} ${x.color} · ${x.dealer}`)}</option>`).join(''); }
+        function arStockSync() {
+            const live = stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x));
+            const dl = document.getElementById('arStockList'); if (dl) dl.innerHTML = arStockOptions();
+            const cnt = document.getElementById('arStockCnt');
+            if (cnt) { const dn = arVal('ar-store'), mine = dn ? live.filter(x => stockKey(x.dealer) === stockKey(dn)).length : 0; cnt.textContent = mine ? `(${dn} ${mine}대)` : `(${live.length}대)`; }
+            renderArStockPick();
+        }
+        function arStockSetDealer(name) {
+            const d = dealerByName(name);
+            const ss = document.getElementById('ar-store-sel'), inp = document.getElementById('ar-store');
+            if (ss && d) { if (ss.value !== d.id) { ss.value = d.id; inp.classList.add('hidden'); inp.value = d.name; arApplyDealer(d, true); } }
+            else if (ss) { if (ss.value !== '__direct' || stockKey(inp.value) !== stockKey(name)) { ss.value = '__direct'; inp.classList.remove('hidden'); inp.value = name; arApplyDealer(null); } }
+            else if (inp && stockKey(inp.value) !== stockKey(name)) inp.value = name;
+            const car = document.getElementById('ar-carrier'), cc = (d && d.carrier) || stockCarrierOf(name);
+            if (car && cc && car.value !== cc) { car.value = cc; car.dispatchEvent(new Event('change', { bubbles: true })); }
+        }
+        function arStockLookup() {
+            const el = document.getElementById('ar-serial'), note = document.getElementById('ar-stock-note');
+            if (!el || !note) return;
+            const v = stockNorm(el.value), show = (tone, html) => { note.className = `col-span-2 text-xs font-bold rounded-lg px-2.5 py-1.5 leading-relaxed border ${tone}`; note.innerHTML = html; };
+            if (v.length < 5 || !stockItems().length) { arStockHit = null; note.className = 'col-span-2 hidden'; return; }
+            const hits = stockFind(v), exact = hits.find(h => stockNorm(h.serial) === v);
+            const it = exact || (hits.length === 1 ? hits[0] : null);
+            if (it) {
+                arStockHit = it;
+                const mEl = document.getElementById('ar-model'), cEl = document.getElementById('ar-color');
+                if (mEl && (!mEl.value.trim() || mEl.value === arStockAuto.model)) { mEl.value = it.model || ''; arStockAuto.model = mEl.value; }
+                if (cEl && (!cEl.value.trim() || cEl.value === arStockAuto.color)) { cEl.value = it.color || ''; arStockAuto.color = cEl.value; }
+                if (stockNorm(it.serial).length > v.length) el.value = it.serial;   // 끝자리만 쳤으면 재고에 적힌 번호로 채움
+                arStockSetDealer(it.dealer);
+                show('bg-teal-50 border-teal-200 text-teal-900', `📦 재고에서 찾았어요 · <b>${escapeHtml(it.dealer)}</b> · ${escapeHtml(it.model)} ${escapeHtml(it.color)} · ${escapeHtml(it.serial)}<br><span class="font-medium text-teal-800">저장하면 이 단말은 재고에서 '개통'으로 빠져요.</span>`);
+                arStockSync(); arRecalc();
+                return;
+            }
+            arStockHit = null;
+            if (hits.length > 1) return show('bg-amber-50 border-amber-200 text-amber-900', `끝자리가 같은 재고가 ${hits.length}대예요 (${hits.slice(0, 3).map(h => escapeHtml(`${h.dealer} ${h.model} ${h.serial}`)).join(' · ')}). 번호를 더 쳐주세요.`);
+            const sold = stockFind(v, ['개통']);
+            if (sold.length) return show('bg-amber-50 border-amber-200 text-amber-900', `⚠ 이미 개통 처리된 단말이에요 · ${escapeHtml(sold[0].dealer)} ${escapeHtml(sold[0].model)} → ${escapeHtml(sold[0].to || '')} ${stockMD(sold[0].sd)}<br><span class="font-medium">개통 취소였다면 📦 재고 탭 → ✅ 개통됨에서 [↩ 재고로]</span>`);
+            show('bg-gray-50 border-gray-200 text-gray-600', '📦 재고에 없는 일련번호예요 (거래처는 직접 골라주세요)');
+        }
+        function renderArStockPick() {
+            const box = document.getElementById('arStockPick'); if (!box) return;
+            box.classList.toggle('hidden', !arStockPickOpen);
+            if (!arStockPickOpen) return;
+            const live = stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x));
+            const dn = arVal('ar-store'), mine = dn ? live.filter(x => stockKey(x.dealer) === stockKey(dn)) : [];
+            const list = arStockPickAll || !mine.length ? live : mine;
+            const byDealer = []; list.forEach(x => { let g = byDealer.find(y => stockKey(y.d) === stockKey(x.dealer)); if (!g) byDealer.push(g = { d: x.dealer, m: [] }); let mm = g.m.find(y => stockKey(y.n) === stockKey(x.model)); if (!mm) g.m.push(mm = { n: x.model, l: [] }); mm.l.push(x); });
+            box.innerHTML = `<div class="rounded-xl border border-teal-200 bg-white p-2.5 space-y-2 max-h-[340px] overflow-y-auto">
+                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-teal-900">${list === mine ? `🏢 ${escapeHtml(dn)} 재고 ${mine.length}대` : `전체 재고 ${live.length}대`}</p>${mine.length && mine.length < live.length ? `<button type="button" data-asp-all class="text-xs font-bold text-teal-700 underline underline-offset-2">${list === mine ? '전체 보기' : escapeHtml(dn) + '만'}</button>` : ''}</div>
+                ${byDealer.map(g => `${list === mine ? '' : `<p class="text-[11px] font-bold text-gray-500 pt-1">${escapeHtml(g.d)}</p>`}${g.m.map(mm => `<div class="space-y-1"><p class="text-[13px] font-extrabold text-gray-900">${escapeHtml(mm.n || '모델 없음')} <span class="font-medium text-gray-500">${mm.l.length}대</span></p><div class="flex flex-wrap gap-1.5">${mm.l.map(x => `<button type="button" data-asp="${escapeHtml(x.id)}" class="min-h-[36px] px-2.5 rounded-lg border border-gray-300 bg-white text-[12px] text-gray-800 hover:border-teal-400"><b>${escapeHtml(x.color || '-')}</b> <span class="font-mono">${escapeHtml(x.serial || '')}</span></button>`).join('')}</div></div>`).join('')}`).join('')}
+            </div>`;
+        }
+        arEl.addEventListener('click', (e) => {
+            if (e.target.closest('#arStockJump')) { const el = document.getElementById('ar-serial'); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); setTimeout(() => el.focus(), 350); } return; }
+            if (e.target.closest('#arStockBtn')) { arStockPickOpen = !arStockPickOpen; arStockPickAll = false; renderArStockPick(); return; }
+            if (e.target.closest('[data-asp-all]')) { arStockPickAll = !arStockPickAll; renderArStockPick(); return; }
+            const b = e.target.closest('[data-asp]');
+            if (b) {
+                const it = stockItems().find(x => x.id === b.dataset.asp), el = document.getElementById('ar-serial');
+                if (!it || !el) return;
+                el.value = it.serial; arStockPickOpen = false;
+                const mEl = document.getElementById('ar-model'), cEl = document.getElementById('ar-color');
+                if (mEl) { mEl.value = ''; arStockAuto.model = ''; } if (cEl) { cEl.value = ''; arStockAuto.color = ''; }   // 고른 재고로 새로
+                arStockLookup(); renderArStockPick();
+            }
+        });
+        arEl.addEventListener('input', (e) => { if (e.target.id === 'ar-serial') { clearTimeout(arStockT); arStockT = setTimeout(arStockLookup, 300); } });
+        arEl.addEventListener('change', (e) => { if (e.target.id === 'ar-serial') { clearTimeout(arStockT); arStockLookup(); } if (e.target.id === 'ar-store-sel' || e.target.id === 'ar-store') arStockSync(); });
+        function stockAfterActSave(tp, name, date) {
+            const it = arStockHit, serial = arVal('ar-serial'), usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;
+            arStockHit = null;
+            if (!it || usimOnly || !stockSerialMatch(it.serial, serial)) return;
+            stockTx(cur => ({ ...cur, items: cur.items.map(x => x.id === it.id ? { ...x, st: '개통', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' } : x) })).catch(e => console.warn('재고 개통 처리 실패', e));
+        }
 
         // 고객카드(모바일 탭) 아래: 개통 상세 + 정산 + [개통등록] 버튼
         function buildActDetailHtml(c) {
@@ -16971,7 +17526,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V188';
+        const APP_VER = 'V189';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
