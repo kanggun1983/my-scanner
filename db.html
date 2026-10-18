@@ -919,6 +919,14 @@
                         <span class="w-28 flex-shrink-0"><select id="keepIns" aria-label="보험 해지 기본 조건" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select></span>
                     </div>
                     <p id="autoPromExample" class="text-xs text-gray-600 leading-relaxed"></p>
+                    <div id="dealerBox" class="border-t border-gray-100 pt-3 space-y-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <p class="text-[15px] font-bold text-gray-900">🏢 거래처별 유지 조건 <span class="text-xs font-medium text-gray-500">(V188)</span></p>
+                            <button type="button" id="dealerAddBtn" class="flex-shrink-0 h-10 px-3 rounded-xl bg-indigo-600 text-white text-sm font-bold flex items-center gap-1 disabled:opacity-40"><i class="fa-solid fa-plus"></i> 거래처</button>
+                        </div>
+                        <p class="text-xs text-gray-600 leading-relaxed">개통등록에서 거래처를 고르면 그 거래처의 <b>요금제 · 부가(최대 3개) · 보험 유지</b>가 자동으로 들어가요. 비운 칸은 위 기본 조건을 써요.</p>
+                        <div id="dealerList" class="space-y-2"></div>
+                    </div>
                     <p id="autoPromSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                 </div>
             </section>
@@ -1075,7 +1083,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V187</span>
+                    <span class="text-sm text-gray-600">V188</span>
                 </div>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
@@ -4878,6 +4886,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 pb.innerHTML = isSuperAdmin ? '<i class="fa-solid fa-bullhorn"></i>푸시 알림 쓰기' : '<i class="fa-solid fa-lock"></i>전체 푸시는 👑 대표만 · 한 명은 고객카드에서';
                 [['bg-indigo-600', true], ['hover:bg-indigo-700', true], ['text-white', true], ['bg-gray-100', false], ['text-gray-600', false]].forEach(([c, forAdmin]) => pb.classList.toggle(c, forAdmin ? isSuperAdmin : !isSuperAdmin)); } }
             { const xb = document.getElementById('exportExcelBtn'); if (xb) { xb.innerHTML = `<i class="fa-solid fa-file-excel"></i> ${isSuperAdmin ? '엑셀출력' : '내 고객 엑셀'}`; xb.title = isSuperAdmin ? '검색·필터된 고객을 엑셀로' : '내가 담당자인 고객만 엑셀로 출력돼요 (전체는 총관리자만)'; } }
+            try { renderDealers(); } catch (e) { /* 준비 전 */ }   // V188 거래처 칸 (총관리자가 정해진 뒤 다시)
             ADMIN_LOCK_SECTIONS.forEach(tid => {
                 const sec = document.querySelector(`section[aria-labelledby="${tid}"]`);
                 if (!sec) return;
@@ -7063,6 +7072,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 return code === 'NONE' ? '' : `${k === 'LGU' ? 'LG' : k} ${keepLabel(code)} → ${formatShortDate(computeKeepDate(today, code))}`;
             }).filter(Boolean).join(' · ');
             document.getElementById('autoPromExample').textContent = planOn && ex ? `오늘 개통하면: ${ex}` : '';
+            try { renderDealers(); } catch (e) { /* 준비 전 */ }
         }
         let autoSavedTimer = null;
         async function saveAutoPromiseSettings() {
@@ -7097,6 +7107,100 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             saveAutoPromiseSettings();
         }
         ['autoPlanOn', 'autoAddonOn', 'autoInsOn'].forEach(id => document.getElementById(id).addEventListener('change', saveAutoPromiseSettings));
+
+        /* 🏢 거래처별 유지 조건 (V188 · 👑 총관리자) — 개통등록에서 거래처를 고르면 요금제·부가(최대 3개)·보험 유지가 자동으로
+           · appSettings.dealers = [{ id, name, carrier, plan('' = 통신사 기본 · 'NONE' · 'M3'/'D96'), addons: [{ name, code } ×3], ins: { name, code } }] */
+        const DEALER_CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
+        function dealerList() {
+            const a = Array.isArray(appSettings.dealers) ? appSettings.dealers : [];
+            return a.filter(d => d && d.id).map(d => ({ id: String(d.id), name: String(d.name || '').trim().slice(0, 30), carrier: String(d.carrier || ''), plan: String(d.plan || ''),
+                addons: [0, 1, 2].map(i => { const x = (Array.isArray(d.addons) ? d.addons[i] : null) || {}; return { name: String(x.name || '').trim().slice(0, 30), code: String(x.code || '') }; }),
+                ins: { name: String((d.ins && d.ins.name) || '').trim().slice(0, 30), code: String((d.ins && d.ins.code) || '') } }));
+        }
+        function dealerByName(name) { const n = String(name || '').trim().replace(/\s+/g, ''); return n ? dealerList().find(d => d.name.replace(/\s+/g, '') === n) || null : null; }
+        function dealerSummary(d) {
+            const ads = d.addons.filter(a => a.code), base = d.plan || planChoicesFor(d.carrier)[0] || 'NONE';
+            return [d.carrier || '통신사 무관', `요금제 ${d.plan === 'NONE' ? '안 함' : keepLabel(base) + (d.plan ? '' : ' (기본)')}`, ads.length ? `부가 ${ads.length}개 (${ads.map(a => keepLabel(a.code)).join('·')})` : '부가 없음', d.ins.code ? `보험 ${keepLabel(d.ins.code)}` : '보험 없음'].join(' · ');
+        }
+        // 유지 조건 고르는 칸: '' = 첫 칸 뜻(기본/없음) · 직접 입력하면 'D150'
+        function dealerKeepOpts(cur, first) {
+            const base = KEEP_OPTIONS.filter(k => k !== 'NONE');
+            const list = cur && cur !== 'NONE' && !base.includes(cur) ? [...base, cur] : base;
+            return [first, ...(first[0] === '' && first[2] ? [['NONE', '만들지 않기']] : []), ...list.map(k => [k, keepLabel(k)]), ['__CUSTOM__', '직접 입력…']]
+                .map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
+        }
+        let dealerOpenId = '', dealerSaveT = null;
+        function renderDealers() {
+            const box = document.getElementById('dealerList'); if (!box) return;
+            if (box.contains(document.activeElement) && document.activeElement.tagName !== 'BUTTON') return;   // 입력 중엔 다시 그리지 않음
+            const L = dealerList(), lock = !isSuperAdmin;
+            const f = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white disabled:bg-gray-50';
+            box.innerHTML = L.length ? L.map(d => {
+                if (d.id !== dealerOpenId) return `<button type="button" data-dl-open="${escapeHtml(d.id)}" class="w-full text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><span class="block text-[15px] font-bold text-gray-900 truncate">🏢 ${escapeHtml(d.name || '(이름 없음)')}</span><span class="block text-xs text-gray-600 leading-snug">${escapeHtml(dealerSummary(d))}</span></span><span class="flex-shrink-0 text-xs font-bold text-indigo-700">${lock ? '보기' : '수정'}</span></button>`;
+                const plabel = `기본 (${d.carrier ? keepLabel(planChoicesFor(d.carrier)[0] || 'NONE') : '통신사 기본'})`;
+                const row = (lbl, nKey, cKey, nVal, cVal) => `<div class="grid grid-cols-[48px_1fr_112px] gap-1.5 items-center"><span class="text-[13px] font-bold text-gray-700">${lbl}</span><input data-dl="${nKey}" value="${escapeHtml(nVal)}" placeholder="이름 (선택)" autocomplete="off" class="${f}" ${lock ? 'disabled' : ''}><select data-dl="${cKey}" aria-label="${lbl} 유지" class="${f}" ${lock ? 'disabled' : ''}>${dealerKeepOpts(cVal, ['', '없음'])}</select></div>`;
+                return `<div data-dl-card="${escapeHtml(d.id)}" class="rounded-xl border-2 border-indigo-200 bg-indigo-50/40 p-3 space-y-2">
+                    <div class="grid grid-cols-[1fr_auto] gap-1.5"><input data-dl="name" value="${escapeHtml(d.name)}" placeholder="거래처 이름 (예: LG 뉴에이스)" autocomplete="off" class="${f} font-bold" ${lock ? 'disabled' : ''}><button type="button" data-dl-del class="h-11 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700 disabled:opacity-40" ${lock ? 'disabled' : ''}>삭제</button></div>
+                    <div class="grid grid-cols-2 gap-1.5"><label class="text-xs font-bold text-gray-600">통신사<select data-dl="carrier" class="mt-1 ${f}" ${lock ? 'disabled' : ''}><option value="">통신사 무관</option>${DEALER_CARRIERS.map(c => `<option ${c === d.carrier ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+                    <label class="text-xs font-bold text-gray-600">요금제 유지<select data-dl="plan" class="mt-1 ${f}" ${lock ? 'disabled' : ''}>${dealerKeepOpts(d.plan, ['', plabel, 1])}</select></label></div>
+                    ${d.addons.map((a, i) => row(`부가 ${i + 1}`, `an${i}`, `ac${i}`, a.name, a.code)).join('')}
+                    ${row('보험', 'in', 'ic', d.ins.name, d.ins.code)}
+                    <button type="button" data-dl-close class="w-full h-10 rounded-xl bg-indigo-600 text-white text-sm font-bold">완료</button>
+                </div>`;
+            }).join('') : '<p class="text-xs text-gray-500 py-1">아직 등록한 거래처가 없어요. [+ 거래처]로 넣어요.</p>';
+            const addBtn = document.getElementById('dealerAddBtn'); if (addBtn) addBtn.disabled = lock;
+        }
+        function saveDealers(next, now = false) {
+            appSettings = { ...appSettings, dealers: next };
+            clearTimeout(dealerSaveT);
+            const go = async () => {
+                try {
+                    await saveDoc(doc(db, 'smart_global', 'settings'), { dealers: next }, { merge: true });
+                    const saved = document.getElementById('autoPromSaved'); saved.classList.remove('hidden'); clearTimeout(autoSavedTimer); autoSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000);
+                } catch (e) { console.error(e); customAlert('거래처를 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); }
+            };
+            if (now) go(); else dealerSaveT = setTimeout(go, 500);
+        }
+        document.getElementById('dealerAddBtn').addEventListener('click', () => {
+            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            const id = 'd' + Date.now().toString(36);
+            saveDealers([...dealerList(), { id, name: '', carrier: '', plan: '', addons: [{ name: '', code: '' }, { name: '', code: '' }, { name: '', code: '' }], ins: { name: '', code: '' } }], true);
+            dealerOpenId = id; renderDealers();
+            setTimeout(() => { const el = document.querySelector(`[data-dl-card="${id}"] [data-dl="name"]`); if (el) el.focus(); }, 30);
+        });
+        document.getElementById('dealerList').addEventListener('click', async (e) => {
+            const op = e.target.closest('[data-dl-open]'); if (op) { dealerOpenId = op.dataset.dlOpen; renderDealers(); return; }
+            if (e.target.closest('[data-dl-close]')) { dealerOpenId = ''; if (document.activeElement) document.activeElement.blur(); renderDealers(); return; }
+            const del = e.target.closest('[data-dl-del]');
+            if (del) {
+                const id = del.closest('[data-dl-card]').dataset.dlCard, d = dealerList().find(x => x.id === id);
+                if (!(await customConfirm(`'${(d && d.name) || '이 거래처'}'를 지울까요?\n(이미 저장한 고객 약속은 그대로예요)`))) return;
+                dealerOpenId = ''; saveDealers(dealerList().filter(x => x.id !== id), true); if (document.activeElement) document.activeElement.blur(); renderDealers();
+            }
+        });
+        const dealerEdit = (e) => {
+            const el = e.target.closest('[data-dl]'); if (!el || !isSuperAdmin) return;
+            const id = el.closest('[data-dl-card]').dataset.dlCard, k = el.dataset.dl;
+            let v = el.value;
+            if (v === '__CUSTOM__') {
+                const n = parseInt(String(prompt('개통일로부터 며칠 뒤로 약속을 잡을까요? (1~730)', '') || '').replace(/[^0-9]/g, ''), 10);
+                if (!(n >= 1 && n <= 730)) { el.value = el.dataset.prev || ''; return; }
+                v = 'D' + n;
+            }
+            const next = dealerList().map(d => {
+                if (d.id !== id) return d;
+                const x = JSON.parse(JSON.stringify(d));
+                if (k === 'name') x.name = v.trim().slice(0, 30); else if (k === 'carrier') x.carrier = v; else if (k === 'plan') x.plan = v;
+                else if (/^an\d$/.test(k)) x.addons[+k[2]].name = v.trim().slice(0, 30); else if (/^ac\d$/.test(k)) x.addons[+k[2]].code = v;
+                else if (k === 'in') x.ins.name = v.trim().slice(0, 30); else if (k === 'ic') x.ins.code = v;
+                return x;
+            });
+            saveDealers(next, e.type === 'change');
+            if (el.tagName === 'SELECT') { el.dataset.prev = v; if (v !== el.value || k === 'carrier') { if (document.activeElement) document.activeElement.blur(); renderDealers(); } }
+        };
+        document.getElementById('dealerList').addEventListener('input', (e) => { if (e.target.matches('input[data-dl]')) dealerEdit(e); });
+        document.getElementById('dealerList').addEventListener('change', dealerEdit);
+        document.getElementById('dealerList').addEventListener('focusin', (e) => { if (e.target.matches('select[data-dl]')) e.target.dataset.prev = e.target.value; });
         ['keepAddon', 'keepIns'].forEach(id => { const el = document.getElementById(id); el.addEventListener('change', () => onKeepSelectChange(el)); });
         PLAN_SELECT_IDS.forEach(key => { const el = planSelectEl(key); el.addEventListener('change', () => onKeepSelectChange(el)); });
 
@@ -7562,7 +7666,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
             return [
                 profileKV('단말기', profileValue(c.device)),
-                profileKV('요금제', profileValue(c.plan)),
+                profileKV('요금제', filled(c.plan) ? `${escapeHtml(c.plan)}${Number(c.planFee) > 0 ? ` <span class="text-[12px] text-gray-500 font-medium">월 ${Number(c.planFee).toLocaleString('ko-KR')}원</span>` : ''}` : PROFILE_DASH),
+                ...(filled(c.repTargetPlan) ? [profileKV('변경 후 요금제', `${escapeHtml(c.repTargetPlan)}${Number(c.targetPlanFee) > 0 ? ` <span class="text-[12px] text-gray-500 font-medium">월 ${Number(c.targetPlanFee).toLocaleString('ko-KR')}원</span>` : ''}`)] : []),
                 profileKV('월 청구금액', profileValue(c.fee)),
                 profileKV('개통일', actHtml),
                 profileKV('할인유형', profileValue(c.discountType === '미정' ? '' : c.discountType)),
@@ -14770,7 +14875,9 @@ familyStr + `\n` +
         }
         const AR_ITEM_KINDS = ['부가', '보험', '제휴카드', '그레이드', '기타'];
         function arPresets() { return Array.isArray(appSettings.addonPresets) ? appSettings.addonPresets : []; }
-        function arItemDate(it) { const d = arVal('ar-date'); return it.days > 0 && /^\d{4}-\d{2}-\d{2}$/.test(d) ? computeKeepDate(d, 'D' + it.days) : ''; }
+        function arItemCode(it) { return it.code || (it.days > 0 ? 'D' + it.days : ''); }
+        function arItemDate(it) { const d = arVal('ar-date'), code = arItemCode(it); return code && /^\d{4}-\d{2}-\d{2}$/.test(d) ? computeKeepDate(d, code) : ''; }
+        const AR_KIND_TONE = { '부가': 'border-l-indigo-500', '보험': 'border-l-emerald-500', '제휴카드': 'border-l-sky-500', '그레이드': 'border-l-amber-500', '기타': 'border-l-gray-400' };
         function renderArItems() {
             const box = document.getElementById('arItemsBox');
             if (!box) return;
@@ -14778,29 +14885,37 @@ familyStr + `\n` +
             const cls = 'h-10 min-w-0 w-full px-2 border border-gray-300 rounded-lg text-[14px] text-gray-900 bg-white';
             box.innerHTML = arItems.length ? arItems.map((it, i) => {
                 if (it.autoDate !== false) it.date = arItemDate(it);
-                return `<div class="rounded-xl border border-gray-200 bg-gray-50/60 p-2 space-y-1.5">
-                    <div class="flex items-center gap-1.5">
+                it.code = arItemCode(it);
+                return `<div class="rounded-xl border border-gray-200 border-l-4 ${AR_KIND_TONE[it.kind] || 'border-l-gray-400'} bg-gray-50/60 p-2 space-y-1.5">
+                    <div class="flex items-center gap-1.5">${it.fromDealer ? '<span class="flex-shrink-0 text-xs" title="거래처 조건으로 들어온 줄">🏢</span>' : ''}
                         <select data-ari="${i}" data-f="kind" aria-label="종류" class="h-10 px-1.5 border border-gray-300 rounded-lg text-[13px] font-bold bg-white flex-shrink-0">${AR_ITEM_KINDS.map(k => `<option ${k === it.kind ? 'selected' : ''}>${k}</option>`).join('')}</select>
                         <input data-ari="${i}" data-f="name" value="${escapeHtml(it.name)}" placeholder="예) V컬러링 음악감상플러스" aria-label="이름" class="${cls} font-bold">
                         <button type="button" data-ari-del="${i}" aria-label="이 줄 빼기" class="w-10 h-10 flex-shrink-0 rounded-lg text-gray-500 hover:bg-gray-200"><i class="fa-solid fa-minus"></i></button>
                     </div>
-                    <div class="grid ${showAmt ? 'grid-cols-[1fr_76px_1.25fr]' : 'grid-cols-[76px_1fr]'} gap-1.5 items-center">
+                    <div class="grid ${showAmt ? 'grid-cols-[0.85fr_88px_1.3fr]' : 'grid-cols-[96px_1fr]'} gap-1.5 items-center">
                         ${showAmt ? `<label class="relative"><input data-ari="${i}" data-f="amount" inputmode="numeric" value="${it.amount ? (it.amount < 0 ? '-' : '') + arWon(Math.abs(it.amount)) : ''}" placeholder="금액" aria-label="정책 금액 (차감은 -)" class="${cls} text-right pr-6"><span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">원</span></label>` : ''}
-                        <label class="relative"><input data-ari="${i}" data-f="days" inputmode="numeric" value="${it.days || ''}" placeholder="유지" aria-label="유지 일수" class="${cls} text-right pr-6"><span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">일</span></label>
+                        <select data-ari="${i}" data-f="code" aria-label="유지 조건" class="${cls} font-bold">${arKeepOpts(it.code, false)}</select>
                         <input data-ari="${i}" data-f="date" type="date" value="${escapeHtml(it.date || '')}" aria-label="유지일" class="${cls}">
                     </div></div>`;
-            }).join('') : '<p class="text-xs text-gray-500">아직 없어요. [+ 추가정책·부가]로 넣어요.</p>';
+            }).join('') : `<p class="text-xs text-gray-500 leading-relaxed">부가·보험이 있으면 아래 [+ 부가] [+ 보험]으로 넣어요.${dealerList().length ? ' 거래처를 고르면 그 거래처 조건으로 자동으로 생겨요.' : ''}</p>`;
             box.querySelectorAll('[data-ari]').forEach(el => {
                 const i = +el.dataset.ari, f = el.dataset.f;
                 const handler = () => {
                     const it = arItems[i]; if (!it) return;
+                    it.touched = true;   // 손댄 줄은 거래처를 바꿔도 그대로
                     if (f === 'amount') { const neg = String(el.value).trim().startsWith('-'); const n = Number(String(el.value).replace(/[^\d]/g, '')) || 0; it.amount = neg ? -n : n; el.value = n ? (neg ? '-' : '') + arWon(n) : (neg ? '-' : ''); }
-                    else if (f === 'days') { it.days = parseInt(el.value, 10) || 0; it.autoDate = true; it.date = arItemDate(it); const de = box.querySelector(`[data-ari="${i}"][data-f="date"]`); if (de) de.value = it.date || ''; }
+                    else if (f === 'code') {
+                        let v = el.value;
+                        if (v === '__CUSTOM__') { v = askKeepDays() || it.code || ''; }
+                        it.code = v; it.days = /^D\d+$/.test(v) ? parseInt(v.slice(1), 10) : 0; it.autoDate = true; it.date = arItemDate(it);
+                        if (el.value === '__CUSTOM__') { renderArItems(); arRecalc(); return; }
+                        const de = box.querySelector(`[data-ari="${i}"][data-f="date"]`); if (de) de.value = it.date || '';
+                    }
                     else if (f === 'date') { it.date = el.value; it.autoDate = false; }
                     else it[f] = el.value;
                     arRecalc();
                 };
-                el.addEventListener(f === 'kind' || f === 'date' ? 'change' : 'input', handler);
+                el.addEventListener(f === 'kind' || f === 'date' || f === 'code' ? 'change' : 'input', handler);
             });
             box.querySelectorAll('[data-ari-del]').forEach(b => b.onclick = () => { arItems.splice(+b.dataset.ariDel, 1); renderArItems(); arRecalc(); });
             renderArPicker();
@@ -14838,7 +14953,7 @@ familyStr + `\n` +
                 const id = b.dataset.arp;
                 const p = id === '__blank' ? { kind: '부가', name: '', amount: 0, days: 0 } : arPresets().find(x => x.id === id);
                 if (!p) return;
-                arItems.push({ kind: p.kind || '부가', name: p.name || '', amount: Number(p.amount) || 0, days: Number(p.days) || 0, autoDate: true });
+                arItems.push({ kind: p.kind || '부가', name: p.name || '', amount: Number(p.amount) || 0, days: Number(p.days) || 0, code: p.code || (Number(p.days) > 0 ? 'D' + Number(p.days) : ''), autoDate: true, touched: true });
                 arPickerOpen = false;
                 renderArItems(); arRecalc();
                 if (id === '__blank') { const ins = document.querySelectorAll('#arItemsBox [data-f="name"]'); if (ins.length) ins[ins.length - 1].focus(); }
@@ -14857,7 +14972,7 @@ familyStr + `\n` +
         }
 
         function openActReg(c, mode) {
-            arItems = []; arPickerOpen = false; arPresetEdit = false;
+            arItems = []; arPickerOpen = false; arPresetEdit = false; arDealer = null; arPlanSrc = 'auto'; arUsimTouched = false;
             arCust = c || null;
             arMode = mode || 'mobile';
             arEl.style.display = 'flex';
@@ -14879,7 +14994,59 @@ familyStr + `\n` +
             <input id="${id}" type="${opt.type || 'text'}" ${opt.num ? 'inputmode="numeric"' : ''} ${opt.ro ? 'readonly tabindex="-1"' : ''} value="${escapeHtml(val ?? '')}" placeholder="${escapeHtml(opt.ph || '')}" ${opt.list ? `list="${opt.list}"` : ''} class="${arCls} ${opt.ro ? 'bg-gray-100 font-bold' : ''} ${opt.num ? 'text-right' : ''}"></label>`;
         const arSel = (id, label, opts, val, opt = {}) => `<label class="block min-w-0 ${opt.span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${opt.req ? '<span class="text-red-600">*</span> ' : ''}${label}</span>
             <select id="${id}" class="${arCls}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${escapeHtml(v)}" ${String(v) === String(val ?? '') ? 'selected' : ''}>${escapeHtml(l)}</option>`; }).join('')}</select></label>`;
-        const arSec = (title, inner, extra = '') => `<section class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2.5"><div class="flex items-center justify-between"><h3 class="text-[15px] font-bold text-gray-900">${title}</h3>${extra}</div>${inner}</section>`;
+        // [V188] 폰클처럼: 회색 머리줄(제목 + 오른쪽 체크) · 가끔 쓰는 칸은 머리줄 체크를 켜야 보임
+        const arSec = (title, inner, extra = '') => `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden"><div class="flex items-center justify-between gap-2 flex-wrap px-3 py-2 bg-gray-50 border-b border-gray-200 min-h-[44px]"><h3 class="text-[15px] font-bold text-gray-900">${title}</h3>${extra}</div><div class="p-3 space-y-2.5">${inner}</div></section>`;
+        const arTogs = (list) => `<div class="flex flex-wrap justify-end gap-1">${list.map(([id, label, on]) => `<label class="inline-flex items-center gap-1 h-8 pl-1.5 pr-2.5 rounded-full border border-gray-300 bg-white text-[12px] font-bold text-gray-600 cursor-pointer select-none has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-800"><input type="checkbox" id="${id}" ${on ? 'checked' : ''} class="w-4 h-4 accent-indigo-600">${label}</label>`).join('')}</div>`;
+        // 유지 조건 고르기 (요금제는 '만들지 않기', 부가·보험 줄은 '유지 없음' · 직접 입력하면 'D150')
+        function arKeepOpts(cur, plan) {
+            const base = KEEP_OPTIONS.filter(k => k !== 'NONE');
+            const list = cur && cur !== 'NONE' && !base.includes(cur) ? [...base, cur] : base;
+            return [...(plan ? [['NONE', '만들지 않기']] : [['', '유지 없음']]), ...list.map(k => [k, keepLabel(k)]), ['__CUSTOM__', '직접 입력…']].map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
+        }
+        function askKeepDays() { const n = parseInt(String(prompt('개통일로부터 며칠 뒤로 약속을 잡을까요? (1~730)', '') || '').replace(/[^0-9]/g, ''), 10); return n >= 1 && n <= 730 ? 'D' + n : ''; }
+        /* 🏢 거래처 고르면 → 그 거래처 조건으로 요금제 유지 + 부가(최대 3)·보험 줄 자동 (손대지 않은 자동 줄은 거래처를 바꾸면 바뀜) */
+        let arDealer = null, arPlanSrc = 'auto', arUsimTouched = false;
+        function arDefaultPlanCode() {
+            if (arDealer && arDealer.plan) return arDealer.plan;
+            if (appSettings.autoPlanOn === false) return 'NONE';
+            return planChoicesFor(arVal('ar-carrier'))[0] || 'NONE';
+        }
+        function arSetPlanKeep(code) { const el = document.getElementById('ar-k-plan'); if (!el) return; el.innerHTML = arKeepOpts(code, true); el.value = code; el.dataset.prev = code; }
+        function arApplyDealer(d, picked = false) {
+            arDealer = d || null;
+            arItems = arItems.filter(it => !(it.fromDealer && !it.touched));
+            if (arDealer) {
+                const car = document.getElementById('ar-carrier');
+                if (arDealer.carrier && car && (picked || !car.value) && car.value !== arDealer.carrier) { car.value = arDealer.carrier; arPrevFill(); renderArPicker(); }   // 거래처를 직접 고르면 그 거래처 통신사로
+                arDealer.addons.filter(a => a.code).forEach(a => arItems.push({ kind: '부가', name: a.name, amount: 0, code: a.code, days: 0, autoDate: true, fromDealer: true }));
+                if (arDealer.ins.code) arItems.push({ kind: '보험', name: arDealer.ins.name, amount: 0, code: arDealer.ins.code, days: 0, autoDate: true, fromDealer: true });
+            }
+            if (arPlanSrc !== 'user') arSetPlanKeep(arDefaultPlanCode());
+            const note = document.getElementById('ar-dealer-note'), badge = document.getElementById('ar-dealer-badge');
+            if (note) { note.classList.toggle('hidden', !arDealer); note.textContent = arDealer ? `🏢 ${arDealer.name} 조건 적용 · ${dealerSummary(arDealer)}` : ''; }
+            if (badge) badge.textContent = arDealer ? `🏢 ${arDealer.name} 조건` : '';
+            renderArItems(); arRecalc();
+        }
+        // 번호이동인데 전통신사가 비었으면: 고객의 예전 통신사(지금 통신사와 다를 때)로
+        function arPrevFill() {
+            const pv = document.getElementById('ar-prev'); if (!pv || pv.value || !/번호이동|MNP/.test(arVal('ar-type'))) return;
+            const old = String((arCust && arCust.carrier) || ''), cur = arVal('ar-carrier');
+            const v = /^알뜰/.test(old) ? '알뜰폰' : old;
+            if (v && old !== cur && [...pv.options].some(o => o.value === v)) pv.value = v;
+        }
+        // 개통종류·유심만·공시/선약에 따라 칸 보이고 숨기기
+        function arSyncVis() {
+            const b = document.getElementById('arBody'); if (!b || arMode !== 'mobile') return;
+            const mnp = /번호이동|MNP/.test(arVal('ar-type'));
+            b.querySelectorAll('[data-mnp]').forEach(x => x.classList.toggle('hidden', !mnp));
+            b.querySelectorAll('[data-carwrap]').forEach(x => x.classList.toggle('col-span-2', !mnp));   // 번호이동이 아니면 통신사 칸 넓게 (빈칸 없이)
+            if (!mnp) { const pv = document.getElementById('ar-prev'); if (pv) pv.value = ''; } else arPrevFill();
+            const uo = document.getElementById('ar-tg-usim'), usimOnly = !!(uo && uo.checked);
+            b.querySelectorAll('[data-dev], [data-dev-sec]').forEach(x => x.classList.toggle('hidden', usimOnly));
+            const sup = (document.querySelector('input[name="ar-sup"]:checked') || {}).value || '선약';
+            b.querySelectorAll('[data-pub]').forEach(x => x.classList.toggle('hidden', sup !== '공시'));
+            b.querySelectorAll('[data-price]').forEach(x => x.classList.toggle('col-span-2', sup !== '공시'));
+        }
         const arMoney = (id, label, val) => arIn(id, label + ' (원)', val ? arWon(val) : '', { num: true, ph: '0' });
 
         function renderActReg() {
@@ -14887,7 +15054,7 @@ familyStr + `\n` +
             arEl.querySelectorAll('[data-ar-mode]').forEach(b => b.className = `flex-1 h-10 rounded-xl text-sm font-bold ${b.dataset.arMode === arMode ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}`);
             document.getElementById('arTitle').textContent = arCust ? `${c.name || '고객'} · 개통등록` : '새 개통등록';
             document.getElementById('arCopy').classList.remove('hidden');
-            const stores = [...new Set(customerDB.map(x => pcStr(x.openStore)).filter(Boolean))];
+            const stores = [...new Set([...dealerList().map(d => d.name), ...customerDB.map(x => pcStr(x.openStore))].filter(Boolean))];
             const dl = `<datalist id="arStores">${stores.map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist>`;
             const S = c.poncle || {};
             const showSettle = canSeeSettle();
@@ -14902,54 +15069,82 @@ familyStr + `\n` +
             const legalHtml = `<label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-minor" ${legalOn ? 'checked' : ''} class="w-5 h-5 accent-indigo-600"> 미성년자 (법정대리인 있음)</label>
                     <div id="ar-legal" class="grid grid-cols-2 gap-2 ${legalOn ? '' : 'hidden'}">${arIn('ar-legal-name', '법정대리인 이름', c.legalName || '')}${arIn('ar-legal-phone', '법정대리인 연락처', c.legalPhone || '', { type: 'tel' })}${arIn('ar-legal-dob', '법정대리인 생년월일', formatDob(c.legalDob || ''), { ph: '1970-01-01', span: true })}</div>`;
             if (arMode === 'mobile') {
+                const DL = dealerList();
+                let lastDl = ''; try { lastDl = localStorage.getItem('arLastDealer') || ''; } catch (e) { /* 무시 */ }
+                const dl0 = dealerByName(c.openStore) || (c.openStore ? null : (DL.find(d => d.id === lastDl) || null));   // 고객 개통점이 거래처면 그것 · 새 고객은 이 폰에서 마지막에 쓴 거래처
+                arDealer = dl0; arPlanSrc = 'auto';
+                const direct = !dl0 && !!c.openStore;
+                const storeHtml = DL.length
+                    ? `<label class="block min-w-0"><span class="block text-xs font-bold text-gray-600 mb-1">거래처 (개통점)</span><select id="ar-store-sel" class="${arCls}"><option value="">- 선택 -</option>${DL.map(d => `<option value="${escapeHtml(d.id)}" ${dl0 && dl0.id === d.id ? 'selected' : ''}>${escapeHtml(d.name || '(이름 없음)')}</option>`).join('')}<option value="__direct" ${direct ? 'selected' : ''}>✏️ 직접 입력</option></select><input id="ar-store" value="${escapeHtml(dl0 ? dl0.name : (c.openStore || ''))}" list="arStores" placeholder="거래처 이름" class="${arCls} mt-1.5 ${direct ? '' : 'hidden'}"></label>`
+                    : arIn('ar-store', '거래처 (개통점)', c.openStore || '', { list: 'arStores', ph: '예) LG 뉴에이스' });
+                const car0 = (dl0 && dl0.carrier) || (AR_CARRIERS.includes(c.carrier) ? c.carrier : '');   // 거래처가 정해져 있으면 그 통신사 (번호이동이면 고객 예전 통신사는 전통신사로)
+                const tgComb = !!prefCombo;
                 html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
                     ${arIn('ar-date', '개통일', today, { type: 'date', req: true })}
                     ${arSel('ar-type', '개통종류', [['', '- 선택 -'], ...AR_ACT_TYPES], '', { req: true })}
                     ${arIn('ar-name', '고객명', c.name || '', { req: true })}
                     ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
-                    ${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], AR_CARRIERS.includes(c.carrier) ? c.carrier : '', { req: true })}
-                    ${arSel('ar-prev', '전통신사 (이동일 때)', [['', '-'], 'SKT', 'KT', 'LG U+', '알뜰폰'], '')}
-                    ${arIn('ar-store', '거래처 (개통점)', c.openStore || '', { list: 'arStores', ph: '예) LG 뉴에이스' })}
+                    ${storeHtml}
                     ${arIn('ar-manager', '개통직원', getStaffName() || '')}
-                    ${arIn('ar-plan', '요금제', c.plan || '', { span: true, ph: '예) 5G 프리미어 에센셜' })}
+                    <p id="ar-dealer-note" class="col-span-2 hidden text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 leading-relaxed"></p>
+                    ${!DL.length && isSuperAdmin ? '<p class="col-span-2 text-xs text-gray-500">💡 설정 → 🏪 매장 운영 → 개통 후 자동 약속에서 거래처를 등록하면, 여기서 고르기만 해도 요금제·부가·보험 유지가 자동으로 들어가요.</p>' : ''}
+                    <div data-carwrap class="min-w-0 col-span-2">${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], car0, { req: true })}</div>
+                    <div data-mnp class="hidden min-w-0">${arSel('ar-prev', '전통신사 (이동 전)', [['', '-'], 'SKT', 'KT', 'LG U+', '알뜰폰'], '')}</div>
+                    <div class="col-span-2 grid grid-cols-[1fr_120px] gap-2">${arIn('ar-plan', '요금제', c.plan || '', { ph: '예) 5G 프리미어 에센셜' })}${arIn('ar-planfee', '월요금 (원)', c.planFee ? arWon(c.planFee) : '', { num: true, ph: '0' })}</div>
+                    <div class="col-span-2 rounded-xl bg-purple-50/70 border border-purple-100 p-2 space-y-2">
+                        <div class="flex items-center gap-2"><span class="text-xs font-bold text-purple-900 flex-shrink-0">요금제 유지</span><select id="ar-k-plan" aria-label="요금제 유지 조건" class="flex-1 min-w-0 h-10 px-2 border border-purple-200 rounded-lg text-[14px] font-bold text-gray-900 bg-white"></select><span id="ar-k-plan-date" class="text-[13px] font-bold text-purple-800 flex-shrink-0"></span></div>
+                        <div class="grid grid-cols-[1fr_120px] gap-2">${arIn('ar-target', '변경후 요금제', c.repTargetPlan || '', { ph: '예) 5G 라이트' })}${arIn('ar-targetfee', '변경후 월요금 (원)', c.targetPlanFee ? arWon(c.targetPlanFee) : '', { num: true, ph: '0' })}</div>
+                    </div>
+                    <div class="col-span-2 grid grid-cols-3 gap-2">
                     ${arSel('ar-term', '약정개월', ['24개월', '12개월', '무약정'], '24개월')}
                     ${arSel('ar-inst', '단말기할부', ['24개월', '36개월', '30개월', '48개월', '12개월', '일시불'], '24개월')}
-                    ${arIn('ar-addon', '부가서비스', '', { ph: '예) 캐치콜플러스' })}
-                    ${arIn('ar-ins', '단말기보험', '', { ph: '예) 폰 안심패스' })}
-                    ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
-                    ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
                     ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
-                    </div>`);
+                    </div>
+                    <div data-tg="ar-tg-comb" class="col-span-2 grid grid-cols-2 gap-2 ${tgComb ? '' : 'hidden'}">
+                        ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
+                        ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
+                        ${arSel('ar-k-card', '카드 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
+                    </div>
+                    </div>`, arTogs([['ar-tg-comb', '결합·복지·카드', tgComb]]));
+                html += arSec('부가 · 보험 · 추가정책', `<div id="arItemsBox" class="space-y-2"></div>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button type="button" data-ar-add="부가" class="h-10 rounded-xl border border-indigo-200 bg-indigo-50 text-[13px] font-bold text-indigo-800">+ 부가</button>
+                        <button type="button" data-ar-add="보험" class="h-10 rounded-xl border border-emerald-200 bg-emerald-50 text-[13px] font-bold text-emerald-800">+ 보험</button>
+                        <button type="button" data-ar-add="기타" class="h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">+ 기타</button>
+                        <button type="button" id="arItemAdd" class="h-10 rounded-xl border border-amber-200 bg-amber-50 text-[13px] font-bold text-amber-800">⭐ 자주</button>
+                    </div>
+                    <div id="arPicker" class="hidden space-y-2 rounded-xl bg-gray-50 p-2"></div>`, '<span id="ar-dealer-badge" class="text-xs font-bold text-emerald-700"></span>');
+                html += `<section class="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5"><p class="text-[13px] font-bold text-indigo-900 mb-1.5">📅 저장하면 잡히는 약속</p><div id="ar-k-dates" class="flex flex-wrap gap-1.5"></div></section>`;
+                const tgNet = !!prefIntTv, tgFam = !!(c.repFamily && String(c.repFamily).trim());
                 html += arSec('고객정보', `<div class="grid grid-cols-2 gap-2">
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1' })}
                     ${arIn('ar-branch', '접수처', c.repBranch || '', {})}
                     ${arIn('ar-address', '주소', c.repAddress || c.address || '', { span: true })}
-                    ${arIn('ar-inttv', '인터넷+TV', prefIntTv, { span: true, ph: '예) 기가 500M + 베이직' })}
-                    ${arIn('ar-usedphone', '중고폰', '', { ph: '예) S22 반납' })}
-                    ${arIn('ar-subsidy', '지원금 (보고서용)', '', { ph: '예) 공통 50만' })}
+                    <div data-tg="ar-tg-net" class="col-span-2 grid grid-cols-2 gap-2 ${tgNet ? '' : 'hidden'}">
+                        ${arIn('ar-inttv', '인터넷+TV', prefIntTv, { span: true, ph: '예) 기가 500M + 베이직' })}
+                        ${arIn('ar-usedphone', '중고폰', '', { ph: '예) S22 반납', span: true })}
                     </div>
-                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">가족정보</span><textarea id="ar-family" rows="2" placeholder="예) 배우자 홍길순 010-0000-0000" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">${escapeHtml(c.repFamily || '')}</textarea></label>
-                    ${legalHtml}`);
+                    <label data-tg="ar-tg-fam" class="col-span-2 block ${tgFam ? '' : 'hidden'}"><span class="block text-xs font-bold text-gray-600 mb-1">가족정보</span><textarea id="ar-family" rows="2" placeholder="예) 배우자 홍길순 010-0000-0000" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">${escapeHtml(c.repFamily || '')}</textarea></label>
+                    <div id="ar-legal" data-tg="ar-minor" class="col-span-2 grid grid-cols-2 gap-2 ${legalOn ? '' : 'hidden'}">${arIn('ar-legal-name', '법정대리인 이름', c.legalName || '')}${arIn('ar-legal-phone', '법정대리인 연락처', c.legalPhone || '', { type: 'tel' })}${arIn('ar-legal-dob', '법정대리인 생년월일', formatDob(c.legalDob || ''), { ph: '1970-01-01', span: true })}</div>
+                    </div>`, arTogs([['ar-tg-net', '인터넷·중고폰', tgNet], ['ar-tg-fam', '가족', tgFam], ['ar-minor', '미성년자', legalOn]]));
                 html += arSec('단말기 · 유심', `<div class="grid grid-cols-2 gap-2">
-                    ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
-                    ${arIn('ar-color', '색상', '', {})}
-                    ${arIn('ar-serial', '단말기 일련번호', '', { span: true })}
+                    <div data-dev class="col-span-2 grid grid-cols-2 gap-2">
+                        ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
+                        ${arIn('ar-color', '색상', '', {})}
+                        ${arIn('ar-serial', '단말기 일련번호', '', { span: true })}
+                    </div>
                     ${arIn('ar-usim', '유심 모델명', '', {})}
                     ${arIn('ar-usimserial', '유심 일련번호', '', {})}
-                    </div>`, '<span class="text-xs text-gray-500">유심만 개통이면 단말기는 비워두세요</span>');
-                html += arSec('할부원금', `<div class="flex gap-1.5">${[['공시', '단말할인 (공시지원)'], ['선약', '요금할인 (선택약정)']].map(([v, l]) => `<label class="flex-1 h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1.5 text-sm font-bold cursor-pointer has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-800"><input type="radio" name="ar-sup" value="${v}" ${v === '선약' ? 'checked' : ''} class="accent-indigo-600">${l}</label>`).join('')}</div>
+                    </div>`, arTogs([['ar-tg-usim', '유심만 개통', false]]));
+                html += `<div data-dev-sec>` + arSec('할부원금', `<div class="flex gap-1.5">${[['공시', '단말할인 (공시지원)'], ['선약', '요금할인 (선택약정)']].map(([v, l]) => `<label class="flex-1 h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1.5 text-sm font-bold cursor-pointer has-[:checked]:border-indigo-600 has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-800"><input type="radio" name="ar-sup" value="${v}" ${v === '선약' ? 'checked' : ''} class="accent-indigo-600">${l}</label>`).join('')}</div>
                     <div class="grid grid-cols-2 gap-2">
-                    ${arMoney('ar-price', '출고가')}${arMoney('ar-pub', '공통지원금')}
+                    <div data-price class="min-w-0 col-span-2">${arMoney('ar-price', '출고가')}</div><div data-pub class="min-w-0 hidden">${arMoney('ar-pub', '공통지원금')}</div>
                     ${arMoney('ar-switch', '전환지원금')}${arMoney('ar-dist', '유통망지원금')}
-                    ${arMoney('ar-prepay', '선납금')}${arMoney('ar-cash', '현금납부')}
-                    ${arMoney('ar-cardpay', '카드납부')}${arMoney('ar-unpaid', '미수금')}
+                    <div data-tg="ar-tg-pay" class="col-span-2 grid grid-cols-2 gap-2 hidden">${arMoney('ar-prepay', '선납금')}${arMoney('ar-cash', '현금납부')}${arMoney('ar-cardpay', '카드납부')}${arMoney('ar-unpaid', '미수금')}</div>
                     </div>
                     <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between"><span class="text-sm font-bold text-indigo-900">할부원금</span><span><b id="ar-loan" class="text-xl text-indigo-900">0</b><span class="text-sm text-indigo-900">원</span></span></div>
-                    <p id="ar-loan-sub" class="text-xs text-gray-600 text-right -mt-1"></p>`);
-                html += arSec('부가서비스 · 추가정책', `<div id="arItemsBox" class="space-y-2"></div>
-                    <button type="button" id="arItemAdd" class="w-full h-11 rounded-xl border border-dashed border-indigo-400 bg-indigo-50/50 text-sm font-bold text-indigo-700"><i class="fa-solid fa-plus"></i> 추가정책 · 부가</button>
-                    <div id="arPicker" class="hidden space-y-2 rounded-xl bg-gray-50 p-2"></div>
-                    <p class="text-xs text-gray-500 leading-relaxed">유지 일수를 넣으면 개통일 기준 유지일이 자동으로 잡히고, 저장하면 부가·보험·기타 약속으로 들어가요.${showSettle ? ' 금액은 정산금액에 더해져요 (차감은 -).' : ''}</p>`);
+                    <p id="ar-loan-sub" class="text-xs text-gray-600 text-right -mt-1"></p>
+                    ${arIn('ar-subsidy', '지원금 (보고서용)', '', { ph: '예) 공통 50만 · 전환 30만' })}`, arTogs([['ar-tg-pay', '선납·현금·카드·미수', false]])) + `</div>`;
                 if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">
                     ${arMoney('ar-base', '기본정책')}${arMoney('ar-add', '추가정책 (기타)')}
                     ${arMoney('ar-fee', '수수료 (MNP 대납 등)')}${arMoney('ar-disc', '할인금액')}
@@ -14957,32 +15152,22 @@ familyStr + `\n` +
                     <div class="grid grid-cols-2 gap-2 text-sm">
                         ${[['정산금액', 'ar-settle'], ['판매마진', 'ar-margin'], ['정산부가세', 'ar-vat'], ['실판매마진', 'ar-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-3 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[17px] text-gray-900">0</b>원</div>`).join('')}
                     </div>
-                    <p class="text-xs text-gray-500 leading-relaxed">정산금액 = 기본정책 + 추가정책 줄 합계 + 추가정책(기타) − 유통망지원금 − 수수료 · 판매마진 = 정산금액 − 할인금액 · 부가세 = 정산금액 ÷ 11 · 실판매마진 = 판매마진 − 부가세</p>`,
+                    <p class="text-xs text-gray-500 leading-relaxed">정산금액 = 기본정책 + 부가·추가정책 줄 금액 + 추가정책(기타) − 유통망지원금 − 수수료 · 판매마진 = 정산금액 − 할인금액 · 부가세 = 정산금액 ÷ 11</p>`,
                     isSuperAdmin && appSettings.hideSettleFromStaff ? '<span class="text-xs font-bold text-amber-700">🔒 직원에게 숨김</span>' : '');
-                const pc = planChoicesFor(c.carrier || '');
-                html += arSec('자동 약속', `<div class="grid grid-cols-1 gap-2">
-                    <div class="grid grid-cols-[1fr_96px] gap-2 items-end">
-                    ${arSel('ar-k-plan', '요금제 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)]), ['CUSTOM', '직접 (일수)']], appSettings.autoPlanOn === false ? 'NONE' : (pc[0] || 'NONE'))}
-                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">직접 일수</span><input id="ar-k-plan-days" inputmode="numeric" placeholder="예) 186" class="${arCls} text-right"></label>
-                    </div>
-                    ${arSel('ar-k-addon', '부가서비스 해지 (위 부가 줄이 있으면 그 유지일로)', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
-                    ${arSel('ar-k-ins', '보험 해지', [['NONE', '만들지 않기'], ...KEEP_ADDON_OPTIONS.map(k => [k, keepLabel(k)])], 'NONE')}
-                    ${arSel('ar-k-card', '제휴카드 (위 제휴카드 줄이 있으면 그 유지일로)', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
-                    ${arIn('ar-target', '유지 후 바꿀 요금제 (약속 메모에 들어가요)', c.repTargetPlan || '', { ph: '예) 5G 라이트' })}
-                    </div><p id="ar-k-dates" class="text-xs text-indigo-700 font-bold"></p>`, '<span class="text-xs text-gray-500">통신사를 고르면 기본값이 맞춰져요</span>');
-                html += arSec('기타정보', `<div class="rounded-xl border border-pink-200 bg-pink-50/50 p-2.5 space-y-2">
+                const accOpen = !!(c.promAccDate && !c.promAccChk && c.promAccMemo), driveOn = driveMode() !== 'off';
+                html += arSec('기타정보', `<div data-tg="ar-tg-acc" class="${accOpen ? '' : 'hidden'} rounded-xl border border-pink-200 bg-pink-50/50 p-2.5 space-y-2">
                         <p class="text-[13px] font-bold text-pink-900">🌸 악세 예약 <span class="font-normal text-gray-600">(악세정산 앱 예약 목록에 자동으로 떠요)</span></p>
-                        ${c.promAccDate && !c.promAccChk && c.promAccMemo ? `<p class="text-xs text-gray-700 bg-white rounded-lg px-2 py-1.5">지금 예약: ${escapeHtml(String(c.promAccMemo).slice(0, 60))} · ${escapeHtml(String(c.promAccDate).slice(5).replace('-', '/'))}${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''} <span class="text-gray-500">(새로 적으면 바뀌어요)</span></p>` : ''}
+                        ${accOpen ? `<p class="text-xs text-gray-700 bg-white rounded-lg px-2 py-1.5">지금 예약: ${escapeHtml(String(c.promAccMemo).slice(0, 60))} · ${escapeHtml(String(c.promAccDate).slice(5).replace('-', '/'))}${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''} <span class="text-gray-500">(새로 적으면 바뀌어요)</span></p>` : ''}
                         ${arIn('ar-acc-text', '예약한 악세', '', { ph: '예) 아이폰17 프로 클리어 케이스' })}
                         <div class="grid grid-cols-2 gap-2">
                             ${arIn('ar-acc-date', '찾으러 오는 날', '', { type: 'date' })}
                             <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">악세정산 매장</span><select id="ar-acc-store" class="${arCls}"></select></label>
                         </div>
                     </div>
-                    <label class="flex items-center gap-2 text-sm font-bold text-gray-800"><input type="checkbox" id="ar-missing" class="w-5 h-5 accent-red-600"> 미비서류 있음</label>
-                    ${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}
+                    <div data-tg="ar-missing" class="hidden">${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}</div>
                     <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>
-                    ${driveMode() !== 'off' ? `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`);
+                    ${driveOn ? `<label data-tg="ar-tg-file" class="hidden block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`,
+                    arTogs([['ar-tg-acc', '🌸 악세 예약', accOpen], ['ar-missing', '미비서류', false], ...(driveOn ? [['ar-tg-file', '☁️ 서류 첨부', false]] : [])]));
             } else {
                 html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
                     ${arSel('hr-kind', '구분', ['단품판매', '결합판매', '동시판매'], '단품판매', { req: true })}
@@ -15020,30 +15205,56 @@ familyStr + `\n` +
             }));
             body.querySelectorAll('input, select').forEach(el => el.addEventListener('change', arRecalc));
             const carEl = document.getElementById('ar-carrier');
-            if (carEl) carEl.addEventListener('change', () => {
-                const pcs = planChoicesFor(carEl.value);
-                const kp = document.getElementById('ar-k-plan');
-                if (kp && appSettings.autoPlanOn !== false && pcs[0]) kp.value = pcs[0];
-                arRecalc();
-            });
+            if (carEl) carEl.addEventListener('change', () => { if (arMode === 'mobile') { if (arPlanSrc !== 'user') arSetPlanKeep(arDefaultPlanCode()); arPrevFill(); } arRecalc(); });
             const minor = document.getElementById('ar-minor');
-            if (minor) minor.addEventListener('change', () => document.getElementById('ar-legal').classList.toggle('hidden', !minor.checked));
+            if (minor && arMode !== 'mobile') minor.addEventListener('change', () => document.getElementById('ar-legal').classList.toggle('hidden', !minor.checked));
+            if (arMode === 'mobile') {
+                // 머리줄 체크 → 그 칸 보이기 · 숨기기
+                body.querySelectorAll('section input[type="checkbox"][id^="ar-tg-"], #ar-minor, #ar-missing').forEach(cb => cb.addEventListener('change', () => {
+                    body.querySelectorAll(`[data-tg="${cb.id}"]`).forEach(x => x.classList.toggle('hidden', !cb.checked));
+                    if (cb.id === 'ar-tg-usim') arUsimTouched = true;
+                    arSyncVis();
+                }));
+                const tyEl = document.getElementById('ar-type');
+                if (tyEl) tyEl.addEventListener('change', () => {   // 유심 개통이면 단말기 칸 저절로 숨김
+                    const uo = document.getElementById('ar-tg-usim');
+                    if (uo && !arUsimTouched) uo.checked = /^유심/.test(tyEl.value);
+                    arSyncVis();
+                });
+                body.querySelectorAll('input[name="ar-sup"]').forEach(r => r.addEventListener('change', arSyncVis));
+                const ss = document.getElementById('ar-store-sel');
+                if (ss) ss.addEventListener('change', () => {
+                    const inp = document.getElementById('ar-store');
+                    if (ss.value === '__direct') { inp.classList.remove('hidden'); inp.value = ''; inp.focus(); arApplyDealer(null); return; }
+                    inp.classList.add('hidden');
+                    const d = dealerList().find(x => x.id === ss.value) || null;
+                    inp.value = d ? d.name : '';
+                    arApplyDealer(d, true);
+                });
+                const kpEl = document.getElementById('ar-k-plan');
+                if (kpEl) {
+                    kpEl.addEventListener('focus', () => { kpEl.dataset.prev = kpEl.value; });
+                    kpEl.addEventListener('change', () => {
+                        if (kpEl.value === '__CUSTOM__') { const code = askKeepDays(); arSetPlanKeep(code || kpEl.dataset.prev || 'NONE'); }
+                        kpEl.dataset.prev = kpEl.value; arPlanSrc = 'user'; arRecalc();
+                    });
+                }
+                body.querySelectorAll('[data-ar-add]').forEach(btn => btn.onclick = () => {
+                    const k = btn.dataset.arAdd;
+                    const code = k === '부가' ? (appSettings.autoAddonOn !== false ? (appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault) : '') : (k === '보험' ? (appSettings.autoInsOn !== false ? (appSettings.insDefault || AUTO_PROMISE_DEFAULTS.insDefault) : '') : '');
+                    arItems.push({ kind: k, name: '', amount: 0, code, days: 0, autoDate: true, touched: true });
+                    renderArItems(); arRecalc();
+                    const ins = document.querySelectorAll('#arItemsBox [data-f="name"]'); if (ins.length) ins[ins.length - 1].focus();
+                });
+            }
             const addBtn = document.getElementById('arItemAdd');
             if (addBtn) addBtn.onclick = () => { arPickerOpen = !arPickerOpen; renderArPicker(); };
             const dEl = document.getElementById('ar-date');
-            if (dEl) dEl.addEventListener('change', () => renderArItems());
+            if (dEl) dEl.addEventListener('change', () => { renderArItems(); arRecalc(); });
             const cEl2 = document.getElementById('ar-carrier');
             if (cEl2) cEl2.addEventListener('change', () => renderArPicker());
-            const kp = document.getElementById('ar-k-plan'), kpd = document.getElementById('ar-k-plan-days');
-            if (kp && kpd) { const sync = () => { kpd.disabled = kp.value !== 'CUSTOM'; kpd.classList.toggle('opacity-40', kpd.disabled); }; kp.addEventListener('change', sync); kpd.addEventListener('input', arRecalc); sync(); }
-            renderArItems();
-            ['ar-addon', 'ar-ins'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => {
-                const k = document.getElementById(id === 'ar-addon' ? 'ar-k-addon' : 'ar-k-ins');
-                const def = id === 'ar-addon' ? (appSettings.addonDefault || 'M2') : (appSettings.insDefault || 'M2');
-                const on = id === 'ar-addon' ? appSettings.autoAddonOn !== false : appSettings.autoInsOn !== false;
-                if (k && k.value === 'NONE' && el.value.trim() && on) k.value = def;
-                arRecalc();
-            }); });
+            if (arMode === 'mobile') { arSetPlanKeep(arDefaultPlanCode()); arSyncVis(); arApplyDealer(arDealer); }   // 거래처 조건 (요금제 유지 · 부가·보험 줄)
+            else renderArItems();
             arRecalc();
         }
 
@@ -15052,10 +15263,13 @@ familyStr + `\n` +
             const d = arVal('ar-date');
             if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return [];
             const out = [];
-            const kpv = arVal('ar-k-plan');
-            const planCode = kpv === 'CUSTOM' ? ((parseInt(arVal('ar-k-plan-days'), 10) || 0) > 0 ? 'D' + parseInt(arVal('ar-k-plan-days'), 10) : '') : kpv;
+            const planCode = arVal('ar-k-plan');
             const pd = computeKeepDate(d, planCode);
-            if (pd) out.push({ key: 'Plan', label: '요금제', date: pd, memo: `자동: 요금제 유지 끝 (${keepLabel(planCode)})` });
+            if (pd) {   // 메모: 지금 요금제(월요금) → 바꿀 요금제(월요금)
+                const won = (id) => arNum(id) > 0 ? ` ${arWon(arNum(id))}원` : '';
+                const now = arVal('ar-plan') ? `${arVal('ar-plan')}${won('ar-planfee')}` : '', next = arVal('ar-target') ? `${arVal('ar-target')}${won('ar-targetfee')}` : '';
+                out.push({ key: 'Plan', label: '요금제', date: pd, memo: `자동: 요금제 유지 끝 (${keepLabel(planCode)})${now || next ? ' · ' + [now || '지금 요금제', next].filter(Boolean).join(' → ') : ''}` });
+            }
             // 부가 줄은 날짜 순서대로 부가 1·2·3·4 칸에 하나씩 (5개부터는 4번 칸 메모에 같이)
             const addonRows = arItems.filter(it => it.kind === '부가' && it.date).sort((a, b) => a.date.localeCompare(b.date));
             if (addonRows.length) {
@@ -15069,7 +15283,7 @@ familyStr + `\n` +
                 const cd = computeKeepDate(d, arVal('ar-k-card'));
                 if (cd) out.push({ key: 'Card', label: '제휴카드', date: cd, memo: `자동: 제휴카드${arVal('ar-card') ? ' ' + arVal('ar-card') : ''} (${keepLabel(arVal('ar-k-card'))})` });
             }
-            [['부가', 'Addon', 'ar-k-addon', '부가서비스 해지'], ['보험', 'Ins', 'ar-k-ins', '보험 해지'], ['제휴카드', 'Card', '', '제휴카드'], ['기타', 'Other', '', '추가정책 유지']].forEach(([kind, key, sel, title]) => {
+            [['부가', 'Addon', '', '부가서비스 해지'], ['보험', 'Ins', '', '보험 해지'], ['제휴카드', 'Card', '', '제휴카드'], ['기타', 'Other', '', '추가정책 유지']].forEach(([kind, key, sel, title]) => {
                 if (kind === '부가' && addonRows.length) return;
                 const rows = arItems.filter(it => it.kind === kind && it.date);
                 if (rows.length) {
@@ -15108,9 +15322,11 @@ familyStr + `\n` +
                 if (sub) sub.textContent = r.loan > 0 && n > 0 ? `월 할부금 약 ${arWon(r.loan * (0.059 / 12) / (1 - Math.pow(1 + 0.059 / 12, -n)))}원 (${n}개월 · 연 5.9%)` : (r.price ? '할부 없음 (완납)' : '');
                 set('ar-settle', r.settle); set('ar-margin', r.margin); set('ar-vat', r.vat); set('ar-real', r.real);
                 const d = arVal('ar-date');
-                const dates = arKeepPlan().map(k => `${k.label} ${formatShortDate(k.date)}`);
+                const ks = arKeepPlan();
                 const kd = document.getElementById('ar-k-dates');
-                if (kd) kd.textContent = dates.length ? '→ ' + dates.join(' · ') : '';
+                if (kd) kd.innerHTML = ks.length ? ks.map(k => `<span class="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-white border border-indigo-200 text-[12px] font-bold text-indigo-900">${escapeHtml(k.label)} <span class="text-indigo-600">${escapeHtml(formatShortDate(k.date))}</span></span>`).join('') : '<span class="text-xs text-gray-500">아직 없어요 · 요금제 유지나 부가·보험 유지를 정하면 여기 보여요</span>';
+                const pdEl = document.getElementById('ar-k-plan-date'), pk = ks.find(k => k.key === 'Plan');
+                if (pdEl) pdEl.textContent = pk ? `→ ${formatShortDate(pk.date)}` : '';
             } else {
                 set('hr-settle', r.settle); set('hr-margin', r.margin); set('hr-real', r.real);
             }
@@ -15126,15 +15342,17 @@ familyStr + `\n` +
                 const fam = arVal('ar-family');
                 const device = [[arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / ');
                 const typeStr = arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : (arVal('ar-carrier') ? ` (${arVal('ar-carrier')})` : ''));
-                const addonNames = [arVal('ar-addon'), ...arItems.filter(it => it.kind === '부가' && it.name).map(it => it.name)].filter(Boolean).join(', ');
-                const insNames = [arVal('ar-ins'), ...arItems.filter(it => it.kind === '보험' && it.name).map(it => it.name)].filter(Boolean).join(', ');
+                const addonNames = arItems.filter(it => it.kind === '부가' && it.name).map(it => it.name).join(', ');
+                const insNames = arItems.filter(it => it.kind === '보험' && it.name).map(it => it.name).join(', ');
+                const feeOf = (id) => arNum(id) > 0 ? ` (${arWon(arNum(id))}원)` : '';
                 text = `-모바일 개통보고 ${dateStr}-\n\n` +
                     `이름: ${arVal('ar-name')}\n` +
                     `주민번호: ${arVal('ar-jumin')}\n` +
                     `연락처 : ${arVal('ar-phone')}\n` +
                     `주소 : ${arVal('ar-address')}\n` +
                     `모델/일련: ${device}\n` +
-                    `요금제 : ${arVal('ar-plan')}\n` +
+                    `요금제 : ${arVal('ar-plan')}${feeOf('ar-planfee')}\n` +
+                    (arVal('ar-target') ? `변경 요금제 : ${arVal('ar-target')}${feeOf('ar-targetfee')}\n` : '') +
                     `유심 일련: ${[arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / ')}\n` +
                     `유심 선납: ${arVal('ar-usimfee')}\n` +
                     `유형: ${typeStr}\n` +
@@ -15208,12 +15426,14 @@ familyStr + `\n` +
             const upd = { updatedAt: now };
             let note;
             if (isM) {
-                const d = arVal('ar-date'), model = arVal('ar-model');
+                const usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;   // 유심만 개통이면 단말기 칸은 안 씀
+                const d = arVal('ar-date'), model = usimOnly ? '' : arVal('ar-model');
                 const n = parseInt(arVal('ar-inst'), 10);
                 Object.assign(upd, {
                     name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), activationDate: d,
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-store'), repManager: arVal('ar-manager'),
-                    plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: arVal('ar-addon'), insurance: arVal('ar-ins'),
+                    plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: '', insurance: '',
+                    ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee') } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금
                     discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
                     discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
@@ -15245,12 +15465,12 @@ familyStr + `\n` +
                 });
                 if (canSeeSettle()) upd.poncle = { 기본정책: arNum('ar-base'), 추가정책: arNum('ar-add'), 수수료: arNum('ar-fee'), 할인금액: arNum('ar-disc'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 미비서류: upd.missingDocs, 등록: '개통등록' };
                 arKeepPlan().forEach(k => Object.assign(upd, { [`prom${k.key}Date`]: k.date, [`prom${k.key}Memo`]: k.memo, [`prom${k.key}Chk`]: false }));
-                upd.policyItems = arItems.filter(it => it.name || it.amount || it.days).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, date: it.date || '' }));
+                upd.policyItems = arItems.filter(it => it.name || it.amount || it.days || it.code).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: arItemCode(it), date: it.date || '' }));
+                try { localStorage.setItem('arLastDealer', arDealer ? arDealer.id : ''); } catch (e) { /* 무시 */ }   // 다음 개통등록 때 이 거래처가 기본
                 const names = (k) => upd.policyItems.filter(it => it.kind === k && it.name).map(it => it.name).join(', ');
                 if (!upd.addons && names('부가')) upd.addons = names('부가');
                 if (!upd.insurance && names('보험')) upd.insurance = names('보험');
                 upd.repAddons = [upd.addons].filter(Boolean).join(', '); upd.repInsurance = upd.insurance || '';
-                if (arVal('ar-target')) Object.keys(upd).filter(k => k === 'promPlanMemo').forEach(k => { upd[k] += ` → ${arVal('ar-target')}`; });
                 if (!upd.discountCard && names('제휴카드')) upd.discountCard = names('제휴카드');
                 note = `[개통등록 ${d.slice(5).replace('-', '/')}] ${[arVal('ar-type'), arVal('ar-carrier'), model || arVal('ar-usim'), arVal('ar-plan')].filter(Boolean).join(' · ')}${arVal('ar-memo') ? ' / ' + arVal('ar-memo') : ''}`;
             } else {
@@ -16751,7 +16971,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V187';
+        const APP_VER = 'V188';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
