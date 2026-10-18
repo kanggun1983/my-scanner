@@ -1000,6 +1000,10 @@
                     <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">⏳ 진행중·방문약속 31일 뒤 '미정'으로</span><span class="text-[13px] text-gray-600 leading-snug">영업상태를 바꾼 날(또는 마지막 연락한 날)부터 31일 동안 진행이 없으면 자동으로 '미정'. 앞으로 잡힌 약속이 있으면 그대로 둬요</span></span>
                     <input type="checkbox" id="prospectAutoChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                 </label>
+                <button type="button" id="wiredReviewBtn" class="hidden w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">📺 유선 개통 점검 <span id="wiredReviewCount" class="text-sm font-bold text-amber-700"></span></span><span class="text-[13px] text-gray-600 leading-snug">개통등록(개통보고) '인터넷+TV' 칸에 적기만 해서 유선(동시) 개통으로 잡힌 것 같은 건을 찾아 정리해요 (👑 대표)</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
             </section>
             <section class="space-y-2" aria-labelledby="setStaffTitle">
                 <h3 id="setStaffTitle" class="text-[13px] font-bold text-gray-600 pl-1">👤 직원 계정 · 담당 넘기기</h3>
@@ -1110,7 +1114,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V194</span>
+                    <span class="text-sm text-gray-600">V196</span>
                 </div>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
@@ -6101,16 +6105,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!o || !o.n) return '<span class="text-[12px] text-gray-500">정산 넣은 개통이 없어요</span>';
             return `<b>${wonMan(o.gross / o.n)}</b> · 실마진 ${wonMan(o.real / o.n)} <span class="text-[11px] font-medium text-gray-500">(${o.n}건 평균)</span>`;
         }
+        const SETTLE_LIST_DAYS = 10;   // 💰 정산 미입력 목록은 개통 10일 안 것만 (11일째부터 빠짐 · V195)
+        function settleCutoff() { return addDaysStr(getTodayStr(), -SETTLE_LIST_DAYS); }
         function missingActs(from, to) { const out = []; customerDB.forEach(c => actsOf(c).forEach(a => { if (!a.canceled && !a.settle && a.date >= from && a.date <= to) out.push({ c, a }); })); return out.sort((x, y) => y.a.date.localeCompare(x.a.date)); }
         // 1,250만 · 3,500원 (매장 사람들 말처럼 만원 단위)
         function wonMan(n) { n = Math.round(Number(n) || 0); const a = Math.abs(n); return a >= 10000 ? `${n < 0 ? '-' : ''}${(a / 10000).toLocaleString('ko-KR', { maximumFractionDigits: a >= 10000000 ? 0 : 1 })}만` : `${n.toLocaleString('ko-KR')}원`; }
         function renderGoalRow() {
-            // 💰 정산 미입력 (👑 대표) — 이번 달 · 지난달 개통 중 정산을 안 넣은 것
+            // 💰 정산 미입력 (👑 대표) — 개통 10일 안 된 것 중 정산을 안 넣은 것 (V195: 10일 지나면 빠짐)
             const sr = document.getElementById('settleRow');
             if (sr) {
-                const ym = goalYm(), nNow = isSuperAdmin ? missingActs(`${ym}-01`, `${ym}-31`).length : 0, nPrev = isSuperAdmin ? missingActs(`${ymAdd(ym, -1)}-01`, `${ymAdd(ym, -1)}-31`).length : 0;
-                sr.classList.toggle('hidden', !(nNow + nPrev)); sr.classList.toggle('flex', !!(nNow + nPrev));
-                const st = document.getElementById('settleRowText'); if (st) st.innerHTML = `💰 <b>정산 미입력 ${nNow}건</b> (이번 달)${nPrev ? ` · 지난달 ${nPrev}건` : ''} · 눌러서 입력`;
+                const n = isSuperAdmin ? missingActs(settleCutoff(), '9999-12-31').length : 0;
+                sr.classList.toggle('hidden', !n); sr.classList.toggle('flex', !!n);
+                const st = document.getElementById('settleRowText'); if (st) st.innerHTML = `💰 <b>정산 미입력 ${n}건</b> (최근 ${SETTLE_LIST_DAYS}일) · 눌러서 입력`;
             }
             const row = document.getElementById('goalRow'); if (!row) return;
             const G = goalOf(), A = goalActuals(), me = getStaffName();
@@ -6197,6 +6203,87 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         document.getElementById('goalRow').addEventListener('click', () => openGoalSheet());
 
+        /* =====================================================================
+           📺 유선 개통 점검 (V196) — 예전 개통보고·개통등록의 '인터넷+TV' 칸에 적기만 해도 그날 유선 개통(동시)으로 잡히던 것 정리
+           · 후보: 무선 개통과 같은 날 · 거래처·정산 없음 · 홈상품 등록 아님 · 아직 안 본 것
+           · [개통 아님] → 개통 수(동시)·매출·정산 미입력에서 빠짐 (개통 기록엔 '📺 개통 아님'으로 남음 · 인터넷 정보·유선 약정일은 그대로 · 되돌리기 가능)
+           · [진짜 개통] → 목록에서만 빠짐
+           ===================================================================== */
+        function isWiredSuspect(a, acts) {
+            if (!a || a.kind !== '유선' || a.canceled || a.reviewed || a.settle || String(a.store || '').trim() || a.src === '홈상품') return false;
+            return acts.some(x => !x.canceled && x.kind !== '유선' && x.date === a.date);
+        }
+        function wiredSuspects() {
+            const out = [];
+            customerDB.forEach(c => { const acts = actsOf(c); acts.forEach(a => { if (isWiredSuspect(a, acts)) out.push({ c, a, m: acts.find(x => !x.canceled && x.kind !== '유선' && x.date === a.date) }); }); });
+            return out.sort((x, y) => y.a.date.localeCompare(x.a.date) || String(x.c.name || '').localeCompare(String(y.c.name || ''), 'ko'));
+        }
+        async function wiredReviewMark(cid, date, notSale) {
+            const now = new Date(), who = getStaffName() || '';
+            return txCustomerUpdate(cid, (cur) => {
+                const list = storableActs(actsOf(cur));
+                const t = list.find(x => x.kind === '유선' && x.date === date && !x.canceled && !x.reviewed && !x.settle);
+                if (!t) return {};
+                if (notSale) Object.assign(t, { canceled: true, notSale: true, cancelAt: now.toISOString(), cancelBy: who });
+                else t.reviewed = true;
+                const patch = { acts: list, updatedAt: now.toISOString() };
+                if (notSale) patch.memo = appendLine(cur.memo, `[유선 개통 아님 ${date.slice(5).replace('-', '/')}] ${t.device || '인터넷·TV'} — 인터넷+TV 칸 정보 (${now.getMonth() + 1}/${now.getDate()} ${who} 정리)`);
+                return patch;
+            });
+        }
+        async function wiredReviewOne(cid, date, notSale, after) {
+            const c = customerDB.find(x => x.id === cid);
+            if (!isSuperAdmin) return customAlert('유선 개통 점검은 👑 대표만 할 수 있어요.');
+            if (notSale && !(await customConfirm(`${c && c.name ? c.name + '님 ' : ''}${stockMD(date)} 유선 개통을 '개통 아님'으로 정리할까요?\n\n· 개통 수(동시)·매출·정산 미입력에서 빠져요\n· 인터넷·TV 정보와 유선 약정일은 그대로예요\n· 고객카드 개통 기록에서 되돌릴 수 있어요`))) return;
+            try {
+                const patch = await wiredReviewMark(cid, date, notSale);
+                if (c && patch && Object.keys(patch).length) Object.assign(c, patch);   // 화면은 바로 (실시간 신호가 곧 다시 옴)
+                stockToast(notSale ? '📺 유선 개통 아님으로 정리했어요' : '✓ 진짜 개통으로 표시했어요');
+                renderGoalRow(); if (currentProfileId === cid) try { renderProfileCard(); } catch (e) { /* 무시 */ }
+                if (after) after();
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        function openWiredReview() {
+            if (!isSuperAdmin) return customAlert('유선 개통 점검은 👑 대표만 할 수 있어요.');
+            let sh = document.getElementById('wiredReviewSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'wiredReviewSheet';
+                sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', async e => {
+                    if (e.target === sh || e.target.closest('[data-wr-close]')) { sh.remove(); return; }
+                    const op = e.target.closest('[data-wr-open]'); if (op) { sh.remove(); window.openProfileCard(op.dataset.wrOpen); return; }
+                    const b = e.target.closest('[data-wr]'); if (b) { const [cid, date, kind] = b.dataset.wr.split('|'); wiredReviewOne(cid, date, kind === 'no', () => openWiredReview()); return; }
+                    if (e.target.closest('[data-wr-all]')) {
+                        const L = wiredSuspects();
+                        if (!L.length || !(await customConfirm(`${L.length}건을 모두 '유선 개통 아님'으로 정리할까요?\n\n· 개통 수(동시)·매출·정산 미입력에서 빠져요\n· 인터넷·TV 정보와 유선 약정일은 그대로예요\n· 하나씩 되돌리기는 고객카드 → 개통 기록에서`))) return;
+                        let ok = 0, fail = 0;
+                        for (const { c, a } of L) {
+                            showUploadToast(`📺 정리하는 중… ${ok + fail + 1} / ${L.length}`);
+                            try { const patch = await wiredReviewMark(c.id, a.date, true); if (patch && Object.keys(patch).length) Object.assign(c, patch); ok++; } catch (err) { fail++; console.error(err); }
+                        }
+                        hideUploadToast(); renderGoalRow(); openWiredReview();
+                        customAlert(`📺 ${ok}건을 '유선 개통 아님'으로 정리했어요.${fail ? `\n${fail}건은 저장하지 못했어요. 인터넷 연결을 확인하고 다시 해주세요.` : ''}`);
+                    }
+                });
+                document.body.appendChild(sh);
+            }
+            const L = wiredSuspects(), byMonth = new Map();
+            L.forEach(x => { const k = x.a.date.slice(0, 7); if (!byMonth.has(k)) byMonth.set(k, []); byMonth.get(k).push(x); });
+            const row = ({ c, a, m }) => `<li class="py-2.5 border-b border-gray-100">
+                    <button type="button" data-wr-open="${escapeHtml(c.id)}" class="w-full text-left"><b class="text-[15px] text-gray-900">${escapeHtml(c.name || '이름 없음')}</b> <span class="text-[13px] text-gray-500">${stockMD(a.date)} · ${escapeHtml(actStaffKey(a, c))}</span>
+                        <span class="block text-[13px] text-sky-800 truncate">📺 ${escapeHtml(a.device || a.plan || '인터넷·TV')}</span>
+                        <span class="block text-xs text-gray-500 truncate">같은 날 무선: ${escapeHtml([m && (m.device || m.plan), m && m.store].filter(Boolean).join(' · ') || '개통')} · 거래처·정산 없음</span></button>
+                    <div class="grid grid-cols-2 gap-1.5 mt-1.5"><button type="button" data-wr="${escapeHtml(c.id)}|${a.date}|ok" class="h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">진짜 개통 맞음</button><button type="button" data-wr="${escapeHtml(c.id)}|${a.date}|no" class="h-10 rounded-xl bg-sky-600 text-white text-[13px] font-bold">📺 개통 아님</button></div></li>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">📺 유선 개통 점검 <span class="text-sky-700">${L.length}건</span></p><p class="text-xs text-gray-600 leading-relaxed">예전엔 개통등록(개통보고)의 <b>인터넷+TV</b> 칸에 적기만 해도 그날 유선 개통(동시)으로 잡혔어요. <b>무선 개통과 같은 날</b>이고 <b>거래처·정산이 없는</b> 유선 개통을 모았어요. 고객이 쓰던 인터넷·TV(결합용)였다면 <b>[개통 아님]</b>을 눌러주세요.</p></div><button type="button" data-wr-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl flex-shrink-0" aria-label="닫기">✕</button></div>
+                <div class="rounded-xl bg-sky-50 border border-sky-200 px-3 py-2 text-[12px] text-sky-900 leading-relaxed"><b>📺 개통 아님</b> → 개통 수(동시)·매출·정산 미입력에서 빠져요. 인터넷·TV 정보와 유선 약정일은 그대로, 고객카드 개통 기록엔 '📺 개통 아님'으로 남고 되돌릴 수 있어요.<br><b>진짜 개통 맞음</b> → 목록에서만 빠져요 (정산은 고객카드에서 넣어요).</div>
+                ${L.length ? `<button type="button" data-wr-all class="w-full h-11 rounded-xl border-2 border-sky-600 text-sky-800 text-sm font-bold">전부 개통 아님으로 (${L.length}건)</button>` : ''}
+                ${L.length ? [...byMonth.entries()].map(([ym, list]) => `<p class="text-xs font-bold text-gray-500 pt-1">${ym.slice(0, 4) !== goalYm().slice(0, 4) ? ym.slice(2, 4) + '년 ' : ''}${Number(ym.slice(5))}월 · ${list.length}건</p><ul>${list.map(row).join('')}</ul>`).join('') : '<p class="py-8 text-center text-sm text-gray-500">점검할 유선 개통이 없어요 👍</p>'}
+                <p class="text-xs text-gray-500 leading-relaxed">유선 약정일이 그날(무선 개통일)로 바뀌어 있을 수 있어요. 실제 약정일을 알면 고객 정보 [수정] → 유선 약정일에서 고쳐주세요 (유선 만료 대상이 정확해져요). V195부터는 체크해야만 동시개통으로 잡혀요.</p>
+                <button type="button" data-wr-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
+        }
+        document.getElementById('wiredReviewBtn').addEventListener('click', openWiredReview);
+
         /* 💰 정산 미입력 (👑 대표) → 한 건씩 바로 입력 · 고객카드 개통 기록의 [정산 입력]도 같은 창 */
         function openSettleSheet() {
             let sh = document.getElementById('settleSheet');
@@ -6205,15 +6292,21 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
                 sh.addEventListener('click', e => {
                     if (e.target === sh || e.target.closest('[data-st-close]')) { sh.remove(); return; }
+                    if (e.target.closest('[data-st-wired-all]')) { sh.remove(); openWiredReview(); return; }
+                    const w = e.target.closest('[data-st-wired]'); if (w) { const [cid, date] = w.dataset.stWired.split('|'); wiredReviewOne(cid, date, true, () => openSettleSheet()); return; }
                     const b = e.target.closest('[data-st-act]'); if (b) openActSettle(b.dataset.stCid, b.dataset.stAct, true);
                 });
                 document.body.appendChild(sh);
             }
-            const ym = goalYm(), pm = ymAdd(ym, -1);
-            const sec = (label, list) => `<p class="text-xs font-bold text-gray-500 pt-1">${label} · ${list.length}건</p>${list.length ? list.map(({ c, a }) => `<button type="button" data-st-cid="${escapeHtml(c.id)}" data-st-act="${escapeHtml(a.id)}" class="w-full text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><b class="block text-[15px] text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')} <span class="text-[13px] font-medium text-gray-500">${stockMD(a.date)} · ${a.kind}</span></b><span class="block text-xs text-gray-600 truncate">${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</span></span><span class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center">입력</span></button>`).join('') : '<p class="text-sm text-gray-500 py-2">없어요 👍</p>'}`;
+            const ym = goalYm(), cut = settleCutoff(), list = missingActs(cut, '9999-12-31');
+            const old = missingActs(`${ym}-01`, addDaysStr(cut, -1)).length;   // 이번 달 중 10일 지난 미입력 (목록에선 빠짐)
+            const susp = isSuperAdmin ? wiredSuspects() : [], suspKey = new Set(susp.map(x => `${x.c.id}|${x.a.date}`));
+            const sec = (label, list) => `<p class="text-xs font-bold text-gray-500 pt-1">${label} · ${list.length}건</p>${list.length ? list.map(({ c, a }) => `<div class="flex items-stretch gap-1.5"><button type="button" data-st-cid="${escapeHtml(c.id)}" data-st-act="${escapeHtml(a.id)}" class="flex-1 min-w-0 text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><b class="block text-[15px] text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')} <span class="text-[13px] font-medium text-gray-500">${stockMD(a.date)} · ${a.kind}</span></b><span class="block text-xs text-gray-600 truncate">${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</span></span><span class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center">입력</span></button>${a.kind === '유선' && suspKey.has(`${c.id}|${a.date}`) ? `<button type="button" data-st-wired="${escapeHtml(c.id)}|${a.date}" class="flex-shrink-0 w-[68px] rounded-xl border border-sky-300 bg-sky-50 text-[12px] font-bold text-sky-800 leading-tight">📺<br>개통 아님</button>` : ''}</div>`).join('') : '<p class="text-sm text-gray-500 py-2">없어요 👍</p>'}`;
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-2">
-                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">💰 정산 미입력</p><p class="text-xs text-gray-600">직원 폰(정산 숨김)에서 등록했거나 정산 칸을 비워 둔 개통이에요. 넣어야 매출 목표에 들어가요.</p></div><button type="button" data-st-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
-                ${sec(`${Number(ym.slice(5))}월`, missingActs(`${ym}-01`, `${ym}-31`))}${sec(`${Number(pm.slice(5))}월`, missingActs(`${pm}-01`, `${pm}-31`))}
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">💰 정산 미입력</p><p class="text-xs text-gray-600">직원 폰(정산 숨김)에서 등록했거나 정산 칸을 비워 둔 개통이에요. 넣어야 매출 목표에 들어가요. 개통 ${SETTLE_LIST_DAYS}일이 지나면 목록에서 빠져요.</p></div><button type="button" data-st-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                ${susp.length ? `<button type="button" data-st-wired-all class="w-full text-left rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-bold text-sky-900">📺 인터넷+TV 칸 때문에 잡힌 것 같은 유선 개통 ${susp.length}건 → 점검</button>` : ''}
+                ${sec(`최근 ${SETTLE_LIST_DAYS}일 (${stockMD(cut)}~)`, list)}
+                ${old ? `<p class="text-xs text-gray-500 leading-relaxed pt-1">이번 달 중 ${SETTLE_LIST_DAYS}일 지난 미입력 ${old}건은 목록에서 빠졌어요 (매출엔 아직 안 들어가요). 넣으려면 고객카드 → 📜 개통 기록 → [정산 입력].</p>` : ''}
                 <button type="button" data-st-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800 mt-2">닫기</button></div>`;
         }
         document.getElementById('settleRow').addEventListener('click', openSettleSheet);
@@ -6309,12 +6402,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             } catch (err) { customAlert(koreanError(err, '저장')); }
         }
         async function restoreAct(cid, aid) {
-            if (!(await customConfirm('취소한 개통을 되살릴까요? (매출·개통 수에 다시 들어가요)'))) return;
+            const a0 = actsOf(customerDB.find(x => x.id === cid)).find(x => x.id === aid);
+            if (!(await customConfirm(a0 && a0.notSale ? '이 유선을 다시 개통으로 셀까요? (동시 개통 수에 다시 들어가요)' : '취소한 개통을 되살릴까요? (매출·개통 수에 다시 들어가요)'))) return;
             try {
                 await txCustomerUpdate(cid, (cur) => {
                     const list = storableActs(actsOf(cur));
                     const t = list.find(x => x.id === aid); if (!t || !t.canceled) return {};
-                    delete t.canceled; delete t.cancelAt; delete t.cancelBy;
+                    if (t.notSale) t.reviewed = true;   // 📺 '개통 아님'을 되돌리면 진짜 개통으로 (점검 목록에 다시 안 나옴)
+                    delete t.canceled; delete t.cancelAt; delete t.cancelBy; delete t.notSale;
                     const patch = { acts: list, updatedAt: new Date().toISOString() };
                     if (t.kind !== '유선' && (!cur.activationDate || t.date > cur.activationDate)) patch.activationDate = t.date;
                     if (t.kind === '유선' && (!cur.wiredDate || t.date > cur.wiredDate)) patch.wiredDate = t.date;
@@ -7425,6 +7520,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { const ol = document.getElementById('ownerLockChk'); if (ol) ol.checked = ownerLockOn(); }
             { const ap = document.getElementById('actProtectChk'); if (ap) ap.checked = actProtectOn(); }
             { const pa = document.getElementById('prospectAutoChk'); if (pa) pa.checked = appSettings.prospectAutoOff !== true; }
+            { const wb = document.getElementById('wiredReviewBtn'); if (wb) { wb.classList.toggle('hidden', !isSuperAdmin); wb.classList.toggle('flex', !!isSuperAdmin); const n = isSuperAdmin ? wiredSuspects().length : 0; document.getElementById('wiredReviewCount').textContent = n ? `${n}건` : '· 없음 👍'; } }   // 📺 V196
             try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
             { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
             { const ds = document.getElementById('daySumChk'); if (ds) ds.checked = appSettings.daySumOn === true; const dt = document.getElementById('daySumTime'); if (dt && document.activeElement !== dt) dt.value = /^\d{2}:\d{2}$/.test(String(appSettings.daySumTime || '')) && [...dt.options].some(o => o.value === appSettings.daySumTime) ? appSettings.daySumTime : '20:30'; }
@@ -15591,6 +15687,7 @@ familyStr + `\n` +
                     ${arIn('ar-address', '주소', c.repAddress || c.address || '', { span: true })}
                     <div data-tg="ar-tg-net" class="col-span-2 grid grid-cols-2 gap-2 ${tgNet ? '' : 'hidden'}">
                         ${arIn('ar-inttv', '인터넷+TV', prefIntTv, { span: true, ph: '예) 기가 500M + 베이직' })}
+                        <label id="ar-itv-new-wrap" class="col-span-2 hidden items-start gap-2 rounded-xl bg-sky-50 border border-sky-200 px-2.5 py-2 text-[13px] text-gray-800 cursor-pointer"><input type="checkbox" id="ar-itv-new" class="mt-0.5 w-5 h-5 accent-indigo-600 flex-shrink-0"><span><b>오늘 같이 새로 개통한 인터넷·TV예요</b> → 동시개통으로 세고 유선 약정일을 오늘로<span class="block text-xs text-gray-600">쓰고 계시던 인터넷·TV(결합용)면 체크하지 마세요 · 체크하면 유선 만료일이 오늘부터 다시 계산돼요</span></span></label>
                     </div>
                     <label data-tg="ar-tg-fam" class="col-span-2 block ${tgFam ? '' : 'hidden'}"><span class="block text-xs font-bold text-gray-600 mb-1">가족정보</span><textarea id="ar-family" rows="2" placeholder="예) 배우자 홍길순 010-0000-0000" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white">${escapeHtml(c.repFamily || '')}</textarea></label>
                     <div id="ar-legal" data-tg="ar-minor" class="col-span-2 grid grid-cols-2 gap-2 ${legalOn ? '' : 'hidden'}">${arIn('ar-legal-name', '법정대리인 이름', c.legalName || '')}${arIn('ar-legal-phone', '법정대리인 연락처', c.legalPhone || '', { type: 'tel' })}${arIn('ar-legal-dob', '법정대리인 생년월일', formatDob(c.legalDob || ''), { ph: '1970-01-01', span: true })}</div>
@@ -15692,6 +15789,13 @@ familyStr + `\n` +
                 arRecalc();
             }));
             body.querySelectorAll('input, select').forEach(el => el.addEventListener('change', arRecalc));
+            {   // 📺 인터넷+TV를 새로 적으면 '오늘 새로 개통했나요?' 체크 보이기 (V195)
+                const itvEl = document.getElementById('ar-inttv'), itvWrap = document.getElementById('ar-itv-new-wrap'), itvChk = document.getElementById('ar-itv-new');
+                if (itvEl && itvWrap && itvChk) {
+                    const syncItv = () => { const v = itvEl.value.trim(), on = !!v && v !== '-' && v !== arPrefill.intTv; itvWrap.classList.toggle('hidden', !on); itvWrap.classList.toggle('flex', on); if (!on) itvChk.checked = false; };
+                    itvEl.addEventListener('input', syncItv); syncItv();
+                }
+            }
             const carEl = document.getElementById('ar-carrier');
             if (carEl) carEl.addEventListener('change', () => { if (arMode === 'mobile') { if (arPlanSrc !== 'user') arSetPlanKeep(arDefaultPlanCode()); arPrevFill(); } arRecalc(); });
             const minor = document.getElementById('ar-minor');
@@ -15916,7 +16020,8 @@ familyStr + `\n` +
             const r = arCalc();
             const now = new Date().toISOString(), today = getTodayStr();
             const upd = { updatedAt: now };
-            let note, usimNewId = null, keepLatest = false;
+            let note, usimNewId = null, keepLatest = false, freshAct = false;
+            const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
             if (isM) {
                 const usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;   // 유심만 개통이면 단말기 칸은 안 씀
                 const d = arVal('ar-date'), model = usimOnly ? '' : arVal('ar-model');
@@ -15944,7 +16049,8 @@ familyStr + `\n` +
                 });
                 // 인터넷+TV · 결합: 미리 채운 그대로면 기존 정보 유지, 바꿨으면 새로
                 const itv = arVal('ar-inttv');
-                if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', wiredDate: d });
+                // (V195) 예전엔 적기만 해도 유선 약정일이 개통일로 바뀌어 '동시개통'·정산 미입력(유선)으로 잡혔음 → '오늘 새로 개통' 체크했을 때만
+                if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', ...((document.getElementById('ar-itv-new') || {}).checked ? { wiredDate: d } : {}) });
                 const cmb = arVal('ar-comb');
                 if (cmb && cmb !== arPrefill.combo) Object.assign(upd, { combination: cmb, welfare: '' });
                 if (model) Object.assign(upd, {
@@ -15961,6 +16067,8 @@ familyStr + `\n` +
                 const dayActs = prevActs.filter(a => a.kind !== '유선' && a.date === d);
                 const actTarget = arActTarget || arAutoTarget(dayActs);   // V193: 같은 날이라도 기종이 다르면 따로
                 const sameAct = actTarget && actTarget !== 'new' ? dayActs.find(a => a.id === actTarget) || null : null;
+                freshAct = !sameAct;   // 새 개통 → 그 개통 칸(부가·보험·미비서류·중고폰·월요금…)은 이번 값으로 (V195)
+                if (freshAct) { if (!(arNum('ar-planfee') > 0)) upd.planFee = ''; if (!(arNum('ar-targetfee') > 0)) upd.targetPlanFee = ''; if (!arUsedPhone()) upd.usedPhone = null; }
                 const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
                 const usimHit = arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null;
                 if (usimHit && !(sameAct && sameAct.usimStockId)) usimNewId = usimHit.id;
@@ -16024,7 +16132,7 @@ familyStr + `\n` +
             upd.repManager = isM ? (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager')) : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
-                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare') delete upd[k]; });
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (cur.deletedAt) upd.deletedAt = '';
                 if (cur.name && cur.name !== upd.name && !(await customConfirm(`기존 이름 '${cur.name}'을(를) '${upd.name}'(으)로 바꿀까요?`))) upd.name = cur.name;
@@ -16697,11 +16805,11 @@ familyStr + `\n` +
             }
             if (acts.length) {
                 h += `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">📜 개통 기록 ${acts.length}건 <span class="font-medium">(개통일이 다르면 따로 남아요)</span></p>${acts.slice().reverse().map(a => { const sv = actSales(a); return `<div class="py-2 border-b border-gray-100 last:border-b-0">
-                    <div class="flex items-center gap-1.5"><span class="text-[14px] font-bold ${a.canceled ? 'text-gray-400 line-through' : 'text-gray-900'}">${ymd2(a.date)} · ${a.kind}${a.actType ? ' ' + escapeHtml(a.actType) : ''}</span>${a.canceled ? `<span class="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5">취소됨${a.cancelBy ? ' · ' + escapeHtml(a.cancelBy) : ''}</span>` : ''}${a.src === '폰클' ? '<span class="text-[10px] font-bold text-gray-500 border border-gray-200 rounded px-1">폰클</span>' : ''}<span class="ml-auto text-xs text-gray-500 truncate">${escapeHtml(actStaffKey(a, c))}</span></div>
+                    <div class="flex items-center gap-1.5"><span class="text-[14px] font-bold ${a.canceled ? 'text-gray-400 line-through' : 'text-gray-900'}">${ymd2(a.date)} · ${a.kind}${a.actType ? ' ' + escapeHtml(a.actType) : ''}</span>${a.canceled ? (a.notSale ? `<span class="text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5">📺 개통 아님 (인터넷·TV 정보)</span>` : `<span class="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5">취소됨${a.cancelBy ? ' · ' + escapeHtml(a.cancelBy) : ''}</span>`) : ''}${a.src === '폰클' ? '<span class="text-[10px] font-bold text-gray-500 border border-gray-200 rounded px-1">폰클</span>' : ''}<span class="ml-auto text-xs text-gray-500 truncate">${escapeHtml(actStaffKey(a, c))}</span></div>
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
-                        <span class="ml-auto flex gap-1">${money && isSuperAdmin && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ 되살리기</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
+                        <span class="ml-auto flex gap-1">${money && isSuperAdmin && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
                 </div>`; }).join('')}</div>`;
             }
             h += buildDocFilesHtml(c);
@@ -16715,6 +16823,10 @@ familyStr + `\n` +
             if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
             if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
             if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
+        });
+        profileModal.addEventListener('click', (ev) => {   // 📺 V196
+            const w = ev.target.closest('[data-paction="wirednot"]');
+            if (w && currentProfileId) wiredReviewOne(currentProfileId, w.dataset.date, true);
         });
         profileModal.addEventListener('click', (ev) => {
             const b = ev.target.closest('[data-paction="actreg"]');
@@ -18142,7 +18254,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V194';
+        const APP_VER = 'V196';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
