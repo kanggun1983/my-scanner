@@ -1000,6 +1000,10 @@
                     <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">⏳ 진행중·방문약속 31일 뒤 '미정'으로</span><span class="text-[13px] text-gray-600 leading-snug">영업상태를 바꾼 날(또는 마지막 연락한 날)부터 31일 동안 진행이 없으면 자동으로 '미정'. 앞으로 잡힌 약속이 있으면 그대로 둬요</span></span>
                     <input type="checkbox" id="prospectAutoChk" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                 </label>
+                <button type="button" id="editLogBtn" class="hidden w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">📝 고객카드 변경 기록 <span id="editLogCount" class="text-sm font-bold text-red-700"></span></span><span class="text-[13px] text-gray-600 leading-snug">누가 남의 고객 담당자 · 개통자를 바꿨는지, 메모·연락 기록을 지웠는지 매장 전체를 한눈에 (👑 대표)</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
                 <button type="button" id="wiredReviewBtn" class="hidden w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 items-center justify-between gap-3 text-left hover:bg-gray-50">
                     <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">📺 유선 개통 점검 <span id="wiredReviewCount" class="text-sm font-bold text-amber-700"></span></span><span class="text-[13px] text-gray-600 leading-snug">개통등록(개통보고) '인터넷+TV' 칸에 적기만 해서 유선(동시) 개통으로 잡힌 것 같은 건을 찾아 정리해요 (👑 대표)</span></span>
                     <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
@@ -1114,7 +1118,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V196</span>
+                    <span class="text-sm text-gray-600">V197</span>
                 </div>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
@@ -3219,7 +3223,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, arrayUnion, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -3281,11 +3285,79 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 👤 고객카드에 약속을 새로 잡거나 날짜를 바꾸면 '누가 잡았는지'(prom○○By)와 고친 사람(updatedBy)을 같이 저장
         //    → 목록 카드에 '임호규 등록'처럼 보여서 두 사람이 같은 고객에게 겹쳐 약속하는 걸 막음
         function refCol(ref) { return ref ? (ref.parent ? ref.parent.id : ref.col) : ''; }
+        /* =====================================================================
+           📝 고객카드 변경 이력 (V197) — 누가 · 언제 · 어디서 · 무엇을(전 → 후) 바꿨는지 고객마다 editLog에 남김 (앱에선 지울 수 없음)
+           · 담당자 · 개통자 · 등록한 직원이 바뀌면 '담당 변경'(o)으로 빨갛게 → 👑 설정에서 매장 전체를 한눈에
+           · 메모 · 연락 기록은 '지운 줄'이 있을 때만 남김 (이어 쓰기는 안 남김) · 자동 처리는 '자동'
+           · 고객마다 최근 60건 (80건이 되면 오래된 것부터 정리)
+           ===================================================================== */
+        const AUDIT_FIELDS = { name: '이름', dob: '생년월일', carrier: '통신사', device: '단말기', plan: '요금제', activationDate: '개통일', openStore: '개통점', salesStatus: '영업상태', manager: '담당자', repManager: '개통자', wiredRepManager: '홈상품 개통자', regBy: '등록한 직원', regDate: '등록일', regStore: '등록점', installment: '할부', installment2: '이중할부', discountType: '할인', wiredDate: '유선 약정일', internetProd: '인터넷·TV', legalName: '법정대리인', lockOff: '함께 관리', marketingDeny: '마케팅 거부' };
+        const AUDIT_OWN = new Set(['manager', 'repManager', 'wiredRepManager', 'regBy']);
+        const AUDIT_LINES = { memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', contactHistory: '연락 기록', repFamily: '가족 정보' };
+        const EDITLOG_MAX = 80, EDITLOG_KEEP = 60;
+        function auditVal(k, v) {
+            if (v === undefined || v === null || v === false) return '';
+            if (k === 'salesStatus') { const st = String(v).startsWith('가망') ? '가망고객' : String(v); return ({ 미정: '미정', 가망고객: '진행중', 방문약속: '방문약속', 판매성공: '개통완료', 고객거부: '고객거부' })[st] || st; }
+            if (v === true) return '켬';
+            if (typeof v === 'object') return JSON.stringify(v);
+            return String(v).trim();
+        }
+        function auditCut(v) { const t = String(v || '').replace(/\s+/g, ' ').trim(); return t.length > 60 ? t.slice(0, 59) + '…' : t; }
+        function auditActsDiff(oldList, newList, out) {
+            const md = (d) => String(d || '').slice(5).replace('-', '/');
+            const desc = (a) => [md(a.date), a.kind, a.device || a.plan].filter(Boolean).join(' ');
+            const byId = new Map(oldList.map(a => [a.id, a]));
+            newList.forEach(a => {
+                if (!a || !a.id) return;
+                const o = byId.get(a.id);
+                if (!o) { out.push({ l: '개통 기록 추가', f: '', t: auditCut(`${desc(a)} · 개통자 ${a.staff || '-'}`) }); return; }
+                if (managerKey(o.staff || '') !== managerKey(a.staff || '')) out.push({ l: `개통자 (${md(a.date)} ${a.kind})`, f: o.staff || '', t: a.staff || '', o: 1 });
+                if (!o.canceled && a.canceled) out.push({ l: a.notSale ? `유선 개통 아님 (${md(a.date)})` : `개통 취소 (${auditCut(desc(a))})`, f: '', t: '' });
+                if (o.canceled && !a.canceled) out.push({ l: `개통 되살림 (${auditCut(desc(a))})`, f: '', t: '' });
+                if (JSON.stringify(o.settle || null) !== JSON.stringify(a.settle || null)) out.push({ l: `정산 ${o.settle ? '고침' : '입력'} (${md(a.date)} ${a.kind})`, f: '', t: '' });
+            });
+        }
+        function auditEntryFor(ref, data) {
+            if (refCol(ref) !== 'smart_customers' || !data || typeof data !== 'object') return null;
+            const cur = (typeof customerDB !== 'undefined' && (customerDB.find(x => x.id === ref.id) || (typeof trashDB !== 'undefined' && trashDB.find(x => x.id === ref.id)))) || null;
+            const src = typeof data.__audit === 'string' ? data.__audit : '';
+            const by = (src === '자동' || data.updatedBy === '자동') ? '자동' : (getStaffName() || '이름 없음');
+            const c = [];
+            if (!cur) {
+                if (data.regDate && !Array.isArray(data.editLog)) c.push({ l: '새로 등록', f: '', t: auditCut([data.name, data.regBy || data.manager].filter(Boolean).join(' · ')) });
+            } else {
+                Object.entries(AUDIT_FIELDS).forEach(([k, label]) => {
+                    if (!(k in data)) return;
+                    const f = auditVal(k, cur[k]), t = auditVal(k, data[k]);
+                    if (f === t || (AUDIT_OWN.has(k) && managerKey(f) === managerKey(t))) return;
+                    c.push({ l: label, f: auditCut(f), t: auditCut(t), ...(AUDIT_OWN.has(k) ? { o: 1 } : {}) });
+                });
+                if ('deletedAt' in data && !!data.deletedAt !== !!cur.deletedAt) c.push({ l: data.deletedAt ? '🗑️ 휴지통으로 옮김' : '♻️ 휴지통에서 되살림', f: '', t: '' });
+                Object.entries(AUDIT_LINES).forEach(([k, label]) => {
+                    if (!(k in data) || typeof data[k] !== 'string') return;
+                    const keep = new Set(data[k].split('\n').map(x => x.trim()).filter(Boolean));
+                    const gone = String(cur[k] || '').split('\n').map(x => x.trim()).filter(x => x && !keep.has(x));
+                    if (gone.length) c.push({ l: `${label} ${gone.length}줄 지움`, f: auditCut(gone[0]), t: '', d: 1 });
+                });
+                if (Array.isArray(data.acts)) auditActsDiff(actsOf(cur), data.acts, c);
+            }
+            if (!c.length) return null;
+            return { at: new Date().toISOString(), by, ...(src && src !== '자동' ? { src } : {}), c: c.slice(0, 12) };
+        }
+        function editLogOf(c) { return (Array.isArray(c && c.editLog) ? c.editLog : []).filter(e => e && e.at && Array.isArray(e.c)); }
         function stampCustomerWrite(ref, data) {
             if (!data || typeof data !== 'object' || refCol(ref) !== 'smart_customers') return data;
             const me = getStaffName();
             const cur = (typeof customerDB !== 'undefined' && customerDB.find(x => x.id === ref.id)) || {};
             const out = { ...data };
+            delete out.__audit;
+            try {   // 📝 변경 이력 (V197)
+                const audit = auditEntryFor(ref, data);
+                if (audit) {
+                    const base = Array.isArray(data.editLog) ? data.editLog : editLogOf(cur);
+                    out.editLog = (Array.isArray(data.editLog) || base.length >= EDITLOG_MAX) ? [...base.slice(-(EDITLOG_KEEP - 1)), audit] : arrayUnion(audit);
+                }
+            } catch (e) { console.warn('변경 이력 만들기 실패', e); }
             Object.keys(data).forEach(k => {
                 const m = /^prom([A-Za-z0-9]+)Date$/.exec(k);
                 if (!m || (`prom${m[1]}By` in data)) return;
@@ -3371,10 +3443,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     lines.sort((a, b) => { const sa = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(a) || [])[1] || '', sb = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(b) || [])[1] || ''; return sa < sb ? -1 : (sa > sb ? 1 : 0); });
                     out[k] = lines.join('\n'); return;
                 }
-                if (k === 'smsLog') {
+                if (k === 'smsLog' || k === 'editLog') {
                     const all = [...(Array.isArray(o) ? o : []), ...(Array.isArray(p) ? p : [])];
                     const seen = new Set();
-                    out[k] = all.filter(x => { const key = JSON.stringify(x); if (seen.has(key)) return false; seen.add(key); return true; }).sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).slice(-20);
+                    out[k] = all.filter(x => { const key = JSON.stringify(x); if (seen.has(key)) return false; seen.add(key); return true; }).sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).slice(k === 'editLog' ? -EDITLOG_KEEP : -20);
                     return;
                 }
                 if (k === 'docCount' || k === 'missedCalls') { out[k] = (Number(p) || 0) + (Number(o) || 0); return; }
@@ -3869,7 +3941,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!db || !dbLoaded || !settingsLoaded || cardSendMigrating || appSettings.cardSendStatusMigrated === true) return;   // 고객·매장 설정이 둘 다 도착한 뒤에만
             cardSendMigrating = true;
             const targets = customerDB.filter(c => c.salesStatus === '가망고객' && String(c.memo || '').includes('명함 보내기로 등록'));
-            Promise.all(targets.map(c => saveDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString() }, { merge: true })))
+            Promise.all(targets.map(c => saveDoc(doc(db, 'smart_customers', c.id), { salesStatus: '미정', updatedAt: new Date().toISOString(), __audit: '자동' }, { merge: true })))
                 .then(() => saveDoc(doc(db, 'smart_global', 'settings'), { cardSendStatusMigrated: true }, { merge: true }))
                 .then(() => { appSettings = { ...appSettings, cardSendStatusMigrated: true }; })
                 .catch(e => console.error('명함 보내기 고객 상태 바꾸기 실패:', e))
@@ -3925,6 +3997,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const two = (x) => String(x).padStart(2, '0');
                 const line = `[${now.getFullYear()}.${two(now.getMonth() + 1)}.${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}] 🔄 개통완료 후 M+6이 지나 '미정'으로 자동 변경`;
                 saveDoc(doc(db, 'smart_customers', c.id), {
+                    __audit: '자동',
                     salesStatus: '미정', salesReleasedAt: today,
                     contactHistory: c.contactHistory ? `${c.contactHistory}\n${line}` : line,
                     updatedAt: new Date().toISOString()
@@ -5110,7 +5183,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const on = !c.lockOff;
             if (!(await customConfirm(on ? `${c.name || '이 고객'}님을 '함께 관리'로 바꿀까요?\n다른 직원도 고치고 약속을 잡을 수 있어요.` : `${c.name || '이 고객'}님을 다시 잠글까요?\n담당자(${ownerOf(c)})만 고칠 수 있어요.`))) return;
             try {
-                await saveDoc(doc(db, 'smart_customers', id), { lockOff: on, updatedAt: new Date().toISOString() }, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', id), { lockOff: on, updatedAt: new Date().toISOString(), __audit: '함께 관리' }, { merge: true });
                 c.lockOff = on;
                 if (currentProfileId === id) renderProfileCard();
                 renderDB();
@@ -5501,7 +5574,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 promCallDate: finalPromCallDate, promCallMemo: finalPromCallMemo, promCallChk: finalPromCallChk,
                 
                 contactHistory: finalHistory, salesStatus: finalStatus, lastContactDate: finalLastDate, contactManager: finalContactManager,
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(), __audit: '스캔 저장'
             };
 
             try {
@@ -5596,7 +5669,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { const lc = customerDB.find(x => x.id === docId); if (lc && !(await lockGate(lc, '삭제'))) return; }
             if (!(await customConfirm("이 고객을 휴지통으로 옮길까요?\n30일 안에는 [설정 → 휴지통]에서 되살릴 수 있어요."))) return;
             try {
-                await saveDoc(doc(db, 'smart_customers', docId), { deletedAt: new Date().toISOString(), deletedBy: getStaffName(), updatedAt: new Date().toISOString() }, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', docId), { deletedAt: new Date().toISOString(), deletedBy: getStaffName(), updatedAt: new Date().toISOString(), __audit: '삭제' }, { merge: true });
             } catch (e) {
                 console.error(e);
                 return customAlert('삭제하지 못했어요. 인터넷 연결을 확인해주세요.');
@@ -5614,7 +5687,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         async function restoreFromTrash(id) {
             try {
-                await saveDoc(doc(db, 'smart_customers', id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString() }, { merge: true });
+                await saveDoc(doc(db, 'smart_customers', id), { deletedAt: '', deletedBy: '', updatedAt: new Date().toISOString(), __audit: '휴지통 복구' }, { merge: true });
                 const c = trashDB.find(x => x.id === id);
                 customAlert(`${c && c.name ? c.name + ' 고객을' : '고객을'} 되살렸어요.`);
             } catch (e) { console.error(e); customAlert('복구하지 못했어요. 인터넷 연결을 확인해주세요.'); }
@@ -5940,7 +6013,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             const to = pick.status && pick.status !== 'act' ? pick.status : '';
                             let changedTo = '';
                             await txCustomerUpdate(id, (cur) => {
-                                const out = { [key + 'Chk']: true, updatedAt: now.toISOString() };
+                                const out = { [key + 'Chk']: true, updatedAt: now.toISOString(), __audit: '오늘 할 일 ✓ 끝' };
                                 const from = String(cur.salesStatus || '미정');
                                 changedTo = to && stKeyOf(to) !== stKeyOf(from) ? to : '';
                                 if (changedTo) out.salesStatus = changedTo;
@@ -6226,7 +6299,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!t) return {};
                 if (notSale) Object.assign(t, { canceled: true, notSale: true, cancelAt: now.toISOString(), cancelBy: who });
                 else t.reviewed = true;
-                const patch = { acts: list, updatedAt: now.toISOString() };
+                const patch = { acts: list, updatedAt: now.toISOString(), __audit: '유선 개통 점검' };
                 if (notSale) patch.memo = appendLine(cur.memo, `[유선 개통 아님 ${date.slice(5).replace('-', '/')}] ${t.device || '인터넷·TV'} — 인터넷+TV 칸 정보 (${now.getMonth() + 1}/${now.getDate()} ${who} 정리)`);
                 return patch;
             });
@@ -6283,6 +6356,43 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <button type="button" data-wr-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
         }
         document.getElementById('wiredReviewBtn').addEventListener('click', openWiredReview);
+
+        /* 📝 매장 전체 변경 기록 (V197 · 👑) — 중요(담당·개통자 변경 · 지운 내용) / 전체 · 최근 60일 */
+        let editLogView = 'key';
+        function editLogRows(view = editLogView, days = 60) {
+            const from = new Date(Date.now() - days * 864e5).toISOString(), out = [];
+            [...customerDB, ...trashDB].forEach(c => editLogOf(c).forEach(e => {
+                if (e.at < from) return;
+                if (view === 'key' && !e.c.some(x => x.o || x.d)) return;
+                out.push({ c, e });
+            }));
+            return out.sort((x, y) => String(y.e.at).localeCompare(String(x.e.at)));
+        }
+        function openEditLogSheet() {
+            if (!isSuperAdmin) return customAlert('매장 전체 변경 기록은 👑 대표만 볼 수 있어요.');
+            let sh = document.getElementById('editLogSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'editLogSheet';
+                sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', e => {
+                    if (e.target === sh || e.target.closest('[data-el-close]')) { sh.remove(); return; }
+                    const v = e.target.closest('[data-el-view]'); if (v) { editLogView = v.dataset.elView; openEditLogSheet(); return; }
+                    const op = e.target.closest('[data-el-open]'); if (op) { sh.remove(); currentProfileTab = 'contact'; window.openProfileCard(op.dataset.elOpen); currentProfileTab = 'contact'; try { renderProfileCard(); } catch (err) { /* 무시 */ } }
+                });
+                document.body.appendChild(sh);
+            }
+            const rows = editLogRows(), shown = rows.slice(0, 150);
+            const byStaff = new Map(); rows.forEach(({ e }) => byStaff.set(e.by || '?', (byStaff.get(e.by || '?') || 0) + 1));
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">📝 고객카드 변경 기록</p><p class="text-xs text-gray-600">최근 60일 · 누가 무엇을 바꿨는지 (V197부터 남아요)</p></div><button type="button" data-el-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl flex-shrink-0" aria-label="닫기">✕</button></div>
+                <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100"><button type="button" data-el-view="key" class="h-9 rounded-lg text-sm font-bold ${editLogView === 'key' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-500'}">담당 변경 · 지운 내용</button><button type="button" data-el-view="all" class="h-9 rounded-lg text-sm font-bold ${editLogView === 'all' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}">전체</button></div>
+                ${byStaff.size ? `<p class="text-xs text-gray-600">${[...byStaff.entries()].sort((a, b) => b[1] - a[1]).map(([n, k]) => `${escapeHtml(n)} <b>${k}</b>`).join(' · ')}</p>` : ''}
+                <ul class="divide-y divide-gray-100">${shown.map(({ c, e }) => `<li class="py-2.5"><button type="button" data-el-open="${escapeHtml(c.id)}" class="w-full text-left"><p class="text-[12px] text-gray-500"><b class="text-gray-900 text-[14px]">${escapeHtml(c.name || '이름 없음')}</b> · 담당 ${escapeHtml(managerKey(ownerOf(c) || c.manager || '') || '없음')}${c.deletedAt ? ' · 🗑️휴지통' : ''}</p><p class="text-[12px] text-gray-500"><b class="${e.by !== '자동' && !sameStaff(e.by, managerKey(ownerOf(c) || c.manager || '')) ? 'text-orange-700' : 'text-gray-800'}">${escapeHtml(e.by || '')}</b> · ${editLogWhen(e.at)}${e.src ? ` · ${escapeHtml(e.src)}` : ''}</p><ul class="mt-0.5 space-y-0.5">${e.c.filter(x => editLogView === 'all' || x.o || x.d).map(editLogLine).join('')}</ul></button></li>`).join('') || `<li class="py-8 text-center text-sm text-gray-500">${editLogView === 'key' ? '담당 변경 · 지운 내용이 없어요 👍' : '아직 변경 기록이 없어요.'}</li>`}</ul>
+                ${rows.length > shown.length ? `<p class="text-xs text-gray-500 text-center">최근 ${shown.length}건만 보여요 (전체 ${rows.length}건)</p>` : ''}
+                <p class="text-[11px] text-gray-400 leading-relaxed">빨강 = 담당자 · 개통자 · 등록한 직원 변경 · 노랑 = 메모·연락 기록 지움 · 주황 이름 = 그 고객 담당자가 아닌 직원. 누르면 고객카드 → 연락 탭 아래 '📝 바뀐 기록'.</p>
+                <button type="button" data-el-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
+        }
+        document.getElementById('editLogBtn').addEventListener('click', openEditLogSheet);
 
         /* 💰 정산 미입력 (👑 대표) → 한 건씩 바로 입력 · 고객카드 개통 기록의 [정산 입력]도 같은 창 */
         function openSettleSheet() {
@@ -6355,7 +6465,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (t.settle && JSON.stringify(t.settle) !== JSON.stringify(settle)) { const s0 = actSales(t); t.hist = [...(t.hist || []), { at: new Date().toISOString(), by: getStaffName() || '', gross: s0.gross, real: s0.real }].slice(-5); }
                         t.settle = settle;
                         if (!W && t.used) t.used = { ...t.used, amount: r.used };
-                        const patch = { acts: list, updatedAt: new Date().toISOString() };
+                        const patch = { acts: list, updatedAt: new Date().toISOString(), __audit: '정산 입력' };
                         const lp = latestPoncle(list); if (lp) patch.poncle = lp;
                         if (W) { const lw = list.filter(x => x.kind === '유선' && !x.canceled).pop(); if (lw && lw.id === t.id) patch.wiredSettle = settle; }
                         return patch;
@@ -6381,7 +6491,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const t = list.find(x => x.id === aid) || list.find(x => x.date === a.date && x.kind === a.kind);
                     if (!t || t.canceled) return {};
                     Object.assign(t, { canceled: true, cancelAt: now.toISOString(), cancelBy: getStaffName() || '' });
-                    const patch = { acts: list, updatedAt: now.toISOString() };
+                    const patch = { acts: list, updatedAt: now.toISOString(), __audit: '개통 취소' };
                     const liveM = list.filter(x => !x.canceled && x.kind !== '유선'), liveW = list.filter(x => !x.canceled && x.kind === '유선');
                     if (t.kind !== '유선' && cur.activationDate === t.date) patch.activationDate = liveM.length ? liveM[liveM.length - 1].date : '';
                     if (t.kind === '유선' && cur.wiredDate === t.date) patch.wiredDate = liveW.length ? liveW[liveW.length - 1].date : '';
@@ -6410,7 +6520,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const t = list.find(x => x.id === aid); if (!t || !t.canceled) return {};
                     if (t.notSale) t.reviewed = true;   // 📺 '개통 아님'을 되돌리면 진짜 개통으로 (점검 목록에 다시 안 나옴)
                     delete t.canceled; delete t.cancelAt; delete t.cancelBy; delete t.notSale;
-                    const patch = { acts: list, updatedAt: new Date().toISOString() };
+                    const patch = { acts: list, updatedAt: new Date().toISOString(), __audit: '개통 되살리기' };
                     if (t.kind !== '유선' && (!cur.activationDate || t.date > cur.activationDate)) patch.activationDate = t.date;
                     if (t.kind === '유선' && (!cur.wiredDate || t.date > cur.wiredDate)) patch.wiredDate = t.date;
                     if (cur.salesStatus !== '판매성공') { patch.salesStatus = '판매성공'; patch.salesStatusAt = t.date; }
@@ -7461,7 +7571,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                                 manager: pick,
                                 ...((!cm || sameStaff(cm, old)) ? { contactManager: pick } : {}),
                                 contactHistory: appendLine(cur.contactHistory, `${stamp} 👤 담당자 변경 ${old || '없음'} → ${label} (👑 ${me})`),
-                                updatedAt: new Date().toISOString()
+                                updatedAt: new Date().toISOString(), __audit: '👑 담당자 바꾸기'
                             };
                         });
                         ok++;
@@ -7520,6 +7630,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { const ol = document.getElementById('ownerLockChk'); if (ol) ol.checked = ownerLockOn(); }
             { const ap = document.getElementById('actProtectChk'); if (ap) ap.checked = actProtectOn(); }
             { const pa = document.getElementById('prospectAutoChk'); if (pa) pa.checked = appSettings.prospectAutoOff !== true; }
+            { const eb = document.getElementById('editLogBtn'); if (eb) { eb.classList.toggle('hidden', !isSuperAdmin); eb.classList.toggle('flex', !!isSuperAdmin); const n = isSuperAdmin ? editLogRows('key', 7).length : 0; document.getElementById('editLogCount').textContent = n ? `최근 7일 ${n}건` : ''; } }   // 📝 V197
             { const wb = document.getElementById('wiredReviewBtn'); if (wb) { wb.classList.toggle('hidden', !isSuperAdmin); wb.classList.toggle('flex', !!isSuperAdmin); const n = isSuperAdmin ? wiredSuspects().length : 0; document.getElementById('wiredReviewCount').textContent = n ? `${n}건` : '· 없음 👍'; } }   // 📺 V196
             try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
             { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
@@ -8535,6 +8646,23 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }).reverse();
         }
 
+        // 📝 변경 이력 보기 (V197)
+        function editLogLine(x) {
+            const cls = x.o ? 'font-bold text-red-700' : (x.d ? 'font-bold text-amber-800' : 'text-gray-700');
+            const body = x.d ? `${escapeHtml(x.l)}${x.f ? ` <span class="font-medium text-gray-500">"${escapeHtml(x.f)}"</span>` : ''}` : (x.f || x.t ? `${escapeHtml(x.l)}: <span class="font-medium">${escapeHtml(x.f || '(없음)')}</span> → <b>${escapeHtml(x.t || '(없음)')}</b>` : escapeHtml(x.l));
+            return `<li class="text-[13px] leading-snug ${cls}">${body}</li>`;
+        }
+        function editLogWhen(at) { const d = new Date(at || ''); return isNaN(d) ? '' : `${String(d.getFullYear()).slice(2)}.${d.getMonth() + 1}.${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
+        function buildEditLogBlock(c) {
+            const L = editLogOf(c).slice().reverse();
+            const own = L.filter(e => e.c.some(x => x.o)).length, del = L.filter(e => e.c.some(x => x.d)).length;
+            const owner = managerKey(ownerOf(c) || c.manager || '');
+            return `<details class="mt-4 rounded-xl border border-gray-200 bg-white" ${L.length ? '' : ''}>
+                <summary class="min-h-[44px] px-3 py-2.5 flex items-center gap-2 cursor-pointer text-[13px] font-bold text-gray-700"><span>📝 바뀐 기록 ${L.length}건</span>${own ? `<span class="text-[11px] font-bold text-white bg-red-600 rounded px-1.5">담당 변경 ${own}</span>` : ''}${del ? `<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5">지운 내용 ${del}</span>` : ''}<span class="ml-auto text-[11px] font-medium text-gray-400">누가 · 무엇을</span></summary>
+                <div class="px-3 pb-3">${L.length ? `<ul class="divide-y divide-gray-100">${L.map(e => `<li class="py-2"><p class="text-[12px] text-gray-500"><b class="${owner && e.by !== '자동' && !sameStaff(e.by, owner) ? 'text-orange-700' : 'text-gray-800'}">${escapeHtml(e.by || '')}</b> · ${editLogWhen(e.at)}${e.src ? ` · ${escapeHtml(e.src)}` : ''}</p><ul class="mt-0.5 space-y-0.5">${e.c.map(editLogLine).join('')}</ul></li>`).join('')}</ul>` : '<p class="text-[13px] text-gray-500 py-2">아직 바뀐 기록이 없어요. (V197부터 남아요)</p>'}
+                <p class="text-[11px] text-gray-400 mt-2 leading-relaxed">담당자 · 개통자 · 등록한 직원 · 영업상태 · 개통일 · 기종 · 요금제 등을 누가 바꿨는지 남아요 (앱에서 지울 수 없어요). 메모 · 연락 기록은 지운 줄이 있을 때만. 빨강 = 담당 변경 · 주황 이름 = 담당자가 아닌 직원.</p></div>
+            </details>`;
+        }
         function buildProfileContactTab(c) {
             let html = '';
             if (c.obMemo && c.obMemo.trim()) {
@@ -8572,7 +8700,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const logs = parseContactHistory(c.contactHistory);
             html += `<p class="text-[11px] font-bold text-gray-400 mt-3 mb-1">연락 기록${logs.length ? ` ${logs.length}건` : ''}</p>`;
             if (logs.length === 0) {
-                return html + profileEmpty('fa-clock-rotate-left', '아직 연락 기록이 없어요.\n아래 [전화]·[문자]를 누르면 자동으로 기록돼요.');
+                return html + profileEmpty('fa-clock-rotate-left', '아직 연락 기록이 없어요.\n아래 [전화]·[문자]를 누르면 자동으로 기록돼요.') + buildEditLogBlock(c);
             }
             const MAX_LOGS = 50;
             const pill = (cls, text) => `<span class="px-2 py-0.5 rounded-md text-[11px] font-bold ${cls}">${text}</span>`;
@@ -8590,7 +8718,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (logs.length > MAX_LOGS) {
                 html += `<p class="text-center text-[11px] text-gray-400 pt-3">이전 기록 ${logs.length - MAX_LOGS}건은 [수정] 화면의 타임라인에서 볼 수 있어요.</p>`;
             }
-            return html;
+            return html + buildEditLogBlock(c);
         }
 
         function buildProfileActionsHtml(c) {
@@ -8824,7 +8952,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     lastContactDate: getTodayStr(),
                     contactManager: managerName,
                     missedCalls: callResultChoice === 'missed' ? (parseInt(cur.missedCalls, 10) || 0) + 1 : 0,
-                    updatedAt: now.toISOString()
+                    updatedAt: now.toISOString(), __audit: '통화 결과'
                 };
                 if (memo) update.obMemo = appendLine(cur.obMemo, `[${stamp}] ${r.label}: ${memo}`);
                 if (!lockedNow) {
@@ -10921,7 +11049,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const staff = getStaffName();
                     await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), {
                         name, phone, salesStatus: '미정', visitDate: getTodayStr(), visitPurpose: purpose, regStore: msgStoreName(), cardId, bizCardSentAt: getTodayStr(),
-                        manager: staff, contactManager: staff, memo: memoStamp ? `${memoStamp}\n명함 보내기로 등록` : '명함 보내기로 등록', regDate: getTodayStr(), regBy: staff,
+                        manager: staff, contactManager: staff, memo: memoStamp ? `${memoStamp}\n명함 보내기로 등록` : '명함 보내기로 등록', regDate: getTodayStr(), regBy: staff, __audit: '명함 보내기',
                         createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
                     }, { merge: true }));
                     closeCardSendSheet(false, true);
@@ -12156,7 +12284,8 @@ ${AI_TONES[aiSmsTone]}
                 // 📇 디지털 명함 설치 (처음 체크한 날을 기억, 체크를 풀면 지움)
                 ...('bizCardInstalled' in pick ? { bizCardInstalledAt: pick.bizCardInstalled ? (prevSales.bizCardInstalledAt || getTodayStr()) : '' } : {}),
                 ...(accChanged ? accLinkFields(prevSales, form.promAccDate, form.promAccMemo, form.promAccStore) : {}),
-                updatedAt: new Date().toISOString()
+                updatedAt: new Date().toISOString(),
+                __audit: '고객 정보 수정'
             };
             if (newId !== currentDetailId) Object.assign(updatedData, { name: newName, phone: newPhone });
             try {
@@ -12176,6 +12305,7 @@ ${AI_TONES[aiSmsTone]}
                         finalData = { ...moving, deletedAt: '', prevPhones: prevPhonesOf(oldData) };
                     }
                     // 📱 이전 번호 기록 (보이는 기록 + 찾기용 숫자)
+                    finalData.__audit = mergeTarget ? '번호 변경 · 카드 합침' : '번호 변경';
                     const prevNow = [...(finalData.prevPhones || []), { phone: formatPhone(currentDetailId), until: today, by: me }];
                     Object.assign(finalData, finalizePrevPhones(prevNow, newId));
                     finalData.contactHistory = appendLine(finalData.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 📱 번호 변경 ${formatPhone(currentDetailId)} → ${formatPhone(newId)}${mergeTarget ? ' (카드 합침)' : ''} (담당: ${me || '직원'})`);
@@ -16020,7 +16150,7 @@ familyStr + `\n` +
             const r = arCalc();
             const now = new Date().toISOString(), today = getTodayStr();
             const upd = { updatedAt: now };
-            let note, usimNewId = null, keepLatest = false, freshAct = false;
+            let note, usimNewId = null, keepLatest = false, freshAct = false, keepStaff = '';
             const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
             if (isM) {
                 const usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;   // 유심만 개통이면 단말기 칸은 안 씀
@@ -16085,6 +16215,9 @@ familyStr + `\n` +
                 { const up = arUsedPhone(); if (up) upd.usedPhone = { ...up, date: d }; }   // 📱 중고폰 (V191)
                 upd.policyItems = arItems.filter(it => it.name || it.amount || it.days || it.code).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: arItemCode(it), date: it.date || '' }));
                 if (upd.policyItems.length) actRec.policyItems = upd.policyItems;
+                // 👤 V197: 다른 사람이 개통한 기록의 개통자를 바꾸려면 한 번 더 확인 ([취소] → 원래 개통자 그대로)
+                if (sameAct && sameAct.staff && actRec.staff && !sameStaff(sameAct.staff, actRec.staff)
+                    && !(await customConfirm(`이 개통(${stockMD(d)} ${sameAct.device || sameAct.plan || ''})의 개통자는 ${managerKey(sameAct.staff)}님이에요.\n개통자를 ${managerKey(actRec.staff)}님으로 바꿀까요?\n\n[취소] → 개통자는 ${managerKey(sameAct.staff)}님 그대로 저장 (바꾸면 변경 기록에 남아요)`))) { actRec.staff = sameAct.staff; keepStaff = sameAct.staff; }
                 upd.acts = storableActs(mergeAct(prevActs, actRec, sameAct ? { targetId: sameAct.id } : { forceNew: true }));
                 { const lp = latestPoncle(upd.acts); if (lp) upd.poncle = lp; }
                 try { localStorage.setItem('arLastDealer', arDealer ? arDealer.id : ''); } catch (e) { /* 무시 */ }   // 다음 개통등록 때 이 거래처가 기본
@@ -16129,7 +16262,7 @@ familyStr + `\n` +
             if (dob) upd.dob = dob;
             const minorOn = document.getElementById('ar-minor') && document.getElementById('ar-minor').checked;
             if (minorOn) Object.assign(upd, { legalName: arVal('ar-legal-name'), legalPhone: arVal('ar-legal-phone'), legalDob: arVal('ar-legal-dob') });
-            upd.repManager = isM ? (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager')) : (arVal('hr-manager') || (cur && cur.repManager) || '');
+            upd.repManager = isM ? (keepStaff || (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager'))) : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
                 Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
@@ -16140,6 +16273,7 @@ familyStr + `\n` +
                 Object.assign(upd, { manager: (isM ? arVal('ar-manager') : arVal('hr-manager')) || getStaffName() || '', regStore: msgStoreName(), regDate: today, regBy: getStaffName() || '', visitDate: today, createdAt: now });
             }
             upd.memo = [pcStr(cur && cur.memo), note].filter(Boolean).join('\n');
+            upd.__audit = isM ? '개통등록' : '홈상품 등록';
             const btn = document.getElementById('arSave');
             btn.disabled = true;
             try {
@@ -16701,7 +16835,7 @@ familyStr + `\n` +
         // 📜 같은 날 개통 기록이 있으면: 어느 기록으로 저장할지 [✏️ 고치기] [➕ 따로 새 개통] (V193)
         //    · 안 고르면 자동: 같은 기종이면 그 기록을 고치고, 기종이 다르면 따로 새 기록 (같은 분·같은 날이라도 기종이 다르면 따로)
         //    · 고치는 기록이면 정산·중고폰 칸을 그 값으로 채움 → '따로 새 개통'으로 바꾸면 채웠던 값은 다시 비움
-        let arActPrefilled = '', arActTarget = '', arPrefillVals = {};
+        let arActPrefilled = '', arActTarget = '', arPrefillVals = {}, arMgrPrefill = null;
         function arSameDayActs() { const d = arVal('ar-date'); return arCust ? actsOf(arCust).filter(a => a.kind !== '유선' && a.date === d) : []; }
         function arModelNow() { return (document.getElementById('ar-tg-usim') || {}).checked ? '' : arVal('ar-model'); }
         function arAutoTarget(list) {
@@ -16715,8 +16849,13 @@ familyStr + `\n` +
             Object.entries(arPrefillVals).forEach(([id, v]) => { const el = document.getElementById(id); if (el && el.value === v) el.value = ''; });
             if (arPrefillVals.__usedTg) { const tg = document.getElementById('ar-tg-used'); const anyLeft = ['ar-up-model', 'ar-up-color', 'ar-up-serial', 'ar-up-buyer', 'ar-used'].some(id => (document.getElementById(id) || {}).value); if (tg && tg.checked && !anyLeft) { tg.checked = false; tg.dispatchEvent(new Event('change', { bubbles: true })); } }
             arPrefillVals = {};
+            if (arMgrPrefill) { const mg = document.getElementById('ar-manager'); if (mg && mg.value === arMgrPrefill.put) mg.value = arMgrPrefill.prev; arMgrPrefill = null; }
         }
         function arPrefillFrom(act) {
+            if (act && act.staff) {   // 👤 V197: 고치는 개통의 개통자 그대로 (내 이름이 기본으로 들어가 있으면 바꿔 줌)
+                const mg = document.getElementById('ar-manager');
+                if (mg && !sameStaff(mg.value, act.staff) && (!mg.value.trim() || sameStaff(mg.value, getStaffName()))) { arMgrPrefill = { put: act.staff, prev: mg.value }; mg.value = act.staff; }
+            }
             if (!act || !canSeeSettle()) return;
             const S = act.settle || {}, put = (id, v, money) => { const el = document.getElementById(id); if (el && !el.value && (money ? Number(v) : v)) { el.value = money ? arWon(v) : String(v); arPrefillVals[id] = el.value; } };
             put('ar-base', S.기본정책, 1); put('ar-add', S.추가정책, 1); put('ar-fee', S.수수료, 1); put('ar-disc', S.할인금액, 1);
@@ -18254,7 +18393,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V196';
+        const APP_VER = 'V197';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
