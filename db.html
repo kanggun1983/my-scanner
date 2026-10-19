@@ -438,14 +438,14 @@
             <!-- 검색 (+ 넓은 화면 전용 신규 개통보고 / 엑셀 버튼) -->
             <div class="flex gap-2 items-center mb-2.5">
                 <label for="searchInput" class="sr-only">고객 검색</label>
-                <div class="relative flex-1">
+                <div class="relative flex-1 min-w-0">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                    <input type="search" id="searchInput" placeholder="이름·번호·메모 검색" class="w-full h-11 pl-10 pr-12 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <input type="search" id="searchInput" placeholder="이름·번호·메모" class="w-full min-w-0 h-11 pl-10 pr-11 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
                     <button type="button" id="custScanBtn" class="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-9 rounded-lg text-indigo-700 hover:bg-indigo-50 text-[17px]" aria-label="바코드로 고객 찾기" title="바코드로 고객 찾기 (일련번호)"><i class="fa-solid fa-barcode" aria-hidden="true"></i></button>
                 </div>
                 <label for="managerFilter" class="sr-only">담당자별 보기</label>
-                <select id="managerFilter" class="flex-shrink-0 w-[104px] h-11 pl-2.5 pr-6 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 truncate"><option value="">👤 담당자</option></select>
-                <button type="button" id="cardSendOpenBtn" class="flex-shrink-0 h-11 px-3 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-bold flex items-center gap-1.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i>명함 보내기</button>
+                <div class="relative flex-shrink-0"><select id="managerFilter" class="appearance-none w-[84px] h-11 pl-2 pr-5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 truncate"><option value="">👤 전체</option></select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500" aria-hidden="true"></i></div>
+                <button type="button" id="cardSendOpenBtn" class="flex-shrink-0 h-11 px-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-bold flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-address-card"></i>명함 보내기</button>
                 <button id="newReportBtn" class="hidden lg:flex bg-blue-600 hover:bg-blue-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
                     <i class="fa-solid fa-plus"></i> 신규 개통보고
                 </button>
@@ -1153,7 +1153,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V205</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V206</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -5253,7 +5253,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const counts = new Map(); let none = 0;
             customerDB.forEach(c => { const k = managerKey(c.manager); if (k) counts.set(k, (counts.get(k) || 0) + 1); else none++; });
             const opts = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-            sel.innerHTML = `<option value="">👤 담당자 전체</option>` + opts.map(([k, n]) => `<option value="${escapeHtml(k)}">${escapeHtml(k)} (${n})</option>`).join('') + (none ? `<option value="__none">미지정 (${none})</option>` : '');
+            sel.innerHTML = `<option value="">👤 전체</option>` + opts.map(([k, n]) => `<option value="${escapeHtml(k)}">${escapeHtml(k)} (${n})</option>`).join('') + (none ? `<option value="__none">미지정 (${none})</option>` : '');
             if ((managerFilter && managerFilter !== '__none' && !counts.has(managerFilter)) || (managerFilter === '__none' && !none)) managerFilter = '';   // 없어진 담당자·미지정 0명이면 전체로
             sel.value = managerFilter;
             const banner = document.getElementById('managerBanner');
@@ -7741,7 +7741,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function syncReassignBtns() {
             const n = selectedIds.size;
             const a = document.getElementById('reassignBtn'), b = document.getElementById('selectReassignBtn'), l = document.getElementById('selectReassignLabel');
-            if (a) { a.classList.toggle('hidden', !isSuperAdmin); a.classList.toggle('lg:flex', isSuperAdmin); a.innerHTML = `<i class="fa-solid fa-user-pen"></i> 담당자 바꾸기${n ? ` (${n})` : ''}`; }
+            if (a) { a.classList.add('hidden'); a.classList.toggle('lg:flex', isSuperAdmin); /* V206: 폰에선 [선택] 아래 바에만 (검색칸 넓게) */ a.innerHTML = `<i class="fa-solid fa-user-pen"></i> 담당자 바꾸기${n ? ` (${n})` : ''}`; }
             if (b) b.classList.toggle('hidden', !isSuperAdmin);
             if (l) l.textContent = n ? `👑 담당자 바꾸기 (${n}명)` : '👑 담당자 바꾸기';
         }
@@ -20576,7 +20576,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V205';
+        const APP_VER = 'V206';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -20584,6 +20584,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V206', d: '2026-10-19', items: [
+                ['🔍 고객 목록의 검색칸이 넓어졌어요.'],
+                ['👤 폰에서 [담당자 바꾸기]는 [선택] → 고객 체크 → 아래 [👑 담당자 바꾸기]에 있어요. (검색 줄에서 뺐어요)', 'a']] },
             { v: 'V205', d: '2026-10-19', items: [
                 ['💰 개통등록의 [월요금]이 고객카드 [월 요금]으로 저절로 들어가요. 변경 후 요금제 · 월요금도 고객카드 [수정]에서 보고 고칠 수 있어요.'],
                 ['➖ 정산 고치기에서 부가 · 보험 · 추가정책 줄 금액도 고쳐요. 정책이 깎이면 [− 차감]을 누르고 금액을 넣어요.', 'm'],
