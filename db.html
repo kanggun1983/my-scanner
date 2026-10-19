@@ -635,6 +635,7 @@
                 <button type="button" data-gd-new="dev" class="min-h-[84px] rounded-2xl border border-indigo-200 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-center px-2"><i class="fa-solid fa-mobile-screen-button text-2xl text-indigo-600" aria-hidden="true"></i><b class="text-[15px] text-indigo-900">단말 구매 안내서</b><span class="text-[12px] text-indigo-700">휴대폰 + 요금제</span></button>
                 <button type="button" data-gd-new="usim" class="min-h-[84px] rounded-2xl border border-emerald-200 bg-emerald-50 flex flex-col items-center justify-center gap-0.5 text-center px-2"><i class="fa-solid fa-sim-card text-2xl text-emerald-600" aria-hidden="true"></i><b class="text-[15px] text-emerald-900">유심단독 안내서</b><span class="text-[12px] text-emerald-700">유심만 개통</span></button>
             </div>
+            <button type="button" data-cmp-open class="w-full min-h-[56px] rounded-2xl border border-amber-200 bg-amber-50 flex items-center justify-center gap-2 px-3"><i class="fa-solid fa-scale-balanced text-xl text-amber-600" aria-hidden="true"></i><b class="text-[15px] text-amber-900">비교 안내서</b><span class="text-[12px] text-amber-800">기종별 · 선택약정/공시 비교</span></button>
             <div id="gdPendBox"></div>
             <div id="gdChips" class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"></div>
             <div class="flex items-center gap-2 bg-white border border-gray-300 rounded-2xl px-3 h-12 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><i class="fa-solid fa-magnifying-glass text-gray-400" aria-hidden="true"></i><label for="gdSearch" class="sr-only">안내서 찾기</label><input type="text" id="gdSearch" autocomplete="off" enterkeyhint="search" placeholder="이름 · 번호 · 기종 · 요금제" class="flex-1 min-w-0 h-full bg-transparent text-[15px] text-gray-900 outline-none"></div>
@@ -1177,7 +1178,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V208</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V210</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -3769,7 +3770,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* ↩️ V207: 코드로 만들었다 지우는 작은 창들도 폰 [뒤로]로 닫히게
            · 창이 화면에 붙으면 기록 한 칸 · ✕로 닫으면 그 한 칸 되돌림 · [뒤로]면 맨 위 창의 ✕를 대신 눌러줌 */
-        const BACK_SHEETS = ['docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet'];
+        const BACK_SHEETS = ['recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet'];
         const backSheetOn = new Set(), backSheetPopped = new Set();
         function backSheetSync() {
             BACK_SHEETS.forEach(id => {
@@ -6611,6 +6612,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const mv = e.target.closest('[data-goal-month]');
                     if (mv) { const next = ymAdd(goalViewYm, Number(mv.dataset.goalMonth)); if (next <= goalYm()) { goalViewYm = next; openGoalSheet(true); } return; }
                     if (e.target.closest('[data-goal-settle]')) { sh.remove(); openSettleSheet(); return; }
+                    if (e.target.closest('[data-goal-inc]')) { openIncSheet(); return; }   // 🎁 V210
+                    if (e.target.closest('[data-goal-xlsx]')) { perfExport(goalViewYm); return; }
+                    if (e.target.closest('[data-goal-rec]')) { sh.remove(); openRecSheet(); return; }
                     if (e.target.closest('[data-goal-save]')) {
                         if (!isSuperAdmin) return customAlert('목표는 👑 대표만 정할 수 있어요.');
                         const staff = {}; sh.querySelectorAll('[data-goal-staff]').forEach(i => { const v = Math.max(0, Math.round(Number(i.value) || 0)); if (v) staff[i.dataset.goalStaff] = v; });
@@ -6633,7 +6637,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const names = [...new Set([...Object.values(staffByEmail()).map(n => managerKey(n)), ...Object.keys(G.staff), ...Object.keys(A.by)].map(n => String(n || '').trim()).filter(n => n && n !== '담당자미상'))];
             const uniq = []; names.forEach(n => { if (!uniq.some(u => sameStaff(u, n))) uniq.push(n); });
             const bar = (a, g) => { const p = g ? Math.round(a / g * 100) : 0; return `<span class="block h-2 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full ${p >= 100 ? 'bg-green-600' : 'bg-rose-500'}" style="width:${Math.min(100, p)}%"></span></span>`; };
-            const money = canSeeSettle(), SS = money ? goalSales(ym) : null;
+            const money = canSeeSettle(), SS = money ? goalSales(ym) : null, PF = perfOf(ym), incOn = money && incActive(), me = getStaffName() || '';   // 📊🎁 V210 (인센티브: 👑는 모두 · 직원은 내 것만)
             const inp = (attr, val, unit) => lock ? '' : `<label class="flex-shrink-0 flex items-center gap-1"><input type="number" inputmode="decimal" min="0" ${attr} value="${val || ''}" placeholder="목표" class="w-[72px] h-9 px-2 border border-gray-300 rounded-lg text-right text-[15px]"><span class="w-4 text-xs text-gray-500">${unit}</span></label>`;
             const manVal = (w) => (w ? Math.round(w / 1000) / 10 : '');   // 원 → 만원 (소수 1자리)
             const row = (n) => {
@@ -6642,9 +6646,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 return `<div class="py-3 border-b border-gray-100 space-y-1.5">
                     <p class="text-[15px] font-bold text-gray-900 truncate">${escapeHtml(n)}</p>
                     <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-gray-500">📱 개통</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${a}${g ? ` / ${g}건 · ${Math.round(a / g * 100)}%` : '건'}</span>${inp(`data-goal-staff="${escapeHtml(n)}"`, g, '건')}</div>${g ? bar(a, g) : ''}
+                    ${perfLine(perfFor(n, PF))}
                     ${money ? `<div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-emerald-700">💰 총매출</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${wonMan(ms.gross)}${gs ? ` / ${wonMan(gs)} · ${Math.round(ms.gross / gs * 100)}%` : ''}</span>${inp(`data-goal-sales="${escapeHtml(n)}"`, manVal(gs), '만')}</div>${gs ? bar(ms.gross, gs) : ''}
                     <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-gray-500">실마진</span><span class="flex-1 min-w-0 text-sm font-bold text-gray-900 tabular-nums">${wonMan(ms.real)} <span class="text-[11px] font-medium text-gray-500">(세금 제외)</span></span></div>
-                    <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-indigo-700">📊 건당</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${avgMarginHtml(ms)}</span></div>` : ''}
+                    <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-indigo-700">📊 건당</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${avgMarginHtml(ms)}</span></div>${incOn && (isSuperAdmin || sameStaff(n, me)) ? incLine(incOf(perfFor(n, PF), ms)) : ''}` : ''}
                 </div>`;
             };
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
@@ -6652,9 +6657,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 ${money && SS.missing ? `<button type="button" ${isSuperAdmin ? 'data-goal-settle' : 'disabled'} class="w-full text-left rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-bold text-amber-900">⚠ 정산 미입력 ${SS.missing}건은 매출에 아직 안 들어갔어요${isSuperAdmin ? ' → 눌러서 입력' : ''}</button>` : ''}
                 <div class="rounded-xl bg-gray-50 p-3 space-y-1.5"><p class="text-[15px] font-bold text-gray-900">🏪 매장 전체</p>
                     <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-gray-500">📱 개통</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${A.total}${G.total ? ` / ${G.total}건 · ${Math.round(A.total / G.total * 100)}%` : '건'}</span>${inp('id="goalTotalIn"', G.total, '건')}</div>${G.total ? bar(A.total, G.total) : ''}
+                    ${perfLine(perfSum(PF))}
                     ${money ? `<div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-emerald-700">💰 총매출</span><span class="flex-1 min-w-0 text-sm font-bold text-gray-900 tabular-nums">${wonMan(SS.gross)}${G.sales ? ` / ${wonMan(G.sales)} · ${Math.round(SS.gross / G.sales * 100)}%` : ''}</span>${inp('id="goalSalesIn"', manVal(G.sales), '만')}</div>${G.sales ? bar(SS.gross, G.sales) : ''}
-                    <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-indigo-700">📊 건당</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${avgMarginHtml(SS)}</span></div>` : ''}
+                    <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-indigo-700">📊 건당</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${avgMarginHtml(SS)}</span></div>${incOn && isSuperAdmin ? incLine(uniq.reduce((t, n) => t + incOf(perfFor(n, PF), goalSalesFor(n, SS)), 0), '직원 합계') : ''}` : ''}
                 </div>
+                ${isSuperAdmin && money ? '<div class="grid grid-cols-3 gap-1.5"><button type="button" data-goal-inc class="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800 leading-tight">⚙️ 인센티브<br>기준</button><button type="button" data-goal-xlsx class="min-h-[44px] rounded-xl border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-800 leading-tight">📗 실적표<br>엑셀</button><button type="button" data-goal-rec class="min-h-[44px] rounded-xl border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800 leading-tight">📑 정산서<br>대조</button></div>' : ''}
                 <div>${uniq.map(row).join('') || '<p class="py-6 text-center text-sm text-gray-500">아직 직원이 없어요.</p>'}</div>
                 ${lock ? '<p class="text-xs text-gray-500">목표는 👑 대표가 정해요.</p>' : `<button type="button" data-goal-save class="w-full h-11 rounded-xl bg-rose-600 text-white text-sm font-bold">${isNow ? '' : `${m}월 `}목표 저장</button><p class="text-xs text-gray-500">비우면 목표 없음 · 매출 목표는 <b>만원</b> 단위 (예: 1500 = 1,500만원) · ‹ › 로 지난달 실적 보기 (목표는 12달 보관).${appSettings.hideSettleFromStaff ? ' 🔒 정산정보를 숨겨둬서 직원 폰엔 매출이 안 보여요.' : ''}</p>`}
                 <button type="button" data-goal-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
@@ -6780,6 +6787,282 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         document.getElementById('editLogBtn').addEventListener('click', openEditLogSheet);
 
         /* 💰 정산 미입력 (👑 대표) → 한 건씩 바로 입력 · 고객카드 개통 기록의 [정산 입력]도 같은 창 */
+        /* =====================================================================
+           📊 직원별 유치 (V210) — 그 달 무선 개통 중 부가 · 보험 · 카드가 붙은 개통 수
+           · 개통 기록의 부가 · 보험 줄 기준 (예전 개통은 고객카드 부가 · 보험 칸) · 카드는 고객카드 제휴카드 · 할부카드
+           🎁 인센티브 (👑) — 개통 · 부가 · 보험 · 카드 건당 금액 + 실마진 % (매장 설정 incentive)
+           ===================================================================== */
+        function perfOf(ym) {
+            const from = `${ym}-01`, to = `${ym}-31`, by = new Map();
+            const get = (k) => { if (!by.has(k)) by.set(k, { act: 0, addon: 0, ins: 0, card: 0 }); return by.get(k); };
+            customerDB.forEach(c => { if (c.deletedAt) return; actsOf(c).forEach(a => {
+                if (a.canceled || a.kind === '유선' || a.date < from || a.date > to) return;
+                const o = get(actStaffKey(a, c)), pi = Array.isArray(a.policyItems) ? a.policyItems.filter(Boolean) : [], latest = c.activationDate === a.date;
+                o.act++;
+                const has = (kind, txt) => pi.some(it => it.kind === kind && (String(it.name || '').trim() || Number(it.amount) > 0)) || (latest && !pi.length && actCheckMeaningful(txt));
+                if (has('부가', c.repAddons || c.addons)) o.addon++;
+                if (has('보험', c.repInsurance || c.insurance)) o.ins++;
+                if (pi.some(it => it.kind === '제휴카드') || (latest && (actCheckMeaningful(c.discountCard) || actCheckMeaningful(c.instCardName) || Number(c.instCardDiscount) > 0))) o.card++;
+            }); });
+            return by;
+        }
+        function perfFor(name, PF) { const o = { act: 0, addon: 0, ins: 0, card: 0 }; PF.forEach((v, k) => { if (sameStaff(k, name)) { o.act += v.act; o.addon += v.addon; o.ins += v.ins; o.card += v.card; } }); return o; }
+        function perfSum(PF) { const o = { act: 0, addon: 0, ins: 0, card: 0 }; PF.forEach(v => { o.act += v.act; o.addon += v.addon; o.ins += v.ins; o.card += v.card; }); return o; }
+        const perfPct = (n, d) => (d ? `${Math.round(n / d * 100)}%` : '-');
+        function perfLine(p) { return p.act ? `<div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-violet-700">➕ 유치</span><span class="flex-1 min-w-0 text-[13px] text-gray-800 tabular-nums" data-perf>부가 <b>${p.addon}</b>건 (${perfPct(p.addon, p.act)}) · 보험 <b>${p.ins}</b>건 (${perfPct(p.ins, p.act)}) · 카드 <b>${p.card}</b>건</span></div>` : ''; }
+        function incRules() { const r = appSettings.incentive || {}; const n = (v) => Math.max(0, Math.round(Number(v) || 0)); return { act: n(r.act), addon: n(r.addon), ins: n(r.ins), card: n(r.card), pct: Math.max(0, Math.min(100, Number(r.pct) || 0)) }; }
+        function incActive() { const r = incRules(); return !!(r.act || r.addon || r.ins || r.card || r.pct); }
+        function incOf(p, ms) { const r = incRules(); return r.act * p.act + r.addon * p.addon + r.ins * p.ins + r.card * p.card + Math.round(((ms && ms.real) || 0) * r.pct / 100 / 10) * 10; }
+        function incLine(v, label) { return `<div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-rose-700">🎁 인센</span><span class="flex-1 min-w-0 text-sm font-bold text-rose-800 tabular-nums" data-inc>${arWon(v)}원${label ? ` <span class="text-[11px] font-medium text-gray-500">(${label})</span>` : ''}</span></div>`; }
+        function openIncSheet() {
+            if (!isSuperAdmin) return customAlert('인센티브 기준은 👑 대표가 정해요.');
+            const old = document.getElementById('incSheet'); if (old) old.remove();
+            const r = incRules(), sh = document.createElement('div'); sh.id = 'incSheet';
+            sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+            const f = (k, label, unit) => `<label class="flex items-center justify-between gap-3 py-1.5"><span class="text-[14px] font-bold text-gray-800">${label}</span><span class="flex items-center gap-1"><input data-inc-k="${k}" inputmode="numeric" value="${r[k] ? (k === 'pct' ? r[k] : arWon(r[k])) : ''}" placeholder="0" class="w-28 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-right bg-white"><span class="text-[13px] text-gray-600 w-7">${unit}</span></span></label>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-2" role="dialog" aria-label="인센티브 기준">
+                <div class="flex items-center justify-between"><p class="text-[17px] font-bold text-gray-900">🎁 인센티브 기준</p><button type="button" data-inc-x class="w-10 h-10 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <p class="text-xs text-gray-600 leading-relaxed">직원마다 그 달 개통 기록으로 자동 계산해요. 안 쓰는 칸은 비워 두세요.</p>
+                ${f('act', '📱 개통 1건당', '원')}${f('addon', '➕ 부가 유치 1건당', '원')}${f('ins', '🛡 보험 유치 1건당', '원')}${f('card', '💳 카드 1건당', '원')}${f('pct', '💰 실마진의', '%')}
+                <button type="button" data-inc-save class="w-full h-12 rounded-xl bg-rose-600 text-white text-[15px] font-bold">저장</button></div>`;
+            sh.addEventListener('input', (e) => { const el = e.target.closest('[data-inc-k]'); if (!el || el.dataset.incK === 'pct') return; const n = Number(String(el.value).replace(/[^\d]/g, '')) || 0; el.value = n ? arWon(n) : ''; });
+            sh.addEventListener('click', async (e) => {
+                if (e.target === sh || e.target.closest('[data-inc-x]')) { sh.remove(); return; }
+                if (!e.target.closest('[data-inc-save]')) return;
+                const v = {}; sh.querySelectorAll('[data-inc-k]').forEach(el => { const k = el.dataset.incK; v[k] = k === 'pct' ? Math.max(0, Math.min(100, Number(String(el.value).replace(/[^\d.]/g, '')) || 0)) : (Number(String(el.value).replace(/[^\d]/g, '')) || 0); });
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { incentive: v }, { merge: true }); appSettings = { ...appSettings, incentive: v }; sh.remove(); stockToast('🎁 인센티브 기준을 저장했어요'); if (document.getElementById('goalSheet')) openGoalSheet(true); }
+                catch (err) { customAlert(koreanError(err, '저장')); }
+            });
+            document.body.appendChild(sh);
+        }
+        function perfExport(ym) {
+            const PF = perfOf(ym), SS = goalSales(ym), money = canSeeSettle(), incOn = money && incActive();
+            const names = []; PF.forEach((v, k) => { if (!names.some(n => sameStaff(n, k))) names.push(k); }); Object.keys(SS.by).forEach(k => { if (!names.some(n => sameStaff(n, k))) names.push(k); });
+            const head = ['직원', '무선 개통', '부가(건)', '부가율', '보험(건)', '보험율', '카드(건)', ...(money ? ['총매출', '실마진', '정산 넣은 개통', '건당 평균 실마진'] : []), ...(incOn ? ['인센티브'] : [])];
+            const line = (n, p, ms) => [n, p.act, p.addon, perfPct(p.addon, p.act), p.ins, perfPct(p.ins, p.act), p.card, ...(money ? [ms.gross, ms.real, ms.n || 0, ms.n ? Math.round(ms.real / ms.n) : 0] : []), ...(incOn ? [incOf(p, ms)] : [])];
+            const rows = names.sort((a, b) => perfFor(b, PF).act - perfFor(a, PF).act).map(n => line(n, perfFor(n, PF), goalSalesFor(n, SS)));
+            const tot = perfSum(PF); rows.push(line('합계', tot, { gross: SS.gross, real: SS.real, n: SS.n }));
+            if (incOn) rows[rows.length - 1][head.length - 1] = names.reduce((t, n) => t + incOf(perfFor(n, PF), goalSalesFor(n, SS)), 0);
+            const r = incRules(), sheets = [{ name: `${Number(ym.slice(5))}월 직원별 실적`, rows: [head, ...rows], widths: head.map((h, i) => i ? 11 : 12) }];
+            if (incOn) sheets.push({ name: '인센티브 기준', rows: [['항목', '금액'], ['개통 1건당', r.act], ['부가 1건당', r.addon], ['보험 1건당', r.ins], ['카드 1건당', r.card], ['실마진 %', r.pct]], widths: [14, 12] });
+            downloadBlob(xlsxBuild(sheets), `직원별실적_${ym.replace('-', '')}.xlsx`);
+            stockToast(`📗 ${Number(ym.slice(5))}월 직원별 실적표를 받았어요`);
+        }
+
+        /* =====================================================================
+           📑 거래처 정산서 대조 (V210 · 👑) — 거래처 정산 엑셀 · CSV · 사진 → 개통 기록과 맞춰보기
+           · 맞추기: 일련번호 → 휴대폰 번호(끝 4자리도) → 이름(가운데 * 가린 이름도) · 개통일 ±3일
+           · ✅ 맞음 · ⚠️ 금액 다름 · 📝 CRM 정산 미입력 · ➕ 정산서에만 있음 · ❓ CRM에만 있음(정산서 누락 의심)
+           · 비교 금액: 정책 합계(기본정책 + 추가정책 + 부가 · 보험 줄) 또는 정산금액
+           ===================================================================== */
+        let recSt = null;
+        const REC_FIELDS = [['date', '개통일'], ['name', '고객명'], ['phone', '휴대폰 번호'], ['serial', '일련번호'], ['model', '모델'], ['amount', '정산 금액'], ['minus', '차감 (정산 금액에서 뺄 때만)']];
+        const REC_KW = { date: /개통일|개통일자|일자|날짜|date/i, name: /고객명|성명|이름|가입자명|고객/i, phone: /휴대폰|전화|연락처|개통번호|핸드폰|번호/i, serial: /일련|imei|시리얼|s\/n|단말번호/i, model: /모델|기종|단말/i, amount: /정산|합계|지급|총액|금액|정책/i, minus: /차감|공제|환수|패널티/i };
+        function recNum(v) { if (typeof v === 'number') return Math.round(v); const t = String(v ?? '').trim(); if (!t) return 0; const neg = /^-|^\(.*\)$|^[△▲]/.test(t); const n = Number(t.replace(/[^\d.]/g, '')) || 0; return Math.round(neg ? -n : n); }
+        function recDate(v) {
+            if (typeof v === 'number' && v > 30000 && v < 80000) return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+            const t = String(v ?? '').trim(); let m;
+            if ((m = /(\d{4})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/.exec(t))) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+            if ((m = /^(\d{4})(\d{2})(\d{2})$/.exec(t))) return `${m[1]}-${m[2]}-${m[3]}`;
+            if ((m = /^(\d{2})[.\-/](\d{1,2})[.\-/](\d{1,2})$/.exec(t))) return `20${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+            if ((m = /^(\d{1,2})\s*[.\-/월]\s*(\d{1,2})/.exec(t))) { const now = new Date(); let y = now.getFullYear(); if (Number(m[1]) > now.getMonth() + 1) y--; return `${y}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`; }
+            return '';
+        }
+        function recHeaderIdx(rows) {
+            let best = -1, score = 0;
+            rows.slice(0, 15).forEach((r, i) => { const cells = (r || []).map(x => String(x ?? '').trim()).filter(c => c && c.length <= 20); const sc = Object.values(REC_KW).filter(re => cells.some(c => re.test(c))).length; if (sc > score) { score = sc; best = i; } });
+            return score >= 2 ? best : -1;
+        }
+        function recAutoMap(head) {
+            const map = {}, used = new Set(), hs = head.map(h => String(h ?? '').trim());
+            ['serial', 'minus', 'date', 'name', 'phone', 'model', 'amount'].forEach(f => {
+                let idx = -1;
+                if (f === 'amount') idx = hs.findIndex((h, i) => !used.has(i) && h && /정산|합계|지급|총액/.test(h));
+                if (idx < 0) idx = hs.findIndex((h, i) => !used.has(i) && h && h.length <= 20 && REC_KW[f].test(h));
+                if (idx >= 0) { used.add(idx); if (f !== 'minus') map[f] = idx; }   // 차감 칸은 자동으로 안 뺌 (정산 금액이 이미 차감 뒤 금액인 경우가 많아요 · 필요하면 직접 고르기)
+            });
+            return map;
+        }
+        function recRowsFrom(body, map) {
+            const g = (r, f) => (Number.isInteger(map[f]) && map[f] >= 0 ? r[map[f]] : '');
+            return body.map((r, i) => ({ i, date: recDate(g(r, 'date')), name: String(g(r, 'name') ?? '').trim(), phone: ((p) => (p.length === 10 && p[0] === '1' ? '0' + p : p))(String(g(r, 'phone') ?? '').replace(/\D/g, '')) /* 엑셀이 앞 0을 지운 번호도 */, serial: stockNorm(g(r, 'serial')), model: String(g(r, 'model') ?? '').trim(), amount: recNum(g(r, 'amount')) - Math.abs(recNum(g(r, 'minus'))) }))
+                .filter(x => (x.name || x.phone || x.serial) && !/^(합\s*계|소\s*계|총\s*계|total)/i.test(x.name) && (x.amount || x.date));
+        }
+        function recMatch(rows, dealer, basis) {
+            const ds = rows.map(r => r.date).filter(Boolean).sort(), d0 = ds[0] || '', d1 = ds[ds.length - 1] || '';
+            const from = d0 ? addDaysStr(d0, -5) : '0000-00-00', to = d1 ? addDaysStr(d1, 5) : '9999-12-31';
+            const dk = dealer ? stockKey(stockCanon(dealer)) : '';
+            const acts = []; customerDB.forEach(c => { if (c.deletedAt) return; actsOf(c).forEach(a => { if (a.canceled || a.kind === '유선' || a.date < from || a.date > to) return; if (dk && a.store && stockKey(stockCanon(a.store)) !== dk) return; acts.push({ c, a }); }); });
+            const nk = (v) => String(v || '').replace(/\s/g, '');
+            const nameHit = (x, y) => { x = nk(x); y = nk(y); if (!x || !y) return false; if (x === y) return true; return x.length === y.length && x.length >= 2 && /[*○◯●Xx＊]/.test(x + y) && x[0] === y[0] && x[x.length - 1] === y[y.length - 1]; };
+            const pairs = [];
+            rows.forEach((r, ri) => acts.forEach((x, ai) => {
+                let sc = 0; const cd = phoneDigits(x.c.phone || x.c.id);
+                if (r.serial.length >= 5 && x.a.serial && stockSerialMatch(x.a.serial, r.serial)) sc += 100;
+                if (r.phone.length >= 10 && r.phone === cd) sc += 80; else if (r.phone.length >= 4 && cd.endsWith(r.phone.slice(-4))) sc += 40;
+                if (nameHit(r.name, x.c.name)) sc += 30;
+                if (r.date) { const dd = Math.abs(Math.round((Date.parse(r.date) - Date.parse(x.a.date)) / 86400000)); sc += dd === 0 ? 20 : (dd <= 3 ? 10 : (dd > 7 ? -60 : 0)); }
+                if (r.model && x.a.device && stockKey(x.a.device).includes(stockKey(r.model))) sc += 10;
+                if (sc >= 50) pairs.push({ ri, ai, sc });
+            }));
+            pairs.sort((p, q) => q.sc - p.sc);
+            const usedR = new Set(), usedA = new Set(), hits = [];
+            pairs.forEach(p => { if (usedR.has(p.ri) || usedA.has(p.ai)) return; usedR.add(p.ri); usedA.add(p.ai); hits.push({ r: rows[p.ri], ...acts[p.ai] }); });
+            const crmAmt = (a) => { const S = a.settle; if (!S) return null; if (basis === 'settle') return Number(S.정산금액) || 0; return (Number(S.기본정책) || 0) + (Number(S.추가정책) || 0) + (Array.isArray(a.policyItems) ? a.policyItems : []).reduce((t, it) => t + (Number(it && it.amount) || 0), 0); };
+            const R = { ok: [], diff: [], noset: [], onlyStmt: [], onlyCrm: [], basis };
+            hits.forEach(m => { const v = crmAmt(m.a); m.crm = v; if (v === null) R.noset.push(m); else { m.d = m.r.amount - v; (Math.abs(m.d) <= 100 ? R.ok : R.diff).push(m); } });
+            rows.forEach((r, ri) => { if (!usedR.has(ri)) R.onlyStmt.push({ r }); });
+            let store = dealer;
+            if (!dk) { const cnt = new Map(); hits.forEach(m => { const k = stockCanon(m.a.store || ''); if (k) cnt.set(k, (cnt.get(k) || 0) + 1); }); const top = [...cnt.entries()].sort((a, b) => b[1] - a[1])[0]; if (top && top[1] >= hits.length * 0.6) store = top[0]; }
+            const sk = store ? stockKey(stockCanon(store)) : '';
+            acts.forEach((x, ai) => { if (!d0 || usedA.has(ai) || x.a.date < d0 || x.a.date > d1) return; /* 정산서 날짜를 모르면 '정산서에 없음'은 안 셈 */ if (sk && stockKey(stockCanon(x.a.store || '')) !== sk) return; R.onlyCrm.push({ ...x, crm: crmAmt(x.a) }); });
+            R.store = store || ''; R.autoStore = !dk && !!store; R.d0 = d0; R.d1 = d1;
+            R.stmtSum = rows.reduce((t, r) => t + r.amount, 0);
+            R.matchStmt = [...R.ok, ...R.diff].reduce((t, m) => t + m.r.amount, 0); R.matchCrm = [...R.ok, ...R.diff].reduce((t, m) => t + (m.crm || 0), 0);
+            R.diffSum = R.diff.reduce((t, m) => t + m.d, 0);
+            return R;
+        }
+        function openRecSheet() {
+            if (!isSuperAdmin || !canSeeSettle()) return customAlert('정산서 대조는 👑 대표 폰에서 해요.');
+            if (recSt && recSt.res && recSt.body && Date.now() - (recSt.t || 0) < 30 * 60000) { recSheetEl(); recRun(); return; }   // 방금 본 대조 결과로 (고객카드 보고 돌아올 때)
+            recSt = { step: 'pick', dealer: (recSt && recSt.dealer) || '', basis: (recSt && recSt.basis) || 'policy' };
+            recRender();
+        }
+        function recSheetEl() {
+            let sh = document.getElementById('recSheet');
+            if (sh) return sh;
+            sh = document.createElement('div'); sh.id = 'recSheet';
+            sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+            sh.innerHTML = `<div class="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3" role="dialog" aria-label="거래처 정산서 대조"><div data-rec-body></div></div>
+                <input type="file" id="recFileX" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" class="hidden"><input type="file" id="recFileP" accept="image/*" class="hidden">`;
+            sh.addEventListener('click', (e) => {
+                if (e.target === sh || e.target.closest('[data-rec-close]')) { sh.remove(); return; }
+                const fb = e.target.closest('[data-rec-file]'); if (fb) { const inp = document.getElementById(fb.dataset.recFile === 'photo' ? 'recFileP' : 'recFileX'); inp.value = ''; inp.click(); return; }
+                if (e.target.closest('[data-rec-run]')) { recReadMap(); recRun(); return; }
+                if (e.target.closest('[data-rec-again]')) { recSt.step = 'pick'; recSt.res = null; recRender(); return; }
+                if (e.target.closest('[data-rec-remap]')) { recSt.step = recSt.head ? 'map' : 'pick'; recRender(); return; }
+                const bs = e.target.closest('[data-rec-basis]'); if (bs) { recSt.basis = bs.dataset.recBasis; recRun(); return; }
+                if (e.target.closest('[data-rec-xlsx]')) { recExport(); return; }
+                const op = e.target.closest('[data-rec-cust]'); if (op) { sh.remove(); window.openProfileCard(op.dataset.recCust); stockToast('📑 대조 결과는 30분 동안 [📑 정산서 대조]에서 다시 볼 수 있어요'); return; }
+                const se = e.target.closest('[data-rec-settle]'); if (se) { const [cid, aid, amt] = se.dataset.recSettle.split('|'); recOpenSettle(cid, aid, Number(amt) || 0); }
+            });
+            sh.addEventListener('change', async (e) => {
+                if (e.target.id === 'recDealer') { recSt.dealer = e.target.value; if (recSt.step === 'result') recRun(); return; }
+                const file = e.target.files && e.target.files[0]; if (!file) return;
+                if (e.target.id === 'recFileX') await recReadExcel(file); else if (e.target.id === 'recFileP') await recReadPhoto(file);
+            });
+            document.body.appendChild(sh);
+            return sh;
+        }
+        async function recReadExcel(file) {
+            try {
+                const XLSX = await loadSheetJS(), buf = await file.arrayBuffer();
+                let wb;
+                if (/\.csv$/i.test(file.name || '') || /csv/i.test(file.type || '')) {   // CSV: 한글 엑셀 CSV(EUC-KR)도 · 번호 앞 0이 안 빠지게 글자 그대로
+                    let t; try { t = new TextDecoder('utf-8', { fatal: true }).decode(buf); } catch (e) { t = new TextDecoder('euc-kr').decode(buf); }
+                    wb = XLSX.read(t.replace(/^\uFEFF/, ''), { type: 'string', raw: true });
+                } else wb = XLSX.read(buf, { type: 'array' });
+                let best = null;
+                for (const sn of wb.SheetNames) {
+                    const rows = (XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: '', blankrows: false }) || []).filter(r => Array.isArray(r) && r.some(x => String(x ?? '').trim()));
+                    const hi = recHeaderIdx(rows); if (hi < 0) continue;
+                    const cand = { sheet: sn, head: rows[hi].map(x => String(x ?? '').trim()), body: rows.slice(hi + 1) };
+                    if (!best || cand.body.length > best.body.length) best = cand;
+                }
+                if (!best) return customAlert("정산서 칸을 못 찾았어요.\n'개통일 · 고객명(또는 번호) · 금액' 같은 머리줄이 있는 파일을 골라주세요.");
+                Object.assign(recSt, { step: 'map', src: 'excel', file: file.name, sheet: best.sheet, head: best.head, body: best.body, map: recAutoMap(best.head) });
+                recRender();
+            } catch (err) { console.warn(err); customAlert('엑셀을 읽지 못했어요. 파일이 열리는지 확인해 주세요.'); }
+        }
+        async function recReadPhoto(file) {
+            if (!geminiApiKey) return customAlert('정산서 사진을 읽으려면 AI 키가 필요해요.\n설정 → 🔌 연결 → AI 키를 먼저 넣어주세요. (엑셀 · CSV는 키 없이 돼요)');
+            showUploadToast('📷 정산서 읽는 중… (20~40초)');
+            const b64 = await new Promise(res => compressImage(file, res, 2600));
+            if (!b64) { hideUploadToast(); return customAlert('사진을 열 수 없어요.'); }
+            const prompt = `휴대폰 판매점이 거래처(대리점)에서 받은 '정산서' 사진이야. 개통 한 건이 한 줄이야. 표를 빠짐없이 읽어서 JSON으로 줘.
+규칙: date는 개통일 YYYY-MM-DD(연도가 없으면 ${getTodayStr().slice(0, 4)}), name은 고객명 그대로(가운데 *로 가려져 있으면 그대로), phone은 보이는 숫자만(끝 4자리만 있으면 그것만), serial은 일련번호 숫자·영문만, model은 모델명, amount는 그 줄의 최종 정산(지급) 금액 숫자, minus는 차감 · 공제 · 환수 금액(없으면 0). 합계 줄은 빼. dealer는 거래처 이름.`;
+            const payload = { contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: b64.split(',')[1] } }] }],
+                generationConfig: { responseMimeType: 'application/json', responseSchema: { type: 'OBJECT', properties: { dealer: { type: 'STRING' }, rows: { type: 'ARRAY', items: { type: 'OBJECT', properties: { date: { type: 'STRING' }, name: { type: 'STRING' }, phone: { type: 'STRING' }, serial: { type: 'STRING' }, model: { type: 'STRING' }, amount: { type: 'NUMBER' }, minus: { type: 'NUMBER' } } } } } } } };
+            try {
+                const { text } = await callGemini(payload, { timeoutMs: 90000, onRetry: (m) => showUploadToast(`📷 다른 AI(${m})로 다시 읽는 중…`) });
+                let j; try { j = JSON.parse(text); } catch (e) { j = JSON.parse(String(text).slice(String(text).indexOf('{'), String(text).lastIndexOf('}') + 1)); }
+                hideUploadToast();
+                const head = ['개통일', '고객명', '휴대폰 번호', '일련번호', '모델', '정산 금액', '차감'];
+                const body = (Array.isArray(j.rows) ? j.rows : []).map(x => [x.date || '', x.name || '', x.phone || '', x.serial || '', x.model || '', Number(x.amount) || 0, Number(x.minus) || 0]);
+                if (!body.length) return customAlert('사진에서 개통 줄을 못 읽었어요. 더 밝고 반듯하게 다시 찍어주세요.');
+                if (!recSt.dealer && j.dealer) { const dl = dealerByName(j.dealer); if (dl) recSt.dealer = dl.name; }
+                Object.assign(recSt, { src: 'photo', file: file.name, head, body, map: { date: 0, name: 1, phone: 2, serial: 3, model: 4, amount: 5 } });   // AI 금액은 최종 지급액 (차감은 참고만)
+                recRun();
+            } catch (err) { hideUploadToast(); customAlert(err && err.message ? err.message : '사진을 읽지 못했어요.'); }
+        }
+        function recReadMap() { const sh = document.getElementById('recSheet'); if (!sh) return; sh.querySelectorAll('[data-rec-map]').forEach(el => { const v = el.value === '' ? -1 : Number(el.value); recSt.map[el.dataset.recMap] = v; }); }
+        function recRun() {
+            recSt.rows = recRowsFrom(recSt.body || [], recSt.map || {});
+            if (!recSt.rows.length) { customAlert('읽은 줄이 없어요. 칸(고객명 · 번호 · 금액)을 맞게 골랐는지 확인해 주세요.'); recSt.step = recSt.head ? 'map' : 'pick'; recRender(); return; }
+            recSt.res = recMatch(recSt.rows, recSt.dealer, recSt.basis); recSt.step = 'result'; recSt.t = Date.now(); recRender();
+        }
+        function recOpenSettle(cid, aid, amt) {
+            openActSettle(cid, aid);
+            const as = document.getElementById('actSettleSheet'); if (!as) return;
+            const base = as.querySelector('[data-as="기본정책"]');
+            if (base && !String(base.value).trim() && amt) { base.value = arWon(amt); base.dispatchEvent(new Event('input', { bubbles: true })); stockToast('📑 정산서 금액을 기본정책에 넣었어요 · 확인하고 저장'); }
+            const mo = new MutationObserver(() => { if (!document.getElementById('actSettleSheet')) { mo.disconnect(); setTimeout(() => { if (document.getElementById('recSheet') && recSt && recSt.step === 'result') recRun(); }, 600); } });   // 저장한 정산이 들어온 뒤 다시 맞춰봄
+            mo.observe(document.body, { childList: true });
+        }
+        function recDealerOpts() { const names = stockDealerNames(true); return `<option value="">자동 (맞는 개통이 많은 거래처)</option>${names.map(n => `<option value="${escapeHtml(n)}" ${stockKey(n) === stockKey(recSt.dealer) ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}`; }
+        function recRender() {
+            const sh = recSheetEl(), body = sh.querySelector('[data-rec-body]');
+            const top = `<div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">📑 거래처 정산서 대조</p><p class="text-xs text-gray-600">거래처 정산서 ↔ 강CRM 개통 기록 · 정산 금액</p></div><button type="button" data-rec-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">거래처</span><select id="recDealer" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] bg-white">${recDealerOpts()}</select></label>`;
+            if (recSt.step === 'pick') {
+                body.innerHTML = top + `<div class="grid grid-cols-2 gap-2"><button type="button" data-rec-file="excel" class="min-h-[72px] rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-900 font-bold text-[15px] flex flex-col items-center justify-center gap-0.5">📄 엑셀 · CSV<span class="text-[11px] font-medium text-emerald-700">정산서 파일 그대로</span></button><button type="button" data-rec-file="photo" class="min-h-[72px] rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-900 font-bold text-[15px] flex flex-col items-center justify-center gap-0.5">📷 사진<span class="text-[11px] font-medium text-indigo-700">AI가 읽어요</span></button></div>
+                    <p class="text-xs text-gray-600 leading-relaxed">정산서에 <b>개통일 · 고객명(또는 번호) · 금액</b> 칸이 있으면 돼요. <b>일련번호</b>가 있으면 더 정확해요. 개통일 ±3일 · 번호 끝 4자리 · 가운데 *로 가린 이름도 맞춰봐요.</p>
+                    <button type="button" data-rec-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button>`;
+                return;
+            }
+            if (recSt.step === 'map') {
+                const opts = (cur) => `<option value="">— 없음 —</option>${recSt.head.map((h, i) => `<option value="${i}" ${cur === i ? 'selected' : ''}>${escapeHtml(h || `${i + 1}번째 칸`)}</option>`).join('')}`;
+                const prev = recRowsFrom(recSt.body.slice(0, 40), recSt.map).slice(0, 4);
+                body.innerHTML = top + `<p class="text-[13px] text-gray-700"><b>${escapeHtml(recSt.file || '')}</b> · ${recSt.body.length}줄 · 칸을 확인해 주세요 (자동으로 골라 뒀어요)</p>
+                    <div class="grid grid-cols-2 gap-2">${REC_FIELDS.map(([k, l]) => `<label class="block min-w-0"><span class="block text-xs font-bold text-gray-600 mb-1">${l}${['amount'].includes(k) ? ' <span class="text-red-600">*</span>' : ''}</span><select data-rec-map="${k}" class="w-full h-10 px-2 border border-gray-300 rounded-xl text-[14px] bg-white">${opts(Number.isInteger(recSt.map[k]) ? recSt.map[k] : -1)}</select></label>`).join('')}</div>
+                    <div class="rounded-xl bg-gray-50 border border-gray-200 p-2 text-[12px] text-gray-700 space-y-0.5"><p class="font-bold text-gray-500">미리보기</p>${prev.map(r => `<p class="truncate">${escapeHtml(r.date || '날짜?')} · ${escapeHtml(r.name || '-')} · ${escapeHtml(r.phone ? r.phone.slice(-4) : '-')} · ${escapeHtml(r.serial ? r.serial.slice(-6) : '')} · <b>${arWon(r.amount)}원</b></p>`).join('') || '<p>읽은 줄이 없어요 · 칸을 골라주세요</p>'}</div>
+                    <button type="button" data-rec-run class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">개통 기록과 맞춰보기</button>
+                    <button type="button" data-rec-again class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">다른 파일</button>`;
+                return;
+            }
+            const R = recSt.res, W = (n) => `${arWon(n)}원`;
+            const who = (c) => `<button type="button" data-rec-cust="${escapeHtml(c.id)}" class="text-left font-bold text-gray-900 underline-offset-2 hover:underline">${escapeHtml(c.name || '이름 없음')}</button>`;
+            const line = (m, kind) => {
+                const r = m.r, c = m.c, a = m.a;
+                const left = r ? `${stockMD(r.date || (a && a.date) || '')} · ${c ? who(c) : `<b>${escapeHtml(r.name || '이름 없음')}</b>`} <span class="text-gray-500">${escapeHtml((r.phone || (c && phoneDigits(c.phone)) || '').slice(-4))}</span>` : `${stockMD(a.date)} · ${who(c)} <span class="text-gray-500">${escapeHtml(phoneDigits(c.phone).slice(-4))}</span>`;
+                const dev = a ? escapeHtml(a.device || a.plan || '') : escapeHtml(r.model || (r.serial ? `…${r.serial.slice(-6)}` : ''));
+                const nums = kind === 'onlyStmt' ? `<b>${W(r.amount)}</b>` : (kind === 'onlyCrm' ? (m.crm === null ? '<span class="text-amber-700">정산 미입력</span>' : `CRM ${W(m.crm)}`) : (kind === 'noset' ? `정산서 <b>${W(r.amount)}</b> · <span class="text-amber-700">CRM 정산 없음</span>` : `정산서 <b>${W(r.amount)}</b> · CRM ${W(m.crm)}${kind === 'diff' ? ` · <b class="${m.d > 0 ? 'text-emerald-700' : 'text-red-700'}">${m.d > 0 ? '+' : ''}${arWon(m.d)}</b>` : ''}`));
+                const btn = a && (kind === 'diff' || kind === 'noset' || kind === 'onlyCrm') ? `<button type="button" data-rec-settle="${escapeHtml(c.id)}|${escapeHtml(a.id)}|${r ? r.amount : 0}" class="flex-shrink-0 h-8 px-2 rounded-lg border border-amber-300 bg-white text-[12px] font-bold text-amber-800">${kind === 'noset' || (kind === 'onlyCrm' && m.crm === null) ? '정산 입력' : '정산 고치기'}</button>` : '';
+                return `<li class="py-2 border-b border-gray-100 last:border-b-0 flex items-start gap-2"><span class="flex-1 min-w-0 text-[13px] leading-snug"><span class="block truncate">${left}</span><span class="block text-[12px] text-gray-600 truncate">${dev}</span><span class="block text-[12px]">${nums}</span></span>${btn}</li>`;
+            };
+            const sec = (key, title, tone, list, note) => list.length ? `<section class="rounded-2xl border ${tone} overflow-hidden" data-rec-sec="${key}"><p class="px-3 py-2 text-[14px] font-bold border-b border-black/5">${title} <span class="font-extrabold">${list.length}</span></p>${note ? `<p class="px-3 pt-1.5 text-[11px] text-gray-600">${note}</p>` : ''}<ul class="px-3">${list.map(m => line(m, key)).join('')}</ul></section>` : '';
+            body.innerHTML = top + `<div class="flex items-center justify-between gap-2 text-[12px] text-gray-600"><span class="truncate">${escapeHtml(recSt.file || '')} · ${recSt.rows.length}줄 · ${R.d0 ? `${stockMD(R.d0)}~${stockMD(R.d1)}` : ''}${R.store ? ` · ${escapeHtml(R.store)}${R.autoStore ? ' (자동)' : ''}` : ''}</span>${recSt.head ? '<button type="button" data-rec-remap class="flex-shrink-0 underline font-bold text-indigo-700">칸 다시</button>' : ''}</div>
+                <div class="grid grid-cols-5 gap-1 text-center">${[['✅', '맞음', R.ok.length, 'text-emerald-700'], ['⚠️', '금액 다름', R.diff.length, 'text-red-700'], ['📝', '정산 없음', R.noset.length, 'text-amber-700'], ['➕', '정산서만', R.onlyStmt.length, 'text-sky-700'], ['❓', 'CRM만', R.onlyCrm.length, 'text-gray-700']].map(([i, l, n, c]) => `<div class="rounded-xl bg-gray-50 border border-gray-200 py-1.5"><p class="text-[11px] text-gray-600">${i} ${l}</p><p class="text-[18px] font-extrabold ${n ? c : 'text-gray-300'}" data-rec-n="${l}">${n}</p></div>`).join('')}</div>
+                <div class="rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2 text-[13px] text-indigo-950 space-y-0.5"><p>정산서 합계 <b>${W(R.stmtSum)}</b> · 맞춘 줄 정산서 ${W(R.matchStmt)} / CRM ${W(R.matchCrm)}</p>${R.diff.length ? `<p>금액 차이 합계 <b class="${R.diffSum >= 0 ? 'text-emerald-700' : 'text-red-700'}" data-rec-diffsum>${R.diffSum > 0 ? '+' : ''}${arWon(R.diffSum)}원</b> (정산서 − CRM)</p>` : ''}</div>
+                <div class="flex gap-1 p-1 rounded-xl bg-gray-100"><button type="button" data-rec-basis="policy" class="flex-1 h-9 rounded-lg text-[12px] font-bold ${R.basis === 'policy' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}">정책 합계와 비교</button><button type="button" data-rec-basis="settle" class="flex-1 h-9 rounded-lg text-[12px] font-bold ${R.basis === 'settle' ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500'}">정산금액과 비교</button></div>
+                <p class="text-[11px] text-gray-500 leading-relaxed">${R.basis === 'policy' ? '정책 합계 = 기본정책 + 추가정책 + 부가 · 보험 줄 (유통망지원금 · 수수료 빼기 전)' : '정산금액 = 정책 합계 − 유통망지원금 − 수수료'} · 100원 안 차이는 맞음으로 봐요.</p>
+                ${sec('diff', '⚠️ 금액 다름', 'border-red-200 bg-red-50/40', R.diff, '정산서 금액이 맞으면 [정산 고치기]로 맞춰요')}
+                ${sec('noset', '📝 CRM 정산 미입력', 'border-amber-200 bg-amber-50/40', R.noset, '[정산 입력]을 누르면 정산서 금액이 기본정책에 들어가요')}
+                ${sec('onlyStmt', '➕ 정산서에만 있음', 'border-sky-200 bg-sky-50/40', R.onlyStmt, '강CRM에 개통등록이 안 된 건일 수 있어요')}
+                ${sec('onlyCrm', '❓ 정산서에 없음 (누락 의심)', 'border-gray-300 bg-gray-50', R.onlyCrm, '이 기간 강CRM 개통인데 정산서에 없어요 · 거래처에 확인해 보세요')}
+                ${sec('ok', '✅ 맞음', 'border-emerald-200 bg-emerald-50/40', R.ok, '')}
+                <div class="grid grid-cols-2 gap-2"><button type="button" data-rec-xlsx class="h-11 rounded-xl border border-emerald-300 bg-emerald-50 text-[13px] font-bold text-emerald-800">📗 결과 엑셀</button><button type="button" data-rec-again class="h-11 rounded-xl border border-gray-300 text-[13px] font-bold text-gray-800">다른 파일</button></div>
+                <button type="button" data-rec-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button>`;
+        }
+        function recExport() {
+            const R = recSt && recSt.res; if (!R) return;
+            const head = ['구분', '개통일', '고객명', '번호 끝4', '기종 · 일련번호', '정산서 금액', 'CRM 금액', '차이 (정산서−CRM)'];
+            const out = [];
+            const add = (kind, m) => { const r = m.r, c = m.c, a = m.a; out.push([kind, (r && r.date) || (a && a.date) || '', (c && c.name) || (r && r.name) || '', String((r && r.phone) || (c && phoneDigits(c.phone)) || '').slice(-4), a ? (a.device || a.plan || '') : ((r && (r.model || r.serial)) || ''), r ? r.amount : '', m.crm == null ? '' : m.crm, m.d == null ? '' : m.d]); };
+            R.diff.forEach(m => add('금액 다름', m)); R.noset.forEach(m => add('CRM 정산 없음', m)); R.onlyStmt.forEach(m => add('정산서에만', m)); R.onlyCrm.forEach(m => add('정산서에 없음', m)); R.ok.forEach(m => add('맞음', m));
+            downloadBlob(xlsxBuild([{ name: '정산서 대조', rows: [head, ...out], widths: [12, 11, 10, 8, 18, 12, 12, 14] }]), `정산서대조_${(R.store || '전체').replace(/[\\/:*?"<>|\s]/g, '')}_${getTodayStr().replace(/-/g, '')}.xlsx`);
+            stockToast(`📗 대조 결과를 엑셀로 받았어요 (${out.length}줄)`);
+        }
         function openSettleSheet() {
             let sh = document.getElementById('settleSheet');
             if (!sh) {
@@ -6788,6 +7071,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 sh.addEventListener('click', e => {
                     if (e.target === sh || e.target.closest('[data-st-close]')) { sh.remove(); return; }
                     if (e.target.closest('[data-st-wired-all]')) { sh.remove(); openWiredReview(); return; }
+                    if (e.target.closest('[data-st-rec]')) { sh.remove(); openRecSheet(); return; }   // 📑 V210
                     const w = e.target.closest('[data-st-wired]'); if (w) { const [cid, date] = w.dataset.stWired.split('|'); wiredReviewOne(cid, date, true, () => openSettleSheet()); return; }
                     const b = e.target.closest('[data-st-act]'); if (b) openActSettle(b.dataset.stCid, b.dataset.stAct, true);
                 });
@@ -6799,6 +7083,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const sec = (label, list) => `<p class="text-xs font-bold text-gray-500 pt-1">${label} · ${list.length}건</p>${list.length ? list.map(({ c, a }) => `<div class="flex items-stretch gap-1.5"><button type="button" data-st-cid="${escapeHtml(c.id)}" data-st-act="${escapeHtml(a.id)}" class="flex-1 min-w-0 text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><b class="block text-[15px] text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')} <span class="text-[13px] font-medium text-gray-500">${stockMD(a.date)} · ${a.kind}</span></b><span class="block text-xs text-gray-600 truncate">${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</span></span><span class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center">입력</span></button>${a.kind === '유선' && suspKey.has(`${c.id}|${a.date}`) ? `<button type="button" data-st-wired="${escapeHtml(c.id)}|${a.date}" class="flex-shrink-0 w-[68px] rounded-xl border border-sky-300 bg-sky-50 text-[12px] font-bold text-sky-800 leading-tight">📺<br>개통 아님</button>` : ''}</div>`).join('') : '<p class="text-sm text-gray-500 py-2">없어요 👍</p>'}`;
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-2">
                 <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">💰 정산 미입력</p><p class="text-xs text-gray-600">직원 폰(정산 숨김)에서 등록했거나 정산 칸을 비워 둔 개통이에요. 넣어야 매출 목표에 들어가요. 개통 ${SETTLE_LIST_DAYS}일이 지나면 목록에서 빠져요.</p></div><button type="button" data-st-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                ${isSuperAdmin ? '<button type="button" data-st-rec class="w-full text-left rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[13px] font-bold text-indigo-900">📑 거래처 정산서와 맞춰보기 (엑셀 · 사진)</button>' : ''}
                 ${susp.length ? `<button type="button" data-st-wired-all class="w-full text-left rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-bold text-sky-900">📺 인터넷+TV 칸 때문에 잡힌 것 같은 유선 개통 ${susp.length}건 → 점검</button>` : ''}
                 ${sec(`최근 ${SETTLE_LIST_DAYS}일 (${stockMD(cut)}~)`, list)}
                 ${old ? `<p class="text-xs text-gray-500 leading-relaxed pt-1">이번 달 중 ${SETTLE_LIST_DAYS}일 지난 미입력 ${old}건은 목록에서 빠졌어요 (매출엔 아직 안 들어가요). 넣으려면 고객카드 → 📜 개통 기록 → [정산 입력].</p>` : ''}
@@ -8779,7 +9064,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 profileKV('가족결합', profileValue(c.combination)),
                 profileKV('복지할인', profileValue(c.welfare)),
                 profileKV('가족 정보', c.repFamily && c.repFamily.trim() ? `<span class="font-medium whitespace-pre-wrap">${escapeHtml(c.repFamily)}</span>` : PROFILE_DASH)
-            ].join('') + buildActDetailHtml(c);
+            ].join('') + changeNowHtml(c) + buildActDetailHtml(c);
         }
 
         function buildProfileWiredTab(c) {
@@ -19303,6 +19588,7 @@ familyStr + `\n` +
         document.getElementById('guideView').addEventListener('click', (e) => {
             const n = e.target.closest('[data-gd-new]'); if (n) { gdNew(n.dataset.gdNew, null); return; }
             const f = e.target.closest('[data-gd-f]'); if (f) { gdFilter = f.dataset.gdF; gdRenderList(); return; }
+            if (e.target.closest('[data-cmp-open]')) { cmpOpen(null); return; }   // ⚖️ V209
             const dup = e.target.closest('[data-gd-dup]'); if (dup) { gdGet(dup.dataset.gdDup).then(g0 => g0 ? gdCopyOther(g0) : customAlert('안내서를 찾지 못했어요.')); return; }   // 👥 V208
             const o = e.target.closest('[data-gd-open]'); if (o) { gdOpenById(o.dataset.gdOpen); return; }
             if (e.target.closest('[data-gd-admin]')) gdOpenAdmin();
@@ -19321,6 +19607,353 @@ familyStr + `\n` +
             if (n) { if (c && !protectGate(c)) return; gdNew(n.dataset.gdCnew, c || null); }
             else gdOpenById(o.dataset.gdCopen);
         });
+
+        /* =====================================================================
+           🔄 지금 바꾸면 (V209) — 고객카드 모바일 탭
+           · 약정 끝나는 날 · 남은 할부(개통등록 할부원금이 있으면 연 5.9% 원리금균등으로 정확히) · 공시 반환금(지원금 × 남은 기간 · 대략)
+           · 선택약정 할인반환금은 통신사마다 달라서 '조회'로만 · 요금제 유지 약속
+           ===================================================================== */
+        function changeNowInfo(c) {
+            if (!c || !/^\d{4}-\d{2}-\d{2}$/.test(c.activationDate || '') || c.activationDate > getTodayStr()) return null;   // 개통 6개월 뒤 '미정'으로 풀린 고객도 (기변 대상)
+            const today = getTodayStr(), ad = c.activationDate, termTxt = String(c.contractTerm || ''), dt = String(c.discountType || '');
+            const term = /무약정/.test(termTxt) ? 0 : (parseInt((termTxt.match(/\d+/) || dt.match(/(\d+)\s*개월/) || [])[termTxt.match(/\d+/) ? 0 : 1], 10) || 24);
+            const [y, m, d] = ad.split('-').map(Number), endD = new Date(y, m - 1 + term, d);
+            const end = `${endD.getFullYear()}-${String(endD.getMonth() + 1).padStart(2, '0')}-${String(endD.getDate()).padStart(2, '0')}`;
+            const dayMs = 86400000, totalDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(ad)) / dayMs)), usedDays = Math.max(0, Math.round((Date.parse(today) - Date.parse(ad)) / dayMs));
+            const remDays = term ? Math.max(0, Math.round((Date.parse(end) - Date.parse(today)) / dayMs)) : 0;
+            const now = new Date(), remMonths = term && remDays > 0 ? Math.max(0, (endD.getFullYear() - now.getFullYear()) * 12 + endD.getMonth() - now.getMonth() - (endD.getDate() < now.getDate() ? 1 : 0)) : 0;
+            const mode = /공시/.test(dt) ? '공시' : (/선택|선약/.test(dt) ? '선약' : '');
+            let inst = null;
+            const P0 = Number(c.loanPrincipal) || 0, n = parseInstallmentMonths(String(c.installment || '').split('/')[1] || '') || 0;
+            if (P0 > 0 && n > 0) {
+                const k = Math.min(n, getMonthsPassedSince(String(c.installmentBaseDate || ad))), r = GD_RATE / 12, M = P0 * r / (1 - Math.pow(1 + r, -n));
+                const rem = k >= n ? 0 : Math.max(0, P0 * Math.pow(1 + r, k) - M * (Math.pow(1 + r, k) - 1) / r);
+                inst = { amt: Math.round(rem / 10) * 10, months: Math.max(0, n - k), exact: true };
+            } else if (/완납/.test(String(c.installment || ''))) inst = { amt: 0, months: 0 };
+            else if (String(c.installment || '').trim() && !/해당없음/.test(c.installment) && String(c.installment).trim() !== '-') {
+                const dyn = String(getDynamicInstallment(c.installment, getInstallmentBaseInfo(c).date) || '');
+                if (/완납/.test(dyn)) inst = { amt: 0, months: 0 };
+                else { const a = parseKoreanAmount(String(dyn.split('/')[0] || '').replace(/^약\s*/, '').replace(/\s/g, '')); if (a !== null && a >= 0) inst = { amt: a, months: parseInstallmentMonths(dyn.split('/')[1] || '') || 0 }; }
+            }
+            const inst2 = String(c.installment2 || '').trim() ? String(getDynamicInstallment(c.installment2, inst2BaseOf(c)) || '') : '';
+            const pub = Number(c.publicSupport) || 0;
+            const pubBack = mode === '공시' && pub > 0 && remDays > 0 ? Math.floor(pub * remDays / totalDays / 10) * 10 : 0;
+            const selGot = mode === '선약' && Number(c.planFee) > 0 ? Math.round(Number(c.planFee) * 0.25 * Math.min(term || 24, Math.floor(usedDays / 30.4))) : 0;
+            const plan = c.promPlanDate && String(c.promPlanDate).length >= 10 && !c.promPlanChk ? { date: String(c.promPlanDate).slice(0, 10), left: daysFromToday(String(c.promPlanDate).slice(0, 10)) } : null;
+            return { term, end, remDays, remMonths, usedDays, mode, pub, inst, inst2, pubBack, selGot, plan };
+        }
+        function changeNowHtml(c) {
+            const I = changeNowInfo(c); if (!I) return '';
+            const rows = [['약정', I.term ? `${I.term}개월 · ${gdDot(I.end)} 끝 ${I.remDays > 0 ? `(<b>${I.remMonths}개월</b> 남음)` : '<b class="text-emerald-700">(끝났어요)</b>'}` : '무약정']];
+            if (I.inst) rows.push(['남은 할부', I.inst.amt > 0 ? `<b>${I.inst.exact ? '' : '약 '}${arWon(I.inst.amt)}원</b> · ${I.inst.months}개월` : '<b class="text-emerald-700">완납</b>']);
+            if (I.inst2) rows.push(['💳 이중할부', escapeHtml(I.inst2)]);
+            if (I.mode === '공시') rows.push(['공시 반환금', I.pubBack ? `약 <b>${arWon(I.pubBack)}원</b><br><span class="text-[11px] text-gray-500">공시 ${wonMan(I.pub)} × 남은 기간 · 통신사 조회가 정확</span>` : (I.remDays > 0 ? '<span class="text-gray-500">공시지원금 금액을 몰라요 (통신사 조회)</span>' : '없어요')]);
+            if (I.mode === '선약') rows.push(['선택약정', I.remDays > 0 ? `할인반환금 있어요<br><span class="text-[11px] text-gray-500">통신사 조회${I.selGot ? ` · 받은 할인 약 ${wonMan(I.selGot)}` : ''}</span>` : '반환금 없어요']);
+            if (I.plan) rows.push(['요금제 유지', I.plan.left > 0 ? `${gdDot(I.plan.date)}까지 <b>D-${I.plan.left}</b><br><span class="text-[11px] text-gray-500">그 전엔 요금제를 낮추면 안 돼요</span>` : '끝났어요 · 낮춰도 돼요']);
+            const sure = (I.pubBack || 0) + ((I.inst && I.inst.amt) || 0);
+            const verdict = !I.term || I.remDays <= 0 ? (I.inst && I.inst.amt > 0 ? '✅ 약정 끝 · 남은 할부만 정리하면 바꾸기 좋아요' : '✅ 약정 · 할부 다 끝 · 바꾸기 좋아요') : (I.remMonths <= 3 ? `⏳ 약정 ${I.remMonths}개월 남음 · ${gdDot(I.end)}부터 반환금 없이` : `약정 ${I.remMonths}개월 남음 · 지금 바꾸면 반환금이 있어요`);
+            return `<div class="mt-3 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5" data-change-now>
+                <div class="flex items-center justify-between gap-2 mb-1"><p class="text-[14px] font-extrabold text-sky-900">🔄 지금 바꾸면</p><span class="text-[11px] text-sky-700">${Math.floor(I.usedDays / 30.4)}개월째 사용</span></div>
+                <p class="text-[13px] font-bold text-gray-900 mb-1">${verdict}</p>
+                ${rows.map(([l, v]) => `<div class="flex items-start justify-between gap-3 py-0.5 text-[13px]"><span class="text-gray-600 flex-shrink-0">${l}</span><span class="text-right text-gray-900 leading-snug">${v}</span></div>`).join('')}
+                ${sure ? `<p class="mt-1 pt-1.5 border-t border-sky-100 text-[13px] text-gray-900">지금 바꾸면 대략 <b class="text-[15px]">${arWon(sure)}원</b>${I.mode === '선약' && I.remDays > 0 ? ' + 선택약정 할인반환금' : ''}</p>` : ''}
+                <div class="mt-2 grid grid-cols-2 gap-1.5"><button type="button" data-cn-guide class="h-10 rounded-lg bg-indigo-600 text-white text-[13px] font-bold">📝 기변 안내서</button><button type="button" data-cn-cmp class="h-10 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-[13px] font-bold">⚖️ 비교 안내서</button></div></div>`;
+        }
+        profileModal.addEventListener('click', (ev) => {   // 🔄 V209
+            const g = ev.target.closest('[data-cn-guide]'), m = ev.target.closest('[data-cn-cmp]');
+            if ((!g && !m) || !currentProfileId) return;
+            const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
+            if (m) { cmpOpen(c); return; }
+            if (!protectGate(c)) return;
+            gdNew('dev', c); if (!gd) return;
+            gd.actType = '기기변경'; if (gdCarOf(c.carrier)) gd.carrier = gdCarOf(c.carrier);
+            if (!gd.keepTouched) gd.keep.code = gdKeepDefault(gd);
+            gdRender();
+        });
+
+        /* =====================================================================
+           ⚖️ 비교 안내서 (V209) — 기종 1~3개 × 선택약정 / 공시지원금 · 매달 금액 · 24개월 총액
+           · 지원금표(명함 폰값계산)가 있으면 출고가 · 공시지원금 · 월정액이 저절로 · 없으면 우리 매장 개통 기록 · 전에 쓴 값
+           · 총액 = 휴대폰(할부 끝까지 · 할부수수료 포함) + 월 요금 × 약정 개월 · 제일 싼 칸 ★
+           · 칸마다 [이걸로 안내서] → 보통 구매 안내서로 이어서 서명 · [비교표 보내기] → 그림 한 장 (문자 · 카톡 · 저장)
+           ===================================================================== */
+        const CMP_MAX = 3;
+        let cmp = null, cmpStage = 'edit', cmpPushed = false, cmpImgC = { key: '', url: '', link: '' };
+        function cmpBlankDev() { return { name: '', price: 0, pub: 0, addPub: 0, addSel: 0 }; }
+        function cmpBlank(c) {
+            const mem = gdLS('gdLast', {}) || {};
+            return { v: 1, custId: c ? c.id : '', name: c ? String(c.name || '').slice(0, 30) : '', phone: c && c.phone ? formatPhone(c.phone) : '',
+                carrier: gdCarOf(c && c.carrier) || gdCarOf(mem.carrier) || 'LG U+', actType: c ? '기기변경' : '', inst: GD_INST.includes(mem.inst) ? mem.inst : 24, term: 24,
+                plan: { name: '', fee: 0, comb: 0, card: 0 }, devs: [cmpBlankDev(), cmpBlankDev()] };
+        }
+        function cmpSave() { try { localStorage.setItem('gdCmp', JSON.stringify({ ...cmp, at: Date.now() })); } catch (e) { /* 무시 */ } }
+        function cmpModelInfo(car, actType, planName, name) {   // 지원금표: 출고가 · 공시지원금 (개통종류 · 요금제별) → 이 폰에서 전에 쓴 출고가
+            const k = stockKey(name); if (!k) return null;
+            const C = gdCalcCar(car), m = ((C && C.models) || []).find(x => x && stockKey(x.name) === k);
+            if (m) { const j = (C.plans || []).findIndex(p => p && stockKey(p.name) === stockKey(planName)), key = actType === '번호이동' ? 'mnp' : (actType === '기기변경' ? 'chg' : 'new'); return { price: Number(m.price) || 0, pub: j >= 0 && m.sup && Array.isArray(m.sup[key]) ? Number(m.sup[key][j]) || 0 : 0 }; }
+            const r = (gdLS('gdModels', []) || []).find(x => x && stockKey(x.n) === k); return r ? { price: Number(r.p) || 0, pub: 0 } : null;
+        }
+        function cmpGuideOf(cm, dv, mode) {
+            return { kind: 'dev', sup: mode, term: cm.term || 24, dev: { price: gdNum(dv.price), pub: gdNum(dv.pub), sw: 0, extra: gdNum(mode === '공시' ? dv.addPub : dv.addSel), used: 0, card: 0, etc: 0, prepay: 0, inst: Number(cm.inst) || 0 },
+                plan: { name: cm.plan.name, fee: gdNum(cm.plan.fee), welType: '', wel: 0, welAuto: true, combName: '', comb: gdNum(cm.plan.comb), cardName: '', card: gdNum(cm.plan.card) }, promises: [] };
+        }
+        function cmpCalc(cm) {
+            const term = Number(cm.term) || 24;
+            const rows = cm.devs.map((dv, i) => ({ dv, i })).filter(r => String(r.dv.name || '').trim() || gdNum(r.dv.price));
+            rows.forEach(r => {
+                ['선약', '공시'].forEach(mode => {
+                    const c = gdCalc(cmpGuideOf(cm, r.dv, mode)), devTotal = c.n ? c.month * c.n : c.loan;
+                    r[mode === '선약' ? 'sel' : 'pub'] = { ...c, devTotal, total24: devTotal + c.planNet * term };
+                });
+                r.better = r.pub.total24 < r.sel.total24 ? '공시' : (r.sel.total24 < r.pub.total24 ? '선약' : '');
+                r.diff = Math.abs(r.pub.total24 - r.sel.total24);
+            });
+            let best = null; rows.forEach(r => ['sel', 'pub'].forEach(k => { if (!best || r[k].total24 < best.v) best = { i: r.i, k, v: r[k].total24 }; }));
+            if (best && rows.length === 1 && !rows[0].better) best = null;
+            return { rows, best, term };
+        }
+        const cmpEl = document.createElement('div');
+        cmpEl.id = 'cmpModal';
+        cmpEl.className = 'fixed inset-0 z-[66] flex-col bg-gray-50';
+        cmpEl.style.display = 'none';
+        cmpEl.setAttribute('role', 'dialog'); cmpEl.setAttribute('aria-modal', 'true'); cmpEl.setAttribute('aria-labelledby', 'cmpTitle');
+        cmpEl.innerHTML = `
+            <div class="flex-shrink-0 bg-white border-b border-gray-200 flex items-center gap-2 px-2" style="padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px;">
+                <button type="button" id="cmpBack" class="w-11 h-11 rounded-full text-gray-700 text-xl" aria-label="닫기">✕</button>
+                <h2 id="cmpTitle" class="flex-1 min-w-0 text-[18px] font-bold text-gray-900 truncate">⚖️ 비교 안내서</h2>
+                <button type="button" id="cmpReset" class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">새로</button>
+            </div>
+            <div id="cmpBody" class="flex-1 min-h-0 overflow-y-auto px-3 py-3"><div id="cmpInner" class="max-w-2xl mx-auto space-y-3"></div></div>
+            <div id="cmpFoot" class="flex-shrink-0 bg-white border-t border-gray-200 px-3 pt-2.5" style="padding-bottom: max(10px, env(safe-area-inset-bottom));"></div>`;
+        document.body.appendChild(cmpEl);
+        const cmpInner = cmpEl.querySelector('#cmpInner'), cmpFoot = cmpEl.querySelector('#cmpFoot');
+        function cmpOpen(c) {
+            let saved = null; try { saved = JSON.parse(localStorage.getItem('gdCmp') || 'null'); } catch (e) { /* 무시 */ }
+            cmp = c ? cmpBlank(c) : (saved && Array.isArray(saved.devs) && Date.now() - (Number(saved.at) || 0) < 3 * 86400000 ? saved : cmpBlank(null));
+            if (!Array.isArray(cmp.devs) || !cmp.devs.length) cmp.devs = [cmpBlankDev()];
+            cmp.plan = { name: '', fee: 0, comb: 0, card: 0, ...(cmp.plan || {}) };
+            cmpStage = 'edit'; cmpEl.style.display = 'flex';
+            if (!cmpPushed) { pushAppState({ cmp: true }); cmpPushed = true; }
+            cmpRender();
+        }
+        function cmpClose(fromPop = false) {
+            if (cmpEl.style.display !== 'flex') return;
+            cmpEl.style.display = 'none';
+            if (cmpPushed) { cmpPushed = false; if (!fromPop) historyBackSilently(); }
+        }
+        function cmpBackStep(fromPop = false) {
+            if (cmpStage === 'send') { if (fromPop) pushAppState({ cmp: true }); cmpStage = 'edit'; cmpRender(); return; }
+            cmpClose(fromPop);
+        }
+        { const prev = window.__actRegBack; window.__actRegBack = () => { if (cmpEl.style.display === 'flex') { cmpBackStep(true); return true; } return prev ? prev() : false; }; }
+        cmpEl.querySelector('#cmpBack').onclick = () => cmpBackStep();
+        cmpEl.querySelector('#cmpReset').onclick = async () => { if (!(await customConfirm('비교 안내서를 처음부터 새로 쓸까요?'))) return; const c = customerDB.find(x => x.id === cmp.custId) || null; cmp = cmpBlank(c); cmpSave(); cmpStage = 'edit'; cmpRender(); };
+        const cmpLbl = (t, h, span) => `<label class="block min-w-0 ${span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${t}</span>${h}</label>`;
+        const cmpInp = (path, v, o = {}) => `<input data-cm="${path}" ${o.money ? 'inputmode="numeric"' : ''} ${o.list ? `list="${o.list}" autocomplete="off"` : ''} ${o.type ? `type="${o.type}"` : ''} value="${escapeHtml(o.money ? (gdNum(v) ? arWon(v) : '') : (v ?? ''))}" placeholder="${escapeHtml(o.ph || (o.money ? '0' : ''))}" class="${gdCls} ${o.money ? 'text-right' : ''}">`;
+        const cmpPick = (key, list, cur) => `<div class="flex flex-wrap gap-1.5">${list.map(v => `<button type="button" data-cm-pick="${key}" data-v="${escapeHtml(v)}" class="h-10 px-3 rounded-xl border text-[14px] font-bold ${cur === v ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${escapeHtml(v)}</button>`).join('')}</div>`;
+        const cmpSec = (t, inner, extra = '') => `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden"><div class="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 min-h-[44px]"><h3 class="text-[15px] font-bold text-gray-900">${t}</h3>${extra}</div><div class="p-3 space-y-2.5">${inner}</div></section>`;
+        function cmpRender() {
+            if (!cmp) return;
+            if (cmpStage === 'send') return cmpRenderSend();
+            const cm = cmp;
+            let h = `<datalist id="cmpPlanList">${gdPlanNames(cm.carrier).map(n => `<option value="${escapeHtml(n)}"></option>`).join('')}</datalist><datalist id="cmpModelList">${gdModelNames(cm.carrier).map(n => `<option value="${escapeHtml(n)}"></option>`).join('')}</datalist>`;
+            h += cmpSec('고객 <span class="text-xs font-normal text-gray-500">(보낼 때만 · 비워도 돼요)</span>', `<div class="grid grid-cols-2 gap-2">${cmpLbl('이름', cmpInp('name', cm.name, { ph: '예) 홍길동' }))}${cmpLbl('휴대폰', cmpInp('phone', cm.phone, { type: 'tel', ph: '010-0000-0000' }))}</div>`);
+            h += cmpSec('공통 · 요금', `${cmpLbl('통신사', cmpPick('carrier', GD_CARRIERS, cm.carrier))}${cmpLbl('개통종류 <span class="font-normal text-gray-500">(공시지원금이 달라요)</span>', cmpPick('actType', GD_TYPES, cm.actType))}
+                <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 120px">${cmpLbl('요금제', cmpInp('plan.name', cm.plan.name, { list: 'cmpPlanList', ph: '예) 5G 프리미어 에센셜' }))}${cmpLbl('월정액', cmpInp('plan.fee', cm.plan.fee, { money: true }))}</div>
+                <div class="grid grid-cols-3 gap-2">${cmpLbl('결합할인 (월)', cmpInp('plan.comb', cm.plan.comb, { money: true }))}${cmpLbl('요금DC카드 (월)', cmpInp('plan.card', cm.plan.card, { money: true }))}${cmpLbl('할부', `<select data-cm="inst" class="${gdCls}">${GD_INST.map(n => `<option value="${n}" ${Number(cm.inst) === n ? 'selected' : ''}>${n ? n + '개월' : '일시불'}</option>`).join('')}</select>`)}</div>`);
+            cm.devs.forEach((dv, i) => {
+                h += cmpSec(`📱 기종 ${i + 1}`, `${cmpLbl('기종', cmpInp(`d.${i}.name`, dv.name, { list: 'cmpModelList', ph: '예) 갤럭시S26-256' }))}
+                    <div class="grid grid-cols-2 gap-2">${cmpLbl('출고가', cmpInp(`d.${i}.price`, dv.price, { money: true }))}${cmpLbl('공시지원금', cmpInp(`d.${i}.pub`, dv.pub, { money: true }))}${cmpLbl('추가할인 · 공시일 때', cmpInp(`d.${i}.addPub`, dv.addPub, { money: true }))}${cmpLbl('추가할인 · 선약일 때', cmpInp(`d.${i}.addSel`, dv.addSel, { money: true }))}</div>`,
+                    cm.devs.length > 1 ? `<button type="button" data-cm-del="${i}" class="h-9 px-2.5 rounded-lg text-[13px] font-bold text-gray-500 hover:bg-gray-200" aria-label="기종 ${i + 1} 빼기">✕ 빼기</button>` : '');
+            });
+            if (cm.devs.length < CMP_MAX) h += `<button type="button" data-cm-add class="w-full h-11 rounded-xl border border-dashed border-indigo-300 bg-white text-[14px] font-bold text-indigo-700">+ 기종 추가 (최대 ${CMP_MAX}개)</button>`;
+            h += `<section id="cmpResult" class="space-y-2.5" aria-live="polite"></section>`;
+            cmpInner.innerHTML = h;
+            cmpFoot.innerHTML = `<div class="max-w-2xl mx-auto"><button type="button" id="cmpToSend" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>비교표 보내기 (문자 · 카톡 · 저장)</button></div>`;
+            cmpFoot.querySelector('#cmpToSend').onclick = () => { if (!cmpCalc(cmp).rows.length) { customAlert('기종을 하나 이상 넣어 주세요.'); return; } cmpStage = 'send'; cmpRender(); cmpEl.querySelector('#cmpBody').scrollTop = 0; };
+            cmpRenderResult();
+        }
+        function cmpRenderResult() {
+            const box = document.getElementById('cmpResult'); if (!box || !cmp) return;
+            const R = cmpCalc(cmp), cm = cmp;
+            if (!R.rows.length) { box.innerHTML = '<p class="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-6 text-center text-[13px] text-gray-600 leading-relaxed">기종을 넣으면 <b>선택약정 · 공시지원금</b> 매달 금액과<br>24개월 총액이 바로 나와요.</p>'; return; }
+            const cell = (r, k) => {
+                const c = r[k], mode = k === 'sel' ? '선약' : '공시', win = r.better === mode, best = R.best && R.best.i === r.i && R.best.k === k && (R.rows.length > 1 || win);
+                return `<div class="rounded-xl border-2 ${win ? 'border-indigo-500 bg-indigo-50/70' : 'border-gray-200 bg-white'} p-2.5 flex flex-col gap-0.5 min-w-0" data-cm-cell="${r.i}|${k}">
+                    <p class="text-[13px] font-extrabold ${win ? 'text-indigo-800' : 'text-gray-700'}">${k === 'sel' ? '선택약정 25%' : '공시지원금'}</p>
+                    ${best ? '<p><span class="text-[11px] font-bold text-white bg-rose-600 rounded px-1.5 py-0.5">★ 가장 저렴</span></p>' : (win ? '<p><span class="text-[11px] font-bold text-indigo-700">✔ 더 저렴</span></p>' : '')}
+                    <p class="text-[11px] text-gray-500 mt-0.5">매달</p><p class="text-[21px] font-extrabold text-gray-900 leading-none" data-cm-total>${arWon(c.total)}<span class="text-[13px]">원</span></p>
+                    <p class="text-[12px] text-gray-600 mt-1">휴대폰 ${arWon(c.month)} + 요금 ${arWon(c.planNet)}</p>
+                    <p class="text-[12px] text-gray-600">할부원금 ${arWon(c.loan)}원</p>
+                    <p class="text-[12px] font-bold text-gray-900">${R.term}개월 총 ${arWon(c.total24)}원</p>
+                    ${k === 'pub' && !gdNum(r.dv.pub) ? '<p class="text-[11px] font-bold text-amber-700">공시지원금을 넣어야 비교돼요</p>' : ''}
+                    <button type="button" data-cm-use="${r.i}|${mode}" class="mt-1.5 w-full h-9 rounded-lg ${win ? 'bg-indigo-600 text-white' : 'border border-gray-300 bg-white text-gray-700'} text-[12px] font-bold">이걸로 안내서 →</button></div>`;
+            };
+            box.innerHTML = `<h3 class="text-[15px] font-bold text-gray-900 px-1 pt-1">📊 비교 결과 <span class="text-xs font-normal text-gray-500">(매달 = 월 할부금 + 월 요금)</span></h3>` + R.rows.map(r => `<div class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
+                    <div class="flex items-baseline justify-between gap-2"><b class="text-[16px] text-gray-900 truncate">${escapeHtml(r.dv.name || `기종 ${r.i + 1}`)}</b><span class="text-[12px] text-gray-500 flex-shrink-0">출고가 ${arWon(r.dv.price)}원</span></div>
+                    <div class="grid grid-cols-2 gap-2">${cell(r, 'sel')}${cell(r, 'pub')}</div>
+                    <p class="text-[13px] font-bold ${r.better ? 'text-indigo-800' : 'text-gray-600'}" data-cm-verdict="${r.i}">${r.better ? `👉 ${r.better === '공시' ? '공시지원금' : '선택약정'}이 ${R.term}개월 동안 약 ${wonMan(r.diff)} 더 싸요` : '두 방식 총액이 같아요'}</p></div>`).join('')
+                + `<p class="text-[11px] text-gray-500 leading-relaxed px-1">총액 = 휴대폰(할부 끝까지 · 할부수수료 연 5.9% 포함) + 월 요금 × ${R.term}개월. 선택약정은 월정액 25% 할인 · 공시는 공시지원금만큼 할부원금이 줄어요. 지원금 · 요금은 바뀔 수 있어요.</p>`;
+        }
+        function cmpPut(path, v) { const el = cmpInner.querySelector(`[data-cm="${path}"]`); if (el && document.activeElement !== el) el.value = el.getAttribute('inputmode') === 'numeric' ? (gdNum(v) ? arWon(v) : '') : v; }
+        function cmpAutoDev(i, force) {
+            const dv = cmp.devs[i]; if (!dv) return;
+            const info = cmpModelInfo(cmp.carrier, cmp.actType, cmp.plan.name, dv.name); if (!info) return;
+            if (info.price && (force ? (!gdNum(dv.price) || dv.priceAuto) : dv.priceAuto)) { dv.price = info.price; dv.priceAuto = true; cmpPut(`d.${i}.price`, info.price); }
+            if (info.pub && (!gdNum(dv.pub) || dv.pubAuto)) { dv.pub = info.pub; dv.pubAuto = true; cmpPut(`d.${i}.pub`, info.pub); }
+        }
+        cmpInner.addEventListener('input', (e) => {
+            const el = e.target.closest('[data-cm]'); if (!el || !cmp) return;
+            const path = el.dataset.cm, money = el.getAttribute('inputmode') === 'numeric';
+            let v = el.value;
+            if (money) { const n = gdNum(v); el.value = n ? arWon(n) : ''; v = n; }
+            const dm = /^d\.(\d)\.(\w+)$/.exec(path);
+            if (dm) { const dv = cmp.devs[+dm[1]]; if (!dv) return; dv[dm[2]] = v; if (dm[2] === 'price') dv.priceAuto = false; if (dm[2] === 'pub') dv.pubAuto = false; if (dm[2] === 'name') cmpAutoDev(+dm[1], true); }
+            else if (path.startsWith('plan.')) {
+                const k = path.slice(5); cmp.plan[k] = v;
+                if (k === 'fee') cmp.plan.feeAuto = false;
+                if (k === 'name') { const f = gdPlanFee(cmp.carrier, v); if (f && (!gdNum(cmp.plan.fee) || cmp.plan.feeAuto)) { cmp.plan.fee = f; cmp.plan.feeAuto = true; cmpPut('plan.fee', f); } cmp.devs.forEach((d, i) => cmpAutoDev(i, false)); }
+            }
+            else if (path === 'phone') { cmp.phone = v; const c = gdFindCust(v); if (c) { cmp.custId = c.id; if (!String(cmp.name || '').trim()) { cmp.name = String(c.name || '').slice(0, 30); cmpPut('name', cmp.name); } } else cmp.custId = ''; }
+            else cmp[path] = v;
+            cmpSave(); cmpRenderResult();
+        });
+        cmpInner.addEventListener('change', (e) => {
+            const el = e.target.closest('[data-cm="inst"]'); if (!el || !cmp) return;
+            cmp.inst = Number(el.value) || 0; cmpSave(); cmpRenderResult();
+        });
+        cmpInner.addEventListener('click', (e) => {
+            if (!cmp) return;
+            const pk = e.target.closest('[data-cm-pick]');
+            if (pk) { cmp[pk.dataset.cmPick] = pk.dataset.v; if (pk.dataset.cmPick === 'carrier') { const f = gdPlanFee(cmp.carrier, cmp.plan.name); if (f && (!gdNum(cmp.plan.fee) || cmp.plan.feeAuto)) { cmp.plan.fee = f; cmp.plan.feeAuto = true; } } cmp.devs.forEach((d, i) => cmpAutoDev(i, false)); cmpSave(); cmpRender(); return; }
+            if (e.target.closest('[data-cm-add]')) { if (cmp.devs.length < CMP_MAX) cmp.devs.push(cmpBlankDev()); cmpSave(); cmpRender(); const ins = cmpInner.querySelectorAll('[data-cm$=".name"]'); if (ins.length) { ins[ins.length - 1].scrollIntoView({ block: 'center' }); try { ins[ins.length - 1].focus(); } catch (err) { /* 무시 */ } } return; }
+            const del = e.target.closest('[data-cm-del]'); if (del) { cmp.devs.splice(+del.dataset.cmDel, 1); if (!cmp.devs.length) cmp.devs.push(cmpBlankDev()); cmpSave(); cmpRender(); return; }
+            const use = e.target.closest('[data-cm-use]'); if (use) { const [i, mode] = use.dataset.cmUse.split('|'); cmpUse(+i, mode); return; }
+            const s = e.target.closest('[data-cm-send]'); if (s) { cmpSend(s.dataset.cmSend, s); return; }
+        });
+        function cmpUse(i, mode) {
+            const dv = cmp && cmp.devs[i]; if (!dv) return;
+            const cust = customerDB.find(x => x.id === cmp.custId) || gdFindCust(cmp.phone) || null;
+            if (cust && !protectGate(cust)) return;
+            const g = gdBlank('dev', cust);
+            Object.assign(g, { carrier: gdCarOf(cmp.carrier) || g.carrier, actType: cmp.actType || g.actType, sup: mode, term: Number(cmp.term) || 24 });
+            Object.assign(g.dev, { name: String(dv.name || '').trim().slice(0, 40), price: gdNum(dv.price), pub: gdNum(dv.pub), extra: gdNum(mode === '공시' ? dv.addPub : dv.addSel), inst: Number(cmp.inst) || 0 });
+            Object.assign(g.plan, { name: String(cmp.plan.name || '').trim(), fee: gdNum(cmp.plan.fee), comb: gdNum(cmp.plan.comb), card: gdNum(cmp.plan.card) });
+            if (!cust) { g.name = String(cmp.name || '').slice(0, 30); g.phone = cmp.phone || ''; }
+            if (!g.keepTouched) g.keep.code = gdKeepDefault(g);
+            cmpClose();
+            setTimeout(() => { gd = g; gdDirty = true; gdOpen('edit'); stockToast(`⚖️ ${g.dev.name || '고른 기종'} · ${mode === '공시' ? '공시지원금' : '선택약정'}으로 안내서를 만들었어요 · 확인하고 서명받아요`); }, 0);
+        }
+        function cmpSmsText(cm) {
+            const R = cmpCalc(cm), st = gdStoreDefault(), ls = [`[${st.name || msgStoreName()}] ${cm.name ? `${cm.name}님, ` : ''}상담하신 기종 · 요금 비교예요.`];
+            if (cm.plan.name) ls.push(`· 요금제 ${cm.plan.name}${gdNum(cm.plan.fee) ? ` (월 ${arWon(cm.plan.fee)}원)` : ''} · 할부 ${Number(cm.inst) ? cm.inst + '개월' : '일시불'}`);
+            R.rows.forEach(r => ls.push(`· ${r.dv.name || `기종 ${r.i + 1}`}: 선택약정 매달 ${arWon(r.sel.total)}원 / 공시 매달 ${arWon(r.pub.total)}원`));
+            if (R.best) { const r = R.rows.find(x => x.i === R.best.i); ls.push(`→ 가장 저렴: ${r.dv.name || `기종 ${r.i + 1}`} ${R.best.k === 'sel' ? '선택약정' : '공시지원금'} (${R.term}개월 총 ${wonMan(R.best.v)})`); }
+            if (st.tel) ls.push(`문의 ${st.tel}`);
+            return ls.join('\n');
+        }
+        async function cmpCanvas(cm) {
+            const W0 = 680, PD = 28, scale = 1080 / W0, R = cmpCalc(cm);
+            try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* 무시 */ }
+            const H0 = 3200, cv = document.createElement('canvas'); cv.width = Math.round(W0 * scale); cv.height = Math.round(H0 * scale);
+            const x = cv.getContext('2d'); x.scale(scale, scale); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, W0, H0); x.textBaseline = 'alphabetic';
+            const T = (s, X, Y, size, weight, color, align) => { gdFont(x, size, weight); x.fillStyle = color || '#111827'; x.textAlign = align || 'left'; x.fillText(String(s ?? ''), X, Y); };
+            const tw = (s, size, weight) => { gdFont(x, size, weight); return x.measureText(String(s ?? '')).width; };
+            const fit = (s, max, size, weight) => { s = String(s ?? ''); let z = size; while (z > 10 && tw(s, z, weight) > max) z -= 0.5; while (s.length > 2 && tw(s, z, weight) > max) s = s.slice(0, -2) + '…'; return [s, z]; };
+            const box = (X, Y, w, h, o = {}) => { gdRound(x, X, Y, w, h, o.r ?? 10); if (o.fill) { x.fillStyle = o.fill; x.fill(); } if (o.stroke) { x.strokeStyle = o.stroke; x.lineWidth = o.lw || 1; x.stroke(); } };
+            const st = gdStoreDefault(), L = PD, RR = W0 - PD, IW = RR - L;
+            let y = PD;
+            T(st.name || msgStoreName() || '', L, y + 14, 14, 700, '#4338CA');
+            T('기종 · 요금 비교', L, y + 46, 26, 800);
+            T(gdDateKo(getTodayStr()), RR, y + 18, 13, 500, '#374151', 'right'); if (st.tel) T(st.tel, RR, y + 38, 13, 500, '#374151', 'right');
+            y += 58; x.fillStyle = '#111827'; x.fillRect(L, y, IW, 2); y += 26;
+            if (cm.name) { T(`${cm.name}님`, L, y, 16, 800); y += 24; }
+            const info = [cm.carrier, cm.actType, cm.plan.name ? `${cm.plan.name}${gdNum(cm.plan.fee) ? ` 월 ${arWon(cm.plan.fee)}원` : ''}` : '', `할부 ${Number(cm.inst) ? cm.inst + '개월' : '일시불'}`, gdNum(cm.plan.comb) ? `결합 -${arWon(cm.plan.comb)}` : '', gdNum(cm.plan.card) ? `카드 -${arWon(cm.plan.card)}` : ''].filter(Boolean).join(' · ');
+            { const [s1, z1] = fit(info, IW, 14, 600); T(s1, L, y, z1, 600, '#374151'); } y += 18;
+            R.rows.forEach(r => {
+                const bh = 222; box(L, y, IW, bh, { stroke: '#E5E7EB', r: 14 });
+                { const [s1, z1] = fit(r.dv.name || `기종 ${r.i + 1}`, IW - 200, 19, 800); T(s1, L + 16, y + 32, z1, 800); }
+                T(`출고가 ${arWon(r.dv.price)}원`, RR - 16, y + 32, 13, 500, '#4B5563', 'right');
+                const cw = (IW - 32 - 12) / 2;
+                [['sel', '선택약정 25%'], ['pub', '공시지원금']].forEach(([k, label], j) => {
+                    const c = r[k], cx = L + 16 + j * (cw + 12), cy = y + 46, mode = k === 'sel' ? '선약' : '공시', win = r.better === mode, best = R.best && R.best.i === r.i && R.best.k === k && (R.rows.length > 1 || win);
+                    box(cx, cy, cw, 160, win ? { fill: '#EEF2FF', stroke: '#6366F1', lw: 2, r: 12 } : { fill: '#FFFFFF', stroke: '#D1D5DB', r: 12 });
+                    T(label, cx + 12, cy + 24, 14, 800, win ? '#3730A3' : '#374151');
+                    if (best || win) { const tag = best ? '★ 가장 저렴' : '✔ 더 저렴', w = tw(tag, 11, 800) + 12; box(cx + cw - w - 10, cy + 10, w, 20, { fill: best ? '#E11D48' : '#4F46E5', r: 6 }); T(tag, cx + cw - w / 2 - 10, cy + 24, 11, 800, '#FFFFFF', 'center'); }
+                    T('매달', cx + 12, cy + 50, 12, 500, '#6B7280');
+                    T(`${arWon(c.total)}원`, cx + 12, cy + 82, 27, 800);
+                    T(`휴대폰 ${arWon(c.month)} + 요금 ${arWon(c.planNet)}`, cx + 12, cy + 106, 12, 500, '#4B5563');
+                    T(`${k === 'pub' && c.pub ? `공시 -${arWon(c.pub)} · ` : ''}할부원금 ${arWon(c.loan)}`, cx + 12, cy + 125, 12, 500, '#4B5563');
+                    T(`${R.term}개월 총 ${arWon(c.total24)}원`, cx + 12, cy + 147, 13, 800, '#111827');
+                });
+                y += bh + 6;
+                if (r.better) { T(`▶ ${r.better === '공시' ? '공시지원금' : '선택약정'}이 ${R.term}개월 동안 약 ${wonMan(r.diff)} 더 싸요`, L + 6, y + 14, 14, 800, '#3730A3'); y += 24; }
+                y += 10;
+            });
+            T('· 매달 = 월 할부금(연 5.9%) + 월 요금 · 총액 = 휴대폰 할부 끝까지 + 월 요금 × 약정 개월', L, y + 10, 11.5, 500, '#6B7280'); y += 18;
+            T('· 지원금 · 요금은 바뀔 수 있어요. 실제 청구 금액은 통신사 계산에 따라 조금 다를 수 있어요.', L, y + 10, 11.5, 500, '#6B7280'); y += 20;
+            const out = document.createElement('canvas'); out.width = cv.width; out.height = Math.round((y + PD) * scale);
+            const o = out.getContext('2d'); o.fillStyle = '#FFFFFF'; o.fillRect(0, 0, out.width, out.height); o.drawImage(cv, 0, 0);
+            return out;
+        }
+        async function cmpImage() { const key = JSON.stringify({ ...cmp, at: 0 }); if (cmpImgC.key === key && cmpImgC.url) return cmpImgC.url; const url = gdJpegOf(await cmpCanvas(cmp)); cmpImgC = { key, url, link: '' }; return url; }
+        function cmpRenderSend() {
+            const relay = pushRelayReady(), to = smsMobileDigits(cmp.phone);
+            cmpInner.innerHTML = `<div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="cmpImg" alt="기종 · 요금 비교표" class="hidden w-full cursor-zoom-in"><p id="cmpImgWait" class="py-16 text-center text-sm text-gray-500">비교표를 만드는 중…</p></div>
+                <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
+                    <h3 class="text-[15px] font-bold text-gray-900">고객에게 보내기 ${to ? `<span class="text-[13px] font-medium text-gray-500">· ${escapeHtml(formatPhone(to))}</span>` : ''}</h3>
+                    ${!to ? '<p class="text-[13px] font-bold text-amber-700">휴대폰 번호가 없어요 · 카톡 · 공유나 사진 저장은 돼요 (문자는 [다시 고치기]에서 번호를 넣어요)</p>' : ''}
+                    <label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[40px]"><input type="checkbox" id="cmpCardOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0" ${gdCardPref() ? 'checked' : ''}>📇 명함 링크도 같이 보내기 <span class="font-normal text-[12px] text-gray-500">(등록 고객일 때)</span></label>
+                    ${relay && to ? '<button type="button" data-cm-send="auto" class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>문자로 보내기 (매장 폰에서 바로)</button>' : ''}
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" data-cm-send="app" class="min-h-[48px] rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800 flex flex-col items-center justify-center gap-0.5" ${to ? '' : 'disabled'}><i class="fa-solid fa-comment-sms text-indigo-600" aria-hidden="true"></i>문자앱</button>
+                        <button type="button" data-cm-send="share" class="min-h-[48px] rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800 flex flex-col items-center justify-center gap-0.5"><i class="fa-solid fa-share-nodes text-indigo-600" aria-hidden="true"></i>카톡 · 공유</button>
+                        <button type="button" data-cm-send="save" class="min-h-[48px] rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800 flex flex-col items-center justify-center gap-0.5"><i class="fa-solid fa-download text-indigo-600" aria-hidden="true"></i>사진 저장</button>
+                    </div>
+                    <p id="cmpSendMsg" class="text-[13px] font-medium text-gray-600 leading-relaxed">${relay ? (mmsActive() ? '사진 문자로 비교표가 바로 가요.' : '비교표 링크가 들어간 문자로 가요.') : '설정 → 🔌 연결에서 중계 서버를 연결하면 매장 폰에서 바로 보내져요.'}</p>
+                </section>`;
+            cmpFoot.innerHTML = `<div class="max-w-2xl mx-auto"><button type="button" id="cmpBackEdit" class="w-full h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-800">← 다시 고치기</button></div>`;
+            cmpFoot.querySelector('#cmpBackEdit').onclick = () => { cmpStage = 'edit'; cmpRender(); };
+            const ce = document.getElementById('cmpCardOn'); if (ce) ce.onchange = () => { try { localStorage.setItem('gdCardOn', ce.checked ? '1' : '0'); } catch (e) { /* 무시 */ } };
+            cmpImage().then(url => { const img = document.getElementById('cmpImg'); if (!img) return; img.src = url; img.classList.remove('hidden'); img.onclick = () => gdZoom(url); const w = document.getElementById('cmpImgWait'); if (w) w.remove(); }).catch(err => { console.warn(err); const w = document.getElementById('cmpImgWait'); if (w) w.textContent = '비교표 그림을 못 만들었어요.'; });
+        }
+        async function cmpCardPart() {
+            const el = document.getElementById('cmpCardOn'); if (!(el ? el.checked : gdCardPref())) return '';
+            const c = customerDB.find(x => x.id === cmp.custId) || gdFindCust(cmp.phone); if (!c) return '';
+            const cardId = await ensureCardId(c);
+            return `\n\n📇 ${custStaffName(c) || msgStoreName()} 명함\n${autoCardLink({ ...c, cardId })}`;
+        }
+        async function cmpSend(mode, btn) {
+            const status = (t, tone) => { const el = document.getElementById('cmpSendMsg'); if (el) { el.textContent = t; el.className = `text-[13px] font-bold leading-relaxed ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-emerald-700' : 'text-gray-600')}`; } };
+            const fname = `비교표_${String(cmp.name || phoneDigits(cmp.phone).slice(-4) || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${getTodayStr().replace(/-/g, '')}.jpg`;
+            const to = smsMobileDigits(cmp.phone);
+            if (btn) btn.disabled = true;
+            try {
+                const url = await cmpImage(), card = mode === 'save' ? '' : await cmpCardPart(), text = cmpSmsText(cmp);
+                const saveFile = () => { const a = document.createElement('a'); a.href = url; a.download = fname; document.body.appendChild(a); a.click(); a.remove(); };
+                if (mode === 'save') { saveFile(); status('⬇️ 사진으로 저장했어요.', 'green'); return; }
+                if (mode === 'share') {
+                    const blob = await (await fetch(url)).blob(), file = new File([blob], fname, { type: 'image/jpeg' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + card }); status('📤 보냈어요.', 'green'); }
+                    else { saveFile(); status('이 폰은 바로 공유가 안 돼서 사진으로 저장했어요. 카톡에서 사진으로 보내 주세요.', 'green'); }
+                    return;
+                }
+                if (!to) { status('고객 휴대폰 번호가 없어요.', 'red'); return; }
+                let link = cmpImgC.link || '';
+                if (!link && pushRelayReady()) { try { const r = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(url).split(',')[1] || '' } }); link = cmpImgC.link = r.url || ''; } catch (e) { if (mode === 'auto') throw e; } }
+                const withLink = `${text}${link ? `\n비교표 보기 ▶ ${link}` : ''}${card}`;
+                if (mode === 'app') { gdOpenUrl(smsHref(to, withLink)); status(link ? '💬 문자앱을 열었어요 (비교표 링크 포함).' : '💬 문자앱을 열었어요.', 'green'); return; }
+                status('매장 폰으로 보내는 중…', 'gray');
+                const mms = mmsActive() && !!link;
+                let r, fell = false;
+                try { r = await callSms('test', { to, text: mms ? text + card : withLink, ...(mms ? { mmsImage: link } : {}) }); }
+                catch (e) { if (!mms) throw e; r = await callSms('test', { to, text: withLink }); fell = true; }
+                const c = customerDB.find(x => x.id === cmp.custId) || gdFindCust(cmp.phone);
+                if (c) txCustomerUpdate(c.id, (cur) => { const now = new Date(), two = (v) => String(v).padStart(2, '0'); return { contactHistory: appendLine(cur.contactHistory, `[${now.getFullYear()}.${two(now.getMonth() + 1)}.${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}] ⚖️ 비교표 보냄 · ${cmpCalc(cmp).rows.map(x => x.dv.name).filter(Boolean).join(' / ')} (담당: ${getStaffName() || ''})`), ...(card ? { bizCardSentAt: getTodayStr() } : {}), __audit: '⚖️ 비교 안내서' }; }).catch(err => console.warn(err));
+                status(`✅ 보냈어요${mms && !fell ? ' (사진 문자)' : ' (링크 문자)'}${r && r.encrypted ? ' · 🔐' : ''}. 1~2분 안에 ${formatPhone(to)}로 가요.`, 'green');
+            } catch (e) { if (!(e && e.name === 'AbortError')) status(`❌ ${e.message || '보내지 못했어요.'}`, 'red'); }
+            finally { if (btn && document.body.contains(btn)) btn.disabled = false; }
+        }
 
         // 📜 같은 날 개통 기록이 있으면: "그 기록을 고쳐요" + 정산·중고폰 칸을 그 값으로 채움 (비워 두면 예전 값 그대로) · 예전 날짜면 알려줌
         // 📜 같은 날 개통 기록이 있으면: 어느 기록으로 저장할지 [✏️ 고치기] [➕ 따로 새 개통] (V193)
@@ -20891,7 +21524,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V208';
+        const APP_VER = 'V210';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -20899,6 +21532,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V210', d: '2026-10-19', items: [
+                ['📊 🎯 목표 창에 직원별 부가 · 보험 유치(건 · %) · 카드 건수가 나와요 (대표가 인센티브를 정해두면 내 인센티브도)'],
+                ['🎁 직원 인센티브: 🎯 목표 → [⚙️ 인센티브]에서 개통 · 부가 · 보험 · 카드 건당 금액 · 실마진 % → 직원마다 자동 계산 · [📗 실적표] 엑셀', 'a'],
+                ['📑 거래처 정산서 대조: 정산 엑셀 · CSV · 사진을 올리면 개통 기록과 맞춰서 ✅ 맞음 · ⚠️ 금액 다름 · 📝 정산 미입력 · ➕ 정산서에만 · ❓ 정산서에 없음(누락 의심)을 보여줘요 (🎯 목표 · 💰 정산 미입력 창)', 'a']] },
+            { v: 'V209', d: '2026-10-19', items: [
+                ['⚖️ 비교 안내서: 기종 1~3개를 선택약정 · 공시지원금으로 나란히 · 매달 금액과 24개월 총액 · 제일 싼 칸 표시 → [이걸로 안내서]로 바로 서명 · [비교표 보내기]로 문자 · 카톡'],
+                ['🔄 고객카드 [지금 바꾸면]: 약정 남은 기간 · 남은 할부 · 공시 반환금(대략) · 요금제 유지를 한 번에 → [기변 안내서] · [비교 안내서]']] },
             { v: 'V208', d: '2026-10-19', items: [
                 ['💰 개통등록에서 요금제를 고르면 월요금 · 변경 후 월요금이 저절로 (지원금표 → 우리 매장 개통 기록 → 전에 쓴 값)'],
                 ['📄 미비서류를 적고 개통등록하면 다음 날 [오늘 할 일]에 떠요. 대시보드 [📄 미비서류]에서 모아 보고 [받음]으로 끝'],
