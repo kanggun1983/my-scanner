@@ -976,6 +976,10 @@
                         <label class="flex items-center gap-2 text-[15px] font-bold text-gray-900 min-w-0"><input type="checkbox" id="autoInsOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>보험 해지 <span class="text-xs font-normal text-gray-500 block">보험을 적었을 때</span></span></label>
                         <span class="w-28 flex-shrink-0"><select id="keepIns" aria-label="보험 해지 기본 조건" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select></span>
                     </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <label class="flex items-center gap-2 text-[15px] font-bold text-gray-900 min-w-0"><input type="checkbox" id="autoCardChkOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>💳 카드 발급 확인 · 등록 <span class="text-xs font-normal text-gray-500 block">제휴카드 · 할부카드를 적었을 때</span></span></label>
+                        <span class="w-28 flex-shrink-0"><select id="keepCardChk" aria-label="카드 발급 확인 약속 일수" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select></span>
+                    </div>
                     <p id="autoPromExample" class="text-xs text-gray-600 leading-relaxed"></p>
                     <div id="dealerBox" class="border-t border-gray-100 pt-3 space-y-2">
                         <div class="flex items-center justify-between gap-2">
@@ -1149,7 +1153,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V204</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V205</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -2774,13 +2778,22 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         <input type="text" id="modalPlan" class="modal-input text-xs sm:text-sm" placeholder="요금제명">
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
-                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">월 청구금액</span>
-                        <input type="text" id="modalFee" class="modal-input text-xs sm:text-sm" placeholder="요금">
+                        <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">월 요금</span>
+                        <input type="text" id="modalFee" class="modal-input text-xs sm:text-sm" placeholder="예: 115,000원">
                     </div>
-                    
-                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500 col-span-2">
+                    <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">평균 사용량</span>
                         <input type="text" id="modalUsage" class="modal-input text-xs sm:text-sm" placeholder="데이터/통화">
+                    </div>
+                    <div class="bg-purple-50/50 p-2 sm:p-3 rounded-lg border border-purple-200 focus-within:border-indigo-500 col-span-2 grid grid-cols-[1fr_110px] gap-2">
+                        <div class="min-w-0">
+                            <span class="block text-[10px] sm:text-xs text-purple-800 font-bold mb-1">변경 후 요금제</span>
+                            <input type="text" id="modalTargetPlan" class="modal-input text-xs sm:text-sm" placeholder="유지 끝나고 바꿀 요금제">
+                        </div>
+                        <div class="min-w-0">
+                            <span class="block text-[10px] sm:text-xs text-purple-800 font-bold mb-1">변경 후 월요금</span>
+                            <input type="text" id="modalTargetFee" inputmode="numeric" class="modal-input text-xs sm:text-sm text-right" placeholder="69,000">
+                        </div>
                     </div>
 
                     <div class="bg-blue-50/30 p-2 sm:p-3 rounded-lg border border-blue-200 focus-within:border-blue-500 col-span-2 grid grid-cols-2 gap-2">
@@ -3757,8 +3770,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             planKT: 'D129', planKT2: 'D189',     // KT: 129일 또는 189일
             planLGU: 'D96', planLGU2: 'D189',    // LG U+: 96일 또는 189일
             planETC: 'NONE', planETC2: 'M3',     // 알뜰폰·기타
-            addonDefault: 'M2', insDefault: 'M2'
+            addonDefault: 'M2', insDefault: 'M2',
+            autoCardChkOn: true, cardChkDays: 5   // 💳 V205 제휴카드 · 할부카드 발급 확인 (개통 N일 뒤)
         };
+        function cardChkDays() { const n = parseInt(appSettings.cardChkDays, 10); return n >= 1 && n <= 60 ? n : 5; }
         function keepLabel(code) {
             if (code === 'CUSTOM') return '직접';
             if (!code || code === 'NONE') return '없음';
@@ -6577,7 +6592,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const c = customerDB.find(x => x.id === cid); if (!c) return;
             const a = actsOf(c).find(x => x.id === aid); if (!a) return customAlert('그 개통 기록을 찾지 못했어요.');
             const W = a.kind === '유선', S = a.settle || {};
-            const itemSum = W ? 0 : (Array.isArray(a.policyItems) ? a.policyItems.reduce((t, it) => t + (Number(it.amount) || 0), 0) : 0);
+            const items = W ? [] : (Array.isArray(a.policyItems) ? a.policyItems.map(it => ({ ...it, amount: Number(it.amount) || 0, neg: (Number(it.amount) || 0) < 0 })) : []);   // ➕➖ V205: 부가·보험·추가정책 줄도 여기서 고침
+            const itemSumOf = () => items.reduce((t, it) => t + (Number(it.amount) || 0), 0);
             const fields = W ? [['정책금액', '정책금액'], ['추가정책', '추가정책'], ['유통지원', '유통지원 (사은품 등)'], ['할인금액', '할인금액']]
                 : [['기본정책', '기본정책'], ['추가정책', '추가정책 (기타)'], ['수수료', '수수료 (MNP 대납 등)'], ['할인금액', '할인금액'], ['유통망지원금', '유통망지원금'], ['중고폰', '📱 중고폰 판매금액 (세금 X)']];
             const v0 = (k) => (k === '중고폰' ? (S.중고폰 ?? (a.used && a.used.amount)) : (k === '유통망지원금' ? (S.유통망지원금 ?? a.dist) : S[k]));
@@ -6588,7 +6604,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3">
                 <div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-[17px] font-bold text-gray-900 truncate">💰 정산 ${a.settle ? '고치기' : '입력'} · ${escapeHtml(c.name || '')}</p><p class="text-xs text-gray-600 truncate">${stockMD(a.date)} ${a.kind} · ${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</p></div><button type="button" data-as-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
                 <div class="grid grid-cols-2 gap-2">${fields.map(([k, l]) => `<label class="block min-w-0 ${k === '중고폰' ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${l} (원)</span><input data-as="${k}" inputmode="numeric" value="${v0(k) ? arWon(v0(k)) : ''}" placeholder="0" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-right bg-white"></label>`).join('')}</div>
-                ${itemSum ? `<p class="text-xs text-gray-600">➕ 부가·추가정책 줄 금액 ${arWon(itemSum)}원 포함</p>` : ''}
+                ${W ? '' : '<div id="asItems" class="rounded-xl border border-gray-200 bg-gray-50/60 p-2.5 space-y-2"></div>'}
                 <div id="asCalc" class="grid grid-cols-2 gap-2 text-sm"></div>
                 <button type="button" data-as-save class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button>
                 ${Array.isArray(a.hist) && a.hist.length ? `<p class="text-[11px] text-gray-500">예전 금액: ${a.hist.slice(-3).map(h => `${String(h.at).slice(5, 10).replace('-', '/')} ${wonMan(h.gross)}${h.by ? '(' + escapeHtml(h.by) + ')' : ''}`).join(' · ')}</p>` : ''}
@@ -6596,12 +6612,48 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.body.appendChild(sh);
             const num = (k) => { const el = sh.querySelector(`[data-as="${k}"]`); return el ? (Number(String(el.value).replace(/[^\d-]/g, '')) || 0) : 0; };
             const calc = () => {
-                const settle = W ? num('정책금액') + num('추가정책') - num('유통지원') : num('기본정책') + itemSum + num('추가정책') - num('유통망지원금') - num('수수료');
+                const settle = W ? num('정책금액') + num('추가정책') - num('유통지원') : num('기본정책') + itemSumOf() + num('추가정책') - num('유통망지원금') - num('수수료');
                 const margin = settle - num('할인금액'), vat = Math.round(settle / 11), real = margin - vat, used = W ? 0 : num('중고폰');
                 return { settle, margin, vat, real, used, gross: margin + used, realTotal: real + used };
             };
             const show = () => { const r = calc(); sh.querySelector('#asCalc').innerHTML = [['정산금액', r.settle], ['판매마진', r.margin], ['정산부가세', r.vat], ['실판매마진', r.real], ['💰 총매출', r.gross], ['실마진 (세금 제외)', r.realTotal]].map(([l, v], i) => `<div class="rounded-xl ${i > 3 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50'} px-3 py-2"><span class="block text-xs text-gray-600">${l}</span><b class="text-[16px] text-gray-900">${arWon(v)}</b>원</div>`).join(''); };
             sh.querySelectorAll('[data-as]').forEach(el => el.addEventListener('input', () => { const neg = String(el.value).trim().startsWith('-'); const n = String(el.value).replace(/[^\d]/g, ''); el.value = n ? (neg ? '-' : '') + Number(n).toLocaleString('ko-KR') : ''; show(); }));
+            // ➕➖ V205 부가 · 보험 · 추가정책 줄 — 줄마다 [+ 추가 | − 차감] · 금액
+            const sumTxt = () => { const t = itemSumOf(); return t ? `합계 ${t > 0 ? '+' : ''}${arWon(t)}원` : ''; };
+            const renderItems = () => {
+                const box = sh.querySelector('#asItems'); if (!box) return;
+                const t = itemSumOf();
+                box.innerHTML = `<div class="flex items-center justify-between gap-2"><p class="text-[13px] font-bold text-gray-800">부가 · 보험 · 추가정책 줄</p><span data-asi-sum class="text-[13px] font-bold ${t < 0 ? 'text-red-700' : 'text-indigo-800'}">${sumTxt()}</span></div>
+                    ${items.map((it, i) => { const ab = Math.abs(Number(it.amount) || 0); return `<div data-asi-row="${i}" class="rounded-lg border border-gray-200 border-l-4 ${AR_KIND_TONE[it.kind] || 'border-l-gray-400'} bg-white p-2 space-y-1.5">
+                        <div class="flex items-center gap-1.5"><select data-asi="${i}" data-f="kind" aria-label="종류" class="h-10 px-1.5 border border-gray-300 rounded-lg text-[13px] font-bold bg-white flex-shrink-0">${AR_ITEM_KINDS.map(k => `<option ${k === it.kind ? 'selected' : ''}>${k}</option>`).join('')}</select><input data-asi="${i}" data-f="name" value="${escapeHtml(it.name || '')}" placeholder="이름 (예: V컬러링)" aria-label="이름" class="h-10 min-w-0 flex-1 px-2 border border-gray-300 rounded-lg text-[14px] font-bold text-gray-900 bg-white"><button type="button" data-asi-del="${i}" aria-label="이 줄 빼기" class="w-10 h-10 flex-shrink-0 rounded-lg text-gray-500 hover:bg-gray-100"><i class="fa-solid fa-trash-can" aria-hidden="true"></i></button></div>
+                        <div class="flex items-center gap-1.5"><div class="flex flex-shrink-0 h-10 rounded-lg border border-gray-300 overflow-hidden" role="group" aria-label="추가 또는 차감"><button type="button" data-asi-sign="${i}" data-sign="+" aria-pressed="${!it.neg}" class="px-2.5 text-[13px] font-bold ${it.neg ? 'bg-white text-gray-600' : 'bg-indigo-600 text-white'}">+ 추가</button><button type="button" data-asi-sign="${i}" data-sign="-" aria-pressed="${!!it.neg}" class="px-2.5 text-[13px] font-bold border-l border-gray-300 ${it.neg ? 'bg-red-600 text-white' : 'bg-white text-gray-600'}">− 차감</button></div><label class="relative flex-1 min-w-0"><input data-asi="${i}" data-f="amount" inputmode="numeric" value="${ab ? arWon(ab) : ''}" placeholder="0" aria-label="금액" class="h-10 w-full px-2 pr-7 border border-gray-300 rounded-lg text-right text-[15px] font-bold bg-white ${it.neg ? 'text-red-700' : 'text-gray-900'}"><span class="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">원</span></label></div>
+                        ${it.date ? `<p class="text-[11px] text-gray-500">유지 ${escapeHtml(it.date)}${it.code ? ` (${escapeHtml(keepLabel(it.code))})` : ''}</p>` : ''}</div>`; }).join('') || '<p class="text-xs text-gray-500">이 개통엔 부가 · 보험 줄이 없어요. 추가정책이나 차감이 있으면 아래에서 넣어요.</p>'}
+                    <div class="grid grid-cols-3 gap-1.5"><button type="button" data-asi-add="부가" class="h-10 rounded-lg border border-indigo-200 bg-indigo-50 text-[13px] font-bold text-indigo-800">+ 부가</button><button type="button" data-asi-add="보험" class="h-10 rounded-lg border border-emerald-200 bg-emerald-50 text-[13px] font-bold text-emerald-800">+ 보험</button><button type="button" data-asi-add="기타" class="h-10 rounded-lg border border-gray-300 bg-white text-[13px] font-bold text-gray-700">+ 기타</button></div>
+                    <p class="text-[11px] text-gray-500 leading-relaxed">부가 · 보험 정책이 깎이면 그 줄을 <b class="text-red-700">− 차감</b>으로 바꾸고 금액을 넣어요. 정산금액에 바로 들어가요.</p>`;
+            };
+            const updSum = () => { const el = sh.querySelector('[data-asi-sum]'); if (el) { const t = itemSumOf(); el.textContent = sumTxt(); el.className = `text-[13px] font-bold ${t < 0 ? 'text-red-700' : 'text-indigo-800'}`; } };
+            sh.addEventListener('input', (e) => {
+                const el = e.target.closest('[data-asi]'); if (!el) return;
+                const i = +el.dataset.asi, it = items[i]; if (!it) return;
+                if (el.dataset.f === 'amount') {
+                    const raw = String(el.value), minus = raw.trim().startsWith('-') && !it.neg;
+                    if (minus) it.neg = true;   // '-'를 쳐도 차감으로
+                    const n = Number(raw.replace(/[^\d]/g, '')) || 0;
+                    it.amount = it.neg ? -n : n; el.value = n ? arWon(n) : '';
+                    if (minus) { renderItems(); const ne = sh.querySelector(`[data-asi="${i}"][data-f="amount"]`); if (ne) { ne.focus(); try { ne.setSelectionRange(ne.value.length, ne.value.length); } catch (err) { /* 무시 */ } } }
+                } else if (el.dataset.f === 'name') it.name = el.value;
+                updSum(); show();
+            });
+            sh.addEventListener('change', (e) => { const el = e.target.closest('[data-asi][data-f="kind"]'); if (!el) return; const it = items[+el.dataset.asi]; if (it) { it.kind = el.value; renderItems(); } });
+            sh.addEventListener('click', (e) => {
+                const sg = e.target.closest('[data-asi-sign]');
+                if (sg) { const it = items[+sg.dataset.asiSign]; if (it) { it.neg = sg.dataset.sign === '-'; it.amount = (it.neg ? -1 : 1) * Math.abs(Number(it.amount) || 0); renderItems(); show(); } return; }
+                const dl = e.target.closest('[data-asi-del]');
+                if (dl) { items.splice(+dl.dataset.asiDel, 1); renderItems(); show(); return; }
+                const ad = e.target.closest('[data-asi-add]');
+                if (ad) { items.push({ kind: ad.dataset.asiAdd, name: '', amount: 0, days: 0, code: '', date: '', neg: false }); renderItems(); show(); const ins = sh.querySelectorAll('[data-asi][data-f="name"]'); if (ins.length) ins[ins.length - 1].focus(); }
+            });
+            renderItems();
             show();
             sh.addEventListener('click', async (e) => {
                 if (e.target === sh || e.target.closest('[data-as-close]')) { sh.remove(); return; }
@@ -6620,6 +6672,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         const patch = { acts: list, updatedAt: new Date().toISOString(), __audit: '정산 입력' };
                         const lp = latestPoncle(list); if (lp) patch.poncle = lp;
                         if (W) { const lw = list.filter(x => x.kind === '유선' && !x.canceled).pop(); if (lw && lw.id === t.id) patch.wiredSettle = settle; }
+                        if (!W) {   // ➕➖ V205 부가 · 보험 · 추가정책 줄 (최근 개통이면 고객카드 줄도)
+                            const pi = items.filter(it => String(it.name || '').trim() || Number(it.amount) || Number(it.days) || it.code).map(it => ({ kind: it.kind || '기타', name: String(it.name || '').trim().slice(0, 60), amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: it.code || '', date: it.date || '' }));
+                            if (pi.length) t.policyItems = pi; else delete t.policyItems;
+                            const lastM = list.filter(x => !x.canceled && x.kind !== '유선').pop();
+                            if (lastM && lastM.id === t.id) patch.policyItems = pi;
+                        }
                         return patch;
                     });
                     sh.remove(); renderGoalRow();
@@ -7853,6 +7911,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 fillKeepSelect(el, KEEP_ADDON_OPTIONS, appSettings[key] || AUTO_PROMISE_DEFAULTS[key]);
                 el.disabled = !on;
             });
+            {   // 💳 V205 카드 발급 확인 (며칠 뒤)
+                const on = appSettings.autoCardChkOn !== false, el = document.getElementById('keepCardChk'), cd = cardChkDays();
+                document.getElementById('autoCardChkOn').checked = on;
+                if (el) { el.innerHTML = [...new Set([3, 5, 7, 10, 14, cd])].sort((a, b) => a - b).map(n => `<option value="${n}" ${n === cd ? 'selected' : ''}>${n}일 뒤</option>`).join(''); el.disabled = !on; }
+            }
             // 오늘 개통하면 언제 약속이 잡히는지 예시 (규칙 확인용)
             const today = getTodayStr();
             const ex = ['SKT', 'KT', 'LGU'].map(k => {
@@ -7869,7 +7932,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 autoAddonOn: document.getElementById('autoAddonOn').checked,
                 autoInsOn: document.getElementById('autoInsOn').checked,
                 addonDefault: document.getElementById('keepAddon').value || AUTO_PROMISE_DEFAULTS.addonDefault,
-                insDefault: document.getElementById('keepIns').value || AUTO_PROMISE_DEFAULTS.insDefault
+                insDefault: document.getElementById('keepIns').value || AUTO_PROMISE_DEFAULTS.insDefault,
+                autoCardChkOn: document.getElementById('autoCardChkOn').checked, cardChkDays: parseInt(document.getElementById('keepCardChk').value, 10) || AUTO_PROMISE_DEFAULTS.cardChkDays
             };
             PLAN_SELECT_IDS.forEach(key => { data[key] = planSelectEl(key).value || AUTO_PROMISE_DEFAULTS[key]; });
             appSettings = { ...appSettings, ...data };
@@ -7894,7 +7958,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             el.dataset.prev = el.value;
             saveAutoPromiseSettings();
         }
-        ['autoPlanOn', 'autoAddonOn', 'autoInsOn'].forEach(id => document.getElementById(id).addEventListener('change', saveAutoPromiseSettings));
+        ['autoPlanOn', 'autoAddonOn', 'autoInsOn', 'autoCardChkOn', 'keepCardChk'].forEach(id => document.getElementById(id).addEventListener('change', saveAutoPromiseSettings));
 
         /* 🏢 거래처별 유지 조건 (V188 · 👑 총관리자) — 개통등록에서 거래처를 고르면 요금제·부가(최대 3개)·보험 유지가 자동으로
            · appSettings.dealers = [{ id, name, carrier, plan('' = 통신사 기본 · 'NONE' · 'M3'/'D96'), addons: [{ name, code } ×3], ins: { name, code } }] */
@@ -8136,7 +8200,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 instHintEl.classList.add('hidden');
             }
             document.getElementById('modalPlan').value = c.plan || '';
-            document.getElementById('modalFee').value = applyComma(c.fee || '');
+            document.getElementById('modalFee').value = applyComma(c.fee || (Number(c.planFee) > 0 ? `${c.planFee}원` : ''));   // 💰 V205: 비었으면 개통등록 월요금
+            document.getElementById('modalTargetPlan').value = c.repTargetPlan || '';
+            document.getElementById('modalTargetFee').value = Number(c.targetPlanFee) > 0 ? applyComma(String(c.targetPlanFee)) : '';
             document.getElementById('modalUsage').value = c.usage || '';
             
             // 결합/복지, 인터넷/TV를 각각 독립된 필드로 그대로 로드 (합쳤다 쪼개는 파싱 없음 → 데이터 유실 방지)
@@ -8483,9 +8549,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
             return [
                 profileKV('단말기', profileValue(c.device)),
-                profileKV('요금제', filled(c.plan) ? `${escapeHtml(c.plan)}${Number(c.planFee) > 0 ? ` <span class="text-[12px] text-gray-500 font-medium">월 ${Number(c.planFee).toLocaleString('ko-KR')}원</span>` : ''}` : PROFILE_DASH),
+                profileKV('요금제', filled(c.plan) ? escapeHtml(c.plan) : PROFILE_DASH),
                 ...(filled(c.repTargetPlan) ? [profileKV('변경 후 요금제', `${escapeHtml(c.repTargetPlan)}${Number(c.targetPlanFee) > 0 ? ` <span class="text-[12px] text-gray-500 font-medium">월 ${Number(c.targetPlanFee).toLocaleString('ko-KR')}원</span>` : ''}`)] : []),
-                profileKV('월 청구금액', profileValue(c.fee)),
+                profileKV('월 요금', profileValue(c.fee || (Number(c.planFee) > 0 ? `${Number(c.planFee).toLocaleString('ko-KR')}원` : ''))),   // 💰 V205 개통등록 월요금
                 profileKV('개통일', actHtml),
                 profileKV('할인유형', profileValue(c.discountType === '미정' ? '' : c.discountType)),
                 profileKV('할부 잔여', instHtml),
@@ -12341,6 +12407,7 @@ ${AI_TONES[aiSmsTone]}
                 installment: inst, installmentBaseDate: v('modalInstallmentBase') || (inst ? getTodayStr() : ''),
                 installment2: inst2, installment2BaseDate: inst2 ? (inst2 === modalInst2Original.trim() ? modalInst2BaseOriginal : getTodayStr()) : '',
                 discountType: v('modalDiscount'), plan: v('modalPlan'), fee: v('modalFee'), wiredFee: v('modalWiredFee'), usage: v('modalUsage'),
+                repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: v('modalTvOnly') || '',
                 wiredDate: v('modalWiredDate'), repFamily: v('modalFamily'),
                 legalName: v('modalLegalName'), legalPhone: v('modalLegalPhone'), legalDob: v('modalLegalDob'),
@@ -12356,7 +12423,7 @@ ${AI_TONES[aiSmsTone]}
             return f;
         }
         let detailFormBase = null;
-        const DETAIL_LABELS = { interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
+        const DETAIL_LABELS = { fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 월요금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
         function detailFieldLabel(k) {
             if (DETAIL_LABELS[k]) return DETAIL_LABELS[k];
             const m = /^prom([A-Za-z0-9]+)(Date|Memo|Chk)$/.exec(k);
@@ -12434,6 +12501,11 @@ ${AI_TONES[aiSmsTone]}
             }
             const pick = {};
             changed.forEach(k => { pick[k] = form[k]; });
+            if ('fee' in pick) {   // 💰 V205: 월 요금을 고치면 요금제 월요금(planFee)도 같이
+                const cp = String(pick.fee || '').replace(/\s+/g, '').replace(/^월/, '');
+                if (!cp) pick.planFee = '';
+                else if (/^[\d,.]+(만([\d,]+천?)?)?원?$/.test(cp)) { const n = parseKoreanAmount(cp); if (n !== null && n > 0) pick.planFee = n; }
+            }
             if ('activationDate' in pick || newActDate !== (base.activationDate ?? '')) pick.activationDate = newActDate;
             const accChanged = ['promAccDate', 'promAccMemo', 'promAccStore'].some(k => k in pick);
             delete pick.promAccStore;   // 악세 매장은 accLinkFields가 정리해서 넣음
@@ -12732,13 +12804,22 @@ ${AI_TONES[aiSmsTone]}
                 add(actCheckMeaningful(c.device) ? 'ok' : 'miss', '단말기');
                 add(actCheckMeaningful(c.plan) ? 'ok' : 'miss', '요금제');
                 add(actCheckMeaningful(c.discountType) ? 'ok' : 'miss', '할인유형 (공시·선약)');
-                add(actCheckMeaningful(c.fee) ? 'ok' : 'check', '월 요금', '개통등록엔 없는 칸이에요 · 고객 카드 [수정]에서 넣어요');
+                {   // 💰 V205: 개통등록 [월요금] → 고객카드 월 요금 · 변경 후 요금도 같이 보여줌
+                    const feeTxt = actCheckMeaningful(c.fee) ? String(c.fee).trim() : (Number(c.planFee) > 0 ? `${Number(c.planFee).toLocaleString('ko-KR')}원` : '');
+                    const tgt = Number(c.targetPlanFee) > 0 ? ` → 변경 후 ${actCheckMeaningful(c.repTargetPlan) ? String(c.repTargetPlan).trim() + ' ' : ''}${Number(c.targetPlanFee).toLocaleString('ko-KR')}원` : '';
+                    add(feeTxt ? 'ok' : 'check', '월 요금', feeTxt ? feeTxt + tgt : '개통등록 [월요금] 칸에 넣으면 저절로 들어가요');
+                }
                 add(actCheckMeaningful(c.repPrincipal) || actCheckMeaningful(c.installment) || actCheckMeaningful(c.repInstallment) ? 'ok' : 'check', '할부 정보', '완납이면 괜찮아요');
                 add(openPromise('Plan') ? 'ok' : 'check', '요금제 변경 약속', openPromise('Plan') ? formatShortDate(c.promPlanDate) : '유지 조건이 없으면 괜찮아요');
                 const addonTxt = c.repAddons || c.addons, insTxt = c.repInsurance || c.insurance;
                 const addonKey = ['Addon', 'Addon2', 'Addon3', 'Addon4'].find(k => openPromise(k));
                 if (actCheckMeaningful(addonTxt)) add(addonKey ? 'ok' : 'miss', '부가서비스 해지 약속', addonKey ? formatShortDate(c[`prom${addonKey}Date`]) : `가입한 부가서비스: ${String(addonTxt).trim()}`);
                 if (actCheckMeaningful(insTxt)) add(openPromise('Ins') ? 'ok' : 'miss', '보험 해지 약속', openPromise('Ins') ? formatShortDate(c.promInsDate) : `가입한 보험: ${String(insTxt).trim()}`);
+                {   // 💳 V205 카드 발급 확인 약속 (확인 끝낸 것도 ✅)
+                    const cardTxt = [c.discountCard, c.instCardName].filter(actCheckMeaningful).map(x => String(x).trim()).join(', ') || (Number(c.instCardDiscount) > 0 ? '할부카드' : '');
+                    const has = !!c.promCardDate && (!c.activationDate || c.promCardDate >= c.activationDate);
+                    if (cardTxt || /^자동: 카드 발급 확인/.test(String(c.promCardMemo || ''))) add(has ? 'ok' : 'check', '카드 발급 확인 약속', has ? `${formatShortDate(c.promCardDate)}${c.promCardChk ? ' · 확인함' : ''}` : `카드: ${cardTxt}`);
+                }
             }
             if (wired) {
                 add(actCheckMeaningful(c.internetProd) || actCheckMeaningful(c.tvProd) ? 'ok' : 'miss', '인터넷·TV 상품');
@@ -13489,7 +13570,7 @@ familyStr + `\n` +
             }
         });
 
-        const moneyFields = ['val-installment', 'val-installment2', 'modalInstallment2', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'rep-wired-fee', 'pros-pay', 'detailProsPay'];   // rep-wired-fee 추가 (V86)
+        const moneyFields = ['val-installment', 'val-installment2', 'modalInstallment2', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalTargetFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'rep-wired-fee', 'pros-pay', 'detailProsPay'];   // rep-wired-fee 추가 (V86)
         moneyFields.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -15963,6 +16044,7 @@ familyStr + `\n` +
                         ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
                         ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
                         ${arSel('ar-k-card', '카드 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
+                        ${appSettings.autoCardChkOn !== false ? `<p class="col-span-2 text-[12px] font-bold text-sky-800 leading-relaxed">💳 제휴카드를 적으면 개통 ${cardChkDays()}일 뒤 [카드 발급 확인 · 등록하기] 약속이 저절로 잡혀요</p>` : ''}
                     </div>
                     </div>`, arTogs([['ar-tg-comb', '결합·복지·카드', tgComb]]));
                 html += arSec('부가 · 보험 · 추가정책', `<div id="arItemsBox" class="space-y-2"></div>
@@ -16185,7 +16267,29 @@ familyStr + `\n` +
                     if (dt) out.push({ key, label: kind, date: dt, memo: `자동: ${title} (${keepLabel(arVal(sel))})` });
                 }
             });
-            return out;
+            // 💳 V205: 제휴카드 · 할부카드 → 개통 N일 뒤 '카드 발급 확인 · 등록하기' (제휴카드 칸)
+            //    카드 유지 약속도 있으면 → 기타 칸이 비었을 때 기타 칸으로 · 아니면 카드 확인 메모에 날짜
+            const cc = arCardChk(d);
+            if (!cc) return out;
+            const rest = out.filter(k => k.key !== 'Card'), c0 = arCust || {};
+            const otherBusy = () => rest.some(k => k.key === 'Other') || (!!c0.promOtherDate && !c0.promOtherChk && !/^자동: 제휴카드/.test(String(c0.promOtherMemo || '')));
+            out.filter(k => k.key === 'Card').forEach(k => {
+                if (!otherBusy()) rest.push({ ...k, key: 'Other', label: '카드 유지' });
+                else cc.memo += ` · 카드 유지 끝 ${k.date.slice(5).replace('-', '/')}`;
+            });
+            rest.splice(rest[0] && rest[0].key === 'Plan' ? 1 : 0, 0, cc);
+            return rest;
+        }
+        function arCardNames() {   // 💳 V205 발급 확인할 카드 (제휴카드 · 할부카드 · 제휴카드 줄)
+            const list = [arVal('ar-card'), arVal('ar-icardname'), ...arItems.filter(it => it.kind === '제휴카드').map(it => it.name || (Number(it.amount) ? '제휴카드' : ''))].map(x => String(x || '').trim()).filter(Boolean);
+            if (!list.length && arNum('ar-icard') > 0) list.push('할부카드');
+            return [...new Set(list)];
+        }
+        function arCardChk(d) {
+            if (appSettings.autoCardChkOn === false || !/^\d{4}-\d{2}-\d{2}$/.test(d || '')) return null;
+            const names = arCardNames(); if (!names.length) return null;
+            const n = cardChkDays(), date = computeKeepDate(d, 'D' + n);
+            return date ? { key: 'Card', label: '카드 확인', date, memo: `자동: 카드 발급 확인 · 등록하기 · ${names.join(', ')} (개통 ${n}일 뒤)`, cardChk: true } : null;
         }
         function arCalc() {
             if (arMode === 'mobile') {
@@ -16328,7 +16432,7 @@ familyStr + `\n` +
                     name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), activationDate: d,
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-store'), repManager: arVal('ar-manager'),
                     plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: '', insurance: '',
-                    ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee') } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금
+                    ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee'), fee: `${arWon(arNum('ar-planfee'))}원` } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금 · V205 고객카드 월 요금도
                     discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
                     discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
@@ -16379,7 +16483,7 @@ familyStr + `\n` +
                 // 최근 개통보다 예전 날짜면: 개통 기록에만 넣고 고객 정보(기종·요금제·약속)는 최근 개통 그대로
                 const newerLive = prevActs.filter(a => !a.canceled && a.kind !== '유선' && a.date > d).map(a => a.date).sort().pop();   // (같은 날 다른 기종은 '최근'과 같은 날이라 여기 안 걸림)
                 if (newerLive && await customConfirm(`이 개통일(${stockMD(d)})은 최근 개통(${stockMD(newerLive)})보다 예전이에요.\n\n개통 기록에만 추가하고, 고객 정보(기종·요금제·약속)는 최근 개통 그대로 둘까요?\n(취소를 누르면 이 개통으로 고객 정보를 바꿔요)`)) keepLatest = true;
-                arKeepPlan().forEach(k => Object.assign(upd, { [`prom${k.key}Date`]: k.date, [`prom${k.key}Memo`]: k.memo, [`prom${k.key}Chk`]: false }));
+                arKeepPlan().forEach(k => { const done = !!(cur && cur[`prom${k.key}Chk`] && cur[`prom${k.key}Date`] === k.date && cur[`prom${k.key}Memo`] === k.memo); Object.assign(upd, { [`prom${k.key}Date`]: k.date, [`prom${k.key}Memo`]: k.memo, [`prom${k.key}Chk`]: done }); });
                 { const up = arUsedPhone(); if (up) upd.usedPhone = { ...up, date: d }; }   // 📱 중고폰 (V191)
                 upd.policyItems = arItems.filter(it => it.name || it.amount || it.days || it.code).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: arItemCode(it), date: it.date || '' }));
                 if (upd.policyItems.length) actRec.policyItems = upd.policyItems;
@@ -16395,7 +16499,7 @@ familyStr + `\n` +
                 upd.repAddons = [upd.addons].filter(Boolean).join(', '); upd.repInsurance = upd.insurance || '';
                 if (!upd.discountCard && names('제휴카드')) upd.discountCard = names('제휴카드');
                 if (keepLatest) {   // 예전 날짜 개통: 고객 '최근' 칸은 건드리지 않음
-                    ['carrier', 'activationDate', 'actType', 'prevCarrier', 'openStore', 'plan', 'contractTerm', 'addons', 'insurance', 'planFee', 'targetPlanFee', 'discountCard', 'usimFee', 'usimModel', 'usimSerial', 'discountType', 'salesStatusAt',
+                    ['carrier', 'activationDate', 'actType', 'prevCarrier', 'openStore', 'plan', 'contractTerm', 'addons', 'insurance', 'planFee', 'fee', 'targetPlanFee', 'discountCard', 'usimFee', 'usimModel', 'usimSerial', 'discountType', 'salesStatusAt',
                         'device', 'deviceSerial', 'repDevice', 'repPrincipal', 'devicePrice', 'publicSupport', 'switchSupport', 'distSupport', 'prepay', 'cashPay', 'cardPay', 'unpaid', 'loanPrincipal', 'installment', 'installmentBaseDate',
                         'policyItems', 'repAddons', 'repInsurance', 'repType', 'repUsim', 'repUsimPay', 'repInstallment', 'repDiscount', 'repTargetPlan', 'usedPhone', 'repUsedPhone', 'missingDocs', 'wiredDate', 'internetProd', 'tvProd'].forEach(k => delete upd[k]);
                     Object.keys(upd).filter(k => /^prom(Plan|Addon\d?|Ins|Card|Other)(Date|Memo|Chk)$/.test(k)).forEach(k => delete upd[k]);
@@ -19008,7 +19112,7 @@ familyStr + `\n` +
             const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
                 kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('기타 할인', won(c.etcDiscount)), kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')), kv('할부원금', won(c.loanPrincipal)),
                 kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : c.repUsedPhone), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', c.discountCard), kv('미비서류', c.missingDocs),
-                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name).map(it => kv(`${it.kind} 유지`, `${it.name}${it.date ? ` → ${it.date}` : ''}${canSeeSettle() && it.amount ? ` (${arWon(it.amount)}원)` : ''}`)) : [])].join('');
+                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}${canSeeSettle() && it.amount ? ` (${arWon(it.amount)}원)` : ''}`)) : [])].join('');
             if (rows) h += `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
             const acts = actsOf(c), money = canSeeSettle();
             const lastM = acts.filter(a => !a.canceled && a.kind !== '유선').pop();
@@ -20472,7 +20576,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V204';
+        const APP_VER = 'V205';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -20480,6 +20584,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V205', d: '2026-10-19', items: [
+                ['💰 개통등록의 [월요금]이 고객카드 [월 요금]으로 저절로 들어가요. 변경 후 요금제 · 월요금도 고객카드 [수정]에서 보고 고칠 수 있어요.'],
+                ['➖ 정산 고치기에서 부가 · 보험 · 추가정책 줄 금액도 고쳐요. 정책이 깎이면 [− 차감]을 누르고 금액을 넣어요.', 'm'],
+                ['💳 제휴카드 · 할부카드를 적고 개통등록하면 5일 뒤 [카드 발급 확인 · 등록하기] 약속이 저절로 잡혀요.']] },
             { v: 'V204', d: '2026-10-19', items: [
                 ['📝 안내서 A · 휴대폰에 [할부카드 이름 · 할부카드 할인] 칸이 생겼어요. 할부원금에서 바로 빠져요.'],
                 ['💳 B · 요금의 카드 칸은 [요금DC카드] (매달 빠지는 금액)예요. 60만원처럼 큰 금액을 넣으면 할부카드 칸으로 옮기라고 알려줘요.'],
