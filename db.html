@@ -1179,7 +1179,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V211</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V212</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -8480,7 +8480,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 planPub: String(d.planPub !== undefined ? d.planPub : (d.plan || '')), planSel: String(d.planSel !== undefined ? d.planSel : (d.plan || '')), planDist: String(d.planDist || ''),   /* V211 · 예전 '요금제 유지'는 공시 · 선약 둘 다로 */
                 addons: [0, 1, 2].map(i => { const x = (Array.isArray(d.addons) ? d.addons[i] : null) || {}; return { name: String(x.name || '').trim().slice(0, 30), code: String(x.code || ''), amount: dlAmt(x.amount) }; }),
                 ins: { name: String((d.ins && d.ins.name) || '').trim().slice(0, 30), code: String((d.ins && d.ins.code) || ''), amount: dlAmt(d.ins && d.ins.amount) },
-                grade: dlAmt(d.grade), distAdd: dlAmt(d.distAdd), card: dlAmt(d.card) }));
+                grade: dlAmt(d.grade), distAdd: dlAmt(d.distAdd), card: dlAmt(d.card), cardDev: dlAmt(d.cardDev !== undefined ? d.cardDev : d.card) }));   /* V212 card = 요금DC카드 · cardDev = 단말할인카드 (예전 값은 둘 다로) */
         }
         function dealerByName(name) {   // 띄어쓰기·대소문자 상관없이 (V192) · 🔗 합친 거래처의 예전 이름으로도 (V203)
             const key = (v) => String(v || '').replace(/\s+/g, '').toUpperCase(), n = key(name);
@@ -8497,7 +8497,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const w = (n) => `${n > 0 ? '+' : '−'}${arWon(Math.abs(n))}`;
             const adsTxt = ads.length ? `부가 ${ads.length}개 (${ads.map(a => keepLabel(a.code) + (money && a.amount ? ` ${w(a.amount)}` : '')).join(' · ')})` : '부가 없음';
             return [d.carrier || '통신사 무관', plan, `유통망지원금 ${pl(d.planDist, DEALER_DIST_DEFAULT).replace(' (기본)', '')}`, adsTxt, d.ins.code ? `보험 ${keepLabel(d.ins.code)}${money && d.ins.amount ? ` ${w(d.ins.amount)}` : ''}` : '보험 없음',
-                ...(money ? [d.grade ? `그레이드 ${w(d.grade)}` : '', d.distAdd ? `유통망 추가 ${w(d.distAdd)}` : '', d.card ? `💳 카드 ${w(d.card)}` : ''] : [])].filter(Boolean).join(' · ');
+                ...(money ? [d.grade ? `그레이드 ${w(d.grade)}` : '', d.distAdd ? `유통망 추가 ${w(d.distAdd)}` : '', d.card && d.card === d.cardDev ? `💳 카드 ${w(d.card)}` : [d.cardDev ? `💳 단말할인카드 ${w(d.cardDev)}` : '', d.card ? `💳 요금DC카드 ${w(d.card)}` : ''].filter(Boolean).join(' · ')] : [])].filter(Boolean).join(' · ');
         }
         // 유지 조건 고르는 칸: '' = 첫 칸 뜻(기본/없음) · 직접 입력하면 'D150'
         function dealerKeepOpts(cur, first) {
@@ -8532,7 +8532,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${money ? `<div class="rounded-xl bg-amber-50/70 border border-amber-100 p-2 space-y-1.5"><p class="text-xs font-bold text-amber-900">💰 정책 금액 <span class="font-medium text-gray-600">(개통등록 정산 줄에 저절로)</span></p>
                         ${one('grade', '⭐ 그레이드', '', d.grade)}
                         ${one('distAdd', '🏷 유통망지원금 쓰면 추가', '유통망지원금을 넣은 개통만', d.distAdd)}
-                        ${one('card', '💳 제휴카드 유치 추가', '모든 통신사 · 제휴카드나 할부카드를 적은 개통', d.card)}</div>` : ''}
+                        ${one('cardDev', '💳 단말할인카드 유치 추가', '할부카드(단말할인카드)를 적은 개통', d.cardDev)}
+                        ${one('card', '💳 요금DC카드 유치 추가', '요금DC카드(제휴카드 칸)를 적은 개통', d.card)}
+                        <p class="text-[11px] text-gray-500 leading-snug">거래처마다 따로 넣어요 · 두 카드를 다 하면 둘 다 들어가요.</p></div>` : ''}
                     <button type="button" data-dl-close class="w-full h-10 rounded-xl bg-indigo-600 text-white text-sm font-bold">완료</button>
                 </div>`;
             }).join('') : '<p class="text-xs text-gray-500 py-1">아직 등록한 거래처가 없어요. [+ 거래처]로 넣어요.</p>';
@@ -8563,7 +8565,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         document.getElementById('dealerAddBtn').addEventListener('click', () => {
             if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
             const id = 'd' + Date.now().toString(36);
-            saveDealers([...dealerList(), { id, name: '', carrier: '', plan: '', planPub: '', planSel: '', planDist: '', addons: [{ name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }], ins: { name: '', code: '', amount: 0 }, grade: 0, distAdd: 0, card: 0 }], true);
+            saveDealers([...dealerList(), { id, name: '', carrier: '', plan: '', planPub: '', planSel: '', planDist: '', addons: [{ name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }], ins: { name: '', code: '', amount: 0 }, grade: 0, distAdd: 0, card: 0, cardDev: 0 }], true);
             dealerOpenId = id; renderDealers();
             setTimeout(() => { const el = document.querySelector(`[data-dl-card="${id}"] [data-dl="name"]`); if (el) el.focus(); }, 30);
         });
@@ -8588,7 +8590,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 dealerOpenId = ''; saveDealers(dealerList().filter(x => x.id !== id), true); if (document.activeElement) document.activeElement.blur(); renderDealers();
             }
         });
-        const DL_AMT_KEYS = /^(aa\d|ia|grade|distAdd|card)$/;
+        const DL_AMT_KEYS = /^(aa\d|ia|grade|distAdd|card|cardDev)$/;
         function dlAmtOf(el) { const n = Number(String(el.value).replace(/[^\d]/g, '')) || 0; return dlAmt(el.dataset.neg ? -n : n); }   // 💰 V211 정책 ± 금액 (부호는 왼쪽 +/− 버튼)
         const dealerEdit = (e) => {
             const el = e.target.closest('[data-dl]'); if (!el || !isSuperAdmin) return;
@@ -8606,7 +8608,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (k === 'name') x.name = v.trim().slice(0, 30); else if (k === 'carrier') x.carrier = v; else if (k === 'plan') x.plan = v;
                 else if (k === 'pp') x.planPub = v; else if (k === 'ps') x.planSel = v; else if (k === 'pd') x.planDist = v;   /* V211 */
                 else if (/^aa\d$/.test(k)) x.addons[+k[2]].amount = dlAmtOf(el); else if (k === 'ia') x.ins.amount = dlAmtOf(el);
-                else if (k === 'grade' || k === 'distAdd' || k === 'card') x[k] = dlAmtOf(el);
+                else if (k === 'grade' || k === 'distAdd' || k === 'card' || k === 'cardDev') x[k] = dlAmtOf(el);
                 else if (/^an\d$/.test(k)) x.addons[+k[2]].name = v.trim().slice(0, 30); else if (/^ac\d$/.test(k)) x.addons[+k[2]].code = v;
                 else if (k === 'in') x.ins.name = v.trim().slice(0, 30); else if (k === 'ic') x.ins.code = v;
                 return x;
@@ -16532,8 +16534,9 @@ familyStr + `\n` +
             if (d && money) {
                 if (d.grade) want.push({ auto: 'grade', kind: '그레이드', name: '그레이드', amount: d.grade });
                 if (d.distAdd && arDistOn()) want.push({ auto: 'dist', kind: '기타', name: '유통망지원금 추가', amount: d.distAdd });
-                const cards = arCardBase();
-                if (d.card && cards.length) want.push({ auto: 'card', kind: '제휴카드', name: `제휴카드 유치 · ${cards.join(', ')}`.slice(0, 60), amount: d.card });
+                const pc = String(arVal('ar-card') || '').trim(), ic = String(arVal('ar-icardname') || '').trim();   /* 💳 V212 카드마다 따로 */
+                if (d.cardDev && (actCheckMeaningful(ic) || arNum('ar-icard') > 0)) want.push({ auto: 'icard', kind: '제휴카드', name: `단말할인카드 유치${actCheckMeaningful(ic) ? ` · ${ic}` : ''}`.slice(0, 60), amount: d.cardDev });
+                if (d.card && actCheckMeaningful(pc)) want.push({ auto: 'card', kind: '제휴카드', name: `요금DC카드 유치 · ${pc}`.slice(0, 60), amount: d.card });
             }
             let changed = false;
             arItems = arItems.filter(it => { if (!it.auto || it.touched || want.some(w => w.auto === it.auto)) return true; changed = true; return false; });
@@ -18673,14 +18676,74 @@ familyStr + `\n` +
         function gdClone(o) { return JSON.parse(JSON.stringify(o || {})); }
         function gdLS(k, def) { try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v == null ? def : v; } catch (e) { return def; } }
         function gdLSSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* 저장 못 해도 OK */ } }
-        function gdNotes() { const t = String(appSettings.guideNotes || '').trim(); return (t ? t.split('\n') : GD_NOTES_DEFAULT).map(x => String(x).trim()).filter(Boolean).slice(0, 8); }
+        function gdNotes() { const t = String(appSettings.guideNotes || '').trim(); return (t ? t.split('\n') : GD_NOTES_DEFAULT).map(x => String(x).trim()).filter(Boolean).slice(0, 10); }
+        /* 📌 V212 조건별 유의사항 — 해당될 때만 안내서에 들어감 (👑 안내서 기본값에서 켜고 끄기 · 문구 고치기)
+           · gate: 공통 유의사항에 같은 얘기 줄이 있으면 그 줄이 대신 (겹치지 않게)
+           · 공통 유의사항도 '유통망 · 제휴카드 · 할부카드 · 요금DC' 얘기 줄은 해당될 때만 */
+        const GD_NOTE_RULES = [
+            { k: 'dist', label: '🏷 유통망지원금을 받으면', on: true, gate: /유통망/, t: '유통망지원금 {유통망지원금}은 공시 · 선택약정 상관없이 {유통망유지일}까지(개통일부터 {유통망유지기간}) 유지해 주세요. 그 전에 해지 · 번호이동 · 기기변경 · 요금제 하향을 하면 받은 금액이 위약금으로 청구돼요.' },
+            { k: 'card', label: '💳 제휴카드(단말할인 · 요금DC)를 쓰면', on: true, gate: /연회비/, t: '제휴카드는 카드사마다 연회비가 따로 있고, 할인 조건(전월 실적)도 카드마다 달라요.' },
+            { k: 'cardreg', label: '💳 제휴카드 등록 안내', on: true, gate: /등록/, t: '카드를 받으면 개통한 매장에 꼭 등록해 주세요. 등록하기 전에는 할인이 안 돼요.' },
+            { k: 'icard', label: '💳 단말할인카드(할부카드)를 쓰면', on: true, gate: /세이브|5\.9/, t: '단말할인카드{할부카드} 할인 {할부카드할인}은 카드사가 미리 깎아 주는 세이브 금액이라 연 5.9% 이자가 붙어요. 매달 카드 실적을 못 채우면 그달 상환금을 직접 내셔야 해요.' },
+            { k: 'pcard', label: '💳 요금DC카드를 쓰면', on: true, gate: /요금\s*DC|요금할인카드/, t: '요금DC카드{요금카드} 할인({요금카드할인})은 전월 카드 실적을 채운 달만 돼요. 실적이 모자란 달은 할인 없이 요금이 나가요.' },
+            { k: 'mnp', label: '🔁 번호이동이면', on: true, gate: /전\s*통신사/, t: '전 통신사의 남은 할부금 · 위약금 · 마지막 달 요금은 전 통신사에서 따로 청구돼요(이번 요금과 별도예요).' },
+            { k: 'used', label: '📱 중고폰 보상을 받으면', on: true, gate: /중고/, t: '중고폰 보상 금액은 반납한 폰을 검수한 뒤 확정돼요. 파손 · 기능 이상 · 분실/도난 이력이 있으면 금액이 줄거나 보상이 안 될 수 있어요.' },
+            { k: 'addon', label: '➕ 부가서비스 · 보험 약속이 있으면', on: true, gate: /직접 해지|저절로 해지|자동.{0,4}해지/, t: '부가서비스 · 보험은 안내한 날짜까지 유지해 주세요. 그 뒤에도 저절로 해지되지 않아요 — 고객센터(114)나 통신사 앱에서 직접 해지하셔야 요금이 안 나가요.' },
+            { k: 'wel', label: '🤝 결합 · 복지 할인이 있으면', on: true, gate: /결합|복지/, t: '결합 · 복지 할인은 통신사 확인(서류)이 끝난 뒤 적용돼요. 확인이 늦으면 첫 달은 할인 없이 나올 수 있어요.' },
+            { k: 'pub', label: '🏷 공시지원금이면', on: false, gate: /공시지원금.{0,20}(반환|위약)|지원금을 돌려/, t: '공시지원금을 받으면 약정 기간 안에 해지 · 번호이동할 때 남은 기간만큼 지원금을 돌려내야 해요(위약금).' },
+            { k: 'sel', label: '📶 선택약정이면', on: false, gate: /할인반환금/, t: '선택약정 요금할인은 약정 기간 안에 해지하면 그동안 받은 할인 일부를 돌려내야 해요(할인반환금).' },
+            { k: 'keep', label: '📅 요금제 유지 약속이 있으면', on: false, gate: /요금제를 (바꾸|낮추)|요금제.{0,6}하향/, t: '요금제는 {요금제유지일}까지 유지해 주세요. 그 전에 낮추면 지원금 차액이 청구될 수 있어요.' }
+        ];
+        const GD_NOTE_GATES = [[/유통망/, 'dist'], [/단말할인카드|할부카드|세이브/, 'icard'], [/요금\s*DC|요금할인카드/, 'pcard'], [/제휴카드|연회비|카드사/, 'card']];
+        const GD_NOTE_SUGGEST = [
+            '첫 달 요금은 개통일부터 쓴 날만큼 계산돼 다음 달 요금과 함께 나올 수 있어요(두 달 치처럼 보여요).',
+            '기존 폰의 사진 · 연락처 · 카카오톡은 고객님이 직접 백업해 주세요. 기존 폰을 초기화하면 되살릴 수 없어요.',
+            '이 안내서의 지원금 · 할인은 오늘 개통 기준이에요. 날짜가 바뀌면 달라질 수 있어요.',
+            '기존 폰 할부금이 남아 있으면 이번 폰 할부와 따로 계속 청구돼요.',
+            '안내서와 다른 금액이 청구되면 통신사보다 개통한 매장에 먼저 연락 주세요. 바로 확인해 드려요.',
+            '명의자 본인이 아니면 분실 · 해지 · 기기변경 때 명의자 신분증과 동의가 필요해요.'
+        ];
+        function gdNoteRules() { const R = appSettings.guideNoteRules || {}; return GD_NOTE_RULES.map(r => { const o = R[r.k] || {}; const tx = String(o.text || '').trim(); return { ...r, on: o.on !== undefined ? !!o.on : r.on, text: tx || r.t, custom: !!tx }; }); }
+        function gdNoteApplies(g, k) {
+            const dev = g.kind !== 'usim', dv = g.dev || {}, pl = g.plan || {};
+            const ic = dev && (gdNum(dv.card) > 0 || !!String(dv.cardName || '').trim()), pc = gdNum(pl.card) > 0 || !!String(pl.cardName || '').trim();
+            switch (k) {
+                case 'dist': return dev && gdNum(dv.extra) > 0;
+                case 'icard': return ic;
+                case 'pcard': return pc;
+                case 'card': case 'cardreg': return ic || pc;
+                case 'mnp': return /번호이동|MNP/.test(String(g.actType || ''));
+                case 'used': return dev && gdNum(dv.used) > 0;
+                case 'addon': return (g.promises || []).some(p => (p.kind === '부가' || p.kind === '보험') && (String(p.name || '').trim() || p.code));
+                case 'wel': return !!pl.welType || gdNum(pl.comb) > 0;
+                case 'pub': return dev && g.sup === '공시';
+                case 'sel': return g.sup === '선약';
+                case 'keep': return !!(g.keep && g.keep.code && g.keep.code !== 'NONE');
+                default: return false;
+            }
+        }
+        function gdNoteFill(t, g) {
+            const W = (n) => `${arWon(n)}원`, dv = g.dev || {}, pl = g.plan || {}, d = dealerByName(g.dealer);
+            const dc = d && d.planDist && d.planDist !== 'NONE' ? d.planDist : DEALER_DIST_DEFAULT, dd = g.date ? computeKeepDate(g.date, dc) : '', kd = g.keep && g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
+            const icn = String(dv.cardName || '').trim(), pcn = String(pl.cardName || '').trim();
+            const map = { 유통망지원금: W(gdNum(dv.extra)), 유통망유지일: dd ? gdDot(dd) : '정해진 날', 유통망유지기간: keepLabel(dc), 할부카드: icn ? `(${icn})` : '', 할부카드할인: W(gdNum(dv.card)), 요금카드: pcn ? `(${pcn})` : '', 요금카드할인: `월 ${W(gdNum(pl.card))}`, 공시지원금: W(gdNum(dv.pub)), 중고보상: W(gdNum(dv.used)), 요금제유지일: kd ? gdDot(kd) : '안내한 날짜' };
+            return String(t).replace(/\{([^{}]+)\}/g, (m, k) => (map[k] !== undefined ? map[k] : m));
+        }
+        function gdNotesFor(g) {
+            const common = gdNotes(), out = common.filter(line => { const gt = GD_NOTE_GATES.find(([re]) => re.test(line)); return !gt || gdNoteApplies(g, gt[1]); });
+            gdNoteRules().forEach(r => { if (!r.on || !gdNoteApplies(g, r.k) || common.some(l => r.gate.test(l))) return; r.text.split('\n').map(x => x.trim()).filter(Boolean).forEach(x => out.push(gdNoteFill(x, g))); });
+            return [...new Set(out)].slice(0, 18);
+        }
         function gdStoreDefault() { const m = gdLS('gdStore', {}) || {}; return { name: String(m.name || appSettings.guideStoreName || msgStoreName() || '').trim().slice(0, 40), tel: String(m.tel || appSettings.guideStoreTel || '').trim().slice(0, 30) }; }
         function gdTitle(g) { return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
         function gdFindCust(phone) { const d = phoneDigits(phone); if (!/^01\d{8,9}$/.test(d)) return null; return customerDB.find(c => c.id === d || phoneDigits(c.phone) === d) || null; }
         function gdCarOf(v) { return /^알뜰/.test(String(v || '')) ? '알뜰폰' : (GD_CARRIERS.includes(v) ? v : ''); }
         function gdKeepDefault(g) {
             const d = dealerByName(g.dealer);
-            if (d && d.plan) return d.plan === 'NONE' ? '' : d.plan;
+            if (d) {   // 🏢 V212: 유통망지원금이면 189일(거래처 설정) · 아니면 공시 / 선약 따로
+                const c = g.kind !== 'usim' && gdNum(g.dev && g.dev.extra) > 0 ? (d.planDist || DEALER_DIST_DEFAULT) : (g.sup === '공시' ? d.planPub : d.planSel);
+                if (c) return c === 'NONE' ? '' : c;
+            }
             if (appSettings.autoPlanOn === false) return '';
             return planChoicesFor(g.carrier)[0] || '';
         }
@@ -18965,8 +19028,9 @@ familyStr + `\n` +
             const pl = (g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${p.kind} ${String(p.name || '').trim() || '(이름 없음)'}${gdNum(p.fee) ? ` (월 ${W(gdNum(p.fee))})` : ''}${p.code ? ` · ${keepLabel(p.code)} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; });
             if (g.gift) pl.push(`사은품: ${g.gift}`);
             if (pl.length) panel('매장과 한 약속', pl, { fill: '#FFFBEB', stroke: '#FCD34D', titleColor: '#78350F', color: '#451A03' });
-            const notes0 = Array.isArray(g.notes) && g.notes.length ? g.notes : gdNotes();
-            const notes = (c.icard || c.card) && !notes0.some(n => /실적/.test(n)) ? [...notes0, '카드 할인은 카드사 실적 조건이 있어요. 조건을 못 채운 달은 할인이 빠지거나 다시 청구될 수 있어요.'] : notes0;   // 💳 V204
+            const snap = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length;   // 서명한 안내서는 그때 문구 그대로
+            const notes0 = snap ? g.notes : gdNotesFor(g);
+            const notes = snap && g.notesV !== 2 && (c.icard || c.card) && !notes0.some(n => /실적/.test(n)) ? [...notes0, '카드 할인은 카드사 실적 조건이 있어요. 조건을 못 채운 달은 할인이 빠지거나 다시 청구될 수 있어요.'] : notes0;   // 💳 V204 (예전에 서명한 안내서만) · 📌 V212 조건별
             if (notes.length) panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
             // ⑥ 확인 · 서명
             const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
@@ -19061,7 +19125,7 @@ familyStr + `\n` +
         // 👥 V208 복사: other=true면 고객 · 일련번호 · 중고보상 · 사은품은 비우고 기종 · 요금제 · 할인 · 유지는 그대로
         function gdCopyOf(g0, other) {
             const n = gdClone(g0);
-            ['signed', 'sent', 'act', 'imgUrl', 'notes', 'calc', 'title'].forEach(k => delete n[k]);
+            ['signed', 'sent', 'act', 'imgUrl', 'notes', 'notesV', 'calc', 'title'].forEach(k => delete n[k]);
             Object.assign(n, { id: gdNewId(), st: 'draft', date: getTodayStr(), createdAt: '', createdBy: getStaffName() || '', updatedAt: '' });
             if (other) { Object.assign(n, { custId: '', name: '', phone: '', gift: '' }); if (n.dev) { n.dev.serial = ''; n.dev.used = 0; } }
             return n;
@@ -19216,6 +19280,7 @@ familyStr + `\n` +
                 if (path === 'plan.fee') gd.plan.feeAuto = false;
                 if (path === 'dev.price') gd.dev.priceAuto = false;
                 if (path === 'dev.pub') gd.dev.pubAuto = false;
+                if (path === 'dev.extra' && !gd.keepTouched) { const kc = gdKeepDefault(gd); if (kc !== gd.keep.code) { gd.keep.code = kc; const ks = gdInner.querySelector('[data-gd="keep.code"]'); if (ks) { ks.innerHTML = gdKeepOpts(kc); ks.value = kc; } } }   // 📅 V212 유통망지원금 → 189일
                 if (path === 'keep.targetFee') gd.keep.feeAuto = false;
             } else if (path === 'dealerText') gd.dealer = el.value.trim().slice(0, 30);
             else gdSetPath(path, el.value.slice(0, path === 'gift' ? 120 : 60));
@@ -19270,6 +19335,7 @@ familyStr + `\n` +
                 else if (k === 'carrier') { gd.carrier = v; if (!gd.keepTouched) gd.keep.code = gdKeepDefault(gd); const d = dealerByName(gd.dealer); if (d && gdCarOf(d.carrier) && gdCarOf(d.carrier) !== v) gdApplyDealer(gd, ''); }
                 else if (k === 'term') gd.term = Number(v) || 24;
                 else gd[k] = v;
+                if ((k === 'sup' || k === 'kind') && !gd.keepTouched) gd.keep.code = gdKeepDefault(gd);   // 📅 V212
                 if (gd.kind !== 'usim' && gd.sup === '공시' && (gd.dev.pubAuto || !gd.dev.pub)) { const m = gdModelInfo(gd); if (m && m.pub) { gd.dev.pub = m.pub; gd.dev.pubAuto = true; } }   // 공시: 지원금표에서 (개통종류마다 다름)
                 gdRender(); return;
             }
@@ -19411,7 +19477,7 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
-                g.notes = gdNotes();   // 그때의 유의사항 그대로 남김
+                g.notes = gdNotesFor(g); g.notesV = 2;   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -19669,7 +19735,12 @@ familyStr + `\n` +
                     <span class="flex flex-wrap items-center gap-1 mt-0.5 text-[12px] text-gray-500">${gdMD(g.date)} · ${escapeHtml((g.signed && g.signed.by) || g.createdBy || '')} ${badge}</span></span>
                     <span class="flex-shrink-0 text-right"><span class="block text-[11px] text-gray-500">매달</span><b class="text-[14px] text-gray-900">${arWon(c.total)}원</b></span></button><button type="button" data-gd-dup="${escapeHtml(g.id)}" class="flex-shrink-0 w-12 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-[11px] font-bold leading-tight flex flex-col items-center justify-center gap-0.5" aria-label="다른 고객으로 복사"><i class="fa-regular fa-copy text-[15px]" aria-hidden="true"></i>복사</button></div>`;
             }).join('') : `<div class="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center"><p class="text-3xl mb-2">📝</p><p class="text-[15px] font-bold text-gray-900">${q || gdFilter ? '맞는 안내서가 없어요' : '아직 안내서가 없어요'}</p><p class="text-[13px] text-gray-600 mt-1 leading-relaxed">위 <b>단말 구매</b> · <b>유심단독</b>을 눌러서<br>고객 앞에서 쓰고 서명을 받아요.</p></div>`;
-            document.getElementById('gdAdminRow').innerHTML = isSuperAdmin ? '<button type="button" data-gd-admin class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">👑 안내서 기본값 (매장 이름 · 전화 · 유의사항)</button>' : '';
+            document.getElementById('gdAdminRow').innerHTML = isSuperAdmin ? '<button type="button" data-gd-admin class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">👑 안내서 기본값 (매장 이름 · 전화 · 유의사항 · 📌 조건별)</button>' : '';
+        }
+        function gdAdmSugHtml(cur) {
+            const have = String(cur !== undefined ? cur : gdNotes().join('\n')).split('\n').map(x => x.trim());
+            const list = GD_NOTE_SUGGEST.map((t, i) => [t, i]).filter(([t]) => !have.includes(t));
+            return list.length ? list.map(([t, i]) => `<button type="button" data-gd-sug="${i}" class="w-full text-left rounded-lg border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-[12px] text-gray-800 leading-snug hover:bg-gray-50"><b class="text-indigo-700">＋</b> ${escapeHtml(t)}</button>`).join('') : '<p class="text-[11px] text-gray-500">추천 문구를 다 넣었어요.</p>';
         }
         function gdOpenAdmin() {
             if (!isSuperAdmin) return;
@@ -19681,16 +19752,32 @@ familyStr + `\n` +
                 <div class="flex items-center justify-between"><h2 id="gdAdmT" class="text-[18px] font-bold text-gray-900">👑 안내서 기본값</h2><button type="button" data-x class="w-11 h-11 rounded-full text-gray-500 text-xl" aria-label="닫기">✕</button></div>
                 <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">매장 이름 (비우면 문자 매장 이름: ${escapeHtml(msgStoreName())})</span><input id="gdAdmName" value="${escapeHtml(appSettings.guideStoreName || '')}" class="${gdCls}"></label>
                 <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">매장 전화</span><input id="gdAdmTel" type="tel" value="${escapeHtml(appSettings.guideStoreTel || '')}" class="${gdCls}"></label>
-                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">유의사항 (한 줄에 하나 · 최대 8줄)</span><textarea id="gdAdmNotes" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[14px] text-gray-900">${escapeHtml(gdNotes().join('\n'))}</textarea></label>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">공통 유의사항 (한 줄에 하나 · 최대 10줄)</span><textarea id="gdAdmNotes" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[14px] text-gray-900">${escapeHtml(gdNotes().join('\n'))}</textarea></label>
+                <p class="-mt-1 text-[11px] text-gray-600 leading-relaxed">💡 <b>유통망 · 제휴카드 · 할부카드 · 요금DC</b> 얘기가 들어간 줄은 그 고객에게 해당될 때만 들어가요.</p>
+                <div><p class="text-xs font-bold text-gray-600 mb-1">💡 추천 공통 문구 <span class="font-medium text-gray-500">(누르면 위에 더해져요 · VOC 예방)</span></p><div id="gdAdmSug" class="space-y-1">${gdAdmSugHtml()}</div></div>
+                <div class="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-2.5 space-y-2"><p class="text-[14px] font-bold text-indigo-950">📌 조건별 유의사항 <span class="text-[11px] font-medium text-gray-600">해당될 때만 들어가요</span></p>
+                    ${gdNoteRules().map(r => { const dup = gdNotes().some(l => r.gate.test(l)); return `<div class="rounded-xl bg-white border border-gray-200 p-2 space-y-1"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-gnr-on="${r.k}" ${r.on ? 'checked' : ''} class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span class="flex-1 min-w-0 text-[13px] font-bold text-gray-900">${escapeHtml(r.label)}</span><button type="button" data-gnr-reset="${r.k}" class="flex-shrink-0 text-[11px] font-bold text-gray-500 underline">기본 문구</button></label>${dup ? '<p class="text-[11px] font-bold text-amber-700">공통 유의사항에 같은 얘기 줄이 있어서 그 줄이 대신 들어가요</p>' : ''}<textarea data-gnr-text="${r.k}" rows="3" class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-[13px] text-gray-900 leading-snug">${escapeHtml(r.text)}</textarea></div>`; }).join('')}
+                    <p class="text-[11px] text-gray-600 leading-relaxed">바뀌는 칸: {유통망지원금} {유통망유지일} {유통망유지기간} {할부카드}=(카드 이름) {할부카드할인} {요금카드}=(카드 이름) {요금카드할인} {공시지원금} {중고보상} {요금제유지일} · 한 칸에 여러 줄도 돼요</p></div>
                 <p class="text-xs text-gray-500 leading-relaxed">모든 직원 폰의 새 안내서에 들어가요. 직원이 자기 폰에서 '다음에도 이 이름'을 정했으면 그 폰은 그 이름을 써요. 이미 서명한 안내서는 그때 문구 그대로예요.</p>
                 <button type="button" data-save class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button></div>`;
             document.body.appendChild(sh);
+            sh.addEventListener('input', (e) => { if (e.target.id === 'gdAdmNotes') { const b = document.getElementById('gdAdmSug'); if (b) b.innerHTML = gdAdmSugHtml(e.target.value); } });
             sh.addEventListener('click', async (e) => {
                 if (e.target === sh || e.target.closest('[data-x]')) { sh.remove(); return; }
+                const sg = e.target.closest('[data-gd-sug]');
+                if (sg) {   // 💡 추천 문구 → 공통 유의사항에 더하기
+                    const ta = document.getElementById('gdAdmNotes'), lines = ta.value.split('\n').map(x => x.trim()).filter(Boolean), t = GD_NOTE_SUGGEST[+sg.dataset.gdSug];
+                    if (lines.length >= 10) return customAlert('공통 유의사항은 10줄까지예요. 한 줄을 지우고 더해 주세요.');
+                    if (t && !lines.includes(t)) { ta.value = [...lines, t].join('\n'); document.getElementById('gdAdmSug').innerHTML = gdAdmSugHtml(ta.value); }
+                    return;
+                }
+                const rs = e.target.closest('[data-gnr-reset]');
+                if (rs) { e.preventDefault(); const r = GD_NOTE_RULES.find(x => x.k === rs.dataset.gnrReset), ta = sh.querySelector(`[data-gnr-text="${rs.dataset.gnrReset}"]`); if (r && ta) ta.value = r.t; return; }
                 if (!e.target.closest('[data-save]')) return;
                 const name = document.getElementById('gdAdmName').value.trim().slice(0, 40), tel = document.getElementById('gdAdmTel').value.trim().slice(0, 30);
-                const notes = document.getElementById('gdAdmNotes').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8).join('\n');
-                try { await saveDoc(doc(db, 'smart_global', 'settings'), { guideStoreName: name, guideStoreTel: tel, guideNotes: notes }, { merge: true }); appSettings = { ...appSettings, guideStoreName: name, guideStoreTel: tel, guideNotes: notes }; sh.remove(); stockToast('저장했어요'); }
+                const notes = document.getElementById('gdAdmNotes').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 10).join('\n');
+                const rules = {}; GD_NOTE_RULES.forEach(r => { const on = !!(sh.querySelector(`[data-gnr-on="${r.k}"]`) || {}).checked, tx = String((sh.querySelector(`[data-gnr-text="${r.k}"]`) || {}).value || '').split('\n').map(x => x.trim()).filter(Boolean).join('\n').slice(0, 500); rules[r.k] = { on, text: tx === r.t ? '' : tx }; });
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules }, { merge: true }); appSettings = { ...appSettings, guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules }; sh.remove(); stockToast('저장했어요'); }
                 catch (err) { customAlert(koreanError(err, '저장')); }
             });
         }
@@ -21635,7 +21722,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V211';
+        const APP_VER = 'V212';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -21643,6 +21730,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V212', d: '2026-10-19', items: [
+                ['📝 안내서 유의사항이 고객마다 달라져요: 유통망지원금 · 제휴카드(단말할인 · 요금DC) · 번호이동 · 중고보상 · 부가/보험 약속 · 결합/복지가 있을 때만 그 문구가 들어가요'],
+                ['👑 안내서 기본값 → 📌 조건별 유의사항 켜고 끄기 · 문구 고치기 · 💡 추천 공통 문구(VOC 예방)', 'a'],
+                ['🏢 거래처마다 💳 단말할인카드 · 요금DC카드 유치 추가금액을 따로 · 안내서 요금제 유지일도 공시 · 선약 · 유통망지원금(189일)에 따라', 'm']] },
             { v: 'V211', d: '2026-10-19', items: [
                 ['🏢 거래처 설정: 요금제 유지일을 공시 · 선약 따로 · 유통망지원금을 쓰면(공시 · 선약 둘 다) 189일 → 개통등록에서 공시/선약 · 유통망지원금에 따라 저절로 바뀌어요'],
                 ['💰 거래처 설정에 부가 · 보험 줄마다 정책 추가 · 차감 금액 · 그레이드 금액 · 유통망지원금 쓸 때 추가 금액 · 💳 제휴카드 유치 추가금액(모든 통신사) → 개통등록 정산 줄에 저절로', 'm'],
