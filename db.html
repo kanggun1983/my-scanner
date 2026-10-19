@@ -74,6 +74,11 @@
         }
         @media (prefers-reduced-motion: reduce) { .sheet-in { animation: none; } }
 
+        /* 📷 바코드 (V201) */
+        .bc-laser { top: 50%; animation: bcLaser 1.8s ease-in-out infinite; box-shadow: 0 0 8px rgba(239, 68, 68, 0.9); }
+        @keyframes bcLaser { 0%, 100% { top: 10%; } 50% { top: 88%; } }
+        @media (prefers-reduced-motion: reduce) { .bc-laser { animation: none; } }
+
         /* 🖨️ PDF 인쇄 전용 스타일 */
         #printSection { display: none; } 
         
@@ -432,7 +437,8 @@
                 <label for="searchInput" class="sr-only">고객 검색</label>
                 <div class="relative flex-1">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                    <input type="search" id="searchInput" placeholder="이름·번호·메모 검색" class="w-full h-11 pl-10 pr-3 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <input type="search" id="searchInput" placeholder="이름·번호·메모 검색" class="w-full h-11 pl-10 pr-12 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <button type="button" id="custScanBtn" class="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-9 rounded-lg text-indigo-700 hover:bg-indigo-50 text-[17px]" aria-label="바코드로 고객 찾기" title="바코드로 고객 찾기 (일련번호)"><i class="fa-solid fa-barcode" aria-hidden="true"></i></button>
                 </div>
                 <label for="managerFilter" class="sr-only">담당자별 보기</label>
                 <select id="managerFilter" class="flex-shrink-0 w-[104px] h-11 pl-2.5 pr-6 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 truncate"><option value="">👤 담당자</option></select>
@@ -614,14 +620,15 @@
             <div class="grid grid-cols-3 gap-2">
                 <label class="min-h-[76px] rounded-2xl border border-indigo-200 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-center cursor-pointer px-1 focus-within:ring-2 focus-within:ring-indigo-300"><input type="file" id="stockScanIn" accept="image/*" class="sr-only"><i class="fa-solid fa-camera text-xl text-indigo-600" aria-hidden="true"></i><b class="text-[14px] text-indigo-900">재고표 사진</b><span class="text-[11px] text-indigo-700">AI가 읽어요</span></label>
                 <label class="min-h-[76px] rounded-2xl border border-emerald-200 bg-emerald-50 flex flex-col items-center justify-center gap-0.5 text-center cursor-pointer px-1 focus-within:ring-2 focus-within:ring-emerald-300"><input type="file" id="stockXlsIn" accept=".xlsx,.xls,.csv" class="sr-only"><i class="fa-solid fa-file-excel text-xl text-emerald-600" aria-hidden="true"></i><b class="text-[14px] text-emerald-900">엑셀 파일</b><span class="text-[11px] text-emerald-700">재고표 그대로</span></label>
-                <button type="button" id="stockAddBtn" class="min-h-[76px] rounded-2xl border border-gray-300 bg-white flex flex-col items-center justify-center gap-0.5 text-center px-1"><i class="fa-solid fa-pen text-xl text-gray-600" aria-hidden="true"></i><b class="text-[14px] text-gray-900">직접 입력</b><span class="text-[11px] text-gray-500">한 대씩 · 여러 대</span></button>
+                <button type="button" id="stockAddBtn" class="min-h-[76px] rounded-2xl border border-gray-300 bg-white flex flex-col items-center justify-center gap-0.5 text-center px-1"><i class="fa-solid fa-pen text-xl text-gray-600" aria-hidden="true"></i><b class="text-[14px] text-gray-900">직접 입력</b><span class="text-[11px] text-gray-500">📷 바코드도 OK</span></button>
             </div>
-            <div id="stockToolRow" class="grid grid-cols-1 gap-2">
+            <div id="stockToolRow" class="grid grid-cols-2 gap-2">
+                <button type="button" id="stockAuditBtn" class="h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-[14px] font-bold text-indigo-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-barcode" aria-hidden="true"></i>재고 확인 (실사)</button>
                 <button type="button" id="stockExportBtn" class="h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-emerald-700" aria-hidden="true"></i>엑셀 · PDF로 받기</button>
-                <button type="button" id="stockResetBtn" class="hidden h-11 rounded-xl border border-red-200 bg-white text-[14px] font-bold text-red-700 items-center justify-center gap-1.5"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>전체 초기화</button>
+                <button type="button" id="stockResetBtn" class="hidden col-span-2 h-11 rounded-xl border border-red-200 bg-white text-[14px] font-bold text-red-700 items-center justify-center gap-1.5"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>전체 초기화</button>
             </div>
             <div id="stockDealerHint"></div>
-            <div class="flex items-center gap-2 bg-white border border-gray-300 rounded-2xl px-3 h-12 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><i class="fa-solid fa-magnifying-glass text-gray-400" aria-hidden="true"></i><label for="stockSearch" class="sr-only">재고 찾기</label><input type="text" id="stockSearch" autocomplete="off" enterkeyhint="search" placeholder="모델 · 색상 · 일련번호 끝자리 · 고객 이름" class="flex-1 min-w-0 h-full bg-transparent text-[15px] text-gray-900 outline-none"></div>
+            <div class="flex items-center gap-2 bg-white border border-gray-300 rounded-2xl px-3 h-12 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><i class="fa-solid fa-magnifying-glass text-gray-400" aria-hidden="true"></i><label for="stockSearch" class="sr-only">재고 찾기</label><input type="text" id="stockSearch" autocomplete="off" enterkeyhint="search" placeholder="모델 · 색상 · 일련번호 끝자리 · 고객 이름" class="flex-1 min-w-0 h-full bg-transparent text-[15px] text-gray-900 outline-none"><button type="button" id="stockScanBtn" class="flex-shrink-0 -mr-1.5 h-9 px-2.5 rounded-xl bg-indigo-600 text-white text-[13px] font-bold flex items-center gap-1" aria-label="바코드로 재고 찾기"><i class="fa-solid fa-barcode" aria-hidden="true"></i>바코드</button></div>
             <div id="stockChips" class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"></div>
             <div id="stockList" class="space-y-3"></div>
         </div>
@@ -1125,7 +1132,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V200</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V201</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -6763,7 +6770,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.cardId, c.visitPurpose, c.regStore]
                         .some(v => String(v || '').toLowerCase().includes(query))
                     || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)))
-                    || (/^\d{4,}$/.test(qDigits) && prevIdsOf(c).some(p => p.includes(qDigits)));   // 📱 예전 번호로도 찾기
+                    || (/^\d{4,}$/.test(qDigits) && prevIdsOf(c).some(p => p.includes(qDigits)))   // 📱 예전 번호로도 찾기
+                    || (query.length >= 5 && /^[a-z0-9]+$/.test(query) && bcSerialHit(c, query));   // 📷 일련번호 (끝자리 · 바코드로 찍은 전체 번호) V201
                 
                 if (!matchSearch) return false;
 
@@ -13511,6 +13519,7 @@ familyStr + `\n` +
                 pushAppState({ reArm: true });
                 return;
             }
+            if (window.__bcBack && window.__bcBack()) return;   // 📷 V201
             if (familyPickerSheet.style.display === 'flex') return closeFamilyPicker(true);
             if (callResultSheet.style.display === 'flex') return closeCallResultSheet(true);
             if (aiSmsSheet.style.display === 'flex') return closeAiSmsSheet(true);
@@ -15808,7 +15817,9 @@ familyStr + `\n` +
         // 공통 칸 만들기
         const arCls = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
         const arIn = (id, label, val, opt = {}) => `<label class="block min-w-0 ${opt.span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${opt.req ? '<span class="text-red-600">*</span> ' : ''}${label}</span>
-            <input id="${id}" type="${opt.type || 'text'}" ${opt.num ? 'inputmode="numeric"' : ''} ${opt.ro ? 'readonly tabindex="-1"' : ''} value="${escapeHtml(val ?? '')}" placeholder="${escapeHtml(opt.ph || '')}" ${opt.list ? `list="${opt.list}"` : ''} class="${arCls} ${opt.ro ? 'bg-gray-100 font-bold' : ''} ${opt.num ? 'text-right' : ''}"></label>`;
+            ${opt.scan ? '<span class="flex gap-1.5">' : ''}<input id="${id}" type="${opt.type || 'text'}" ${opt.num ? 'inputmode="numeric"' : ''} ${opt.ro ? 'readonly tabindex="-1"' : ''} value="${escapeHtml(val ?? '')}" placeholder="${escapeHtml(opt.ph || '')}" ${opt.list ? `list="${opt.list}"` : ''} class="${arCls} ${opt.ro ? 'bg-gray-100 font-bold' : ''} ${opt.num ? 'text-right' : ''} ${opt.scan ? 'flex-1 min-w-0 font-mono' : ''}">${opt.scan ? `${bcBtn(id, label)}</span>` : ''}</label>`;
+        // 📷 바코드 버튼 (V201) — 누르면 카메라로 찍어서 옆 칸에 넣음
+        function bcBtn(id, label) { return `<button type="button" data-bc-for="${id}" class="flex-shrink-0 w-12 h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-700 text-[18px]" aria-label="${escapeHtml(label)} 바코드로 찍기" title="바코드로 찍기"><i class="fa-solid fa-barcode" aria-hidden="true"></i></button>`; }
         const arSel = (id, label, opts, val, opt = {}) => `<label class="block min-w-0 ${opt.span ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${opt.req ? '<span class="text-red-600">*</span> ' : ''}${label}</span>
             <select id="${id}" class="${arCls}">${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${escapeHtml(v)}" ${String(v) === String(val ?? '') ? 'selected' : ''}>${escapeHtml(l)}</option>`; }).join('')}</select></label>`;
         // [V188] 폰클처럼: 회색 머리줄(제목 + 오른쪽 체크) · 가끔 쓰는 칸은 머리줄 체크를 켜야 보임
@@ -15904,7 +15915,7 @@ familyStr + `\n` +
                     ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${storeHtml}
                     ${arIn('ar-manager', '개통직원', getStaffName() || '')}
-                    ${stockItems().some(x => stockSt(x) === '재고' && stockIsDev(x)) ? '<button type="button" id="arStockJump" class="col-span-2 -mt-0.5 text-left text-xs font-bold text-teal-700 leading-relaxed">📦 재고 단말이면 <u>단말기 일련번호</u>만 치세요 → 거래처 · 통신사 · 모델이 자동으로 들어가요 ↓</button>' : ''}
+                    ${stockItems().some(x => stockSt(x) === '재고' && stockIsDev(x)) ? '<button type="button" id="arStockJump" class="col-span-2 -mt-0.5 text-left text-xs font-bold text-teal-700 leading-relaxed">📦 재고 단말이면 <u>단말기 일련번호</u>만 치거나 📷 바코드로 찍으세요 → 거래처 · 통신사 · 모델이 자동으로 들어가요 ↓</button>' : ''}
                     <div id="ar-act-note" class="col-span-2 hidden text-xs font-bold rounded-lg px-2.5 py-2 leading-relaxed border"></div>
                     <p id="ar-dealer-note" class="col-span-2 hidden text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 leading-relaxed"></p>
                     ${!DL.length && isSuperAdmin ? '<p class="col-span-2 text-xs text-gray-500">💡 설정 → 🏪 매장 운영 → 개통 후 자동 약속에서 거래처를 등록하면, 여기서 고르기만 해도 요금제·부가·보험 유지가 자동으로 들어가요.</p>' : ''}
@@ -15952,13 +15963,13 @@ familyStr + `\n` +
                 html += arSec('단말기 · 유심', `<div class="grid grid-cols-2 gap-2">
                     <div data-dev class="col-span-2 grid grid-cols-2 gap-2">
                         ${stockLive.length ? `<button type="button" id="arStockBtn" class="col-span-2 h-11 rounded-xl border border-teal-300 bg-teal-50 text-[14px] font-bold text-teal-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> 재고에서 고르기 <span id="arStockCnt" class="font-medium text-teal-700"></span></button><div id="arStockPick" class="col-span-2 hidden"></div>` : ''}
-                        ${arIn('ar-serial', '단말기 일련번호', '', stockLive.length ? { span: true, list: 'arStockList', ph: '끝자리만 쳐도 재고에서 찾아요' } : { span: true })}
+                        ${arIn('ar-serial', '단말기 일련번호', '', stockLive.length ? { span: true, list: 'arStockList', ph: '끝자리만 쳐도 재고에서 찾아요', scan: 1 } : { span: true, scan: 1 })}
                         <p id="ar-stock-note" class="col-span-2 hidden text-xs font-bold rounded-lg px-2.5 py-1.5 leading-relaxed"></p>
                         ${arIn('ar-model', '단말기 모델명', '', { ph: '예) SM-S942N' })}
                         ${arIn('ar-color', '색상', '', {})}
                     </div>
                     ${arIn('ar-usim', '유심 모델명', '', {})}
-                    ${arIn('ar-usimserial', '유심 일련번호', '', {})}
+                    ${arIn('ar-usimserial', '유심 일련번호', '', { scan: 1 })}
                     <p id="ar-usim-note" class="col-span-2 hidden text-xs font-bold text-indigo-800 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5"></p>
                     </div>`, arTogs([['ar-tg-usim', '유심만 개통', false]]));
                 // 📱 중고폰 (V191): 반납·매입한 중고폰 → 모델 · 색상 · 일련번호 · 거래업체 · 판매금액 (판매금액은 부가세 X · 총매출·실마진에만 +)
@@ -15967,7 +15978,8 @@ familyStr + `\n` +
                     <div data-tg="ar-tg-used" class="hidden grid grid-cols-2 gap-2">
                         ${arIn('ar-up-model', '중고 모델', '', { ph: '예) S22 · IP14P' })}
                         ${arIn('ar-up-color', '색상', '', { ph: '예) 블랙' })}
-                        ${arIn('ar-up-serial', '일련번호', '', { span: true })}
+                        ${arIn('ar-up-serial', '일련번호', '', { span: true, scan: 1, ph: 'IMEI (폰에서 *#06#)' })}
+                        <button type="button" id="arUpLost" class="col-span-2 -mt-1 text-left text-xs font-bold text-indigo-700 leading-relaxed"><u>📵 이 번호로 분실폰 조회</u> <span class="font-medium text-gray-500">(번호 복사 → 조회 사이트 열림 → 붙여넣기)</span></button>
                         ${arIn('ar-up-buyer', '거래업체', '', { list: 'arUpBuyers', ph: '예) ○○폰매입', span: !showSettle })}
                         ${showSettle ? arMoney('ar-used', '판매금액') : ''}
                         ${showSettle ? '<p class="col-span-2 text-xs font-bold text-emerald-700">💰 판매금액은 부가세 계산엔 안 들어가고 총매출 · 실마진에만 더해져요.</p>' : ''}
@@ -16495,7 +16507,7 @@ familyStr + `\n` +
         const STOCK_CAR_TONE = { 'LG U+': 'bg-pink-50 text-pink-700 border-pink-200', 'SKT': 'bg-orange-50 text-orange-700 border-orange-200', 'KT': 'bg-red-50 text-red-700 border-red-200' };
         const stockMD = (d) => (d ? String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/') : '');
         function renderStock() {
-            { const rb = document.getElementById('stockResetBtn'), row = document.getElementById('stockToolRow'); if (rb && row) { rb.classList.toggle('hidden', !isSuperAdmin); rb.classList.toggle('flex', !!isSuperAdmin); row.classList.toggle('grid-cols-2', !!isSuperAdmin); row.classList.toggle('grid-cols-1', !isSuperAdmin); } }   // V198
+            { const rb = document.getElementById('stockResetBtn'); if (rb) { rb.classList.toggle('hidden', !isSuperAdmin); rb.classList.toggle('flex', !!isSuperAdmin); } }   // V198 (V201: 도구 줄은 재고 확인 · 받기 두 칸 + 대표는 초기화 한 줄)
             const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
             const devs = live.filter(stockIsDev), usims = live.filter(x => !stockIsDev(x));
             const month = getTodayStr().slice(0, 7);
@@ -16518,7 +16530,7 @@ familyStr + `\n` +
             const chip = (v, label) => `<button type="button" data-stk-f="${escapeHtml(v)}" class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${stockKey(stockFilter) === stockKey(v) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${label}</button>`;
             document.getElementById('stockChips').innerHTML = all.length || usedAny ? [all.length ? chip('', `전체 ${devs.length}`) : '', ...dealers.map(n => chip(n, `${escapeHtml(n)} ${devs.filter(x => stockKey(x.dealer) === stockKey(n)).length}`)), old.length ? chip('__old', `⏳ ${STOCK_OLD_DAYS}일↑ ${old.length}`) : '', sold.length ? chip('__sold', `✅ 개통됨 ${sold.length}`) : '', cleaned.length ? chip('__clean', `🧹 정리됨 ${cleaned.length}`) : '', usedAny ? chip('__used', '📱 중고폰') : ''].join('') : '';
             const q = stockNorm(stockQuery);
-            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q));
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
             const listEl = document.getElementById('stockList');
             if (stockFilter === '__used') {   // 📱 중고폰 거래업체별 (개통 기록 기준 · 달마다)
                 const money = canSeeSettle(), byB = [];
@@ -16624,7 +16636,7 @@ familyStr + `\n` +
         function stockExportRows(opt = stockExpOpt) {
             const view = opt.scope === 'view' && stockFilter !== '__used', f = view ? stockFilter : '', q = view ? stockNorm(stockQuery) : '';
             const today = getTodayStr(), ageOf = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(String(x.at || today).slice(0, 10))) / 86400000));
-            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q));
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
             const order = stockDealerNames(true), oi = (d) => { const i = order.findIndex(n => stockKey(n) === stockKey(d)); return i < 0 ? 999 : i; };
             const stRank = { 재고: 0, 개통: 1, 정리: 2 };
             return stockItems().filter(x => {
@@ -16855,7 +16867,7 @@ familyStr + `\n` +
                         <div data-st-dev class="min-w-0">${lbl('색상', `<input id="st-color" list="stColors" value="${escapeHtml(it ? it.color : '')}" placeholder="예) 블랙" class="${stCls}">`)}</div>
                         <div data-st-usim class="min-w-0 hidden">${lbl('수량', `<input id="st-qty" inputmode="numeric" value="${it && it.kind === '유심' ? Number(it.qty) || 0 : ''}" placeholder="0" class="${stCls} text-right">`)}</div>
                     </div>
-                    <div data-st-dev>${it ? lbl('일련번호', `<input id="st-serial" value="${escapeHtml(it.serial)}" class="${stCls} font-mono">`) : lbl('일련번호 <span class="font-normal text-gray-500">(같은 모델·색상 여러 대면 한 줄에 하나씩)</span>', `<textarea id="st-serials" rows="4" placeholder="325581&#10;305371" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] font-mono text-gray-900 bg-white"></textarea>`)}</div>
+                    <div data-st-dev>${it ? lbl('일련번호', `<span class="flex gap-1.5"><input id="st-serial" value="${escapeHtml(it.serial)}" class="${stCls} font-mono flex-1 min-w-0">${bcBtn('st-serial', '일련번호')}</span>`) : lbl('일련번호 <span class="font-normal text-gray-500">(같은 모델·색상 여러 대면 한 줄에 하나씩)</span>', `<textarea id="st-serials" rows="4" placeholder="325581&#10;305371" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] font-mono text-gray-900 bg-white"></textarea>`) + `<button type="button" id="stScanMulti" class="mt-1.5 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-[14px] font-bold text-indigo-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-barcode" aria-hidden="true"></i>바코드로 여러 대 연속 찍기</button>`}</div>
                     ${lbl('메모', `<input id="st-memo" value="${escapeHtml(it ? it.memo : '')}" placeholder="예) 개통취소 · 고품 · 사용중" class="${stCls}">`)}
                 </section>
                 ${it ? `<section class="bg-white rounded-2xl border border-gray-200 p-3 space-y-2">
@@ -16866,6 +16878,7 @@ familyStr + `\n` +
                     </div></section>` : `<p class="text-xs text-gray-500 px-1 leading-relaxed">일련번호는 재고표처럼 끝 6~7자리만 적어도 돼요. 개통등록에서 그 끝자리를 치면 이 재고를 찾아서 거래처가 자동으로 골라져요.</p>`}`;
             const syncKind = () => { const k = (stBody.querySelector('input[name="st-kind"]:checked') || {}).value; stBody.querySelectorAll('[data-st-dev]').forEach(x => x.classList.toggle('hidden', k === '유심')); stBody.querySelectorAll('[data-st-usim]').forEach(x => x.classList.toggle('hidden', k !== '유심')); };
             stBody.querySelectorAll('input[name="st-kind"]').forEach(r => r.addEventListener('change', syncKind)); syncKind();
+            { const sm = document.getElementById('stScanMulti'); if (sm) sm.onclick = () => bcStockMulti(); }   // 📷 V201
             const ds = document.getElementById('st-dealer'), dn = document.getElementById('st-dealer-new');
             ds.addEventListener('change', () => { dn.classList.toggle('hidden', ds.value !== '__new'); if (ds.value === '__new') dn.focus(); });
             const act = async (patch, msg, confirmMsg) => {
@@ -17189,6 +17202,524 @@ familyStr + `\n` +
         });
         arEl.addEventListener('input', (e) => { if (e.target.id === 'ar-serial') { clearTimeout(arStockT); arStockT = setTimeout(arStockLookup, 300); } });
         arEl.addEventListener('change', (e) => { if (e.target.id === 'ar-serial') { clearTimeout(arStockT); arStockLookup(); } if (e.target.id === 'ar-store-sel' || e.target.id === 'ar-store') arStockSync(); });
+
+        /* =====================================================================
+           📷 바코드 찍기 (V201)
+           · 개통등록: 단말기 · 유심 · 중고폰 일련번호 칸 옆 [바코드] → 상자 라벨을 비추면 재고에 있는 번호를 바로 골라 넣음
+           · 재고: 찾기(검색칸 [바코드]) · 직접 넣기(여러 대 연속) · 고치기 · 📋 재고 확인(실사: 찍은 것 ✓ / 안 찍힌 재고)
+           · 고객 찾기: 상자 · 폰 화면(*#06#) 바코드로 그 단말을 개통한 고객
+           · 읽기: 안드로이드 크롬은 폰에 들어있는 바코드 읽기(BarcodeDetector) · 없으면(아이폰 등) ZXing을 그때 불러옴
+           · 바코드가 여러 개면(IMEI1 · IMEI2 · S/N · 상품코드): 재고·고객과 맞는 번호 → 바로
+             · 이 칸에서 전에 고른 모양(IMEI · 끝 7자리 · S/N…) → 자동(위쪽 것 = 보통 IMEI1) · 아니면 눌러서 고르기
+           · 카메라가 안 되면 🖼 사진으로 · ⌨️ 직접 입력
+           ===================================================================== */
+        const BC_FORMATS = ['code_128', 'code_39', 'code_93', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'itf', 'codabar', 'qr_code', 'data_matrix', 'pdf417'];
+        const BC_ZX_URLS = ['https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js', 'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js', 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.js'];
+        const BC_TAIL = 7;   // 통신사 일련번호 7자리 (= IMEI 끝 7자리)
+        let bcDetP = null, bcState = null;
+        function bcLoadScript(src) {
+            return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = src; sc.async = true; sc.onload = res; sc.onerror = () => { sc.remove(); rej(new Error('load')); }; document.head.appendChild(sc); });
+        }
+        async function bcZxing() {
+            for (const u of BC_ZX_URLS) {
+                if (window.ZXing && window.ZXing.MultiFormatReader) break;
+                try { await bcLoadScript(u); } catch (e) { /* 다음 주소 */ }
+            }
+            if (!(window.ZXing && window.ZXing.MultiFormatReader)) throw new Error('zxing');
+            return window.ZXing;
+        }
+        function bcZxDetector(ZX) {
+            const F = ZX.BarcodeFormat, hints = new Map(), reader = new ZX.MultiFormatReader();
+            hints.set(ZX.DecodeHintType.POSSIBLE_FORMATS, ['CODE_128', 'CODE_39', 'CODE_93', 'EAN_13', 'EAN_8', 'UPC_A', 'UPC_E', 'ITF', 'CODABAR', 'QR_CODE', 'DATA_MATRIX', 'PDF_417'].map(k => F[k]).filter(v => v !== undefined));
+            hints.set(ZX.DecodeHintType.TRY_HARDER, true);
+            reader.setHints(hints);
+            const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true });
+            const one = (src, r, maxW) => {
+                const [sx, sy, sw, sh] = r, k = Math.min(1, maxW / sw), w = Math.max(1, Math.round(sw * k)), h = Math.max(1, Math.round(sh * k));
+                cv.width = w; cv.height = h; cx.drawImage(src, sx, sy, sw, sh, 0, 0, w, h);
+                const px = cx.getImageData(0, 0, w, h).data, lum = new Uint8ClampedArray(w * h);
+                for (let i = 0, j = 0; j < lum.length; i += 4, j++) lum[j] = (px[i] * 77 + px[i + 1] * 150 + px[i + 2] * 29) >> 8;
+                try {
+                    const res = reader.decodeWithState(new ZX.BinaryBitmap(new ZX.HybridBinarizer(new ZX.RGBLuminanceSource(lum, w, h))));
+                    if (!res) return null;
+                    const ys = ((res.getResultPoints && res.getResultPoints()) || []).map(p => p.getY()).filter(Number.isFinite);
+                    return { text: String(res.getText() || ''), fmt: String(F[res.getBarcodeFormat()] || '').toLowerCase(), y: sy + (ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length / k : sh / 2) };
+                } catch (e) { return null; }   // 못 찾으면 NotFoundException
+            };
+            let turn = 0;
+            return { kind: 'zxing', detect: async (src, o = {}) => {
+                const W = src.videoWidth || src.naturalWidth || src.width, H = src.videoHeight || src.naturalHeight || src.height;
+                if (!W || !H) return [];
+                const [bx, by, bw, bh] = o.crop || [0, 0, W, H], n = o.full ? 6 : 4;
+                // 상자 라벨은 바코드가 위아래로 여러 줄인데 ZXing은 한 번에 하나만 → 가로 띠로 잘라서 하나씩
+                const regions = [[bx, by, bw, bh]];
+                for (let i = 0; i < n; i++) regions.push([bx, by + Math.round(bh * i / (n + 1)), bw, Math.round(bh * 2 / (n + 1))]);
+                const out = [];
+                (o.full ? regions : [regions[turn++ % regions.length]]).forEach(r => { const x = one(src, r, o.full ? 1600 : 1280); if (x && x.text && !out.some(y => y.text === x.text)) out.push(x); });
+                return out;
+            } };
+        }
+        function bcGetDetector() {
+            if (bcDetP) return bcDetP;
+            bcDetP = (async () => {
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const sup = await window.BarcodeDetector.getSupportedFormats();
+                        const fm = BC_FORMATS.filter(f => (sup || []).includes(f));
+                        if (fm.length) {
+                            const d = new window.BarcodeDetector({ formats: fm });
+                            return { kind: 'native', detect: async (src) => (await d.detect(src)).map(r => ({ text: String(r.rawValue || ''), fmt: String(r.format || ''), y: r.boundingBox ? r.boundingBox.y : 0 })) };
+                        }
+                    } catch (e) { /* 아래 ZXing으로 */ }
+                }
+                return bcZxDetector(await bcZxing());
+            })();
+            bcDetP.catch(() => { bcDetP = null; });   // 인터넷이 다시 되면 다음에 또
+            return bcDetP;
+        }
+        // 번호 모양: IMEI(15자리 · 검증 숫자 맞음) · 유심(89로 시작 19~20자리) · 상품 코드(EAN) · S/N(영문+숫자) · 숫자
+        function bcLuhn(d) { let t = 0; for (let i = 0; i < d.length; i++) { let n = d.charCodeAt(d.length - 1 - i) - 48; if (i % 2) { n *= 2; if (n > 9) n -= 9; } t += n; } return t % 10 === 0; }
+        function bcClassify(text, fmt) {
+            const v = String(text || '').trim().replace(/\s+/g, '').slice(0, 60), f = String(fmt || '').toLowerCase(), len = v.length;
+            let cls = 'etc', label = '바코드';
+            if (/^\d{15}$/.test(v) && bcLuhn(v)) { cls = 'imei'; label = 'IMEI'; }
+            else if (/^89\d{17,18}[A-Z]?$/i.test(v)) { cls = 'iccid'; label = '유심 번호'; }
+            else if ((/^\d{13}$/.test(v) && (/ean/.test(f) || v.startsWith('880'))) || (/^\d{8}$/.test(v) && /ean_8/.test(f)) || (/^\d{12}$/.test(v) && /upc/.test(f))) { cls = 'ean'; label = '상품 코드'; }
+            else if (/^[A-Z0-9]{8,16}$/i.test(v) && /[A-Z]/i.test(v) && /\d/.test(v)) { cls = 'sn'; label = 'S/N'; }
+            else if (/^\d{5,}$/.test(v)) { cls = 'num'; label = `숫자 ${len}자리`; }
+            return { text: v, fmt: f, cls, label, len };
+        }
+        // QR처럼 한 바코드에 여러 값('IMEI1:… S/N:…') → 번호처럼 생긴 것만 따로
+        function bcSplit(raw) {
+            const t = String((raw && raw.text) || '').trim();
+            if (!t) return [];
+            if (t.length <= 24 && /^[A-Za-z0-9-]+$/.test(t)) return [bcClassify(t, raw.fmt)];
+            const out = t.split(/[^A-Za-z0-9]+/).filter(x => x.length >= 6).map(x => bcClassify(x, raw.fmt)).filter(c => ['imei', 'iccid', 'sn', 'num'].includes(c.cls));
+            return out.length ? out.slice(0, 8) : [bcClassify(t, raw.fmt)];
+        }
+        // 이 칸에서 전에 고른 모양 (이 폰에만) · 유심은 유심 번호 · 중고폰은 IMEI가 기본
+        const BC_PAT_DEFAULT = { usim: { cls: 'iccid', len: 0, tail: 0 }, used: { cls: 'imei', len: 15, tail: 0 } };
+        function bcPatStored(field) { try { const p = JSON.parse(localStorage.getItem('bcPat:' + field) || 'null'); return p && p.cls ? p : null; } catch (e) { return null; } }
+        function bcPatGet(field, kind) { return bcPatStored(field) || BC_PAT_DEFAULT[kind] || null; }
+        function bcPatSet(field, c, tail) { if (!field || !c) return; try { localStorage.setItem('bcPat:' + field, JSON.stringify({ cls: c.cls, len: c.len, tail: tail || 0 })); } catch (e) { /* 저장 못 해도 OK */ } }
+        const bcPatFits = (p, c) => !!p && !!c && c.cls === p.cls && c.cls !== 'etc' && (['imei', 'iccid'].includes(c.cls) || c.len === p.len);
+        const bcTailOf = (c, tail) => (tail && c.text.length > tail ? c.text.slice(-tail) : c.text);
+        function bcPatLabel(p) { return p.tail ? `${p.cls === 'imei' ? 'IMEI' : '번호'} 끝 ${p.tail}자리` : ({ imei: 'IMEI', iccid: '유심 번호', sn: 'S/N', ean: '상품 코드' }[p.cls] || `숫자 ${p.len}자리`); }
+        function bcBeep() {
+            try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* 무시 */ }
+            try {
+                const a = bcBeep.ctx; if (!a) return;
+                const o = a.createOscillator(), g = a.createGain();
+                o.type = 'square'; o.frequency.value = 1760; g.gain.value = 0.05; o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.08);
+            } catch (e) { /* 소리 안 나도 OK */ }
+        }
+        function bcMsg(S, t) { const m = S && S.el.querySelector('[data-bc-msg]'); if (m) m.textContent = t; }
+
+        /* ---------- 찍는 화면 ----------
+           opts: title · hint · field(기억 이름 · 직접 입력 때 갈 칸) · kind · multi(여러 개 연속) · noPat(모양 기억 X)
+                 note(c)→html · prefer(codes)→{c, value} · onPick(value, c) · onRemove(value) · onDone(S) · skip(value)→이유
+                 autoMulti(c)→value (재고 확인: 맞는 것만 자동) · headText(S)→html */
+        function openBarcode(opts) {
+            closeBarcode();
+            const el = document.createElement('div');
+            el.id = 'bcSheet';
+            el.className = 'fixed inset-0 z-[90] flex flex-col bg-black text-white';
+            el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-labelledby', 'bcTitle');
+            el.innerHTML = `
+                <div class="flex items-center gap-2 px-2 flex-shrink-0" style="padding-top:max(8px, env(safe-area-inset-top));padding-bottom:8px">
+                    <button type="button" data-bc-x class="w-11 h-11 rounded-full bg-white/20 text-lg" aria-label="닫기">✕</button>
+                    <h2 id="bcTitle" class="flex-1 min-w-0 text-[16px] font-bold truncate">${escapeHtml(opts.title || '📷 바코드 찍기')}</h2>
+                    <button type="button" data-bc-zoom class="hidden h-11 min-w-[44px] px-3 rounded-full bg-white/20 text-sm font-bold" aria-label="확대">1x</button>
+                    <button type="button" data-bc-torch class="hidden w-11 h-11 rounded-full bg-white/20" aria-label="플래시" aria-pressed="false"><i class="fa-solid fa-bolt" aria-hidden="true"></i></button>
+                </div>
+                <div class="relative flex-1 min-h-[150px] overflow-hidden">
+                    <video playsinline muted autoplay class="absolute inset-0 w-full h-full object-cover"></video>
+                    <div data-bc-guide class="absolute rounded-2xl border-2 border-white pointer-events-none" style="left:6%;right:6%;top:10%;bottom:16%;box-shadow:0 0 0 9999px rgba(0,0,0,0.45)"><div class="bc-laser absolute left-3 right-3 h-0.5 bg-red-500"></div></div>
+                    <p data-bc-msg class="absolute left-0 right-0 bottom-2 px-4 text-center text-[13px] font-bold text-white" style="text-shadow:0 1px 3px rgba(0,0,0,0.9)">카메라를 켜는 중…</p>
+                </div>
+                <div class="flex-shrink-0 bg-white text-gray-900 rounded-t-2xl flex flex-col" style="max-height:50vh;padding-bottom:max(10px, env(safe-area-inset-bottom))">
+                    ${opts.multi ? '<p data-bc-head class="px-4 pt-3 text-[13px] font-bold text-gray-700 leading-relaxed"></p>' : ''}
+                    <div data-bc-list class="overflow-y-auto px-3 pt-2.5 space-y-1.5" aria-live="polite"><p class="text-[13px] text-gray-600 text-center py-2 leading-relaxed">${escapeHtml(opts.hint || '바코드를 네모 안에 비춰 주세요. 상자 라벨이면 여러 개가 한 번에 떠요.')}</p></div>
+                    <div class="grid ${opts.multi ? 'grid-cols-3' : 'grid-cols-2'} gap-2 px-3 pt-2.5">
+                        <label class="h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800 flex items-center justify-center gap-1 cursor-pointer focus-within:ring-2 focus-within:ring-indigo-300"><input type="file" accept="image/*" capture="environment" data-bc-file class="sr-only">🖼 사진으로</label>
+                        <button type="button" data-bc-x ${opts.multi ? '' : 'data-bc-manual'} class="h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${opts.multi ? '닫기' : '⌨️ 직접 입력'}</button>
+                        ${opts.multi ? '<button type="button" data-bc-done class="h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">완료</button>' : ''}
+                    </div>
+                </div>`;
+            document.body.appendChild(el);
+            const S = bcState = { el, opts, codes: new Map(), picked: new Map(), seq: 0, pat: opts.noPat ? null : bcPatGet(opts.field, opts.kind), stream: null, track: null, det: null, timer: 0, busy: false, loop: false, view: [] };
+            try { const A = window.AudioContext || window.webkitAudioContext; if (A && !bcBeep.ctx) bcBeep.ctx = new A(); if (bcBeep.ctx && bcBeep.ctx.state === 'suspended') bcBeep.ctx.resume(); } catch (e) { /* 소리 없이 */ }
+            pushAppState({ bc: true }); S.pushed = true;
+            el.addEventListener('click', bcClick);
+            el.querySelector('[data-bc-file]').addEventListener('change', bcFile);
+            bcRender();
+            bcStartCam(S);
+            return S;
+        }
+        function closeBarcode(fromPop = false) {
+            const S = bcState; if (!S) return;
+            bcState = null;
+            clearTimeout(S.timer);
+            try { if (S.stream) S.stream.getTracks().forEach(t => t.stop()); } catch (e) { /* 이미 꺼짐 */ }
+            S.el.remove();
+            if (S.pushed && !fromPop) historyBackSilently();
+        }
+        window.__bcBack = () => { if (!bcState) return false; closeBarcode(true); return true; };
+        document.addEventListener('visibilitychange', () => {   // 🖼 사진 찍고 돌아오면 카메라가 꺼져 있을 수 있음 → 다시
+            const S = bcState; if (!S || document.hidden) return;
+            if (S.track && S.track.readyState === 'ended') { S.stream = null; S.track = null; bcStartCam(S); }
+        });
+        async function bcStartCam(S) {
+            if (bcState !== S) return;
+            const v = S.el.querySelector('video');
+            const detP = bcGetDetector().then(d => { S.det = d; return d; }, () => null);
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { bcMsg(S, '이 화면에선 카메라를 못 켜요 → 🖼 사진으로 찍어 주세요'); return; }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+                if (bcState !== S) { stream.getTracks().forEach(t => t.stop()); return; }
+                S.stream = stream; S.track = stream.getVideoTracks()[0] || null;
+                v.srcObject = stream;
+                try { await v.play(); } catch (e) { /* 소리 없는 영상이라 보통 OK */ }
+                const cap = S.track && S.track.getCapabilities ? S.track.getCapabilities() : {};
+                if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) { try { await S.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* 지원 안 함 */ } }
+                if (cap.torch) S.el.querySelector('[data-bc-torch]').classList.remove('hidden');
+                if (cap.zoom && cap.zoom.max >= 1.5) { S.zoomCap = cap.zoom; S.el.querySelector('[data-bc-zoom]').classList.remove('hidden'); }
+            } catch (e) {
+                bcMsg(S, e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? '카메라 권한이 막혀 있어요 → 🖼 사진으로 찍거나, 주소창의 🔒에서 카메라 허용' : '카메라를 못 켰어요 → 🖼 사진으로 찍어 주세요');
+                return;
+            }
+            const det = await detP;
+            if (bcState !== S) return;
+            if (!det) { bcMsg(S, '바코드 읽는 도구를 못 불러왔어요 (인터넷 확인) → ⌨️ 직접 입력'); return; }
+            bcMsg(S, '바코드를 네모 안에 · 너무 가까우면 흐려요 (한 뼘쯤 떨어져서)');
+            bcLoop(S);
+        }
+        // 화면 네모 → 영상 속 위치 (ZXing은 네모 안만 읽어서 빠르게)
+        function bcCrop(S, v) {
+            const g = S.el.querySelector('[data-bc-guide]'), W = v.videoWidth, H = v.videoHeight;
+            if (!g || !W || !H) return null;
+            const vr = v.getBoundingClientRect(), gr = g.getBoundingClientRect();
+            const k = Math.max(vr.width / W, vr.height / H), ox = (vr.width - W * k) / 2, oy = (vr.height - H * k) / 2;
+            const x = Math.max(0, (gr.left - vr.left - ox) / k), y = Math.max(0, (gr.top - vr.top - oy) / k);
+            const w = Math.min(W - x, gr.width / k), h = Math.min(H - y, gr.height / k);
+            return w > 20 && h > 20 ? [Math.round(x), Math.round(y), Math.round(w), Math.round(h)] : null;
+        }
+        function bcLoop(S) {
+            if (S.loop) return;
+            S.loop = true;
+            const v = S.el.querySelector('video');
+            const tick = async () => {
+                if (bcState !== S) return;
+                if (!S.busy && S.det && v.readyState >= 2 && !document.hidden) {
+                    S.busy = true;
+                    try { const res = await S.det.detect(v, { crop: bcCrop(S, v) }); if (bcState === S) bcFound(S, res); } catch (e) { /* 다음 장면 */ }
+                    S.busy = false;
+                }
+                if (bcState === S) S.timer = setTimeout(tick, S.det && S.det.kind === 'native' ? 150 : 60);
+            };
+            tick();
+        }
+        function bcFound(S, res) {
+            const now = Date.now(), frame = [];
+            (res || []).forEach(r => bcSplit(r).forEach(c => {
+                if (!c.text || c.text.length < 4) return;
+                let k = S.codes.get(c.text);
+                if (!k) { k = { ...c, first: now, hits: 0, at: ++S.seq, state: '' }; S.codes.set(c.text, k); S.dirty = true; }
+                k.hits++; k.fy = Number(r.y) || 0;
+                if (!frame.includes(k)) frame.push(k);
+            }));
+            if (!frame.length) return;
+            if (S.opts.multi) bcMultiFrame(S, frame); else bcAuto(S, frame);
+            if (bcState === S && S.dirty) { S.dirty = false; bcRender(); }
+        }
+        const bcNeed = (S) => (S.still ? 1 : 2);   // 영상은 두 번 넘게 보인 뒤에 (같은 상자의 IMEI1 · IMEI2가 다 잡히게) · 사진은 바로
+        function bcAuto(S, frame) {
+            const pr = S.opts.prefer ? S.opts.prefer([...S.codes.values()]) : null;
+            if (pr && pr.value) return bcPick(S, pr.c, pr.value, true);
+            if (!S.pat) return;
+            const fits = frame.filter(c => bcPatFits(S.pat, c));
+            if (!fits.length || fits.some(c => c.hits < bcNeed(S))) return;
+            fits.sort((a, b) => a.fy - b.fy);   // 위쪽 것 (보통 IMEI1)
+            bcPick(S, fits[0], bcTailOf(fits[0], S.pat.tail), true);
+        }
+        function bcPick(S, c, value, auto, tail) {
+            if (bcState !== S || S.done) return;
+            if (S.opts.multi) return bcMultiToggle(S, c, value, auto, tail);
+            S.done = true;
+            if (c && !S.opts.noPat && (!auto || !bcPatStored(S.opts.field))) {   // 직접 고른 건 늘 · 자동(재고 맞음)은 처음 한 번만 기억
+                const sv = String(value).toUpperCase(), t = tail != null ? tail : (sv !== c.text.toUpperCase() && c.text.toUpperCase().endsWith(sv) ? sv.length : 0);
+                bcPatSet(S.opts.field, c, t);
+            }
+            bcBeep();
+            const cb = S.opts.onPick;
+            closeBarcode();
+            if (cb) { try { cb(value, c); } catch (e) { console.warn(e); } }
+        }
+        function bcMultiFrame(S, frame) {
+            const o = S.opts;
+            if (o.autoMulti) {   // 📋 재고 확인: 재고와 맞는 번호면 바로 ✓
+                frame.forEach(c => { if (c.state) return; const v = o.autoMulti(c); if (v) bcMultiAdd(S, c, v, true); });
+                return;
+            }
+            if (!S.pat) return;
+            const fits = frame.filter(c => bcPatFits(S.pat, c));
+            if (!fits.length) return;
+            if (frame.some(c => c.state === 'on')) { fits.forEach(c => { if (!c.state) { c.state = 'sib'; S.dirty = true; } }); return; }   // 방금 담은 상자의 다른 번호 (IMEI2 등)
+            const ready = fits.filter(c => !c.state);
+            if (!ready.length || ready.some(c => c.hits < bcNeed(S))) return;
+            ready.sort((a, b) => a.fy - b.fy);
+            bcMultiAdd(S, ready[0], bcTailOf(ready[0], S.pat.tail), true);
+            ready.slice(1).forEach(c => { if (!c.state) c.state = 'sib'; });
+            S.dirty = true;
+        }
+        function bcMultiAdd(S, c, value, auto) {
+            const why = S.opts.skip ? S.opts.skip(value, c) : '';
+            if (why) { if (c.state !== 'dup') { c.state = 'dup'; c.why = why; S.dirty = true; } if (!auto) stockToast(why); return; }
+            c.state = 'on'; c.value = value; S.picked.set(c.text, value); S.dirty = true;
+            bcBeep();
+            try { if (S.opts.onPick) S.opts.onPick(value, c); } catch (e) { console.warn(e); }
+        }
+        function bcMultiToggle(S, c, value, auto, tail) {
+            if (c.state === 'on') {   // 다시 누르면 빼기
+                c.state = ''; S.picked.delete(c.text);
+                try { if (S.opts.onRemove) S.opts.onRemove(c.value, c); } catch (e) { console.warn(e); }
+                bcRender(); return;
+            }
+            if (!S.opts.noPat) { const t = tail || 0; bcPatSet(S.opts.field, c, t); S.pat = { cls: c.cls, len: c.len, tail: t }; }   // 이 모양으로 다음 상자부터 자동
+            if (c.state === 'dup') c.state = '';
+            bcMultiAdd(S, c, value, auto);
+            bcRender();
+        }
+        const BC_TONE = { imei: 'bg-indigo-100 text-indigo-800', sn: 'bg-sky-100 text-sky-800', iccid: 'bg-amber-100 text-amber-800', ean: 'bg-gray-100 text-gray-500', num: 'bg-gray-100 text-gray-700', etc: 'bg-gray-100 text-gray-700' };
+        function bcRender() {
+            const S = bcState; if (!S) return;
+            const o = S.opts, list = S.el.querySelector('[data-bc-list]');
+            const fit = (c) => !!S.pat && bcPatFits(S.pat, c);
+            let all = [...S.codes.values()];
+            if (o.autoMulti) all = all.filter(c => c.state === 'on');
+            all.sort((a, b) => a.at - b.at);   // 찍힌 순서 그대로 (새 번호는 아래에 붙어서 누르는 중에 줄이 안 밀림)
+            S.view = all.slice(-40);
+            const head = S.el.querySelector('[data-bc-head]');
+            if (head) head.innerHTML = o.headText ? o.headText(S) : `담은 번호 <b class="text-indigo-700">${S.picked.size}</b>개 · ${S.pat ? `<span class="font-medium text-gray-600">${escapeHtml(bcPatLabel(S.pat))} 모양은 자동으로 담아요</span>` : '<span class="font-medium text-gray-600">첫 상자는 넣을 번호를 눌러 주세요 → 다음 상자부터 같은 모양은 자동</span>'}`;
+            const done = S.el.querySelector('[data-bc-done]'); if (done) done.textContent = `완료${S.picked.size ? ` (${S.picked.size})` : ''}`;
+            if (!S.view.length) { if (o.autoMulti && S.codes.size) list.innerHTML = `<p class="text-[13px] text-gray-600 text-center py-2">재고와 맞는 번호를 찾는 중… (읽은 바코드 ${S.codes.size}개)</p>`; return; }
+            const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+            list.innerHTML = S.view.map((c, i) => {
+                const note = o.note ? o.note(c) : '';
+                const st = c.state === 'on' ? '<span class="text-[11px] font-bold text-white bg-indigo-600 rounded px-1.5 py-0.5">✓ 담음</span>'
+                    : c.state === 'sib' ? '<span class="text-[11px] font-bold text-gray-500">같은 상자</span>'
+                    : c.state === 'dup' ? `<span class="text-[11px] font-bold text-amber-700">${escapeHtml(c.why || '이미 있어요')}</span>`
+                    : (fit(c) ? '<span class="text-[11px] font-bold text-indigo-700">추천</span>' : '');
+                const tailBtn = !o.autoMulti && c.cls !== 'ean' && c.state !== 'on' && c.state !== 'sib' && /^\d{11,}$/.test(c.text) ? `<button type="button" data-bc-tail="${i}" class="flex-shrink-0 w-[78px] rounded-xl border ${fit(c) && S.pat.tail === BC_TAIL ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'} text-[11px] font-bold text-gray-700 leading-tight px-1">끝 ${BC_TAIL}자리<br><span class="font-mono text-[13px] text-gray-900">${escapeHtml(c.text.slice(-BC_TAIL))}</span></button>` : '';
+                return `<div class="flex items-stretch gap-1.5"><button type="button" data-bc-pick="${i}" class="flex-1 min-w-0 min-h-[50px] px-3 py-1.5 rounded-xl border text-left ${c.state === 'on' ? 'border-indigo-500 bg-indigo-50' : fit(c) ? 'border-indigo-300 bg-white' : 'border-gray-300 bg-white'} ${c.cls === 'ean' || c.state === 'sib' ? 'opacity-60' : ''}">
+                    <span class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] font-bold rounded px-1.5 py-0.5 ${BC_TONE[c.cls] || BC_TONE.etc}">${escapeHtml(c.label)}</span>${st}</span>
+                    <span class="block font-mono text-[15px] font-bold text-gray-900 break-all leading-snug">${escapeHtml(c.value && c.value !== c.text && !o.autoMulti ? c.value : c.text)}</span>${note ? `<span class="block text-[12px] font-bold leading-snug">${note}</span>` : ''}</button>${tailBtn}</div>`;
+            }).join('');
+            if (o.multi && atBottom) list.scrollTop = list.scrollHeight;
+        }
+        function bcClick(e) {
+            const S = bcState; if (!S) return;
+            const t = e.target;
+            if (t.closest('[data-bc-x]')) {
+                const man = !!t.closest('[data-bc-manual]'), f = S.opts.field;
+                closeBarcode();
+                if (man && f) { const inp = document.getElementById(f); if (inp) setTimeout(() => inp.focus(), 60); }
+                return;
+            }
+            if (t.closest('[data-bc-done]')) { const cb = S.opts.onDone; closeBarcode(); if (cb) cb(S); return; }
+            if (t.closest('[data-bc-torch]')) { bcTorch(S); return; }
+            if (t.closest('[data-bc-zoom]')) { bcZoom(S); return; }
+            const tb = t.closest('[data-bc-tail]');
+            if (tb) { const c = S.view[+tb.dataset.bcTail]; if (c) bcPick(S, c, c.text.slice(-BC_TAIL), false, BC_TAIL); return; }
+            const pb = t.closest('[data-bc-pick]');
+            if (!pb) return;
+            const c = S.view[+pb.dataset.bcPick]; if (!c) return;
+            if (S.opts.autoMulti) {
+                if (c.state === 'on') { c.state = ''; S.picked.delete(c.text); try { if (S.opts.onRemove) S.opts.onRemove(c.value, c); } catch (err) { console.warn(err); } bcRender(); }
+                return;
+            }
+            bcPick(S, c, c.text, false, 0);
+        }
+        async function bcTorch(S) {
+            if (!S.track) return;
+            const on = !S.torch;
+            try { await S.track.applyConstraints({ advanced: [{ torch: on }] }); S.torch = on; } catch (e) { stockToast('이 폰은 플래시를 못 켜요'); }
+            const b = S.el.querySelector('[data-bc-torch]');
+            if (b) { b.setAttribute('aria-pressed', String(!!S.torch)); b.classList.toggle('bg-yellow-400', !!S.torch); b.classList.toggle('text-gray-900', !!S.torch); b.classList.toggle('bg-white/20', !S.torch); }
+        }
+        async function bcZoom(S) {
+            if (!S.track || !S.zoomCap) return;
+            const lo = S.zoomCap.min || 1, hi = S.zoomCap.max, steps = [...new Set([1, 2, 3].map(z => Math.max(lo, Math.min(hi, z))))];
+            S.zi = ((S.zi || 0) + 1) % steps.length;
+            try { await S.track.applyConstraints({ advanced: [{ zoom: steps[S.zi] }] }); } catch (e) { /* 지원 안 함 */ }
+            const b = S.el.querySelector('[data-bc-zoom]'); if (b) b.textContent = `${steps[S.zi]}x`;
+        }
+        async function bcImage(f) {
+            if (window.createImageBitmap) { try { return await createImageBitmap(f); } catch (e) { /* 아래 <img>로 */ } }
+            return new Promise((res, rej) => { const u = URL.createObjectURL(f), im = new Image(); im.onload = () => { res(im); setTimeout(() => URL.revokeObjectURL(u), 1000); }; im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('img')); }; im.src = u; });
+        }
+        async function bcFile(e) {
+            const f = e.target.files && e.target.files[0]; e.target.value = '';
+            const S = bcState; if (!f || !S) return;
+            bcMsg(S, '사진에서 바코드를 찾는 중…');
+            let det = S.det;
+            if (!det) { try { det = S.det = await bcGetDetector(); } catch (err) { bcMsg(S, '바코드 읽는 도구를 못 불러왔어요 (인터넷 확인) → ⌨️ 직접 입력'); return; } }
+            try {
+                const img = await bcImage(f);
+                const res = await det.detect(img, { full: true });
+                if (bcState !== S) return;
+                if (!res.length) { bcMsg(S, '사진에서 바코드를 못 찾았어요 · 바코드가 크게, 흔들리지 않게 다시 찍어 주세요'); return; }
+                bcMsg(S, `사진에서 바코드 ${res.length}개를 찾았어요`);
+                S.still = true; bcFound(S, res); S.still = false;
+                if (bcState === S && !S.loop && S.stream) bcLoop(S);
+            } catch (err) { bcMsg(S, '사진을 못 읽었어요 → ⌨️ 직접 입력'); }
+        }
+
+        /* ---------- 📷 어디서 쓰나 ---------- */
+        function bcFill(id, v) { const el = document.getElementById(id); if (!el) return; el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+        const bcCodeOk = (c) => !!c && c.cls !== 'ean' && c.cls !== 'iccid' && c.text.length >= 5;
+        function bcStockHits(c, sts = ['재고']) { return bcCodeOk(c) ? stockFind(c.text, sts) : []; }
+        function bcStockNote(c) {
+            const h = bcStockHits(c);
+            if (h.length === 1) return `<span class="text-teal-700">📦 재고 · ${escapeHtml(h[0].dealer)} ${escapeHtml(h[0].model)} ${escapeHtml(h[0].color)}${stockNorm(h[0].serial) !== stockNorm(c.text) ? ` · ${escapeHtml(h[0].serial)}` : ''}</span>`;
+            if (h.length > 1) return `<span class="text-amber-700">📦 끝자리가 같은 재고 ${h.length}대</span>`;
+            const sd = bcStockHits(c, ['개통', '정리']);
+            if (sd.length) return `<span class="text-amber-700">⚠ ${stockSt(sd[0]) === '개통' ? '이미 개통됨' : '정리됨'} · ${escapeHtml(sd[0].model)}${sd[0].to ? ' → ' + escapeHtml(sd[0].to) : ''}</span>`;
+            return '';
+        }
+        function bcStockAnyNote(c) { return bcStockNote(c) || (bcCodeOk(c) ? '<span class="text-gray-500">재고에 없는 번호</span>' : ''); }
+        function bcStockDupNote(c) {
+            const h = bcStockHits(c).filter(x => x.id !== stEditId);
+            return h.length ? `<span class="text-amber-700">📦 이미 재고에 있어요 · ${escapeHtml(h[0].dealer)} ${escapeHtml(h[0].model)} ${escapeHtml(h[0].serial)}</span>` : '';
+        }
+        // 재고에 하나만 맞으면 그 번호 (재고에 적힌 대로 — 끝 6~7자리만 적었으면 그대로)
+        function bcPreferStock(all) {
+            for (const c of all) { const h = bcStockHits(c); if (h.length === 1) return { c, value: h[0].serial || c.text }; }
+            return null;
+        }
+        const BC_FIELD = {
+            'ar-serial': { kind: 'dev', title: '📷 단말기 일련번호', hint: '상자 라벨이나 폰 화면(*#06#)의 바코드를 비춰 주세요. 재고에 있는 단말이면 바로 들어가요.' },
+            'ar-usimserial': { kind: 'usim', title: '📷 유심 일련번호', hint: '유심 카드 · 포장의 바코드를 비춰 주세요.' },
+            'ar-up-serial': { kind: 'used', title: '📷 중고폰 일련번호', hint: '중고폰에서 *#06# 을 누르면 IMEI 바코드가 떠요. 그 화면을 비춰 주세요.' },
+            'st-serial': { kind: 'stockedit', title: '📷 재고 일련번호', hint: '상자 라벨의 바코드를 비춰 주세요.' }
+        };
+        function bcForField(id) {
+            const f = BC_FIELD[id] || { kind: 'dev', title: '📷 바코드 찍기' };
+            openBarcode({ ...f, field: id,
+                note: f.kind === 'dev' ? bcStockNote : f.kind === 'stockedit' ? bcStockDupNote : null,
+                prefer: f.kind === 'dev' ? bcPreferStock : null,
+                onPick: (v) => { bcFill(id, v); const el = document.getElementById(id); if (el) el.scrollIntoView({ block: 'center' }); stockToast(`📷 ${v}`); } });
+        }
+        document.addEventListener('click', (e) => { const b = e.target.closest('[data-bc-for]'); if (!b) return; e.preventDefault(); bcForField(b.dataset.bcFor); });
+        // 📵 중고폰 → 분실폰 조회 (번호 복사 → 바로가기의 분실폰 조회 사이트)
+        arEl.addEventListener('click', (e) => {
+            if (!e.target.closest('#arUpLost')) return;
+            const v = arVal('ar-up-serial').replace(/\s/g, ''), link = qlStore().find(x => x.id === 'imei') || QL_DEFAULT[0];
+            if (v && navigator.clipboard) navigator.clipboard.writeText(v).catch(() => { /* 복사 못 하면 직접 */ });
+            window.open(link.url, '_blank', 'noopener');
+            stockToast(v ? '📋 번호를 복사했어요 · 조회 칸에 붙여넣기' : '📵 분실폰 조회를 열었어요');
+        });
+
+        // 📦 재고 찾기: 찍으면 그 재고를 열고 · 없으면 바로 넣기
+        document.getElementById('stockScanBtn').addEventListener('click', () => openBarcode({ title: '📷 재고 찾기', field: 'stockSearch', kind: 'stock', noPat: true,
+            hint: '상자 바코드를 비추면 그 재고를 찾아서 열어요. 재고에 없으면 바로 넣을 수 있어요.',
+            note: bcStockAnyNote,
+            prefer: (all) => { for (const c of all) { if (bcStockHits(c, ['재고', '개통', '정리']).length) return { c, value: c.text }; } return null; },
+            onPick: (v) => bcStockFound(v) }));
+        async function bcStockFound(v) {
+            const hits = stockFind(v, ['재고', '개통', '정리']), se = document.getElementById('stockSearch');
+            const live = hits.filter(x => stockSt(x) === '재고'), it = live.length === 1 ? live[0] : (!live.length && hits.length === 1 ? hits[0] : null);
+            if (hits.length) {
+                stockFilter = it && stockSt(it) === '개통' ? '__sold' : it && stockSt(it) === '정리' ? '__clean' : '';
+                stockQuery = v; if (se) se.value = v; renderStock();
+                if (it && stockSt(it) === '재고') openStockEdit(it.id);   // 바로 열기 (고치기 · 재고에서 빼기)
+                else if (it) stockToast(`${stockSt(it) === '개통' ? '✅ 이미 개통된 단말' : '🧹 정리된 단말'} · ${it.model} ${it.to || ''}`);
+                else stockToast(`끝자리가 같은 재고 ${hits.length}대`);
+                return;
+            }
+            stockQuery = ''; if (se) se.value = ''; renderStock();
+            if (await customConfirm(`📦 재고에 없는 번호예요\n${v}\n\n이 번호로 재고를 넣을까요?`)) { openStockEdit(''); const ta = document.getElementById('st-serials'); if (ta) ta.value = v; }
+        }
+        // 📦 직접 입력 → 여러 대 연속 (한 줄에 하나씩 채움)
+        function bcStockMulti() {
+            const ta = () => document.getElementById('st-serials');
+            const lines = () => { const t = ta(); return t ? t.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean) : []; };
+            openBarcode({ title: '📷 일련번호 연속 찍기', field: 'st-serials', kind: 'stockadd', multi: true,
+                hint: '상자를 하나씩 비춰 주세요. 첫 상자는 넣을 번호(IMEI · 끝 7자리 · S/N)를 눌러 고르면, 다음 상자부터 같은 모양을 자동으로 담아요.',
+                note: bcStockDupNote,
+                skip: (v) => (lines().some(x => stockNorm(x) === stockNorm(v)) ? '이미 적혀 있어요' : (stockFind(v).length ? '이미 재고에 있어요' : '')),
+                onPick: (v) => { const t = ta(); if (t) t.value = [...lines(), v].join('\n'); },
+                onRemove: (v) => { const t = ta(); if (t) t.value = lines().filter(x => stockNorm(x) !== stockNorm(v)).join('\n'); } });
+        }
+
+        // 📋 재고 확인 (실사): 매장 상자를 다 찍으면 → ✓ 찍은 재고 / ⚠ 안 찍힌 재고 (오늘 찍은 건 이 폰에 남음)
+        function bcAuditLoad() { try { const o = JSON.parse(localStorage.getItem('bcAudit') || 'null'); if (o && o.at === getTodayStr() && Array.isArray(o.ids)) return { at: o.at, ids: new Set(o.ids) }; } catch (e) { /* 없음 */ } return { at: getTodayStr(), ids: new Set() }; }
+        function bcAuditSave(a) { try { localStorage.setItem('bcAudit', JSON.stringify({ at: a.at, ids: [...a.ids] })); } catch (e) { /* 저장 못 해도 OK */ } }
+        function bcAuditScope() { const f = stockFilter && !stockFilter.startsWith('__') ? stockFilter : ''; return { dealer: f, list: stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x) && (!f || stockKey(x.dealer) === stockKey(f))) }; }
+        function bcAuditStart(fresh) {
+            const sc = bcAuditScope();
+            if (!sc.list.length) { customAlert('확인할 단말 재고가 없어요.'); return; }
+            const a = fresh ? { at: getTodayStr(), ids: new Set() } : bcAuditLoad();
+            bcAuditSave(a);
+            const live = new Set(sc.list.map(x => x.id));
+            openBarcode({ title: `📋 재고 확인${sc.dealer ? ' · ' + sc.dealer : ''}`, field: 'stockAudit', kind: 'audit', multi: true, noPat: true,
+                hint: '매장에 있는 상자를 하나씩 비춰 주세요. 재고와 맞는 상자는 ✓로 쌓여요. 다 찍고 [완료]를 누르면 안 찍힌 재고가 나와요.',
+                autoMulti: (c) => { const h = bcStockHits(c).filter(x => live.has(x.id)); return h.length === 1 ? h[0].id : ''; },
+                note: (c) => { const it = stockItems().find(x => x.id === c.value); return it ? `<span class="text-teal-700">${escapeHtml(it.dealer)} · ${escapeHtml(it.model)} ${escapeHtml(it.color)} · ${escapeHtml(it.serial)}</span>` : ''; },
+                headText: () => { const n = sc.list.filter(x => a.ids.has(x.id)).length; return `✓ <b class="text-emerald-700 text-[15px]">${n}</b> / ${sc.list.length}대 확인 <span class="font-medium text-gray-600">· 재고와 맞는 상자만 쌓여요</span>`; },
+                onPick: (id) => { a.ids.add(id); bcAuditSave(a); },
+                onRemove: (id) => { a.ids.delete(id); bcAuditSave(a); },
+                onDone: () => bcAuditResult() });
+        }
+        function bcAuditResult() {
+            const a = bcAuditLoad(), sc = bcAuditScope(), ok = sc.list.filter(x => a.ids.has(x.id)), miss = sc.list.filter(x => !a.ids.has(x.id));
+            const old = document.getElementById('bcAuditSheet'); if (old) old.remove();
+            const byD = []; miss.forEach(x => { let g = byD.find(y => stockKey(y.d) === stockKey(x.dealer)); if (!g) byD.push(g = { d: x.dealer, l: [] }); g.l.push(x); });
+            const today = getTodayStr(), age = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(x.at || today)) / 86400000));
+            const sh = document.createElement('div');
+            sh.id = 'bcAuditSheet';
+            sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+            sh.innerHTML = `<div class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[88vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="bcAuditTitle">
+                <div class="flex items-center justify-between px-4 pt-4 pb-2"><h2 id="bcAuditTitle" class="text-[18px] font-bold text-gray-900">📋 재고 확인 결과${sc.dealer ? ' · ' + escapeHtml(sc.dealer) : ''}</h2><button type="button" data-bca-x class="w-11 h-11 rounded-full text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <div class="px-4 pb-2 grid grid-cols-2 gap-2">
+                    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2.5"><p class="text-[12px] font-bold text-emerald-800">✓ 찍은 재고</p><p class="text-[24px] font-extrabold text-emerald-900 leading-tight">${ok.length}<span class="text-sm font-bold">대</span></p></div>
+                    <div class="rounded-2xl border ${miss.length ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white'} px-3 py-2.5"><p class="text-[12px] font-bold ${miss.length ? 'text-red-800' : 'text-gray-600'}">⚠ 안 찍힌 재고</p><p class="text-[24px] font-extrabold ${miss.length ? 'text-red-900' : 'text-gray-900'} leading-tight">${miss.length}<span class="text-sm font-bold">대</span></p></div>
+                </div>
+                <div class="flex-1 overflow-y-auto px-4 pb-2 space-y-2">
+                    ${miss.length ? byD.map(g => `<section class="rounded-2xl border border-gray-200 overflow-hidden"><h3 class="px-3 py-2 bg-gray-50 border-b border-gray-200 text-[14px] font-extrabold text-gray-900">${escapeHtml(g.d || '거래처 없음')} <span class="font-bold text-red-700">${g.l.length}대</span></h3>${g.l.map(x => `<button type="button" data-bca-open="${escapeHtml(x.id)}" class="w-full flex items-center gap-2 px-3 min-h-[44px] text-left border-b border-gray-100 last:border-b-0"><span class="flex-1 min-w-0 truncate text-[14px] text-gray-900"><b>${escapeHtml(x.model || '-')}</b> ${escapeHtml(x.color || '')} <span class="font-mono text-gray-600">${escapeHtml(x.serial || '')}</span></span>${age(x) >= STOCK_OLD_DAYS ? `<span class="flex-shrink-0 text-[11px] font-bold text-orange-800">⏳${age(x)}일</span>` : ''}<i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</section>`).join('') + '<p class="text-xs text-gray-600 leading-relaxed">안 찍힌 재고는 다른 곳에 있거나, 이미 나갔는데 재고에서 안 빠진 단말일 수 있어요. 누르면 [🧹 재고에서 빼기]를 할 수 있어요.</p>' : '<p class="py-6 text-center text-[15px] font-bold text-emerald-700">🎉 재고가 다 맞아요!</p>'}
+                </div>
+                <div class="grid grid-cols-3 gap-2 px-4 pt-2" style="padding-bottom:max(16px, env(safe-area-inset-bottom))">
+                    <button type="button" data-bca-again class="h-12 rounded-xl border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800">📷 이어서</button>
+                    <button type="button" data-bca-fresh class="h-12 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">↺ 처음부터</button>
+                    <button type="button" data-bca-x class="h-12 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">닫기</button>
+                </div></div>`;
+            document.body.appendChild(sh);
+            sh.addEventListener('click', (e) => {
+                if (e.target === sh || e.target.closest('[data-bca-x]')) { sh.remove(); return; }
+                if (e.target.closest('[data-bca-again]')) { sh.remove(); bcAuditStart(false); return; }
+                if (e.target.closest('[data-bca-fresh]')) { sh.remove(); bcAuditStart(true); return; }
+                const ob = e.target.closest('[data-bca-open]'); if (ob) { sh.remove(); openStockEdit(ob.dataset.bcaOpen); }
+            });
+        }
+        document.getElementById('stockAuditBtn').addEventListener('click', () => { if (bcAuditLoad().ids.size) bcAuditResult(); else bcAuditStart(true); });   // 오늘 찍던 게 있으면 결과부터 (이어서 · 처음부터)
+
+        // 🔎 고객 찾기: 단말 · 유심 · 중고폰 · 개통 기록의 일련번호 (끝자리 ↔ 전체 번호 둘 다)
+        function bcCustSerials(c) {
+            const out = [c.deviceSerial, c.usimSerial, c.usedPhone && c.usedPhone.serial];
+            (Array.isArray(c.acts) ? c.acts : []).forEach(a => { if (a) { out.push(a.serial); if (a.used) out.push(a.used.serial); } });
+            return out.map(v => String(v || '').trim()).filter(v => v.length >= 5);
+        }
+        function bcSerialHit(c, q) { try { return bcCustSerials(c).some(x => stockSerialMatch(x, q)); } catch (e) { return false; } }
+        function bcCustFind(v) { return customerDB.filter(c => bcSerialHit(c, v)); }
+        document.getElementById('custScanBtn').addEventListener('click', () => openBarcode({ title: '📷 일련번호로 고객 찾기', field: 'searchInput', kind: 'search', noPat: true,
+            hint: '폰 상자나 폰 화면(*#06#)의 바코드를 비추면 그 단말을 개통한 고객을 찾아요.',
+            note: (c) => { if (!bcCodeOk(c)) return ''; const l = bcCustFind(c.text); return l.length ? `<span class="text-teal-700">👤 ${l.slice(0, 3).map(x => escapeHtml(x.name || x.phone || '고객')).join(' · ')}${l.length > 3 ? ` 외 ${l.length - 3}명` : ''}</span>` : '<span class="text-gray-500">이 번호로 개통한 고객 없음</span>'; },
+            prefer: (all) => { for (const c of all) { if (bcCodeOk(c) && bcCustFind(c.text).length) return { c, value: c.text }; } return null; },
+            onPick: (v) => {
+                const si = document.getElementById('searchInput'); si.value = v; currentPage = 1; renderDB();
+                const l = bcCustFind(v);
+                if (l.length === 1) window.openProfileCard(l[0].id); else if (!l.length) stockToast('이 번호로 개통한 고객이 없어요');
+            } }));
         // 📜 같은 날 개통 기록이 있으면: "그 기록을 고쳐요" + 정산·중고폰 칸을 그 값으로 채움 (비워 두면 예전 값 그대로) · 예전 날짜면 알려줌
         // 📜 같은 날 개통 기록이 있으면: 어느 기록으로 저장할지 [✏️ 고치기] [➕ 따로 새 개통] (V193)
         //    · 안 고르면 자동: 같은 기종이면 그 기록을 고치고, 기종이 다르면 따로 새 기록 (같은 분·같은 날이라도 기종이 다르면 따로)
@@ -18751,7 +19282,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V200';
+        const APP_VER = 'V201';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -18759,6 +19290,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V201', d: '2026-10-19', items: [
+                ['📷 바코드 찍기: 개통등록의 단말기 · 유심 · 중고폰 일련번호 칸 옆 [바코드] 버튼을 누르고 상자 라벨을 비추면 번호가 들어가요. 재고에 있는 단말이면 그 번호를 바로 골라요.'],
+                ['📦 재고 탭: 검색칸 [바코드]로 찾기 · 직접 입력에서 여러 대 연속 찍기 · [재고 확인 (실사)]로 매장 상자를 다 찍으면 안 찍힌 재고가 나와요.'],
+                ['🔎 고객 화면 검색칸 오른쪽 바코드 버튼: 폰 상자나 *#06# 화면을 비추면 그 단말을 개통한 고객을 찾아요.']] },
             { v: 'V200', d: '2026-10-19', items: [
                 ['🔗 고객 화면 \'오늘 할 일\' 위에 [바로가기]: 분실폰 조회 · OPA · ICT마켓 · 서울보증 · 신용 조회를 한 번에 열어요.'],
                 ['[＋ 추가·편집]으로 다른 사이트도 넣어요. 👤 내 바로가기는 이 폰에만 · 🏪 매장 공용은 대표가 넣으면 모든 직원 폰에 보여요.']] },
