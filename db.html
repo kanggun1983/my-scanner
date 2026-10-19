@@ -1149,7 +1149,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V202</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V203</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -7906,7 +7906,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 addons: [0, 1, 2].map(i => { const x = (Array.isArray(d.addons) ? d.addons[i] : null) || {}; return { name: String(x.name || '').trim().slice(0, 30), code: String(x.code || '') }; }),
                 ins: { name: String((d.ins && d.ins.name) || '').trim().slice(0, 30), code: String((d.ins && d.ins.code) || '') } }));
         }
-        function dealerByName(name) { const key = (v) => String(v || '').replace(/\s+/g, '').toUpperCase(), n = key(name); return n ? dealerList().find(d => key(d.name) === n) || null : null; }   // 띄어쓰기·대소문자 상관없이 (V192)
+        function dealerByName(name) {   // 띄어쓰기·대소문자 상관없이 (V192) · 🔗 합친 거래처의 예전 이름으로도 (V203)
+            const key = (v) => String(v || '').replace(/\s+/g, '').toUpperCase(), n = key(name);
+            if (!n) return null;
+            const hit = dealerList().find(d => key(d.name) === n);
+            if (hit) return hit;
+            let t = ''; try { t = stockCanon(name); } catch (e) { /* 재고 준비 전 */ }
+            return t && key(t) !== n ? dealerList().find(d => key(d.name) === key(t)) || null : null;
+        }
         function dealerSummary(d) {
             const ads = d.addons.filter(a => a.code), base = d.plan || planChoicesFor(d.carrier)[0] || 'NONE';
             return [d.carrier || '통신사 무관', `요금제 ${d.plan === 'NONE' ? '안 함' : keepLabel(base) + (d.plan ? '' : ' (기본)')}`, ads.length ? `부가 ${ads.length}개 (${ads.map(a => keepLabel(a.code)).join('·')})` : '부가 없음', d.ins.code ? `보험 ${keepLabel(d.ins.code)}` : '보험 없음'].join(' · ');
@@ -16489,6 +16496,9 @@ familyStr + `\n` +
             const [sh, lo] = a.length <= b.length ? [a, b] : [b, a];
             return sh.length >= 5 && lo.endsWith(sh);
         }
+        // 🔗 합친 거래처 (V203): 예전 이름 → 지금 이름 (재고표에 예전 이름이 나와도 · 개통등록 거래처 찾기도)
+        function stockAliasMap(list) { const m = new Map(); (Array.isArray(list) ? list : []).forEach(a => { if (a && a.from && a.to && stockKey(a.from) !== stockKey(a.to)) m.set(stockKey(a.from), String(a.to)); }); return m; }
+        function stockCanon(name) { const t = stockAliasMap(stockData && stockData.aliases).get(stockKey(name)); return t || String(name || '').trim(); }
         function stockFind(serial, sts = ['재고']) { return stockItems().filter(x => stockIsDev(x) && sts.includes(stockSt(x)) && stockSerialMatch(x.serial, serial)); }
         function stockClean(x) {
             const o = { id: String(x.id || stockNewId()), dealer: String(x.dealer || '').trim().slice(0, 30), kind: x.kind === '유심' ? '유심' : '단말', model: String(x.model || '').trim().slice(0, 40), color: String(x.color || '').trim().slice(0, 20),
@@ -16507,9 +16517,19 @@ familyStr + `\n` +
             return runTransaction(db, async (tx) => {
                 const snap = await tx.get(ref);
                 const cur = snap.exists() ? (snap.data() || {}) : {};
-                const base = { items: (Array.isArray(cur.items) ? cur.items : []).map(stockClean), notes: cur.notes && typeof cur.notes === 'object' ? cur.notes : {}, dealerOrder: Array.isArray(cur.dealerOrder) ? cur.dealerOrder : [], ...(cur.sheet ? { sheet: cur.sheet } : {}) };
+                const base = { items: (Array.isArray(cur.items) ? cur.items : []).map(stockClean), notes: cur.notes && typeof cur.notes === 'object' ? cur.notes : {}, dealerOrder: Array.isArray(cur.dealerOrder) ? cur.dealerOrder : [], ...(cur.sheet ? { sheet: cur.sheet } : {}), ...(Array.isArray(cur.aliases) ? { aliases: cur.aliases } : {}), ...(cur.lastMerge ? { lastMerge: cur.lastMerge } : {}) };
                 const next = build(base) || base;
-                next.items = stockPrune((next.items || []).map(stockClean));
+                if (!('aliases' in next) && base.aliases) next.aliases = base.aliases;   // 🔗 합친 거래처 이름은 초기화 · 되돌리기에도 그대로 (V203)
+                if (!('lastMerge' in next) && base.lastMerge) next.lastMerge = base.lastMerge;
+                const amap = stockAliasMap(next.aliases);
+                next.items = stockPrune((next.items || []).map(stockClean).map(x => { const t = amap.get(stockKey(x.dealer)); return t ? { ...x, dealer: t } : x; }));
+                if (amap.size) {   // 거래처 메모 · 순서도 지금 이름으로
+                    const nt = {};
+                    Object.entries(next.notes || {}).forEach(([k, v]) => { const t = amap.get(stockKey(k)) || k, tk = Object.keys(nt).find(x => stockKey(x) === stockKey(t)) || t; nt[tk] = [...(nt[tk] || []), ...(Array.isArray(v) ? v : []).filter(l => !(nt[tk] || []).includes(l))]; });
+                    next.notes = nt;
+                    const od = []; (next.dealerOrder || []).forEach(d => { const t = amap.get(stockKey(d)) || d; if (!od.some(o => stockKey(o) === stockKey(t))) od.push(t); });
+                    next.dealerOrder = od;
+                }
                 const out = stripUndefined({ ...next, updatedAt: new Date().toISOString(), updatedBy: getStaffName() || '' });
                 tx.set(ref, out);
                 stockData = out;   // 화면은 바로 (실시간 신호가 곧 다시 옴)
@@ -16546,13 +16566,13 @@ familyStr + `\n` +
             const dealers = stockDealerNames().filter(n => live.some(x => stockKey(x.dealer) === stockKey(n)));
             // 👑 거래처 설정에 없는 곳 → 한 번에 추가 (통신사는 이름으로)
             const miss = dealers.filter(n => !dealerByName(n));
-            document.getElementById('stockDealerHint').innerHTML = miss.length && isSuperAdmin ? `<div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 leading-relaxed">🏢 거래처 설정에 없는 곳: <b>${miss.map(escapeHtml).join(' · ')}</b><br><span class="text-xs text-amber-800">설정에 넣어두면 개통등록에서 일련번호만 쳐도 통신사 · 요금제 · 부가·보험 약속까지 자동이에요.</span><button type="button" id="stockDealerAdd" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-sm font-bold">🏢 ${miss.length}곳 거래처 설정에 넣기</button></div>` : '';
+            document.getElementById('stockDealerHint').innerHTML = miss.length && isSuperAdmin ? `<div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 leading-relaxed">🏢 거래처 설정에 없는 곳: <b>${miss.map(escapeHtml).join(' · ')}</b><br><span class="text-xs text-amber-800">설정에 넣어두면 개통등록에서 일련번호만 쳐도 통신사 · 요금제 · 부가·보험 약속까지 자동이에요.</span><button type="button" id="stockDealerAdd" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-sm font-bold">🏢 ${miss.length}곳 거래처 설정에 넣기</button>${stockDealerNames(true).length > 1 ? '<button type="button" id="stockDealerMerge" class="mt-1.5 w-full h-10 rounded-xl border border-amber-400 bg-white text-amber-900 text-sm font-bold">🔗 이미 있는 거래처와 같은 곳이면 합치기</button>' : ''}</div>` : '';
             if (stockFilter && !stockFilter.startsWith('__') && !dealers.some(n => stockKey(n) === stockKey(stockFilter))) stockFilter = '';
             const today = getTodayStr(), ageOf = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(x.at || today)) / 86400000));
             const old = devs.filter(x => ageOf(x) >= STOCK_OLD_DAYS);
             const usedYm = stockUsedYm || today.slice(0, 7), usedRows = stockUsedRows(usedYm), usedAny = usedRows.length || stockUsedRows(ymAdd(today.slice(0, 7), -1)).length;
             const chip = (v, label) => `<button type="button" data-stk-f="${escapeHtml(v)}" class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${stockKey(stockFilter) === stockKey(v) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${label}</button>`;
-            document.getElementById('stockChips').innerHTML = all.length || usedAny ? [all.length ? chip('', `전체 ${devs.length}`) : '', ...dealers.map(n => chip(n, `${escapeHtml(n)} ${devs.filter(x => stockKey(x.dealer) === stockKey(n)).length}`)), old.length ? chip('__old', `⏳ ${STOCK_OLD_DAYS}일↑ ${old.length}`) : '', sold.length ? chip('__sold', `✅ 개통됨 ${sold.length}`) : '', cleaned.length ? chip('__clean', `🧹 정리됨 ${cleaned.length}`) : '', usedAny ? chip('__used', '📱 중고폰') : ''].join('') : '';
+            document.getElementById('stockChips').innerHTML = all.length || usedAny ? [all.length ? chip('', `전체 ${devs.length}`) : '', ...dealers.map(n => chip(n, `${escapeHtml(n)} ${devs.filter(x => stockKey(x.dealer) === stockKey(n)).length}`)), old.length ? chip('__old', `⏳ ${STOCK_OLD_DAYS}일↑ ${old.length}`) : '', sold.length ? chip('__sold', `✅ 개통됨 ${sold.length}`) : '', cleaned.length ? chip('__clean', `🧹 정리됨 ${cleaned.length}`) : '', usedAny ? chip('__used', '📱 중고폰') : '', isSuperAdmin && dealers.length ? '<button type="button" data-stk-merge class="flex-shrink-0 h-10 px-3.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">🔗 거래처 합치기</button>' : ''].join('') : '';
             const q = stockNorm(stockQuery);
             const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
             const listEl = document.getElementById('stockList');
@@ -16824,10 +16844,112 @@ familyStr + `\n` +
         }
         document.getElementById('stockResetBtn').addEventListener('click', openStockReset);
 
+        /* =====================================================================
+           🔗 거래처 합치기 (V203) — 재고표마다 이름이 달라 따로 보이는 같은 거래처(태성통신 · LG태성)를 하나로
+           · 재고 · 개통/정리 기록 · 거래처 메모 · 순서를 남길 이름으로 · [☑ 앞으로도] → 다음 재고표 · 직접 입력에 예전 이름이 나와도 자동으로
+           · 최근 합치기 [↩ 되돌리기] (그때 옮긴 줄만 다시) · 자동으로 바꾸는 이름 [그만 바꾸기] · 👑 대표만
+           ===================================================================== */
+        function stockLcs(a, b) { a = stockKey(a); b = stockKey(b); let best = 0; for (let i = 0; i < a.length; i++) for (let j = i + 1; j <= a.length; j++) { if (j - i > best && b.includes(a.slice(i, j))) best = j - i; } return best; }
+        function openStockMerge(from0) {
+            if (!isSuperAdmin) return;
+            const old = document.getElementById('stockMergeSheet'); if (old) old.remove();
+            const names = stockDealerNames(), targets = stockDealerNames(true);
+            if (!names.length) { customAlert('합칠 거래처가 없어요.'); return; }
+            const from = names.find(n => stockKey(n) === stockKey(from0)) || names.find(n => !dealerByName(n)) || names[0];
+            const al = Array.isArray(stockData.aliases) ? stockData.aliases.filter(a => a && a.from && a.to) : [], lm = stockData.lastMerge && stockData.lastMerge.from ? stockData.lastMerge : null;
+            const sh = document.createElement('div');
+            sh.id = 'stockMergeSheet';
+            sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+            sh.innerHTML = `<div class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto p-4 space-y-3" role="dialog" aria-modal="true" aria-labelledby="smT">
+                <div class="flex items-center justify-between"><h2 id="smT" class="text-[18px] font-bold text-gray-900">🔗 거래처 합치기</h2><button type="button" data-x class="w-11 h-11 rounded-full text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <p class="text-[13px] text-gray-600 leading-relaxed">재고표마다 이름이 달라 따로 보이는 같은 거래처(예: 태성통신 · LG태성)를 하나로 합쳐요. 재고 · 개통/정리 기록 · 거래처 메모가 다 같이 옮겨가요.</p>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">없앨 이름</span><select id="smFrom" class="${stCls}">${names.map(n => `<option value="${escapeHtml(n)}" ${stockKey(n) === stockKey(from) ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>
+                <div class="text-center text-gray-400 text-lg leading-none" aria-hidden="true">↓</div>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">이 거래처로 (남길 이름)</span><select id="smTo" class="${stCls}"></select></label>
+                <p id="smPrev" class="text-[13px] font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2 leading-relaxed"></p>
+                <p id="smWarn" class="hidden text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-relaxed"></p>
+                <label class="flex items-start gap-2 text-[13px] text-gray-800 leading-relaxed"><input type="checkbox" id="smRemember" checked class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>앞으로 재고표 · 직접 입력에 <b id="smFromName"></b> 이름이 나오면 → <b id="smToName"></b>에 넣기<span class="block text-xs text-gray-500">개통등록에서 거래처를 찾을 때도 같은 곳으로 봐요</span></span></label>
+                <button type="button" data-run class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">🔗 합치기</button>
+                ${lm ? `<div class="rounded-xl border border-gray-200 px-3 py-2.5 text-[13px] text-gray-700 flex items-center gap-2"><span class="flex-1 min-w-0">최근: <b>${escapeHtml(lm.from)}</b> → <b>${escapeHtml(lm.to)}</b> · ${(lm.ids || []).length}줄 · ${escapeHtml(editLogWhen(lm.at))}</span><button type="button" data-undo class="flex-shrink-0 h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ 되돌리기</button></div>` : ''}
+                ${al.length ? `<div class="space-y-1 pt-1"><p class="text-xs font-bold text-gray-500">자동으로 바꾸는 이름</p>${al.map((a, i) => `<div class="flex items-center gap-2 text-[13px] text-gray-800 py-0.5"><span class="flex-1 min-w-0">${escapeHtml(a.from)} → <b>${escapeHtml(a.to)}</b></span><button type="button" data-unalias="${i}" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-600">그만 바꾸기</button></div>`).join('')}</div>` : ''}
+            </div>`;
+            document.body.appendChild(sh);
+            const fEl = sh.querySelector('#smFrom'), tEl = sh.querySelector('#smTo');
+            const fillTo = () => {
+                const f = fEl.value, opts = targets.filter(n => stockKey(n) !== stockKey(f));
+                const best = opts.slice().sort((a, b) => (stockLcs(f, b) - stockLcs(f, a)) || ((dealerByName(b) && stockKey(dealerByName(b).name) === stockKey(b) ? 1 : 0) - (dealerByName(a) && stockKey(dealerByName(a).name) === stockKey(a) ? 1 : 0)))[0] || '';
+                const keep = opts.some(n => stockKey(n) === stockKey(tEl.value)) ? tEl.value : best;
+                tEl.innerHTML = opts.map(n => `<option value="${escapeHtml(n)}" ${stockKey(n) === stockKey(keep) ? 'selected' : ''}>${escapeHtml(n)}${dealerList().some(d => stockKey(d.name) === stockKey(n)) ? ' · 거래처 설정' : ''}</option>`).join('');
+            };
+            const preview = () => {
+                const f = fEl.value, t = tEl.value, all = stockItems(), of = (n) => all.filter(x => stockKey(x.dealer) === stockKey(n));
+                const live = (n) => of(n).filter(x => stockSt(x) === '재고' && stockIsDev(x)).length, usim = (n) => of(n).filter(x => stockSt(x) === '재고' && !stockIsDev(x)).reduce((a, u) => a + (Number(u.qty) || 0), 0);
+                const done = of(f).filter(x => stockSt(x) !== '재고').length, memo = stockNotesOf(f).length;
+                sh.querySelector('#smPrev').textContent = t ? `${f}: 재고 ${live(f)}대${usim(f) ? ` · 유심 ${usim(f)}개` : ''}${done ? ` · 개통·정리 기록 ${done}줄` : ''}${memo ? ` · 메모 ${memo}줄` : ''}  →  ${t} (지금 ${live(t)}대) · 합치면 ${live(f) + live(t)}대` : '남길 거래처가 없어요.';
+                sh.querySelector('#smFromName').textContent = `'${f}'`; sh.querySelector('#smToName').textContent = `'${t}'`;
+                const w = sh.querySelector('#smWarn'), inSet = dealerList().some(d => stockKey(d.name) === stockKey(f));
+                w.classList.toggle('hidden', !inSet);
+                w.textContent = inSet ? `거래처 설정에도 '${f}'가 따로 있어요. 같은 곳이면 설정 → 🏪 매장 운영 → 🏢 거래처별 유지 조건에서 '${f}'를 지워 주세요.` : '';
+                sh.querySelector('[data-run]').disabled = !t;
+            };
+            fEl.addEventListener('change', () => { fillTo(); preview(); });
+            tEl.addEventListener('change', preview);
+            fillTo(); preview();
+            sh.addEventListener('click', async (e) => {
+                if (e.target === sh || e.target.closest('[data-x]')) { sh.remove(); return; }
+                if (e.target.closest('[data-run]')) { const f = fEl.value, t = tEl.value; if (!t) return; await stockMergeRun(f, t, sh.querySelector('#smRemember').checked); sh.remove(); return; }
+                if (e.target.closest('[data-undo]')) { await stockMergeUndo(); sh.remove(); return; }
+                const ua = e.target.closest('[data-unalias]');
+                if (ua) { const a = al[+ua.dataset.unalias]; if (!a) return; try { await stockTx(cur => ({ ...cur, aliases: (cur.aliases || []).filter(x => !(stockKey(x.from) === stockKey(a.from) && stockKey(x.to) === stockKey(a.to))) })); stockToast(`'${a.from}'은(는) 이제 따로 넣어요`); openStockMerge(fEl.value); } catch (err) { customAlert(koreanError(err, '저장')); } }
+            });
+        }
+        async function stockMergeRun(from, to, remember) {
+            const fk = stockKey(from), tk = stockKey(to);
+            if (!fk || !tk || fk === tk || !isSuperAdmin) return;
+            const now = new Date().toISOString(), me = getStaffName() || '';
+            let moved = [];
+            try {
+                await stockTx(cur => {
+                    moved = [];
+                    const items = cur.items.map(x => { if (stockKey(x.dealer) !== fk) return x; moved.push(x.id); return { ...x, dealer: to }; });
+                    const notes = { ...cur.notes }, fromKey = Object.keys(notes).find(k => stockKey(k) === fk);
+                    const movedNotes = fromKey && Array.isArray(notes[fromKey]) ? notes[fromKey] : [];
+                    if (fromKey) { const toKey = Object.keys(notes).find(k => stockKey(k) === tk) || to; const base = Array.isArray(notes[toKey]) ? notes[toKey] : []; notes[toKey] = [...base, ...movedNotes.filter(l => !base.includes(l))]; delete notes[fromKey]; }
+                    const order = cur.dealerOrder.filter(d => stockKey(d) !== fk); if (!order.some(d => stockKey(d) === tk)) order.push(to);
+                    const prev = Array.isArray(cur.aliases) ? cur.aliases : [];
+                    const aliases = [...prev.filter(a => stockKey(a.from) !== fk && stockKey(a.to) !== fk), ...prev.filter(a => stockKey(a.to) === fk && stockKey(a.from) !== tk).map(a => ({ ...a, to }))];   // 예전에 '…→ 태성통신'이던 것도 → 남길 이름으로
+                    if (remember) aliases.push({ from, to, at: now, by: me });
+                    return { ...cur, items, notes, dealerOrder: order, aliases, lastMerge: { from, to, ids: moved, notes: movedNotes, remember: !!remember, at: now, by: me } };
+                });
+                if (stockKey(stockFilter) === fk) stockFilter = to;
+                renderStock();
+                stockToast(`🔗 ${from} → ${to} 합쳤어요 (${moved.length}줄)`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        async function stockMergeUndo() {
+            const m = stockData.lastMerge;
+            if (!m || !m.from || !isSuperAdmin) return;
+            if (!(await customConfirm(`${m.from} → ${m.to} 합친 것을 되돌릴까요?\n그때 옮긴 ${(m.ids || []).length}줄만 다시 '${m.from}'(으)로 가요.`))) return;
+            try {
+                await stockTx(cur => {
+                    const ids = new Set(m.ids || []), fk = stockKey(m.from), tk = stockKey(m.to);
+                    const items = cur.items.map(x => ids.has(x.id) ? { ...x, dealer: m.from } : x);
+                    const notes = { ...cur.notes }, toKey = Object.keys(notes).find(k => stockKey(k) === tk);
+                    if (Array.isArray(m.notes) && m.notes.length) { if (toKey) notes[toKey] = (notes[toKey] || []).filter(l => !m.notes.includes(l)); notes[m.from] = m.notes; }
+                    const order = cur.dealerOrder.slice(); if (!order.some(d => stockKey(d) === fk)) order.push(m.from);
+                    const aliases = (cur.aliases || []).filter(a => !(stockKey(a.from) === fk && stockKey(a.to) === tk));
+                    return { ...cur, items, notes, dealerOrder: order, aliases, lastMerge: null };
+                });
+                renderStock();
+                stockToast(`↩ ${m.from}을(를) 다시 따로 뒀어요`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+
         document.getElementById('stockSearch').addEventListener('input', (e) => { stockQuery = e.target.value; renderStock(); });
-        document.getElementById('stockChips').addEventListener('click', (e) => { const b = e.target.closest('[data-stk-f]'); if (!b) return; stockFilter = b.dataset.stkF; renderStock(); });
+        document.getElementById('stockChips').addEventListener('click', (e) => { if (e.target.closest('[data-stk-merge]')) { openStockMerge(''); return; } const b = e.target.closest('[data-stk-f]'); if (!b) return; stockFilter = b.dataset.stkF; renderStock(); });
         document.getElementById('stockAddBtn').addEventListener('click', () => openStockEdit(''));
         document.getElementById('stockDealerHint').addEventListener('click', (e) => {
+            if (e.target.closest('#stockDealerMerge') && isSuperAdmin) { openStockMerge(stockDealerNames().find(n => !dealerByName(n)) || ''); return; }   // 🔗 V203
             if (!e.target.closest('#stockDealerAdd') || !isSuperAdmin) return;
             const miss = stockDealerNames().filter(n => !dealerByName(n));
             if (!miss.length) return;
@@ -17062,7 +17184,7 @@ familyStr + `\n` +
             return 'new';
         }
         function openStockImport(items, meta, src) {
-            stImp = { rows: items.map((x, i) => ({ ...x, i })), meta: meta || {}, src, clean: false };
+            stImp = { rows: items.map((x, i) => ({ ...x, ...(x.dealer ? { dealer: stockCanon(x.dealer) } : {}), i })), meta: meta || {}, src, clean: false };   // 🔗 예전 거래처 이름 → 합친 이름 (V203)
             stImp.rows.forEach(r => { r.status = stockImpStatus(r); r.on = r.status !== 'sold'; });
             renderStockImport();
             openStockModal('import');
@@ -18438,7 +18560,7 @@ familyStr + `\n` +
             if (e.target.closest('[data-gd-zoom]')) { const img = document.getElementById('gdPrevImg') || document.getElementById('gdDoneImg'); if (img && img.src) gdZoom(img.src); return; }
             if (e.target.id === 'gdDoneImg') gdZoom(e.target.src);
         });
-        gdInner.addEventListener('change', (e) => { if (e.target.id === 'gdAgree') gdSignSync(); });
+        gdInner.addEventListener('change', (e) => { if (e.target.id === 'gdAgree') gdSignSync(); if (e.target.id === 'gdCardOn') { try { localStorage.setItem('gdCardOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } } });
         async function gdEnsureCustomer(g) {
             const d = phoneDigits(g.phone), now = new Date().toISOString(), me = getStaffName() || '';
             const c = customerDB.find(x => x.id === d || phoneDigits(x.phone) === d);
@@ -18470,6 +18592,15 @@ familyStr + `\n` +
         }
 
         /* ---------- ✅ 서명한 안내서: 보내기 · 개통등록 · 복사 · 지우기 ---------- */
+        function gdCardPref() { try { return localStorage.getItem('gdCardOn') !== '0'; } catch (e) { return true; } }
+        async function gdCardPart(g) {   // 📇 명함 링크 (V203) — 담당 직원 명함 · 고객 명함번호로 (누가 열었는지 알 수 있게)
+            const el = document.getElementById('gdCardOn');
+            if (!(el ? el.checked : gdCardPref())) return '';
+            const c = customerDB.find(x => x.id === g.custId) || gdFindCust(g.phone);
+            if (!c) return '';
+            const cardId = await ensureCardId(c);
+            return `\n\n📇 ${custStaffName(c) || msgStoreName()} 명함\n${autoCardLink({ ...c, cardId })}`;
+        }
         function gdSmsText(g) {
             const c = gdCalc(g), kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             const ls = [`[${g.store.name || msgStoreName()}] ${g.name ? `${g.name}님, ` : ''}구매 안내서를 보내드려요.`, `· ${gdTitle(g)}`, `· 매달 약 ${arWon(c.total)}원${c.n ? ` (할부 ${c.n}개월)` : ''}`];
@@ -18480,12 +18611,16 @@ familyStr + `\n` +
         }
         function gdOpenUrl(u) { if (typeof window.__gdOpen === 'function') { window.__gdOpen(u); return; } window.location.href = u; }
         function gdFileName(g) { return `구매안내서_${String(g.name || phoneDigits(g.phone).slice(-4) || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date).replace(/-/g, '')}.jpg`; }
-        async function gdMarkSent(g, via) {
+        async function gdMarkSent(g, via, card) {
             const now = new Date().toISOString(), me = getStaffName() || '';
             g.sent = { at: now, by: me, via }; g.updatedAt = g.updatedAt || now;
             try { await setDoc(doc(db, 'smart_guides', g.id), { sent: g.sent, ...(g.imgUrl ? { imgUrl: g.imgUrl } : {}) }, { merge: true }); } catch (e) { console.warn(e); }
             const hit = gdList.find(x => x.id === g.id); if (hit) { hit.sent = g.sent; if (g.imgUrl) hit.imgUrl = g.imgUrl; }
-            if (g.custId) txCustomerUpdate(g.custId, (cur) => (Array.isArray(cur.guides) && cur.guides.some(e => e && e.id === g.id) ? { guides: cur.guides.map(e => e && e.id === g.id ? { ...e, st: 'sent' } : e), __audit: '구매 안내서' } : {})).catch(e => console.warn(e));
+            if (g.custId) txCustomerUpdate(g.custId, (cur) => {
+                const has = Array.isArray(cur.guides) && cur.guides.some(e => e && e.id === g.id);
+                if (!has && !card) return {};
+                return { ...(has ? { guides: cur.guides.map(e => e && e.id === g.id ? { ...e, st: 'sent' } : e) } : {}), ...(card ? { bizCardSentAt: getTodayStr() } : {}), __audit: '구매 안내서' };   // 📇 명함도 보냈으면 '명함 보낸 날'도
+            }).catch(e => console.warn(e));
         }
         async function gdUploadImage(g, url) {
             if (g.imgUrl) return g.imgUrl;
@@ -18499,11 +18634,12 @@ familyStr + `\n` +
             const status = (t, tone) => { const el = document.getElementById('gdSendMsg'); if (el) { el.textContent = t; el.className = `text-[13px] font-bold leading-relaxed ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-emerald-700' : 'text-gray-600')}`; } };
             if (btn) btn.disabled = true;
             try {
-                const url = await gdImage(g), text = gdSmsText(g);
+                const url = await gdImage(g), card = mode === 'save' ? '' : await gdCardPart(g), text = gdSmsText(g);
+                const withLink = (lk) => `${text}${lk ? `\n안내서 보기 ▶ ${lk}` : ''}${card}`;   // 안내서 링크 + 📇 명함 (V203)
                 if (mode === 'save') { const a = document.createElement('a'); a.href = url; a.download = gdFileName(g); document.body.appendChild(a); a.click(); a.remove(); status('⬇️ 사진으로 저장했어요.', 'green'); return; }
                 if (mode === 'share') {
                     const blob = await (await fetch(url)).blob(), file = new File([blob], gdFileName(g), { type: 'image/jpeg' });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text }); await gdMarkSent(g, '공유'); status('📤 보냈어요.', 'green'); }
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + card }); await gdMarkSent(g, '공유', !!card); status('📤 보냈어요.', 'green'); }
                     else { const a = document.createElement('a'); a.href = url; a.download = gdFileName(g); document.body.appendChild(a); a.click(); a.remove(); status('이 폰은 바로 공유가 안 돼서 사진으로 저장했어요. 카톡에서 사진으로 보내 주세요.', 'gray'); }
                     return;
                 }
@@ -18511,16 +18647,16 @@ familyStr + `\n` +
                 let link = '';
                 if (pushRelayReady()) { try { link = await gdUploadImage(g, url); } catch (e) { if (mode === 'auto') throw e; } }
                 if (mode === 'app') {
-                    gdOpenUrl(smsHref(to, link ? `${text}\n안내서 보기 ▶ ${link}` : text));
-                    await gdMarkSent(g, '문자앱'); status(link ? '💬 문자앱을 열었어요 (안내서 링크 포함).' : '💬 문자앱을 열었어요. 중계 서버를 연결하면 안내서 사진 링크도 같이 가요.', 'green');
+                    gdOpenUrl(smsHref(to, withLink(link)));
+                    await gdMarkSent(g, '문자앱', !!card); status(link ? '💬 문자앱을 열었어요 (안내서 링크 포함).' : '💬 문자앱을 열었어요. 중계 서버를 연결하면 안내서 사진 링크도 같이 가요.', 'green');
                     return;
                 }
                 status('매장 폰으로 보내는 중…', 'gray');
                 const mms = mmsActive() && !!link;
                 let r, fell = false;
-                try { r = await callSms('test', { to, text: mms ? text : `${text}\n안내서 보기 ▶ ${link}`, ...(mms ? { mmsImage: link } : {}) }); }
-                catch (e) { if (!mms) throw e; r = await callSms('test', { to, text: `${text}\n안내서 보기 ▶ ${link}` }); fell = true; }
-                await gdMarkSent(g, mms && !fell ? '사진 문자' : '문자 (링크)');
+                try { r = await callSms('test', { to, text: mms ? text + card : withLink(link), ...(mms ? { mmsImage: link } : {}) }); }
+                catch (e) { if (!mms) throw e; r = await callSms('test', { to, text: withLink(link) }); fell = true; }
+                await gdMarkSent(g, mms && !fell ? '사진 문자' : '문자 (링크)', !!card);
                 gdRender();
                 status(`✅ 보냈어요${mms && !fell ? ' (사진 문자)' : ' (링크 문자)'}${r && r.encrypted ? ' · 🔐' : ''}. 1~2분 안에 ${formatPhone(to)}로 가요.`, 'green');
             } catch (e) { if (!(e && e.name === 'AbortError')) status(`❌ ${e.message || '보내지 못했어요.'}`, 'red'); }
@@ -18537,6 +18673,7 @@ familyStr + `\n` +
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
                     <h3 class="text-[15px] font-bold text-gray-900">고객에게 보내기</h3>
+                    <label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[40px]"><input type="checkbox" id="gdCardOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0" ${gdCardPref() ? 'checked' : ''}>📇 명함 링크도 같이 보내기 <span class="font-normal text-[12px] text-gray-500">(담당 직원 명함)</span></label>
                     ${relay ? `<button type="button" data-gd-send="auto" class="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>문자로 보내기 (매장 폰에서 바로)</button>` : ''}
                     <div class="grid grid-cols-3 gap-2">
                         <button type="button" data-gd-send="app" class="min-h-[48px] rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800 flex flex-col items-center justify-center gap-0.5"><i class="fa-solid fa-comment-sms text-indigo-600" aria-hidden="true"></i>문자앱</button>
@@ -20312,7 +20449,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V202';
+        const APP_VER = 'V203';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -20320,6 +20457,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V203', d: '2026-10-19', items: [
+                ['📦 재고: 같은 거래처가 이름만 달라 따로 보이면(예: 태성통신 · LG태성) [🔗 거래처 합치기]로 하나로. 다음 재고표부터 예전 이름도 자동으로 합쳐져요.', 'a'],
+                ['📝 안내서를 문자로 보낼 때 [📇 명함 링크도 같이 보내기]를 체크하면 담당 직원 명함 링크가 같이 가요.']] },
             { v: 'V202', d: '2026-10-19', items: [
                 ['📝 [안내서] 탭이 생겼어요 (아래 고객 · 재고 사이). 고객 앞에서 단말 구매 / 유심단독 안내서를 쓰고 → 고객이 폰에 서명 → 문자로 보내요.'],
                 ['할부원금 · 월 할부금(연 5.9%) · 선택약정 25% · 복지할인 · 매달 내실 금액이 자동으로 계산돼요. 유지 후 바꿀 요금제와 변경 후 월요금도 넣어요.'],
