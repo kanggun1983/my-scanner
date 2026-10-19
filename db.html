@@ -79,6 +79,7 @@
         
         @media print {
             body > *:not(#printSection) { display: none !important; }
+            html, body { background: #fff !important; }
             #printSection { 
                 display: block !important; 
                 position: absolute; 
@@ -613,6 +614,10 @@
                 <label class="min-h-[76px] rounded-2xl border border-emerald-200 bg-emerald-50 flex flex-col items-center justify-center gap-0.5 text-center cursor-pointer px-1 focus-within:ring-2 focus-within:ring-emerald-300"><input type="file" id="stockXlsIn" accept=".xlsx,.xls,.csv" class="sr-only"><i class="fa-solid fa-file-excel text-xl text-emerald-600" aria-hidden="true"></i><b class="text-[14px] text-emerald-900">엑셀 파일</b><span class="text-[11px] text-emerald-700">재고표 그대로</span></label>
                 <button type="button" id="stockAddBtn" class="min-h-[76px] rounded-2xl border border-gray-300 bg-white flex flex-col items-center justify-center gap-0.5 text-center px-1"><i class="fa-solid fa-pen text-xl text-gray-600" aria-hidden="true"></i><b class="text-[14px] text-gray-900">직접 입력</b><span class="text-[11px] text-gray-500">한 대씩 · 여러 대</span></button>
             </div>
+            <div id="stockToolRow" class="grid grid-cols-1 gap-2">
+                <button type="button" id="stockExportBtn" class="h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-emerald-700" aria-hidden="true"></i>엑셀 · PDF로 받기</button>
+                <button type="button" id="stockResetBtn" class="hidden h-11 rounded-xl border border-red-200 bg-white text-[14px] font-bold text-red-700 items-center justify-center gap-1.5"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>전체 초기화</button>
+            </div>
             <div id="stockDealerHint"></div>
             <div class="flex items-center gap-2 bg-white border border-gray-300 rounded-2xl px-3 h-12 focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-100"><i class="fa-solid fa-magnifying-glass text-gray-400" aria-hidden="true"></i><label for="stockSearch" class="sr-only">재고 찾기</label><input type="text" id="stockSearch" autocomplete="off" enterkeyhint="search" placeholder="모델 · 색상 · 일련번호 끝자리 · 고객 이름" class="flex-1 min-w-0 h-full bg-transparent text-[15px] text-gray-900 outline-none"></div>
             <div id="stockChips" class="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1"></div>
@@ -1118,7 +1123,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V197</span>
+                    <span class="text-sm text-gray-600">V198</span>
                 </div>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
@@ -16370,6 +16375,7 @@ familyStr + `\n` +
         const STOCK_CAR_TONE = { 'LG U+': 'bg-pink-50 text-pink-700 border-pink-200', 'SKT': 'bg-orange-50 text-orange-700 border-orange-200', 'KT': 'bg-red-50 text-red-700 border-red-200' };
         const stockMD = (d) => (d ? String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/') : '');
         function renderStock() {
+            { const rb = document.getElementById('stockResetBtn'), row = document.getElementById('stockToolRow'); if (rb && row) { rb.classList.toggle('hidden', !isSuperAdmin); rb.classList.toggle('flex', !!isSuperAdmin); row.classList.toggle('grid-cols-2', !!isSuperAdmin); row.classList.toggle('grid-cols-1', !isSuperAdmin); } }   // V198
             const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
             const devs = live.filter(stockIsDev), usims = live.filter(x => !stockIsDev(x));
             const month = getTodayStr().slice(0, 7);
@@ -16430,6 +16436,238 @@ familyStr + `\n` +
                 </section>`;
             }).join('') : `<p class="px-1 py-6 text-center text-sm text-gray-500">${q ? `'${escapeHtml(stockQuery)}' 재고가 없어요` : '재고가 없어요'}</p>`;
         }
+        /* =====================================================================
+           📤 재고 받기 (V198) — 엑셀(.xlsx · 앱이 직접 만들어서 인터넷이 약해도 OK) · PDF(인쇄 → PDF로 저장)
+           · 범위: 지금 보는 목록(거래처·검색 그대로) / 전체 · 유심 · 개통·정리 기록 포함 고르기
+           ===================================================================== */
+        // 🧾 아주 작은 엑셀(.xlsx) 만들기 — 압축 없는 zip + 시트 XML (외부 도구 없이)
+        const XLSX_CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+        function xlsxCrc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = XLSX_CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+        function xlsxZip(files) {   // files: [{ name, text }] → Uint8Array (zip · 저장 방식)
+            const enc = new TextEncoder(), parts = [], central = [];
+            let off = 0;
+            const now = new Date(), dt = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF, dd = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+            files.forEach(f => {
+                const name = enc.encode(f.name), data = enc.encode(f.text), crc = xlsxCrc32(data);
+                const h = new DataView(new ArrayBuffer(30));
+                h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true); h.setUint16(10, dt, true); h.setUint16(12, dd, true);
+                h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true); h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+                parts.push(new Uint8Array(h.buffer), name, data);
+                const c = new DataView(new ArrayBuffer(46));
+                c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true); c.setUint16(12, dt, true); c.setUint16(14, dd, true);
+                c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true); c.setUint16(28, name.length, true); c.setUint16(30, 0, true); c.setUint16(32, 0, true);
+                c.setUint16(34, 0, true); c.setUint16(36, 0, true); c.setUint32(38, 0, true); c.setUint32(42, off, true);
+                central.push(new Uint8Array(c.buffer), name);
+                off += 30 + name.length + data.length;
+            });
+            const cenSize = central.reduce((t, a) => t + a.length, 0);
+            const e = new DataView(new ArrayBuffer(22));
+            e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cenSize, true); e.setUint32(16, off, true);
+            const all = [...parts, ...central, new Uint8Array(e.buffer)], out = new Uint8Array(all.reduce((t, a) => t + a.length, 0));
+            let p = 0; all.forEach(a => { out.set(a, p); p += a.length; });
+            return out;
+        }
+        function xlsxBuild(sheets) {   // sheets: [{ name, rows: [[값…]], widths: [폭…] }] · 첫 줄은 굵게 · 머리줄 고정 · 거르기
+            const esc = (v) => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const col = (i) => { let s0 = ''; i++; while (i > 0) { const m = (i - 1) % 26; s0 = String.fromCharCode(65 + m) + s0; i = Math.floor((i - 1) / 26); } return s0; };
+            const sheetXml = (sh) => {
+                const rows = sh.rows || [], ncol = Math.max(1, ...rows.map(r => r.length));
+                const data = rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => {
+                    if (v === null || v === undefined || v === '') return '';
+                    const ref = `${col(ci)}${ri + 1}`, st = ri === 0 ? ' s="1"' : '';
+                    return typeof v === 'number' && isFinite(v) ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}" t="inlineStr"${st}><is><t xml:space="preserve">${esc(v)}</t></is></c>`;
+                }).join('')}</row>`).join('');
+                const cols = (sh.widths || []).length ? `<cols>${sh.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols>` : '';
+                return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>${cols}<sheetData>${data}</sheetData>${rows.length > 1 ? `<autoFilter ref="A1:${col(ncol - 1)}${rows.length}"/>` : ''}</worksheet>`;
+            };
+            const safeName = (n, i) => String(n || `Sheet${i + 1}`).replace(/[\\/?*[\]:]/g, ' ').slice(0, 31);
+            const files = [
+                { name: '[Content_Types].xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` },
+                { name: '_rels/.rels', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+                { name: 'xl/workbook.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((sh, i) => `<sheet name="${esc(safeName(sh.name, i))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets>${(() => { const dn = sheets.map((sh, i) => (sh.rows || []).length > 1 ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${esc(safeName(sh.name, i)).replace(/'/g, "''")}'!$A$1:$${col(Math.max(1, ...sh.rows.map(r => r.length)) - 1)}$${sh.rows.length}</definedName>` : '').join(''); return dn ? `<definedNames>${dn}</definedNames>` : ''; })()}</workbook>` },
+                { name: 'xl/_rels/workbook.xml.rels', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+                { name: 'xl/styles.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="맑은 고딕"/></font><font><b/><sz val="11"/><name val="맑은 고딕"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEEF2FF"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` },
+                ...sheets.map((sh, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, text: sheetXml(sh) }))
+            ];
+            return new Blob([xlsxZip(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        }
+        function downloadBlob(blob, name) {
+            const url = URL.createObjectURL(blob), a = document.createElement('a');
+            a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* 무시 */ } }, 4000);
+        }
+        let stockExpOpt = { scope: 'all', usim: true, sold: false };
+        function stockViewLabel() {
+            const f = stockFilter === '__old' ? `⏳ ${STOCK_OLD_DAYS}일 넘은 재고` : stockFilter === '__sold' ? '개통된 단말' : stockFilter === '__clean' ? '정리한 단말' : (stockFilter && !stockFilter.startsWith('__') ? stockFilter : '');
+            return [f, stockQuery.trim() ? `'${stockQuery.trim()}' 검색` : ''].filter(Boolean).join(' · ');
+        }
+        function stockExportRows(opt = stockExpOpt) {
+            const view = opt.scope === 'view' && stockFilter !== '__used', f = view ? stockFilter : '', q = view ? stockNorm(stockQuery) : '';
+            const today = getTodayStr(), ageOf = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(String(x.at || today).slice(0, 10))) / 86400000));
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q));
+            const order = stockDealerNames(true), oi = (d) => { const i = order.findIndex(n => stockKey(n) === stockKey(d)); return i < 0 ? 999 : i; };
+            const stRank = { 재고: 0, 개통: 1, 정리: 2 };
+            return stockItems().filter(x => {
+                const st = stockSt(x), dev = stockIsDev(x);
+                if (f === '__sold') { if (st !== '개통') return false; }
+                else if (f === '__clean') { if (st !== '정리') return false; }
+                else if (f === '__old') { if (!(dev && st === '재고' && ageOf(x) >= STOCK_OLD_DAYS)) return false; }
+                else {
+                    if (f && stockKey(x.dealer) !== stockKey(f)) return false;
+                    if (st !== '재고' && !(opt.sold && dev)) return false;
+                }
+                if (!dev && !opt.usim) return false;
+                return hit(x);
+            }).sort((a, b) => oi(a.dealer) - oi(b.dealer) || String(a.dealer || '').localeCompare(String(b.dealer || ''), 'ko') || (stRank[stockSt(a)] - stRank[stockSt(b)]) || (stockIsDev(b) - stockIsDev(a)) || String(a.model || '').localeCompare(String(b.model || ''), 'ko') || (a.o || 0) - (b.o || 0))
+              .map(x => ({ x, age: ageOf(x) }));
+        }
+        function stockExportName(ext) { const t = new Date(), two = (n) => String(n).padStart(2, '0'); return `재고_${getTodayStr()}_${two(t.getHours())}${two(t.getMinutes())}.${ext}`; }
+        function stockExportXlsx(opt = stockExpOpt) {
+            const R = stockExportRows(opt);
+            if (!R.length) return customAlert('받을 재고가 없어요.');
+            const head = ['거래처', '통신사', '구분', '모델', '색상', '일련번호', '수량', '상태', '입고일', '경과(일)', '개통 고객', '개통일', '처리한 직원', '메모'];
+            const rows = [head, ...R.map(({ x, age }) => [x.dealer || '', stockCarrierOf(x.dealer) || '', stockIsDev(x) ? '단말' : '유심', x.model || '', x.color || '', x.serial ? String(x.serial) : '', stockIsDev(x) ? 1 : (Number(x.qty) || 0), stockSt(x), String(x.at || '').slice(0, 10), stockSt(x) === '재고' ? age : '', x.to || '', x.sd || '', x.sb || x.by || '', x.memo || ''])];
+            const sum = [];   // 모델별 수량 (재고만)
+            R.filter(({ x }) => stockSt(x) === '재고').forEach(({ x }) => { const k = [x.dealer, stockIsDev(x) ? '단말' : '유심', x.model, x.color].map(v => stockKey(v)).join('|'); let g = sum.find(y => y.k === k); if (!g) sum.push(g = { k, d: x.dealer || '', t: stockIsDev(x) ? '단말' : '유심', m: x.model || '', c: x.color || '', n: 0 }); g.n += stockIsDev(x) ? 1 : (Number(x.qty) || 0); });
+            const sheets = [{ name: '재고 목록', rows, widths: [12, 8, 6, 14, 10, 18, 6, 6, 11, 8, 10, 11, 10, 24] }];
+            if (sum.length) sheets.push({ name: '모델별 수량', rows: [['거래처', '구분', '모델', '색상', '수량'], ...sum.map(g => [g.d, g.t, g.m, g.c, g.n])], widths: [12, 6, 14, 10, 6] });
+            downloadBlob(xlsxBuild(sheets), stockExportName('xlsx'));
+            stockToast(`📗 엑셀로 받았어요 (${R.length}줄)`);
+        }
+        function stockExportPdf(opt = stockExpOpt) {
+            const R = stockExportRows(opt);
+            if (!R.length) return customAlert('받을 재고가 없어요.');
+            const e = escapeHtml, t = new Date(), two = (n) => String(n).padStart(2, '0');
+            const liveDev = R.filter(({ x }) => stockSt(x) === '재고' && stockIsDev(x)).length, liveUsim = R.filter(({ x }) => stockSt(x) === '재고' && !stockIsDev(x)).reduce((s0, { x }) => s0 + (Number(x.qty) || 0), 0);
+            const byD = []; R.forEach(r => { let g = byD.find(y => stockKey(y.d) === stockKey(r.x.dealer)); if (!g) byD.push(g = { d: r.x.dealer || '거래처 없음', list: [] }); g.list.push(r); });
+            const th = 'border:1px solid #bbb;padding:4px 6px;background:#f3f4f6;font-size:9pt;text-align:left;', td = 'border:1px solid #ccc;padding:3px 6px;font-size:9pt;';
+            let ps = document.getElementById('printSection');
+            if (!ps) { ps = document.createElement('div'); ps.id = 'printSection'; document.body.appendChild(ps); }
+            const vl = opt.scope === 'view' ? stockViewLabel() : '';
+            ps.innerHTML = `<div style="font-family:'Pretendard',sans-serif;color:#111;">
+                <h2 style="font-size:16pt;font-weight:bold;margin:0 0 4px;">📦 재고 목록${vl ? ` · ${e(vl)}` : ''}</h2>
+                <p style="font-size:9.5pt;color:#444;margin:0 0 10px;">${e(msgStoreName() || '')} · ${t.getFullYear()}.${t.getMonth() + 1}.${t.getDate()} ${two(t.getHours())}:${two(t.getMinutes())} · ${e(getStaffName() || '')} · 단말 재고 <b>${liveDev}대</b>${opt.usim ? ` · 유심 <b>${liveUsim}개</b>` : ''}${opt.sold ? ' · 개통·정리 포함' : ''}</p>
+                ${byD.map(g => `<h3 style="font-size:11.5pt;font-weight:bold;margin:12px 0 4px;">${e(g.d)} ${stockCarrierOf(g.d) ? `<span style="font-size:9pt;color:#be185d;">${e(stockCarrierOf(g.d))}</span>` : ''} <span style="font-size:9pt;font-weight:normal;color:#555;">· 단말 ${g.list.filter(({ x }) => stockIsDev(x) && stockSt(x) === '재고').length}대${opt.usim ? ` · 유심 ${g.list.filter(({ x }) => !stockIsDev(x) && stockSt(x) === '재고').reduce((s0, { x }) => s0 + (Number(x.qty) || 0), 0)}개` : ''}</span></h3>
+                <table style="width:100%;border-collapse:collapse;page-break-inside:auto;"><thead><tr><th style="${th}width:15%">모델</th><th style="${th}width:10%">색상</th><th style="${th}width:18%">일련번호</th><th style="${th}width:6%">수량</th><th style="${th}width:15%">입고일</th><th style="${th}width:7%">상태</th><th style="${th}">개통 고객 · 메모</th></tr></thead><tbody>
+                ${g.list.map(({ x, age }) => `<tr style="page-break-inside:avoid;"><td style="${td}font-weight:bold;">${e(x.model || '')}</td><td style="${td}">${e(x.color || '')}</td><td style="${td}font-family:monospace;">${e(x.serial || '')}</td><td style="${td}text-align:right;">${stockIsDev(x) ? 1 : (Number(x.qty) || 0)}</td><td style="${td}">${e(String(x.at || '').slice(5, 10).replace('-', '/'))}${stockSt(x) === '재고' && age >= STOCK_OLD_DAYS ? ` <span style="color:#b45309;">(${age}일)</span>` : ''}</td><td style="${td}${stockSt(x) === '재고' ? '' : 'color:#047857;'}">${e(stockSt(x))}</td><td style="${td}">${e([x.to ? `${x.to}${x.sd ? ` ${String(x.sd).slice(5).replace('-', '/')}` : ''}` : '', x.memo || ''].filter(Boolean).join(' · '))}</td></tr>`).join('')}
+                </tbody></table>`).join('')}
+            </div>`;
+            const prevTitle = document.title;
+            document.title = stockExportName('pdf').replace(/\.pdf$/, '');   // PDF로 저장할 때 파일 이름
+            const back = () => { document.title = prevTitle; window.removeEventListener('afterprint', back); };
+            window.addEventListener('afterprint', back);
+            setTimeout(back, 60000);
+            try { window.print(); } catch (err) { back(); customAlert('이 폰에선 인쇄 창을 못 열었어요. 엑셀로 받아주세요.'); }
+        }
+        function openStockExport() {
+            let sh = document.getElementById('stockExpSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'stockExpSheet';
+                sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', e => {
+                    if (e.target === sh || e.target.closest('[data-sx-close]')) { sh.remove(); return; }
+                    const sc = e.target.closest('[data-sx-scope]'); if (sc) { stockExpOpt.scope = sc.dataset.sxScope; openStockExport(); return; }
+                    if (e.target.closest('[data-sx-xlsx]')) { stockExportXlsx(); return; }
+                    if (e.target.closest('[data-sx-pdf]')) { sh.remove(); setTimeout(() => stockExportPdf(), 50); return; }
+                });
+                sh.addEventListener('change', e => { const c = e.target.closest('[data-sx-opt]'); if (c) { stockExpOpt[c.dataset.sxOpt] = c.checked; openStockExport(); } });
+                document.body.appendChild(sh);
+            }
+            const vl = stockFilter !== '__used' ? stockViewLabel() : '';
+            if (!vl && stockExpOpt.scope === 'view') stockExpOpt.scope = 'all';
+            const R = stockExportRows(), nDev = R.filter(({ x }) => stockIsDev(x)).length, nUsim = R.filter(({ x }) => !stockIsDev(x)).reduce((t, { x }) => t + (Number(x.qty) || 0), 0);
+            const radio = (v, label, sub) => `<button type="button" data-sx-scope="${v}" class="min-h-[52px] px-3 py-2 rounded-xl border-2 text-left ${stockExpOpt.scope === v ? 'border-indigo-600 bg-indigo-50' : 'border-gray-200 bg-white'}"><b class="block text-[14px] text-gray-900">${label}</b>${sub ? `<span class="block text-[11px] text-gray-500 truncate">${escapeHtml(sub)}</span>` : ''}</button>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-3" role="dialog" aria-label="재고 받기">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">📤 재고 받기</p><p class="text-xs text-gray-600">거래처 · 모델 순으로 정리돼요</p></div><button type="button" data-sx-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                ${vl ? `<div class="grid grid-cols-2 gap-2">${radio('view', '지금 보는 목록', vl)}${radio('all', '전체 재고', '모든 거래처')}</div>` : ''}
+                <div class="space-y-1.5">
+                    <label class="flex items-center gap-2 text-[14px] text-gray-800 min-h-[40px]"><input type="checkbox" data-sx-opt="usim" ${stockExpOpt.usim ? 'checked' : ''} class="w-5 h-5 accent-indigo-600"> 💳 유심도 넣기</label>
+                    <label class="flex items-center gap-2 text-[14px] text-gray-800 min-h-[40px]"><input type="checkbox" data-sx-opt="sold" ${stockExpOpt.sold ? 'checked' : ''} class="w-5 h-5 accent-indigo-600"> ✅ 개통·정리된 단말도 넣기 <span class="text-xs text-gray-500">(최근 ${STOCK_KEEP_DAYS}일)</span></label>
+                </div>
+                <p class="text-[13px] font-bold text-gray-800">단말 ${nDev}대${stockExpOpt.usim ? ` · 유심 ${nUsim}개` : ''} <span class="font-medium text-gray-500">(${R.length}줄)</span></p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-sx-xlsx class="h-12 rounded-xl bg-emerald-600 text-white text-[14px] font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-excel" aria-hidden="true"></i>엑셀로 받기</button>
+                    <button type="button" data-sx-pdf class="h-12 rounded-xl bg-rose-600 text-white text-[14px] font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-pdf" aria-hidden="true"></i>PDF로 받기</button>
+                </div>
+                <p class="text-[11px] text-gray-500 leading-relaxed">엑셀: '재고 목록' + '모델별 수량' 두 장 · PDF: 인쇄 창이 뜨면 프린터를 <b>PDF로 저장</b>으로 골라요 (거래처 반납·재고 맞추기용).</p>
+            </div>`;
+        }
+        document.getElementById('stockExportBtn').addEventListener('click', openStockExport);
+
+        /* =====================================================================
+           🗑️ 재고 전체 초기화 (V198 · 👑 대표) — 재고만 / 전부 · 지우기 전에 smart_global/stock_backup에 통째로 보관 → [↩ 되돌리기]
+           ===================================================================== */
+        const STOCK_BACKUP_DAYS = 30;
+        async function stockBackupGet() { try { const sn = await getDoc(doc(db, 'smart_global', 'stock_backup')); const b = sn.exists() ? sn.data() : null; return b && Array.isArray(b.items) && b.at && (Date.now() - Date.parse(b.at)) < STOCK_BACKUP_DAYS * 864e5 && !b.restoredAt ? b : null; } catch (e) { console.warn(e); return null; } }
+        let stockResetMode = 'live';
+        async function openStockReset() {
+            if (!isSuperAdmin) return customAlert('재고 전체 초기화는 👑 대표만 할 수 있어요.');
+            let sh = document.getElementById('stockResetSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'stockResetSheet';
+                sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', async e => {
+                    if (e.target === sh || e.target.closest('[data-sr-close]')) { sh.remove(); return; }
+                    const m = e.target.closest('[data-sr-mode]'); if (m) { stockResetMode = m.dataset.srMode; openStockReset(); return; }
+                    if (e.target.closest('[data-sr-xlsx]')) { stockExportXlsx({ scope: 'all', usim: true, sold: true }); return; }
+                    if (e.target.closest('[data-sr-go]')) { await stockResetRun(stockResetMode); return; }
+                    if (e.target.closest('[data-sr-undo]')) { await stockResetUndo(); return; }
+                });
+                document.body.appendChild(sh);
+            }
+            const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
+            const nDev = live.filter(stockIsDev).length, nUsim = live.filter(x => !stockIsDev(x)).reduce((t, x) => t + (Number(x.qty) || 0), 0), nRec = all.length - live.length;
+            const bk = await stockBackupGet();
+            const bkDev = bk ? bk.items.filter(x => stockIsDev(x) && stockSt(x) === '재고').length : 0;
+            const opt = (v, label, sub) => `<button type="button" data-sr-mode="${v}" class="w-full min-h-[56px] px-3 py-2 rounded-xl border-2 text-left ${stockResetMode === v ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white'}"><b class="block text-[14px] text-gray-900">${label}</b><span class="block text-[12px] text-gray-600">${sub}</span></button>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-sm bg-white rounded-t-2xl sm:rounded-2xl p-4 space-y-3 max-h-[90vh] overflow-y-auto" role="dialog" aria-label="재고 전체 초기화">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">🗑️ 재고 전체 초기화</p><p class="text-xs text-gray-600">지금: 단말 재고 ${nDev}대 · 유심 ${nUsim}개 · 개통·정리 기록 ${nRec}건</p></div><button type="button" data-sr-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                ${bk ? `<button type="button" data-sr-undo class="w-full text-left rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2.5"><b class="block text-[14px] text-indigo-900">↩ 초기화 되돌리기</b><span class="block text-[12px] text-indigo-800">${editLogWhen(bk.at)} ${escapeHtml(bk.by || '')} 초기화 · 단말 ${bkDev}대 · 전체 ${bk.items.length}줄 (${STOCK_BACKUP_DAYS}일 보관)</span></button>` : ''}
+                <div class="space-y-2">${opt('live', '재고만 비우기', '단말·유심 재고를 다 지워요. 개통·정리 기록은 남아요 (개통 취소 때 재고로 되돌리기용).')}${opt('all', '전부 비우기', '재고 + 개통·정리 기록 + 거래처 메모·순서까지 처음 상태로.')}</div>
+                <button type="button" data-sr-xlsx class="w-full h-11 rounded-xl border border-emerald-300 bg-emerald-50 text-[14px] font-bold text-emerald-800"><i class="fa-solid fa-file-excel" aria-hidden="true"></i> 먼저 엑셀로 받아두기</button>
+                <button type="button" data-sr-go class="w-full h-12 rounded-xl bg-red-600 text-white text-[15px] font-bold">${stockResetMode === 'all' ? '전부' : '재고만'} 초기화</button>
+                <p class="text-[11px] text-gray-500 leading-relaxed">초기화하기 전 재고는 통째로 보관돼서 ${STOCK_BACKUP_DAYS}일 안에 이 창에서 [↩ 되돌리기] 할 수 있어요 (마지막 한 번만). 새 재고표를 넣기 전에 쓰면 편해요.</p>
+            </div>`;
+        }
+        async function stockResetRun(mode) {
+            const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
+            const n = mode === 'all' ? all.length : live.length;
+            if (!n && !(mode === 'all' && (Object.keys(stockData.notes || {}).length || (stockData.dealerOrder || []).length))) return customAlert('지울 재고가 없어요.');
+            if (!(await customConfirm(`정말 ${mode === 'all' ? '재고 · 개통·정리 기록 · 메모를 전부' : `재고 ${live.filter(stockIsDev).length}대 · 유심을`} 지울까요?\n\n지우기 전 재고는 보관돼서 ${STOCK_BACKUP_DAYS}일 안에 [↩ 되돌리기] 할 수 있어요.`))) return;
+            try {
+                const snap = { items: all, notes: stockData.notes || {}, dealerOrder: stockData.dealerOrder || [], ...(stockData.sheet ? { sheet: stockData.sheet } : {}), at: new Date().toISOString(), by: getStaffName() || '', mode };
+                await saveDoc(doc(db, 'smart_global', 'stock_backup'), stripUndefined(snap));
+                await stockTx(cur => mode === 'all' ? { items: [], notes: {}, dealerOrder: [] } : { items: cur.items.filter(x => stockSt(x) !== '재고'), notes: cur.notes, dealerOrder: cur.dealerOrder });
+                stockFilter = ''; renderStock();
+                const sh = document.getElementById('stockResetSheet'); if (sh) sh.remove();
+                customAlert(`🗑️ ${mode === 'all' ? '재고를 전부' : '재고를'} 초기화했어요.\n잘못했으면 [전체 초기화] → [↩ 초기화 되돌리기].`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        async function stockResetUndo() {
+            const bk = await stockBackupGet();
+            if (!bk) return customAlert('되돌릴 초기화 기록이 없어요.');
+            if (!(await customConfirm(`${editLogWhen(bk.at)}에 초기화한 재고를 되돌릴까요?\n\n그 뒤에 새로 넣은 재고는 그대로 두고, 같은 일련번호는 겹치지 않게 빼요.`))) return;
+            try {
+                let added = 0;
+                await stockTx(cur => {
+                    const items = cur.items.slice(), ids = new Set(items.map(x => x.id));
+                    bk.items.forEach(x => {
+                        if (!x || ids.has(x.id)) return;
+                        const dup = stockIsDev(x) ? (x.serial && items.some(y => stockIsDev(y) && stockSerialMatch(y.serial, x.serial))) : items.some(y => !stockIsDev(y) && stockSt(y) === stockSt(x) && stockKey(y.dealer) === stockKey(x.dealer) && stockKey(y.model) === stockKey(x.model));
+                        if (dup) return;
+                        items.push(x); ids.add(x.id); added++;
+                    });
+                    const order = [...(cur.dealerOrder || [])]; (bk.dealerOrder || []).forEach(d => { if (!order.some(o => stockKey(o) === stockKey(d))) order.push(d); });
+                    return { items, notes: { ...(bk.notes || {}), ...(cur.notes || {}) }, dealerOrder: order, ...((cur.sheet || bk.sheet) ? { sheet: cur.sheet || bk.sheet } : {}) };
+                });
+                await saveDoc(doc(db, 'smart_global', 'stock_backup'), { restoredAt: new Date().toISOString(), restoredBy: getStaffName() || '' }, { merge: true });
+                renderStock();
+                const sh = document.getElementById('stockResetSheet'); if (sh) sh.remove();
+                customAlert(`↩ 재고 ${added}줄을 되돌렸어요.`);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        document.getElementById('stockResetBtn').addEventListener('click', openStockReset);
+
         document.getElementById('stockSearch').addEventListener('input', (e) => { stockQuery = e.target.value; renderStock(); });
         document.getElementById('stockChips').addEventListener('click', (e) => { const b = e.target.closest('[data-stk-f]'); if (!b) return; stockFilter = b.dataset.stkF; renderStock(); });
         document.getElementById('stockAddBtn').addEventListener('click', () => openStockEdit(''));
@@ -18393,7 +18631,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V197';
+        const APP_VER = 'V198';
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
