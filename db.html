@@ -1180,7 +1180,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V215</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V216</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -3772,7 +3772,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* ↩️ V207: 코드로 만들었다 지우는 작은 창들도 폰 [뒤로]로 닫히게
            · 창이 화면에 붙으면 기록 한 칸 · ✕로 닫으면 그 한 칸 되돌림 · [뒤로]면 맨 위 창의 ✕를 대신 눌러줌 */
-        const BACK_SHEETS = ['recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet'];
+        const BACK_SHEETS = ['docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet'];
         const backSheetOn = new Set(), backSheetPopped = new Set();
         function backSheetSync() {
             BACK_SHEETS.forEach(id => {
@@ -17216,7 +17216,7 @@ familyStr + `\n` +
                     showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
                     const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
                     hideUploadToast();
-                    customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n서류 ${ur.ok}개 업로드${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}`);
+                    customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n${docUpText(ur)}${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}`);
                 } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${keepLatest ? '\n📜 예전 날짜라 개통 기록에만 넣었어요 (고객 정보는 최근 개통 그대로).' : ''}${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
                 // 상세카드에서 열었으면 상세카드도 새 내용으로
                 if (typeof currentDetailId !== 'undefined' && currentDetailId === digits && document.getElementById('detailModal').style.display === 'flex') { try { openDetailModal(digits); } catch (e) { /* 무시 */ } }
@@ -21188,43 +21188,184 @@ familyStr + `\n` +
             return { id: up.id, url: up.webViewLink, owner: me };
         }
 
-        async function uploadDocFiles(cust, files, onProgress) {
+        /* 📑 V216 서류 PDF 한 묶음 — 사진은 A4 한 쪽씩(가로 사진은 가로 쪽) · PDF는 pdf-lib로 그대로 이어 붙임 (못 불러오면 PDF만 따로)
+           · 설정 docBundle(기본 켜짐): 2개 이상 올리면 묶어서 한 파일 · 이미 올린 서류도 [PDF 한 묶음으로 합치기] (원본 기록은 bundledIn으로 접힘) */
+        function docBundleOn() { return appSettings.docBundle !== false; }
+        function docCustFolder(cust) { return `${(cust.name || '고객').replace(/[\\/:*?"<>|]/g, '')}_${String(cust.phone || cust.id || '').replace(/\D/g, '').slice(-4)}`; }
+        const docIsPdf = (f) => /pdf/i.test(f.type || '') || /\.pdf$/i.test(f.name || '');
+        async function docJpegOf(blob) {
+            const url = URL.createObjectURL(blob);
+            try {
+                const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('사진을 열 수 없어요')); i.src = url; });
+                const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height, sc = Math.min(1, 2000 / Math.max(w0, h0, 1));
+                const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(w0 * sc)); cv.height = Math.max(1, Math.round(h0 * sc));
+                const x = cv.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
+                const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.85));
+                if (!jb) throw new Error('사진을 바꾸지 못했어요');
+                return { bytes: new Uint8Array(await jb.arrayBuffer()), w: cv.width, h: cv.height };
+            } finally { URL.revokeObjectURL(url); }
+        }
+        function docFit(w, h) {   // A4 (가로 사진은 가로 쪽) · 여백 18pt
+            const land = w > h, pw = land ? 841.89 : 595.28, ph = land ? 595.28 : 841.89, M = 18, k = Math.min((pw - 2 * M) / w, (ph - 2 * M) / h);
+            const dw = w * k, dh = h * k; return { pw, ph, dw, dh, dx: (pw - dw) / 2, dy: (ph - dh) / 2 };
+        }
+        function docPdfFromJpegs(items) {   // 사진만 → 작은 PDF (외부 도구 없이)
+            const enc = new TextEncoder(), parts = [], off = []; let len = 0;
+            const push = (v) => { const b = typeof v === 'string' ? enc.encode(v) : v; parts.push(b); len += b.length; };
+            const obj = (id, fn) => { off[id] = len; push(`${id} 0 obj\n`); fn(); push('\nendobj\n'); };
+            push(new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x34, 0x0A, 0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));   // %PDF-1.4 + 이진 표시
+            const n = items.length, pid = (k) => 3 + k * 3;
+            obj(1, () => push('<< /Type /Catalog /Pages 2 0 R >>'));
+            obj(2, () => push(`<< /Type /Pages /Kids [${items.map((_, k) => `${pid(k)} 0 R`).join(' ')}] /Count ${n} >>`));
+            items.forEach((it, k) => {
+                const f = docFit(it.w, it.h), cs = `q ${f.dw.toFixed(2)} 0 0 ${f.dh.toFixed(2)} ${f.dx.toFixed(2)} ${f.dy.toFixed(2)} cm /Im${k} Do Q`;
+                obj(pid(k), () => push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${f.pw.toFixed(2)} ${f.ph.toFixed(2)}] /Resources << /XObject << /Im${k} ${pid(k) + 2} 0 R >> >> /Contents ${pid(k) + 1} 0 R >>`));
+                obj(pid(k) + 1, () => push(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
+                obj(pid(k) + 2, () => { push(`<< /Type /XObject /Subtype /Image /Width ${it.w} /Height ${it.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${it.bytes.length} >>\nstream\n`); push(it.bytes); push('\nendstream'); });
+            });
+            const total = 3 + n * 3, xref = len;
+            push(`xref\n0 ${total}\n0000000000 65535 f \n${Array.from({ length: total - 1 }, (_, i) => `${String(off[i + 1]).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+            return new Blob(parts, { type: 'application/pdf' });
+        }
+        async function docLoadPdfLib() {
+            if (window.PDFLib && window.PDFLib.PDFDocument) return window.PDFLib;
+            await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js'; sc.onload = res; sc.onerror = () => rej(new Error('PDF 도구를 못 불러왔어요')); document.head.appendChild(sc); });
+            if (!window.PDFLib || !window.PDFLib.PDFDocument) throw new Error('PDF 도구를 못 불러왔어요');
+            return window.PDFLib;
+        }
+        async function docBuildBundle(files) {   // files: File[] (순서대로) → { blob, pages, left: 못 넣은 PDF }
+            const pdfs = files.filter(docIsPdf), imgs = files.filter(f => !docIsPdf(f));
+            if (pdfs.length) {
+                try {
+                    const L = await docLoadPdfLib(), out = await L.PDFDocument.create(); let pages = 0;
+                    for (const f of files) {
+                        if (docIsPdf(f)) { const src = await L.PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true }); const cp = await out.copyPages(src, src.getPageIndices()); cp.forEach(p => out.addPage(p)); pages += cp.length; }
+                        else { const j = await docJpegOf(f), im = await out.embedJpg(j.bytes), ft = docFit(j.w, j.h), pg = out.addPage([ft.pw, ft.ph]); pg.drawImage(im, { x: ft.dx, y: ft.dy, width: ft.dw, height: ft.dh }); pages++; }
+                    }
+                    return { blob: new Blob([await out.save()], { type: 'application/pdf' }), pages, left: [] };
+                } catch (e) { console.warn('PDF 합치기 실패 → 사진만 묶음', e); }
+            }
+            if (!imgs.length) return { blob: null, pages: 0, left: pdfs };
+            const items = []; for (const f of imgs) items.push(await docJpegOf(f));
+            return { blob: docPdfFromJpegs(items), pages: items.length, left: pdfs };
+        }
+        async function docUploadOne(cust, f, mode, today, custFolder, extra = {}) {
+            if (f.size > 20 * 1024 * 1024) throw new Error(`${f.name}: 20MB가 넘어요`);
+            const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
+            const r = mode === 'admin' ? await uploadViaScript(f, name, today.slice(0, 7), custFolder) : await uploadViaGis(f, name, today.slice(0, 7), custFolder);
+            const rid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+            saveDoc(doc(db, 'smart_customers', cust.id), { docCount: increment(1), docAt: new Date().toISOString() }, { merge: true }).catch(e => console.error('서류 개수 저장 실패', e));
+            await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString(), ...extra });
+            return rid;
+        }
+        function docBundleName(cust, pages) { return `서류묶음_${String(cust.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${getTodayStr().replace(/-/g, '')}_${pages}쪽.pdf`; }
+        async function uploadDocFiles(cust, files, onProgress, opt = {}) {
             const mode = driveMode();
             if (mode === 'off') throw new Error('서류 백업이 꺼져 있어요. 총관리자가 설정 → 서류 클라우드 백업에서 켜야 해요.');
-            const today = getTodayStr();
-            const custFolder = `${(cust.name || '고객').replace(/[\\/:*?"<>|]/g, '')}_${String(cust.phone || cust.id || '').replace(/\D/g, '').slice(-4)}`;
-            let ok = 0; const errs = [];
-            for (let i = 0; i < files.length; i++) {
-                if (onProgress) onProgress(i + 1, files.length);
+            const today = getTodayStr(), custFolder = docCustFolder(cust);
+            let ok = 0, bundled = 0, parts = 0, rest = files; const errs = [];
+            if (opt.bundle !== false && docBundleOn() && files.length >= 2) {   // 📑 V216 한 묶음
                 try {
-                    const f = await prepUploadFile(files[i]);
-                    if (f.size > 20 * 1024 * 1024) throw new Error(`${files[i].name}: 20MB가 넘어요`);
-                    const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
-                    const r = mode === 'admin' ? await uploadViaScript(f, name, today.slice(0, 7), custFolder) : await uploadViaGis(f, name, today.slice(0, 7), custFolder);
-                    const rid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                    saveDoc(doc(db, 'smart_customers', cust.id), { docCount: increment(1), docAt: new Date().toISOString() }, { merge: true }).catch(e => console.error('서류 개수 저장 실패', e));
-                    await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString() });
-                    ok++;
-                } catch (e) { console.error(e); errs.push(e.message || String(e)); }
+                    try { showUploadToast(`📑 서류 ${files.length}장을 PDF 한 묶음으로 만드는 중…`); } catch (e) { /* 무시 */ }
+                    const B = await docBuildBundle(files);
+                    if (B.blob && (B.pages >= 2 || !B.left.length)) {
+                        const pf = new File([B.blob], docBundleName(cust, B.pages), { type: 'application/pdf' });
+                        if (onProgress) onProgress(1, 1 + B.left.length);
+                        const inB = files.filter(f => !B.left.includes(f));
+                        await docUploadOne(cust, pf, mode, today, custFolder, { bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40) });
+                        ok++; bundled = B.pages; parts = inB.length; rest = B.left;
+                    }
+                } catch (e) { console.warn('묶음 실패 → 따로 올림', e); errs.length = 0; }
             }
-            return { ok, errs };
+            for (let i = 0; i < rest.length; i++) {
+                if (onProgress) onProgress(i + 1 + (bundled ? 1 : 0), rest.length + (bundled ? 1 : 0));
+                try { await docUploadOne(cust, await prepUploadFile(rest[i]), mode, today, custFolder); ok++; }
+                catch (e) { console.error(e); errs.push(e.message || String(e)); }
+            }
+            return { ok, errs, bundled, parts };
         }
-
+        function docUpText(r) { return r.bundled ? `서류 ${r.parts}장을 PDF 한 묶음(${r.bundled}쪽)으로 올렸어요.${r.ok > 1 ? ` (따로 ${r.ok - 1}개)` : ''}` : `서류 ${r.ok}개를 올렸어요.`; }
+        // 이미 올린 서류 내용 받기: 관리자 드라이브 = 업로드 창구 v2 · 각자 드라이브 = 이 폰 구글 연결 (내가 올린 것)
+        async function docFetchBlob(f) {
+            if ((f.mode || driveMode()) === 'admin') {
+                const url = String(appSettings.driveScriptUrl || '').trim(); if (!url) throw new Error('업로드 주소가 설정되지 않았어요.');
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ secret: appSettings.driveSecret || '', action: 'get', id: f.fileId }) });
+                const d = await res.json().catch(() => ({}));
+                if (!d.ok || !d.data) { const er = new Error(d.error === 'empty' || d.error === undefined ? 'OLD_SCRIPT' : (d.error === 'secret' ? '업로드 비밀번호가 맞지 않아요.' : `받기 실패: ${d.error}`)); er.code = d.error === 'empty' || d.error === undefined ? 'OLD_SCRIPT' : ''; throw er; }
+                const bin = atob(d.data), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+                return new Blob([u8], { type: d.mime || f.mime || '' });
+            }
+            const t = await getDriveToken(false);
+            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(f.fileId)}?alt=media`, { headers: { Authorization: 'Bearer ' + t } });
+            if (!res.ok) { const er = new Error(res.status === 401 ? '구글 연결이 끊겼어요. 다시 시도해 주세요.' : '이 폰에서 받을 수 없는 서류예요'); er.code = res.status === 401 ? '' : 'NO_ACCESS'; throw er; }
+            return await res.blob();
+        }
+        function docVisibleOf(c) {   // 고객 서류: 묶음에 들어간 원본은 접어 둠
+            const ids = [c.id, ...prevIdsOf(c)], all = docFiles.filter(f => ids.includes(f.customerId));
+            const shown = all.filter(f => !f.bundledIn || !all.some(b => b.id === f.bundledIn));
+            return { all, shown, inB: all.filter(f => !shown.includes(f)) };
+        }
+        async function docMergeExisting(cid) {
+            const c = customerDB.find(x => x.id === cid); if (!c) return;
+            const mode = driveMode(); if (mode === 'off') return customAlert('서류 백업이 꺼져 있어요.');
+            const list = docVisibleOf(c).shown.filter(f => f.fileId).slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+            if (list.length < 2) return customAlert('합칠 서류가 2개 이상 있어야 해요.');
+            if (mode === 'self' && !driveTokenValid()) { try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[PDF 한 묶음으로 합치기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); } return; }
+            if (!(await customConfirm(`서류 ${list.length}개를 PDF 한 묶음으로 합칠까요?\n\n· 묶음 PDF 하나만 누르면 다 보여요\n· 원본은 지우지 않고 '묶음에 들어간 원본'으로 접어 둬요`))) return;
+            const files = [], used = [], skip = [];
+            try {
+                for (let i = 0; i < list.length; i++) {
+                    showUploadToast(`📑 서류 받는 중… ${i + 1} / ${list.length}`);
+                    try { const bl = await docFetchBlob(list[i]); files.push(new File([bl], list[i].name || `서류${i + 1}`, { type: bl.type || list[i].mime || '' })); used.push(list[i]); }
+                    catch (e) { if (e.code === 'OLD_SCRIPT') throw e; skip.push(list[i].name); }
+                }
+                if (files.length < 2) { hideUploadToast(); return customAlert(`합칠 수 있는 서류가 ${files.length}개뿐이에요.${skip.length ? `\n받지 못한 것: ${skip.slice(0, 3).join(', ')}${mode === 'self' ? '\n(각자 드라이브 방식은 이 폰에서 올린 서류만 합칠 수 있어요)' : ''}` : ''}`); }
+                showUploadToast('📑 PDF 한 묶음 만드는 중…');
+                const B = await docBuildBundle(files);
+                if (!B.blob) { hideUploadToast(); return customAlert('PDF로 만들지 못했어요.'); }
+                const inB = used.filter((u, i) => !B.left.includes(files[i]));
+                showUploadToast('📑 묶음 올리는 중…');
+                const rid = await docUploadOne(c, new File([B.blob], docBundleName(c, B.pages), { type: 'application/pdf' }), mode, getTodayStr(), docCustFolder(c), { bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40), partIds: inB.map(f => f.id).slice(0, 40) });
+                await Promise.all(inB.map(f => saveDoc(doc(db, 'doc_files', f.id), { bundledIn: rid }, { merge: true }).catch(e => console.warn(e))));
+                hideUploadToast();
+                customAlert(`서류 ${inB.length}개를 PDF 한 묶음(${B.pages}쪽)으로 합쳤어요.\n이제 묶음 하나만 누르면 다 보여요.${skip.length ? `\n받지 못해 빠진 것: ${skip.slice(0, 3).join(', ')}` : ''}`);
+            } catch (e) {
+                hideUploadToast();
+                if (e.code === 'OLD_SCRIPT') return customAlert(`관리자 드라이브 업로드 창구를 v2로 바꿔야 이미 올린 서류를 합칠 수 있어요.\n\n👑 script.google.com → 강CRM 업로드 프로젝트에 새 kangcrm-drive-upload.gs를 통째로 붙여넣기 → [배포] → [배포 관리] → ✏️ → 버전: 새 버전 → [배포] (주소는 그대로)\n\n앞으로 올리는 서류는 지금도 PDF 한 묶음으로 올라가요.`);
+                customAlert(e.message || '합치지 못했어요.');
+            }
+        }
+        function docViewAll(cid) {   // 👀 한 번에 보기 (구글 드라이브 미리보기를 한 화면에)
+            const c = customerDB.find(x => x.id === cid); if (!c) return;
+            const list = docVisibleOf(c).shown;
+            const old = document.getElementById('docViewSheet'); if (old) old.remove();
+            const sh = document.createElement('div'); sh.id = 'docViewSheet';
+            sh.className = 'fixed inset-0 z-[80] flex flex-col bg-gray-900/95';
+            sh.innerHTML = `<div class="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white" style="padding-top: max(8px, env(safe-area-inset-top))"><p class="flex-1 min-w-0 text-[16px] font-bold text-gray-900 truncate">👀 ${escapeHtml(c.name || '고객')} 서류 ${list.length}개</p><button type="button" data-dv-x class="w-11 h-11 rounded-full text-gray-600 text-xl" aria-label="닫기">✕</button></div>
+                <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-[12px] text-gray-200 leading-relaxed">구글 드라이브 미리보기예요. 드라이브 권한이 있는 구글 계정으로 로그인된 폰에서 보여요 · 안 보이면 [새 창].</p>
+                ${list.map(f => `<section class="rounded-2xl bg-white overflow-hidden" data-dv="${escapeHtml(f.id)}"><div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100"><i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i><span class="flex-1 min-w-0 text-[13px] font-bold text-gray-900 truncate">${escapeHtml(f.name || '')}${f.bundle ? ` <span class="text-[11px] font-bold text-indigo-700">📑 ${Number(f.pages) || ''}쪽 묶음</span>` : ''}</span><a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700 flex items-center">새 창 ↗</a></div>
+                    ${f.fileId ? `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(f.fileId)}/preview" loading="lazy" title="${escapeHtml(f.name || '서류')}" class="block w-full border-0 bg-gray-100" style="height: ${f.bundle || /pdf/.test(f.mime || '') ? '78vh' : '62vh'}" allow="autoplay"></iframe>` : '<p class="px-3 py-6 text-center text-[13px] text-gray-500">[새 창]으로 열어 주세요</p>'}</section>`).join('')}</div>`;
+            sh.addEventListener('click', (e) => { if (e.target.closest('[data-dv-x]')) sh.remove(); });
+            document.body.appendChild(sh);
+        }
         // 고객카드 안 '서류' 칸
         function buildDocFilesHtml(c) {
-            const ids = [c.id, ...prevIdsOf(c)];   // 번호가 바뀌기 전에 올린 서류도 같이
-            const list = docFiles.filter(f => ids.includes(f.customerId));
-            const others = Math.max(0, (Number(c.docCount) || 0) - list.length);
+            const V = docVisibleOf(c), list = V.shown;   // 📑 V216 묶음에 들어간 원본은 접어 둠
+            const others = Math.max(0, (Number(c.docCount) || 0) - V.all.length);
             const mode = driveMode();
-            let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2">
-                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
-                <button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div>`;
-            h += list.length ? list.map(f => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
-                    <i class="fa-regular ${/pdf/.test(f.mime) ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
+            const row = (f) => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
+                    <i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
                     <a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>
+                    ${f.bundle ? `<span class="flex-shrink-0 text-[11px] font-bold text-white bg-indigo-600 rounded px-1.5 py-0.5" data-doc-bundle>📑 ${Number(f.pages) || ''}쪽</span>` : ''}
                     <span class="text-[11px] text-gray-500 flex-shrink-0">${escapeHtml(String(f.at || '').slice(5, 10).replace('-', '/'))} · ${escapeHtml(managerKey(f.uploaderName || '') || '')}</span>
                     <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
-                </div>`).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}</p>`);
+                </div>`;
+            let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2" data-docbox>
+                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
+                <div class="flex items-center gap-1.5">${list.length >= 2 ? '<button type="button" data-paction="docviewall" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>' : ''}<button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
+            h += list.length ? list.map(row).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}${mode !== 'off' && docBundleOn() ? ' 여러 장을 고르면 PDF 한 묶음으로 올라가요.' : ''}</p>`);
+            if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
+            if (V.inB.length) h += `<details class="mt-1.5 border-t border-gray-100 pt-1" data-doc-inb><summary class="cursor-pointer text-[12px] font-bold text-gray-500 py-1">묶음에 들어간 원본 ${V.inB.length}개</summary>${V.inB.map(row).join('')}</details>`;
             if (others && !isSuperAdmin) h += `<p class="text-xs text-gray-600 py-1 border-t border-gray-100 mt-1"><i class="fa-solid fa-paperclip"></i> 다른 직원이 올린 서류 ${others}개가 있어요 (총관리자만 볼 수 있어요)</p>`;
             return h + '</div>';
         }
@@ -21239,7 +21380,7 @@ familyStr + `\n` +
             showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
             const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
             hideUploadToast();
-            customAlert(r.errs.length ? `${r.ok}개 올렸어요.\n못 올린 것: ${r.errs.slice(0, 3).join('\n')}` : `서류 ${r.ok}개를 구글 드라이브에 올렸어요.`);
+            customAlert(r.errs.length ? `${docUpText(r)}\n못 올린 것: ${r.errs.slice(0, 3).join('\n')}` : `${docUpText(r)} (구글 드라이브)`);
         });
         function showUploadToast(t) {
             let el = document.getElementById('uploadToast');
@@ -21250,6 +21391,8 @@ familyStr + `\n` +
         profileModal.addEventListener('click', async (ev) => {
             const up = ev.target.closest('[data-paction="docup"]');
             const del = ev.target.closest('[data-docdel]');
+            if (ev.target.closest('[data-paction="docviewall"]') && currentProfileId) { docViewAll(currentProfileId); return; }   // 👀 V216
+            if (ev.target.closest('[data-paction="docmerge"]') && currentProfileId) { docMergeExisting(currentProfileId); return; }   // 📑 V216
             if (up && currentProfileId) {
                 if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
                 docTarget = customerDB.find(x => x.id === currentProfileId);
@@ -21263,9 +21406,10 @@ familyStr + `\n` +
             if (del) {
                 const f = docFiles.find(x => x.id === del.dataset.docdel);
                 if (!f) return;
-                if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)`))) return;
+                if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)${f.bundle && Array.isArray(f.partIds) && f.partIds.length ? '\n\n묶음에 들어간 원본은 다시 보이게 돼요.' : ''}`))) return;
                 try {
                     await deleteDoc(doc(db, 'doc_files', f.id));
+                    if (f.bundle && Array.isArray(f.partIds)) f.partIds.forEach(pid => { if (docFiles.some(x => x.id === pid)) saveDoc(doc(db, 'doc_files', pid), { bundledIn: '' }, { merge: true }).catch(() => {}); });   // 📑 원본 다시 보이게
                     const cc = customerDB.find(x => x.id === f.customerId) || prevOwnerOf(f.customerId, { includeTrash: false });
                     if (cc && (Number(cc.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', cc.id), { docCount: increment(-1) }, { merge: true }).catch(() => {});
                 } catch (e) { customAlert(koreanError(e, '삭제')); }
@@ -21288,14 +21432,16 @@ familyStr + `\n` +
                 ${mode === 'admin' ? `<label class="block text-xs font-bold text-gray-600">업로드 주소 (앱스 스크립트)<input id="driveScriptUrl" ${locked ? 'disabled' : ''} value="${escapeHtml(appSettings.driveScriptUrl || '')}" placeholder="https://script.google.com/macros/s/…/exec" class="mt-1 ${field}"></label>
                     <label class="block text-xs font-bold text-gray-600">업로드 비밀번호<input id="driveSecret" ${locked ? 'disabled' : ''} value="${escapeHtml(isSuperAdmin ? (appSettings.driveSecret || '') : (appSettings.driveSecret ? '••••••' : ''))}" placeholder="앱스 스크립트에 넣은 SECRET과 같게" class="mt-1 ${field}"></label>
                     <button type="button" id="driveTestBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">연결 확인</button>` : ''}
+                ${mode !== 'off' ? `<label class="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-3 py-2.5 cursor-pointer"><input type="checkbox" id="docBundleOn" ${docBundleOn() ? 'checked' : ''} ${locked ? 'disabled' : ''} class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">📑 여러 장은 PDF 한 묶음으로 올리기</span><span class="block text-xs text-gray-600 leading-relaxed">사진 · PDF를 2개 이상 고르면 한 파일로 합쳐서 올려요 · 고객카드에서 하나만 누르면 다 보여요${mode === 'admin' ? '<br>이미 올린 서류 합치기는 업로드 창구 <b>v2</b>(새 kangcrm-drive-upload.gs → 새 버전 배포)부터 돼요' : ''}</span></span></label>` : ''}
                 <p class="text-xs text-gray-500 leading-relaxed">서류 기록은 직원은 본인이 올린 것만, 👑 총관리자는 전체가 보여요. 신분증 등 민감한 서류라 드라이브 폴더는 공유하지 말고, 보관 기간이 지나면 드라이브에서 지워주세요.</p>`;
             box.querySelectorAll('input[name="driveMode"]').forEach(r => r.onchange = () => saveDriveSetting({ driveMode: r.value }));
             const ci = document.getElementById('driveClientId'); if (ci) ci.onchange = () => saveDriveSetting({ driveClientId: ci.value.trim() });
+            const bo = document.getElementById('docBundleOn'); if (bo) bo.onchange = () => saveDriveSetting({ docBundle: bo.checked });   // 📑 V216
             const su = document.getElementById('driveScriptUrl'); if (su) su.onchange = () => saveDriveSetting({ driveScriptUrl: su.value.trim() });
             const sc = document.getElementById('driveSecret'); if (sc && isSuperAdmin) sc.onchange = () => saveDriveSetting({ driveSecret: sc.value.trim() });
             const cb = document.getElementById('driveConnectBtn'); if (cb) cb.onclick = async () => { try { gisToken = null; await getDriveToken(true); customAlert('이 폰을 구글 드라이브에 연결했어요.'); renderDriveSettings(); } catch (e) { customAlert(e.message); } };
             const tb = document.getElementById('driveTestBtn'); if (tb) tb.onclick = async () => {
-                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? '✅ 업로드 창구가 정상이에요.' : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
+                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? `✅ 업로드 창구가 정상이에요.${Number(d.version) >= 2 ? ' (v2 · 예전 서류 합치기 돼요)' : '\n📑 예전 서류 합치기를 쓰려면 창구를 v2로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).'}` : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
                 catch (e) { customAlert('업로드 주소에 연결하지 못했어요. 주소와 배포 설정(액세스: 모든 사용자)을 확인해 주세요.'); }
             };
         }
@@ -21887,7 +22033,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V215';
+        const APP_VER = 'V216';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -21895,6 +22041,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V216', d: '2026-10-20', items: [
+                ['📑 서류를 2장 이상 올리면 PDF 한 묶음으로 합쳐서 올려요 (사진 · PDF 같이도) → 고객카드에서 하나만 누르면 다 보여요'],
+                ['👀 고객카드 서류 [한 번에 보기] · 📑 [PDF 한 묶음으로 합치기] (이미 올린 서류도 · 원본은 접어 둬요)'],
+                ['👑 관리자 드라이브 방식은 업로드 창구 v2(kangcrm-drive-upload.gs)를 붙여넣어야 예전 서류 합치기가 돼요', 'a']] },
             { v: 'V215', d: '2026-10-20', items: [
                 ['⚖️ 비교 안내서: 기종마다 🏷 유통망지원금(공시일 때 · 선약일 때) 칸과 ➕ 추가할인 칸을 따로 · 추가할인은 필요할 때만 [+ 추가할인]으로 (이름 · 금액 · 둘 다 / 공시만 / 선약만)'],
                 ['유통망지원금만 요금제 유지 191일 · 유통망 위약금 안내에 들어가요 (추가할인은 할부원금에서만 빠져요)']] },
