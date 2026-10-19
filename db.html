@@ -1123,8 +1123,9 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span class="text-sm text-gray-600">V198</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V199</span>
                 </div>
+                <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
             <p id="setStaffHideNote" class="hidden text-xs text-gray-500 pl-1">👑 홍보·지원금표 설정은 대표 폰에서만 보여요.</p>
         </div>
@@ -4137,6 +4138,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
                 try { renderGlobalStatsUI(); } catch (e) { /* 준비 전 */ }   // 📞 오늘 연락 숫자 = 연락 기록 기준 (V194)
+                if (!wnShownThisLoad) setTimeout(() => { try { maybeShowWhatsNew(); } catch (e) { console.warn(e); } }, 1500);   // 📢 업데이트 소식 (V199)
                 scheduleContactFlush();
                 checkPendingCallResult();
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
@@ -18631,7 +18633,94 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V198';
+        const APP_VER = 'V199';
+        /* =====================================================================
+           📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
+           · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
+           · 이 폰이 마지막으로 본 버전 다음 것부터 (최대 6개) · 👑 대표용(a) · 정산 관련(m) 줄은 볼 수 있는 폰에만
+           · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
+           ===================================================================== */
+        const WHATS_NEW = [
+            { v: 'V199', d: '2026-10-19', items: [
+                ['📢 업데이트 소식 창이 생겼어요. 새 버전이 나오면 3일 동안 앱을 열 때 떠요. [그만보기]를 체크하면 더 안 떠요.'],
+                ['설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 볼 수 있어요.']] },
+            { v: 'V198', d: '2026-10-19', items: [
+                ['📦 재고 탭 → [엑셀 · PDF로 받기]: 지금 보는 목록이나 전체 재고를 엑셀(재고 목록 + 모델별 수량)이나 PDF로 받아요.'],
+                ['📦 재고 [전체 초기화]: 재고만 / 전부 비우기 · 30일 안에 [↩ 초기화 되돌리기]', 'a']] },
+            { v: 'V197', d: '2026-10-18', items: [
+                ['📝 고객카드 → 연락 탭 맨 아래 [바뀐 기록]: 누가 언제 담당자 · 개통자 · 영업상태 등을 바꿨는지 남아요 (앱에선 못 지워요).'],
+                ['개통등록으로 남이 개통한 기록을 고칠 땐 개통직원 칸에 원래 개통자가 들어가요. 바꾸려면 확인창이 떠요.'],
+                ['설정 → 🏪 매장 운영 → 📝 고객카드 변경 기록: 매장 전체 담당 변경 · 지운 내용을 한눈에', 'a']] },
+            { v: 'V196', d: '2026-10-18', items: [
+                ['📺 유선 개통 점검: 인터넷+TV 칸 때문에 잡힌 유선(동시) 개통을 [개통 아님]으로 정리 (설정 → 🏪 매장 운영 · 정산 미입력 창)', 'a']] },
+            { v: 'V195', d: '2026-10-18', items: [
+                ['개통등록 [인터넷+TV]는 고객이 쓰는 인터넷 정보예요. 오늘 같이 판 경우만 [오늘 같이 새로 개통한 인터넷·TV예요]를 체크하세요 (체크해야 동시개통).'],
+                ['새 개통이면 전 개통의 부가 · 보험 · 미비서류 · 중고폰 · 월요금이 따라오지 않아요.'],
+                ['💰 정산 미입력 목록은 개통 10일 안 것만 보여요.', 'a']] },
+            { v: 'V194', d: '2026-10-18', items: [
+                ['📋 오늘 할 일 [✓ 끝] → 영업상태(진행중 · 방문약속 · 개통완료 · 고객거부)를 골라 같이 바꿔요. 개통완료면 개통등록이 바로 열려요.'],
+                ['💳 이중할부 칸: 스캔 화면 · 고객 정보 · 개통등록에서 예전 폰 할부를 따로 적어요.'],
+                ['📞 전화 · 문자 · AI문자 기록이 전화앱으로 넘어가도 안 빠져요. 📇 명함 보내기는 문자 숫자에서 빠져요.'],
+                ['📊 목표 창 · 담당자별 개통에 건당 평균마진', 'm']] },
+        ];
+        const WN_DAYS = 3;
+        const verNum = (v) => parseInt(String(v || '').replace(/\D/g, ''), 10) || 0;
+        function wnState() { try { return JSON.parse(localStorage.getItem('whatsNew') || 'null'); } catch (e) { return null; } }
+        function wnSave(st) { try { localStorage.setItem('whatsNew', JSON.stringify(st)); } catch (e) { /* 무시 */ } }
+        function wnSync() {   // 새 버전이면 '처음 연 날'을 오늘로 · 예전 버전은 base로 (그다음 것부터 보여줌)
+            let st = wnState();
+            if (!st || st.ver !== APP_VER) {
+                const prev = st && st.ver && verNum(st.ver) < verNum(APP_VER) ? st.ver : ((st && st.base) || '');
+                st = { ver: APP_VER, first: getTodayStr(), hide: false, base: prev };
+                wnSave(st);
+            }
+            return st;
+        }
+        function wnEntries(base) {
+            const okItem = ([, f]) => !f || (f === 'a' && isSuperAdmin) || (f === 'm' && canSeeSettle());
+            return WHATS_NEW.filter(e => verNum(e.v) <= verNum(APP_VER) && (!base || verNum(e.v) > verNum(base)))
+                .map(e => ({ ...e, items: e.items.filter(okItem) })).filter(e => e.items.length).slice(0, 6);
+        }
+        let wnShownThisLoad = false;
+        function maybeShowWhatsNew() {
+            if (wnShownThisLoad || !dbLoaded || window.__noWhatsNew) return;
+            const st = wnSync();
+            if (st.hide) return;
+            const days = Math.round((Date.parse(getTodayStr()) - Date.parse(st.first)) / 864e5);
+            if (!(days >= 0 && days < WN_DAYS)) return;
+            const list = wnEntries(st.base);
+            if (!list.length) return;
+            const shown = (id) => { const el = document.getElementById(id); return !!el && getComputedStyle(el).display !== 'none'; };
+            if (shown('customAlert') || shown('customConfirm') || shown('callResultSheet')) { setTimeout(maybeShowWhatsNew, 3000); return; }   // 다른 창이 떠 있으면 조금 뒤에
+            wnShownThisLoad = true;
+            openWhatsNew(list, WN_DAYS - days);
+        }
+        function openWhatsNew(list, daysLeft = 0) {
+            const auto = daysLeft > 0;
+            list = list || wnEntries('');
+            const old = document.getElementById('whatsNewSheet'); if (old) old.remove();
+            const sh = document.createElement('div'); sh.id = 'whatsNewSheet';
+            sh.className = 'fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/50';
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[88vh] flex flex-col" role="dialog" aria-modal="true" aria-labelledby="wnTitle">
+                <div class="px-4 pt-4 pb-2 flex items-start justify-between gap-2"><div><p id="wnTitle" class="text-[18px] font-bold text-gray-900">📢 강CRM 업데이트 소식</p><p class="text-xs text-gray-600">지금 버전 <b>${APP_VER}</b>${auto ? ' · 새로 바뀐 것만 모았어요' : ''}</p></div><button type="button" data-wn-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl flex-shrink-0" aria-label="닫기">✕</button></div>
+                <div class="px-4 overflow-y-auto flex-1 min-h-0 space-y-2.5 pb-2">${list.map(e => `<section class="rounded-xl border ${e.v === APP_VER ? 'border-indigo-200 bg-indigo-50/60' : 'border-gray-200 bg-white'} px-3 py-2.5">
+                    <p class="text-[13px] font-bold ${e.v === APP_VER ? 'text-indigo-800' : 'text-gray-700'}">${escapeHtml(e.v)}${e.v === APP_VER ? ' <span class="text-[10px] font-bold text-white bg-indigo-600 rounded px-1.5 py-0.5 align-middle">NEW</span>' : ''} <span class="font-medium text-gray-500">${escapeHtml(String(e.d).slice(5).replace('-', '/'))}</span></p>
+                    <ul class="mt-1 space-y-1">${e.items.map(([t, f]) => `<li class="flex gap-1.5 text-[14px] text-gray-800 leading-snug"><span class="text-gray-400 flex-shrink-0">•</span><span>${f === 'a' ? '<span class="text-[11px] font-bold text-amber-800 bg-amber-100 rounded px-1 mr-0.5">👑 대표</span>' : ''}${escapeHtml(t)}</span></li>`).join('')}</ul></section>`).join('') || '<p class="py-6 text-center text-sm text-gray-500">새 소식이 없어요.</p>'}</div>
+                <div class="px-4 pt-2 pb-4 border-t border-gray-100 space-y-2">
+                    ${auto ? `<label class="flex items-center gap-2 min-h-[44px] text-[15px] font-medium text-gray-800 cursor-pointer select-none"><input type="checkbox" id="wnHide" class="w-5 h-5 accent-indigo-600"> 그만보기 <span class="text-xs font-normal text-gray-500">(이번 업데이트는 다시 안 떠요)</span></label>` : ''}
+                    <button type="button" data-wn-close class="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold">확인</button>
+                    <p class="text-[11px] text-gray-500 text-center leading-relaxed">${auto ? `새 버전을 처음 연 날부터 ${WN_DAYS}일 동안 앱을 열 때마다 떠요 (${daysLeft}일 남음) · ` : ''}설정 → 앱 정보 → 📢 업데이트 소식에서 다시 볼 수 있어요</p>
+                </div></div>`;
+            sh.addEventListener('click', (e) => {
+                if (e.target !== sh && !e.target.closest('[data-wn-close]')) return;
+                const h = sh.querySelector('#wnHide');
+                if (h && h.checked) { const st = wnSync(); st.hide = true; wnSave(st); }
+                sh.remove();
+            });
+            document.body.appendChild(sh);
+        }
+        document.getElementById('whatsNewBtn').addEventListener('click', () => openWhatsNew(wnEntries(''), 0));
+        { const vl = document.getElementById('appVerLabel'); if (vl) vl.textContent = APP_VER; }
         const ACCESS_GAP = 10 * 60e3;
         let accessEmail = '', accessHbTimer = null, accessHiddenAt = 0, accessUnsub = null, accessMap = {}, accessWrite = { ok: null, err: '' };
         function accessDevice() {
