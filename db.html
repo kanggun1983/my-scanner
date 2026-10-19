@@ -480,6 +480,8 @@
                 </button>
             </div>
 
+            <!-- 🔗 바로가기 (V200) -->
+            <div id="quickLinksRow" class="hidden mb-2.5 flex-wrap items-center gap-1.5" role="navigation" aria-label="바로가기"></div>
             <!-- 📋 오늘 할 일 (V177) -->
             <button type="button" id="todoRow" class="w-full mb-2.5 min-h-[48px] px-3 py-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 flex items-center gap-2 text-left hover:bg-indigo-100">
                 <i class="fa-solid fa-list-check text-indigo-700 flex-shrink-0" aria-hidden="true"></i>
@@ -1123,7 +1125,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V199</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V200</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -4159,6 +4161,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (dbLoaded) setTimeout(() => autoReleaseProspects(), 1500);
                 if (prevLock !== `${appSettings.ownerLock}|${appSettings.actProtect}` && dbLoaded) { try { renderDB(); } catch (e) { /* 준비 전 */ } }   // 🔒 담당자 잠금을 켜고 끄면 목록 표시도 바로
                 if (document.getElementById('pushSheet').style.display === 'flex') { try { renderPushIconStrip(); } catch (e) { /* 준비 전 */ } }
+                try { renderQuickLinks(); } catch (e) { /* 준비 전 */ }   // 🔗 V200
                 migrateCardSendStatus();
                 migrateCardContact();
                 try { unifyProspectStatus(); } catch (e) { console.warn(e); }
@@ -6059,6 +6062,121 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <button type="button" data-todo-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
         }
         document.getElementById('todoRow').addEventListener('click', openTodoSheet);
+
+        /* =====================================================================
+           🔗 바로가기 (V200) — 고객 화면 맨 앞(오늘 할 일 위)에 자주 쓰는 조회 사이트
+           · 🏪 매장 공용: 매장 설정 quickLinks (👑 대표가 고치면 모든 직원 폰) · 처음엔 기본 5곳
+           · 👤 내 바로가기: 이 폰에만 (localStorage myLinks · 누구나)
+           ===================================================================== */
+        const QL_DEFAULT = [
+            { id: 'imei', name: '📵 분실폰 조회', url: 'https://www.imei.kr/user/inquire/lostInquireFree.do' },
+            { id: 'opa', name: '🔎 OPA 조회', url: 'https://tsr.opa.or.kr/m/index.html' },
+            { id: 'ict', name: '🏪 ICT마켓', url: 'https://ictmarket.or.kr:8443/main.do' },
+            { id: 'sgi', name: '🛡️ 서울보증', url: 'https://m.sgic.co.kr/biz/cmw/index.html?p=CMWCST060301F01' },
+            { id: 'credit', name: '💳 신용 조회', url: 'https://www.credit.or.kr/credit/search' }
+        ];
+        const QL_MAX = 30;
+        function qlClean(list) { return (Array.isArray(list) ? list : []).filter(x => x && x.url && qlUrl(x.url)).map(x => ({ id: String(x.id || ''), name: String(x.name || '').slice(0, 30), url: qlUrl(x.url) })).slice(0, QL_MAX); }
+        function qlUrl(u) {   // 'imei.kr/…' → 'https://imei.kr/…' · http(s)만 (다른 건 막음)
+            let v = String(u || '').trim();
+            if (!v) return '';
+            if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) v = 'https://' + v.replace(/^\/+/, '');
+            try { const x = new URL(v); return /^https?:$/.test(x.protocol) && x.hostname.includes('.') ? x.href : ''; } catch (e) { return ''; }
+        }
+        function qlStore() { return Array.isArray(appSettings.quickLinks) ? qlClean(appSettings.quickLinks) : QL_DEFAULT.slice(); }
+        function qlMine() { try { return qlClean(JSON.parse(localStorage.getItem('myLinks') || '[]')); } catch (e) { return []; } }
+        function qlSaveMine(list) { try { localStorage.setItem('myLinks', JSON.stringify(qlClean(list))); } catch (e) { /* 무시 */ } }
+        function qlNewId() { return 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+        function qlHost(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } }
+        function renderQuickLinks() {
+            const row = document.getElementById('quickLinksRow'); if (!row) return;
+            if (!settingsLoaded) { row.classList.add('hidden'); row.classList.remove('flex'); return; }
+            const chip = (x, mine) => `<a href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer" data-ql-go="1" class="h-9 px-2.5 rounded-full border ${mine ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-gray-200 bg-white text-gray-800'} text-[13px] font-bold flex items-center gap-1 whitespace-nowrap hover:bg-gray-50" title="${escapeHtml(x.url)}">${escapeHtml(x.name || qlHost(x.url))}</a>`;
+            row.innerHTML = `<span class="text-xs font-bold text-gray-500 pl-0.5">🔗 바로가기</span>${qlStore().map(x => chip(x, false)).join('')}${qlMine().map(x => chip(x, true)).join('')}<button type="button" data-ql-edit class="h-9 px-2.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700 whitespace-nowrap">＋ 추가·편집</button>`;
+            row.classList.remove('hidden'); row.classList.add('flex');
+        }
+        document.getElementById('quickLinksRow').addEventListener('click', (e) => { if (e.target.closest('[data-ql-edit]')) openQuickLinks(); });
+        let qlEditing = null;   // { scope: 'store'|'mine', id }
+        function openQuickLinks() {
+            let sh = document.getElementById('quickLinksSheet');
+            if (!sh) {
+                sh = document.createElement('div'); sh.id = 'quickLinksSheet';
+                sh.className = 'fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/50';
+                sh.addEventListener('click', async (e) => {
+                    if (e.target === sh || e.target.closest('[data-ql-close]')) { qlEditing = null; sh.remove(); return; }
+                    const act = e.target.closest('[data-ql-act]'); if (act) { await qlAction(act.dataset.qlScope, act.dataset.qlAct, act.dataset.qlId); return; }
+                    const add = e.target.closest('[data-ql-add]'); if (add) { await qlSubmit(add.dataset.qlAdd); return; }
+                    if (e.target.closest('[data-ql-reset]')) {
+                        if (!isSuperAdmin || !(await customConfirm('매장 공용 바로가기를 처음 5곳(분실폰 조회 · OPA · ICT마켓 · 서울보증 · 신용 조회)으로 되돌릴까요?'))) return;
+                        await qlSaveStore(QL_DEFAULT.slice()); return;
+                    }
+                });
+                document.body.appendChild(sh);
+            }
+            const store = qlStore(), mine = qlMine(), canStore = isSuperAdmin;
+            const row = (x, scope, i, n, can) => {
+                const ed = qlEditing && qlEditing.scope === scope && qlEditing.id === x.id;
+                const btn = (a, label, dis, cls = 'border-gray-300 text-gray-700') => `<button type="button" data-ql-act="${a}" data-ql-scope="${scope}" data-ql-id="${escapeHtml(x.id)}" ${dis ? 'disabled' : ''} class="w-9 h-9 rounded-lg border ${cls} bg-white text-[13px] font-bold disabled:opacity-30">${label}</button>`;
+                return `<li class="py-2 flex items-center gap-2 ${ed ? 'bg-indigo-50 -mx-2 px-2 rounded-lg' : ''}"><a href="${escapeHtml(x.url)}" target="_blank" rel="noopener noreferrer" class="flex-1 min-w-0"><b class="block text-[14px] text-gray-900 truncate">${escapeHtml(x.name || qlHost(x.url))}</b><span class="block text-[11px] text-gray-500 truncate">${escapeHtml(x.url)}</span></a>${can ? `${btn('up', '↑', i === 0)}${btn('down', '↓', i === n - 1)}${btn('edit', '✏️', false)}${btn('del', '🗑', false, 'border-red-200 text-red-700')}` : ''}</li>`;
+            };
+            const form = (scope) => {
+                const ed = qlEditing && qlEditing.scope === scope ? (scope === 'store' ? store : mine).find(x => x.id === qlEditing.id) : null;
+                return `<div class="grid grid-cols-[1fr_auto] gap-1.5 pt-1.5">
+                    <input type="text" id="qlName-${scope}" maxlength="30" value="${ed ? escapeHtml(ed.name) : ''}" placeholder="이름 (예: 📱 지원금 조회)" class="col-span-2 h-11 px-3 border border-gray-300 rounded-xl text-[15px]">
+                    <input type="url" id="qlUrl-${scope}" value="${ed ? escapeHtml(ed.url) : ''}" placeholder="주소 (예: www.example.co.kr)" inputmode="url" autocapitalize="off" class="h-11 px-3 border border-gray-300 rounded-xl text-[15px] min-w-0">
+                    <button type="button" data-ql-add="${scope}" class="h-11 px-4 rounded-xl ${ed ? 'bg-amber-500' : 'bg-indigo-600'} text-white text-sm font-bold whitespace-nowrap">${ed ? '고치기' : '＋ 추가'}</button>
+                    ${ed ? `<button type="button" data-ql-act="cancel" data-ql-scope="${scope}" data-ql-id="" class="col-span-2 h-9 text-xs font-bold text-gray-500">고치기 그만</button>` : ''}
+                </div>`;
+            };
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-4" role="dialog" aria-label="바로가기 편집">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">🔗 바로가기</p><p class="text-xs text-gray-600">고객 화면 맨 앞에 보여요. 누르면 새 창으로 열려요.</p></div><button type="button" data-ql-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl flex-shrink-0" aria-label="닫기">✕</button></div>
+                <section><p class="text-[13px] font-bold text-gray-700">🏪 매장 공용 <span class="font-medium text-gray-500">· 모든 직원 폰${canStore ? '' : ' · 👑 대표만 고쳐요'}</span></p>
+                    <ul class="divide-y divide-gray-100">${store.map((x, i) => row(x, 'store', i, store.length, canStore)).join('') || '<li class="py-3 text-sm text-gray-500">없어요</li>'}</ul>
+                    ${canStore ? form('store') + `<button type="button" data-ql-reset class="mt-1 h-9 text-xs font-bold text-gray-500 underline underline-offset-2">처음 5곳으로 되돌리기</button>` : ''}</section>
+                <section class="pt-1 border-t border-gray-100"><p class="text-[13px] font-bold text-sky-800 pt-3">👤 내 바로가기 <span class="font-medium text-gray-500">· 이 폰에만</span></p>
+                    <ul class="divide-y divide-gray-100">${mine.map((x, i) => row(x, 'mine', i, mine.length, true)).join('') || '<li class="py-2 text-sm text-gray-500">아직 없어요. 아래에 이름·주소를 넣고 [＋ 추가]</li>'}</ul>
+                    ${form('mine')}</section>
+                <p class="text-[11px] text-gray-500 leading-relaxed">주소는 https:// 없이 넣어도 돼요. 이름 앞에 이모지(📱 💳 🛡️)를 넣으면 찾기 쉬워요. 최대 ${QL_MAX}개씩.</p>
+                <button type="button" data-ql-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
+        }
+        async function qlSaveStore(list) {
+            if (!isSuperAdmin) return customAlert('매장 공용 바로가기는 👑 대표만 고칠 수 있어요.');
+            const clean = qlClean(list);
+            try {
+                await saveDoc(doc(db, 'smart_global', 'settings'), { quickLinks: clean }, { merge: true });
+                appSettings = { ...appSettings, quickLinks: clean }; qlEditing = null;
+                renderQuickLinks(); openQuickLinks();
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        function qlSaveScope(scope, list) { if (scope === 'store') return qlSaveStore(list); qlSaveMine(list); qlEditing = null; renderQuickLinks(); openQuickLinks(); }
+        async function qlAction(scope, act, id) {
+            if (scope === 'store' && !isSuperAdmin && act !== 'cancel') return;
+            const list = scope === 'store' ? qlStore() : qlMine(), i = list.findIndex(x => x.id === id);
+            if (act === 'cancel') { qlEditing = null; openQuickLinks(); return; }
+            if (i < 0) return;
+            if (act === 'edit') { qlEditing = { scope, id }; openQuickLinks(); const el = document.getElementById(`qlName-${scope}`); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } return; }
+            if (act === 'del') { if (!(await customConfirm(`'${list[i].name || qlHost(list[i].url)}' 바로가기를 지울까요?`))) return; list.splice(i, 1); }
+            if (act === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+            if (act === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+            await qlSaveScope(scope, list);
+        }
+        async function qlSubmit(scope) {
+            if (scope === 'store' && !isSuperAdmin) return;
+            const nameEl = document.getElementById(`qlName-${scope}`), urlEl = document.getElementById(`qlUrl-${scope}`);
+            const url = qlUrl(urlEl ? urlEl.value : '');
+            if (!url) { customAlert('주소를 정확히 넣어주세요.\n(예: www.imei.kr 또는 https://…)'); return; }
+            const name = String(nameEl ? nameEl.value : '').trim() || qlHost(url);
+            const list = scope === 'store' ? qlStore() : qlMine();
+            if (qlEditing && qlEditing.scope === scope) {
+                const i = list.findIndex(x => x.id === qlEditing.id);
+                if (i >= 0) list[i] = { ...list[i], name, url };
+            } else {
+                if (list.length >= QL_MAX) { customAlert(`바로가기는 최대 ${QL_MAX}개까지예요.`); return; }
+                list.push({ id: qlNewId(), name, url });
+            }
+            await qlSaveScope(scope, list);
+            stockToast('🔗 바로가기를 저장했어요');
+        }
 
         /* =====================================================================
            🎯 이달 개통 목표 (V177) — 👑 총관리자가 매장·직원별 목표를 넣으면 대시보드에 진행률
@@ -18633,7 +18751,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V199';
+        const APP_VER = 'V200';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -18641,6 +18759,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V200', d: '2026-10-19', items: [
+                ['🔗 고객 화면 \'오늘 할 일\' 위에 [바로가기]: 분실폰 조회 · OPA · ICT마켓 · 서울보증 · 신용 조회를 한 번에 열어요.'],
+                ['[＋ 추가·편집]으로 다른 사이트도 넣어요. 👤 내 바로가기는 이 폰에만 · 🏪 매장 공용은 대표가 넣으면 모든 직원 폰에 보여요.']] },
             { v: 'V199', d: '2026-10-19', items: [
                 ['📢 업데이트 소식 창이 생겼어요. 새 버전이 나오면 3일 동안 앱을 열 때 떠요. [그만보기]를 체크하면 더 안 떠요.'],
                 ['설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 볼 수 있어요.']] },
