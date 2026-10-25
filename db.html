@@ -1200,7 +1200,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V223</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V224</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -4265,6 +4265,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 scheduleContactFlush();
                 checkPendingCallResult();
                 try { applyCallLogs(); } catch (e) { /* 준비 전 */ }   // 📞 V221 전화 앱 통화 기록 → 연락 기록
+                try { openCustFromUrl(); } catch (e) { console.warn(e); }   // 🔗 V224 전화 앱 [강CRM 카드]
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
                 try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'cal') renderPromCalendar(); } catch (e) { /* 준비 전 */ }
             }, (error) => {
@@ -4286,6 +4287,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 try { renderQuickLinks(); } catch (e) { /* 준비 전 */ }   // 🔗 V200
                 try { pinCheckRequired(); renderPinSettings(); } catch (e) { /* 준비 전 */ }   // 🔒 V208
                 try { renderCallAppSettings(); } catch (e) { /* 준비 전 */ }   // 📞 V222
+                try { crmHrefSync(); } catch (e) { /* 준비 전 */ }   // 🔗 V224
                 migrateCardSendStatus();
                 migrateCardContact();
                 try { unifyProspectStatus(); } catch (e) { console.warn(e); }
@@ -21632,7 +21634,7 @@ familyStr + `\n` +
         function callAppOn() { try { return localStorage.getItem('callAppPaired') === '1'; } catch (e) { return false; } }
         function b64urlUtf8(str) { const b = new TextEncoder().encode(str); let bin = ''; for (let i = 0; i < b.length; i++) bin += String.fromCharCode(b[i]); return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
         function callPairUrl(u) {
-            const d = b64urlUtf8(JSON.stringify({ v: 1, rt: u.refreshToken, key: myFirebaseConfig.apiKey, pid: myFirebaseConfig.projectId, origin: location.origin, email: u.email || '', staff: getStaffName() || '', at: Date.now() }));
+            const d = b64urlUtf8(JSON.stringify({ v: 1, rt: u.refreshToken, key: myFirebaseConfig.apiKey, pid: myFirebaseConfig.projectId, origin: location.origin, href: location.origin + location.pathname, email: u.email || '', staff: getStaffName() || '', at: Date.now() }));
             return `intent://pair?d=${d}#Intent;scheme=kangcrmcall;package=kr.kangcrm.call;S.browser_fallback_url=${encodeURIComponent(callApkUrl())};end`;
         }
         function renderCallAppSettings() {
@@ -21672,6 +21674,31 @@ familyStr + `\n` +
             customAlert('이 폰의 연결 표시를 지웠어요. 강CRM에서 건 전화는 다시 강CRM이 결과를 물어봐요.\n(전화 앱 쪽 연결은 앱의 [연결 끊기]로 끊어요)');
         });
         try { renderCallAppSettings(); } catch (e) { /* 준비 전 */ }
+        // 🔗 V224 강CRM 주소를 매장 설정에 (전화 앱 [강CRM 카드]가 이 주소 + ?cust=로 열어요 · 👑 총관리자 폰 · https만)
+        let crmHrefSaving = false;
+        function crmHrefSync(href) {
+            const h = href || (location.origin + location.pathname);
+            if (!isSuperAdmin || !settingsLoaded || !db || crmHrefSaving || !/^https:\/\/[^/]+\//.test(h) || appSettings.crmHref === h) return false;
+            crmHrefSaving = true;
+            saveDoc(doc(db, 'smart_global', 'settings'), { crmHref: h }, { merge: true }).then(() => { appSettings = { ...appSettings, crmHref: h }; }).catch(e => console.warn('강CRM 주소 저장 실패:', e)).finally(() => { crmHrefSaving = false; });
+            return true;
+        }
+        // 🔗 V224 전화 앱 → 강CRM주소?cust=고객번호 → 고객 목록을 다 불러온 뒤 그 고객카드 열기 (한 번만 · 주소에서 지움)
+        let custUrlDone = false;
+        function openCustFromUrl() {
+            if (custUrlDone) return;
+            let id = '';
+            try { id = new URLSearchParams(location.search).get('cust') || ''; } catch (e) { id = ''; }
+            if (!id) { custUrlDone = true; return; }
+            if (!dbLoaded || dbLoadError) return;
+            custUrlDone = true;
+            try { const u = new URL(location.href); u.searchParams.delete('cust'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } catch (e) { /* 무시 */ }
+            const digits = String(id).replace(/\D/g, '');
+            const c = customerDB.find(x => x.id === id) || customerDB.find(x => prevIdsOf(x).includes(id)) || (digits.length >= 9 ? customerDB.find(x => String(x.phone || '').replace(/\D/g, '') === digits) : null);
+            if (!c) { customAlert('전화 앱에서 연 고객을 강CRM에서 찾지 못했어요.\n(휴지통에 있거나 이 계정이 볼 수 없는 고객일 수 있어요)'); return; }
+            try { switchTab('db'); } catch (e) { /* 무시 */ }
+            setTimeout(() => { try { window.openProfileCard(c.id); } catch (e) { console.warn(e); } }, 300);
+        }
 
         let callLogs = [], callLogsUnsubs = [];
         function attachCallLogsListener() {
@@ -22759,7 +22786,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V223';
+        const APP_VER = 'V224';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -22767,6 +22794,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V224', d: '2026-10-25', items: [
+                ['📞 전화 앱 v4: 강CRM처럼 맨 아래 고정 메뉴 (통화 기록 · 녹음 · 설정) · 통화 기록 칸에 오늘 요약 · 받은/건/부재 거르기 · 누르면 통화 한 건 화면'],
+                ['🔗 전화 앱 통화 한 건 화면의 [강CRM 카드]를 누르면 강CRM에서 그 고객카드가 바로 열려요'],
+                ['👑 각 폰의 전화 앱을 새 APK(v4)로 업데이트해 주세요 · 대표님 폰에서 강CRM을 한 번 열면 전화 앱이 강CRM 주소를 알아요', 'a']] },
             { v: 'V223', d: '2026-10-25', items: [
                 ['📞 고객카드 연락 탭: 에이닷처럼 통화 · 문자 타임라인 (날짜별 · 🎙 AI 제목 · 부재중 · 보낸 문자 내용)'],
                 ['🎙 녹음 화면: 대본 말풍선(고객 왼쪽 · 나 오른쪽) · 말풍선을 누르면 그 부분부터 재생 · 재생 속도 · 5초 앞뒤'],
