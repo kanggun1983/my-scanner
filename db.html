@@ -1099,7 +1099,7 @@
                     <button type="button" id="callUnpairBtn" class="hidden w-full h-10 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-600">이 폰 연결 표시 지우기</button>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
                         <p class="text-[14px] font-bold text-gray-900">🎙 통화 녹음 백업 · 🤖 AI 요약 <span class="text-xs font-bold text-indigo-700">(V222 · 전화 앱 v2)</span></p>
-                        <p class="text-xs text-gray-600 leading-relaxed">갤럭시 전화 앱 → ⋮ → 설정 → 통화 녹음 → '통화 자동 녹음'을 켜 두면, 전화 앱이 강CRM 고객 통화 녹음만 골라 대표님 구글 드라이브 '강CRM 녹음/월/고객' 폴더에 올려요 (지우지 않고 계속 보관). 고객카드 📞 통화 기록에서 ▶ 녹음 듣기. 서류 클라우드 백업이 '관리자 드라이브' 방식이고 업로드 창구가 v3여야 해요.</p>
+                        <p class="text-xs text-gray-600 leading-relaxed">갤럭시 전화 앱 → ⋮ → 설정 → 통화 녹음 → '통화 자동 녹음'을 켜 두면, 전화 앱이 강CRM 고객 통화 녹음만 골라 대표님 구글 드라이브 '강CRM 녹음/월/고객' 폴더에 올려요 (지우지 않고 계속 보관). 에이닷처럼 파일이 안 보이는 녹음 앱은 녹음 화면의 [공유] → '강CRM 전화' (V223 · 전화 앱 v3). 고객카드 📞 통화에서 🎙 제목을 누르면 대본 · 듣기. 서류 클라우드 백업이 '관리자 드라이브' 방식이고 업로드 창구가 v3여야 해요.</p>
                         <label class="flex items-start gap-2 text-[14px] font-bold text-gray-900"><input type="checkbox" id="callAiOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0 disabled:opacity-50"><span>🤖 녹음 AI 요약 (3줄 · 원하는 것 · 다음 할 일)<span class="block text-xs font-normal text-gray-500">녹음을 구글 AI(Gemini)에 보내 요약해요 · AI 키가 있는 폰(받은 직원 · 대표님)에서 강CRM을 열면 만들어져요 · 14MB(약 15분) 넘는 녹음은 건너뛰어요</span></span></label>
                         <p id="callRecInfo" role="status" class="text-xs font-medium text-gray-600 leading-relaxed"></p>
                     </div>
@@ -1200,7 +1200,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V222</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V223</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -8934,7 +8934,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         function closeProfileCard(fromPopState = false) {
             profileModal.style.display = 'none';
-            try { closeCallRec(); } catch (e) { /* 준비 전 */ }   // 🎙 V222
+            try { closeCallRec(); callTlAll = false; } catch (e) { /* 준비 전 */ }   // 🎙 V222 · 📞 V223
             currentProfileId = null;
             if (profileHistoryPushed) {
                 profileHistoryPushed = false;
@@ -9486,6 +9486,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function buildProfileContactTab(c) {
             let html = '';
+            try { html += buildCallTimelineHtml(c); } catch (e) { console.warn(e); }   // 📞 V223
             if (c.obMemo && c.obMemo.trim()) {
                 html += `<div class="mt-2 mb-3 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100">
                     <p class="text-[11px] font-bold text-indigo-500 mb-1">OB 메모</p>
@@ -9782,6 +9783,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (next && callResultChoice === 'visit') { update.promVisitDate = next; update.promVisitMemo = memo || '통화에서 방문 약속'; update.promVisitChk = false; }
                     else if (next) { update.promCallDate = next; update.promCallMemo = memo || `${r.label} → 다시 연락`; update.promCallChk = false; }
                 }
+                if (!lockedNow && callResultChoice !== 'missed' && !update.promCallDate && String(cur.promCallMemo || '').startsWith('📵 못 받은 전화') && !cur.promCallChk) update.promCallChk = true;   // 📵 V223 콜백 끝
                 return update;
             };
             const saveBtn = document.getElementById('callResultSave');
@@ -21683,6 +21685,7 @@ familyStr + `\n` +
                 try { applyCallLogs(); } catch (e) { console.warn(e); }
                 try { runCallAi(); } catch (e) { console.warn(e); }   // 🤖 V222
                 if (currentProfileId) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
+                try { refreshCallSheet(); } catch (e) { /* 무시 */ }   // 🎙 V223
             };
             const qs = isSuperAdmin ? [['all', collection(db, 'call_logs')]]
                 : [['up', query(collection(db, 'call_logs'), where('uploader', '==', me))], ['mg', query(collection(db, 'call_logs'), where('managerEmail', '==', me))]];
@@ -21725,13 +21728,19 @@ familyStr + `\n` +
                 if (next && L.nextKind === 'visit') { up.promVisitDate = next; up.promVisitMemo = memo || '통화에서 방문 약속'; up.promVisitChk = false; }
                 else if (next) { up.promCallDate = next; up.promCallMemo = memo || `${(r && r.label) || '통화'} → 다시 연락`; up.promCallChk = false; }
             }
+            // 📵 V223 못 받은 고객 전화 → '오늘 할 일'에 콜백 약속 (이미 열린 연락 약속이 있으면 그대로) · 그 뒤 통화가 되면 저절로 끝
+            const CBK = '📵 못 받은 전화';
+            if (!locked && L.direction === 'missed' && Date.now() - E.d.getTime() < 3 * 86400e3 && !(cur.promCallDate && !cur.promCallChk) && !up.promCallDate) {
+                up.promCallDate = E.date; up.promCallMemo = `${CBK} (${String(E.d.getHours()).padStart(2, '0')}:${String(E.d.getMinutes()).padStart(2, '0')}) → 다시 걸기`; up.promCallChk = false;
+            }
+            if (!locked && (L.direction === 'in' || L.direction === 'out') && (Number(L.durationSec) || 0) > 0 && String(cur.promCallMemo || '').startsWith(CBK) && !cur.promCallChk && !up.promCallDate) up.promCallChk = true;
             return up;
         }
         const callApplying = new Set();
         async function applyCallLogs() {
             if (!db || !dbLoaded || !callLogs.length) return;
             const me = myEmail(), now = Date.now();
-            for (const L of callLogs) {
+            for (const L of [...callLogs].reverse()) {   // 📵 V223 오래된 통화부터 (못 받은 전화 → 다시 건 통화 순서대로 콜백 약속이 끝나게)
                 if (L.applied || callApplying.has(L.id)) continue;
                 const mine = !!me && L.uploader === me;
                 const stale = isSuperAdmin && now - (Date.parse(L.at || '') || now) > 30 * 60 * 1000;
@@ -21778,20 +21787,25 @@ familyStr + `\n` +
            · ▶ 녹음 듣기 = 업로드 창구 '받기'(v3) → 아래에 뜨는 플레이어 (고객카드가 다시 그려져도 안 끊기게 카드 밖)
            · 🤖 AI 요약 = 받은 직원 폰 (AI 키 있을 때) · 10분 넘게 안 되면 👑 대표 폰이 대신 · 한 번에 하나씩 */
         const CALL_AI_MAX = 14 * 1024 * 1024;
-        function callAiCan(L) { return !!geminiApiKey && !!L.recFileId && (isSuperAdmin || (!!myEmail() && L.uploader === myEmail())); }
+        function callAiCan(L) { return !!geminiApiKey && !!(L.recFileId || L.extText) && (isSuperAdmin || (!!myEmail() && L.uploader === myEmail())); }
         function callAiWorking(L) { return L.aiState === 'working' && Date.now() - (Date.parse(L.aiAt || '') || 0) < 15 * 60 * 1000; }
+        function callAiSumOf(L) { return (Array.isArray(L.aiSummary) ? L.aiSummary : String(L.aiSummary || '').split('\n')).map(x => String(x || '').trim()).filter(Boolean); }
+        function callAiStatusHtml(L, cls) {   // 요약 상태 한 줄 (요약이 있으면 '')
+            const st = L.aiState || '';
+            if (callAiWorking(L)) return `<p class="${cls} font-bold text-violet-700" data-callai-box>🤖 AI 요약 만드는 중…</p>`;
+            if (st === 'fail') return `<p class="${cls} text-red-700 break-words" data-callai-box>🤖 AI 요약 실패${L.aiErr ? ': ' + escapeHtml(String(L.aiErr).slice(0, 80)) : ''}</p>`;
+            if (st === 'skip') return `<p class="${cls} text-gray-500" data-callai-box>🤖 ${escapeHtml(L.aiErr || '녹음이 길어서 AI 요약은 건너뛰었어요')}</p>`;
+            if (st !== 'done' && callAiOn() && !callAiCan(L)) return `<p class="${cls} text-gray-500" data-callai-box>🤖 AI 요약 전 (AI 키가 있는 받은 직원 · 대표님 폰에서 만들어져요)</p>`;
+            return '';
+        }
+        function callChipLabel(L) { return L.aiTitle ? `🎙 ${L.aiTitle}` : (L.recFileId ? '🎙 녹음 듣기' : '📝 공유한 대본'); }
+        // 🎙 V223 통화 한 건의 녹음 칸: AI 제목 칩(누르면 녹음 화면) · 요약 첫 줄 · 다음 할 일
         function callRecHtml(L) {
-            if (!L.recFileId) return '';
-            const id = escapeHtml(L.id), can = callAiCan(L), st = L.aiState || '', btn = 'h-8 px-2.5 rounded-lg text-xs font-bold';
-            const sum = Array.isArray(L.aiSummary) ? L.aiSummary : String(L.aiSummary || '').split('\n');
-            let ai = '';
-            if (st === 'done') ai = `<div class="mt-1.5 rounded-lg bg-violet-50 border border-violet-100 px-2.5 py-1.5" data-callai-box><p class="text-[11px] font-bold text-violet-800">🤖 AI 요약</p>${sum.filter(Boolean).slice(0, 3).map(x => `<p class="text-[12px] text-gray-800 leading-snug">• ${escapeHtml(x)}</p>`).join('')}${L.aiWants ? `<p class="text-[12px] text-gray-800 leading-snug mt-0.5">🎯 원하는 것: ${escapeHtml(L.aiWants)}</p>` : ''}${L.aiNext ? `<p class="text-[12px] text-gray-800 leading-snug">➡️ 다음 할 일: ${escapeHtml(L.aiNext)}</p>` : ''}</div>`;
-            else if (callAiWorking(L)) ai = '<p class="text-[11px] font-bold text-violet-700 mt-1" data-callai-box>🤖 AI 요약 만드는 중…</p>';
-            else if (st === 'fail') ai = `<p class="text-[11px] text-red-700 mt-1 break-words" data-callai-box>🤖 AI 요약 실패${L.aiErr ? ': ' + escapeHtml(String(L.aiErr).slice(0, 80)) : ''}</p>`;
-            else if (st === 'skip') ai = `<p class="text-[11px] text-gray-500 mt-1" data-callai-box>🤖 ${escapeHtml(L.aiErr || '녹음이 길어서 AI 요약은 건너뛰었어요')}</p>`;
-            else if (callAiOn() && !can) ai = '<p class="text-[11px] text-gray-500 mt-1" data-callai-box>🤖 AI 요약 전 (AI 키가 있는 받은 직원 · 대표님 폰에서 만들어져요)</p>';
-            const aiBtn = can && !callAiWorking(L) && st !== 'skip' ? `<button type="button" data-callai="${id}" class="${btn} border border-violet-200 bg-white text-violet-800">🤖 ${st === 'done' || st === 'fail' ? '다시 요약' : 'AI 요약'}</button>` : '';
-            return `<div class="mt-1 flex flex-wrap items-center gap-1.5"><button type="button" data-callrec="${id}" class="${btn} border border-indigo-200 bg-indigo-50 text-indigo-800">▶ 녹음 듣기</button>${aiBtn}${L.recSize ? `<span class="text-[11px] text-gray-400">${(Number(L.recSize) / 1048576).toFixed(1)}MB</span>` : ''}</div>${ai}`;
+            if (!L.recFileId && !L.extText) return '';
+            const id = escapeHtml(L.id), st = L.aiState || '', btn = 'h-8 px-2.5 rounded-lg text-xs font-bold', sum = callAiSumOf(L), done = st === 'done';
+            const aiBtn = callAiCan(L) && !callAiWorking(L) && st !== 'skip' && !done ? `<button type="button" data-callai="${id}" class="${btn} border border-violet-200 bg-white text-violet-800">🤖 ${st === 'fail' ? '다시 요약' : 'AI 요약'}</button>` : '';
+            const sub = done ? `<div class="mt-1 text-[12px] text-gray-700 leading-snug break-words" data-callai-box>${sum[0] ? `• ${escapeHtml(sum[0])}` : ''}${L.aiNext ? `<br>➡️ ${escapeHtml(L.aiNext)}` : ''}</div>` : callAiStatusHtml(L, 'text-[11px] mt-1');
+            return `<div class="mt-1 flex flex-wrap items-center gap-1.5"><button type="button" data-callrec="${id}" class="max-w-full truncate ${btn} border border-indigo-200 bg-indigo-50 text-indigo-800">${escapeHtml(callChipLabel(L))}</button>${aiBtn}${L.recSize ? `<span class="text-[11px] text-gray-400">${(Number(L.recSize) / 1048576).toFixed(1)}MB</span>` : ''}</div>${sub}`;
         }
         const callRecUrls = new Map();   // 받은 녹음 (최근 4개)
         async function callRecBlob(L) {
@@ -21810,68 +21824,182 @@ familyStr + `\n` +
             while (callRecUrls.size > 4) { const k = callRecUrls.keys().next().value; try { URL.revokeObjectURL(callRecUrls.get(k).url); } catch (e) { /* 무시 */ } callRecUrls.delete(k); }
             return callRecUrls.get(L.id);
         }
+        /* 🎙 V223 녹음 화면 (에이닷처럼) — 제목 · 날짜 · 번호 · 🤖 요약 · 대본 말풍선(고객 왼쪽 · 나 오른쪽 · 누르면 그 부분부터) · 아래 플레이어(속도 · 5초 앞뒤)
+           · 통화 기록이 바뀌면(요약 완료) 가운데만 다시 그림 → 듣던 녹음은 안 끊김 */
+        const CALL_SPEEDS = [1, 1.25, 1.5, 2], CALL_SPEED_LABEL = { 1: '1.0x', 1.25: '1.25x', 1.5: '1.5x', 2: '2.0x' };
+        function callAtSec(s) { const m = /^(\d{1,3}):(\d{2})$/.exec(String(s || '').trim()); return m ? (+m[1]) * 60 + (+m[2]) : -1; }
+        function callFmtSec(v) { v = Math.max(0, Math.floor(Number(v) || 0)); return `${String(Math.floor(v / 60)).padStart(2, '0')}:${String(v % 60).padStart(2, '0')}`; }
+        function callWhenLong(L) {
+            const d = new Date(L.startedAt || L.at || 0); if (isNaN(d.getTime())) return '';
+            const h = d.getHours();
+            return `${d.getMonth() + 1}. ${d.getDate()}.(${'일월화수목금토'[d.getDay()]}) ${h < 12 ? '오전' : '오후'} ${h % 12 === 0 ? 12 : h % 12}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+        function callDirLabel(L) {
+            const dur = Number(L.durationSec) || 0, t = dur ? ` ${dur >= 60 ? `${Math.floor(dur / 60)}분 ${dur % 60}초` : `${dur}초`}` : '';
+            return L.direction === 'in' ? `수신 통화${t}` : (L.direction === 'missed' ? '부재중 전화' : (L.direction === 'noanswer' ? '발신 연결 안됨' : `발신 통화${t}`));
+        }
+        function callSheetBody(L) {
+            const id = escapeHtml(L.id), st = L.aiState || '', sum = callAiSumOf(L);
+            const tr = Array.isArray(L.aiTranscript) ? L.aiTranscript.filter(x => x && x.t) : [];
+            let h = '';
+            if (st === 'done') h += `<section class="rounded-2xl bg-violet-50 border border-violet-100 px-3.5 py-3" data-crs-sum><p class="text-[12px] font-bold text-violet-800">🤖 AI 요약</p>${sum.slice(0, 3).map(x => `<p class="text-[14px] text-gray-800 leading-snug mt-0.5">• ${escapeHtml(x)}</p>`).join('')}${L.aiWants ? `<p class="text-[14px] text-gray-800 mt-1">🎯 원하는 것: ${escapeHtml(L.aiWants)}</p>` : ''}${L.aiNext ? `<p class="text-[14px] text-gray-800">➡️ 다음 할 일: ${escapeHtml(L.aiNext)}</p>` : ''}${L.aiNote ? `<p class="text-[11px] text-gray-500 mt-1">${escapeHtml(L.aiNote)}</p>` : ''}</section>`;
+            else { const x = callAiStatusHtml(L, 'text-[13px]'); if (x) h += `<section class="rounded-2xl bg-gray-50 border border-gray-200 px-3.5 py-2.5">${x}</section>`; }
+            if (callAiCan(L) && !callAiWorking(L) && st !== 'skip') h += `<div class="mt-2 flex justify-end"><button type="button" data-crs-ai="${id}" class="h-9 px-3 rounded-lg border border-violet-200 bg-white text-xs font-bold text-violet-800">🤖 ${st === 'done' ? (tr.length ? '다시 만들기' : '📝 대본 만들기') : 'AI 요약 · 대본 만들기'}</button></div>`;
+            h += '<p class="text-[13px] font-bold text-gray-500 mt-4 mb-2">녹음 내용</p>';
+            if (tr.length) {
+                h += `<div class="space-y-2" data-crs-tr>${tr.map((x, i) => {
+                    const me = x.s === 'me', sec = callAtSec(x.at);
+                    return `<div class="flex ${me ? 'justify-end' : 'justify-start'}"><button type="button" data-crs-at="${sec}" data-crs-i="${i}" class="max-w-[82%] text-left rounded-2xl px-3.5 py-2 text-[14px] leading-snug transition ${me ? 'bg-gray-200 text-gray-900' : 'bg-white border border-gray-300 text-gray-900'}">${escapeHtml(x.t)}${sec >= 0 ? `<span class="block text-[10px] text-gray-400 mt-0.5">${callFmtSec(sec)}</span>` : ''}</button></div>`;
+                }).join('')}</div>`;
+            } else if (L.extText) h += `<div class="rounded-2xl border border-gray-200 bg-white px-3.5 py-2.5" data-crs-ext><p class="text-[11px] font-bold text-gray-500 mb-1">📝 공유한 대본</p><p class="text-[14px] text-gray-800 whitespace-pre-wrap break-words">${escapeHtml(String(L.extText).slice(0, 12000))}</p></div>`;
+            else h += `<p class="text-[13px] text-gray-500">${st === 'done' ? '이 녹음은 요약만 있고 대본은 없어요 (위 [📝 대본 만들기])' : '대본은 AI 요약을 만들 때 같이 만들어져요'}</p>`;
+            return h;
+        }
+        function refreshCallSheet() {
+            const el = document.getElementById('callRecSheet'); if (!el) return;
+            const L = callLogs.find(x => x.id === el.dataset.id); if (!L) return;
+            const b = el.querySelector('[data-crs-body]'); if (b) b.innerHTML = callSheetBody(L);
+            const t = el.querySelector('[data-crs-title]'); if (t) t.textContent = L.aiTitle || (L.recFileId ? '통화 녹음' : '공유한 대본');
+        }
+        async function callAiFromSheet(id, btn) {
+            const L = callLogs.find(x => x.id === id); if (!L) return;
+            if (!geminiApiKey) return customAlert('설정 탭에서 [AI 키]를 먼저 넣어주세요.');
+            if (callAiBusy) return customAlert('다른 녹음을 요약하는 중이에요. 잠시 뒤 다시 눌러 주세요.');
+            btn.disabled = true; btn.textContent = '🤖 만드는 중… (1분쯤)';
+            callAiBusy = true;
+            try { const ok = await callAiOne(L, true); if (!ok) customAlert('AI 요약을 만들지 못했어요. 녹음 화면의 이유를 확인해 주세요.'); }
+            finally { callAiBusy = false; refreshCallSheet(); }
+        }
         async function openCallRec(id) {
-            const L = callLogs.find(x => x.id === id); if (!L || !L.recFileId) return;
+            const L = callLogs.find(x => x.id === id); if (!L || (!L.recFileId && !L.extText)) return;
             closeCallRec();
-            const host = document.getElementById('profileActions'); if (!host) return;
-            const d = new Date(L.startedAt || L.at || 0), two = (n) => String(n).padStart(2, '0');
-            const when = isNaN(d.getTime()) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${two(d.getHours())}:${two(d.getMinutes())}`;
+            const c = customerDB.find(x => x.id === L.customerId) || customerDB.find(x => prevIdsOf(x).includes(L.customerId));
+            const who = [L.phone ? formatPhone(String(L.phone)) : '', (c && c.name) || L.customerName || '', callDirLabel(L)].filter(x => x && x !== '-').join(' · ');
             const el = document.createElement('div');
-            el.id = 'callRecPlayer'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', '통화 녹음 듣기');
-            el.className = 'flex-shrink-0 border-t border-indigo-100 bg-indigo-50 px-3 py-2';   // 고객카드 아래 버튼 줄 바로 위 (카드 내용이 다시 그려져도 그대로 · 내용을 가리지 않게)
-            el.innerHTML = `<div class="flex items-center gap-2"><p class="min-w-0 flex-1 text-[14px] font-bold text-gray-900 truncate">🎙 ${escapeHtml(L.customerName || '')} · ${escapeHtml(when)}</p><button type="button" data-crp-close class="w-9 h-9 rounded-lg text-gray-500 hover:bg-white" aria-label="녹음 닫기"><i class="fa-solid fa-xmark"></i></button></div>
-                <p data-crp-msg class="text-xs text-gray-600 mt-1">녹음 받는 중…</p><audio data-crp-audio controls class="w-full mt-2 hidden"></audio>
-                ${/^https:\/\//.test(L.recUrl || '') ? `<a href="${escapeHtml(L.recUrl)}" target="_blank" rel="noopener" class="hidden mt-2 text-xs font-bold text-indigo-700 underline" data-crp-drive>구글 드라이브에서 열기</a>` : ''}`;
-            el.querySelector('[data-crp-close]').onclick = closeCallRec;
-            host.parentNode.insertBefore(el, host);
-            const msg = el.querySelector('[data-crp-msg]'), au = el.querySelector('[data-crp-audio]');
+            el.id = 'callRecSheet'; el.dataset.id = L.id; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', '통화 녹음');
+            el.className = 'fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/50';
+            el.innerHTML = `<div class="bg-white w-full sm:max-w-md max-h-[94vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+                <div class="flex items-center gap-2 px-3 pt-3 flex-shrink-0"><button type="button" data-crs-close class="w-10 h-10 rounded-full text-gray-600 hover:bg-gray-100" aria-label="녹음 화면 닫기"><i class="fa-solid fa-chevron-left"></i></button><span class="flex-1"></span>${/^https:\/\//.test(L.recUrl || '') ? `<a href="${escapeHtml(L.recUrl)}" target="_blank" rel="noopener" data-crs-drive class="h-9 px-3 rounded-lg text-xs font-bold text-gray-600 flex items-center hover:bg-gray-100">드라이브에서 열기</a>` : ''}</div>
+                <div class="px-5 pb-3 flex-shrink-0"><h2 data-crs-title class="text-[22px] font-extrabold text-gray-900 leading-tight break-words">${escapeHtml(L.aiTitle || (L.recFileId ? '통화 녹음' : '공유한 대본'))}</h2>
+                    <p class="text-[13px] text-gray-500 mt-1">${escapeHtml(callWhenLong(L))}</p><p class="text-[13px] text-gray-500">${escapeHtml(who)}${L.staff ? ` · ${escapeHtml(L.staff)}` : ''}</p></div>
+                <div data-crs-body class="flex-1 overflow-y-auto px-4 pb-4 pt-3 border-t border-gray-100">${callSheetBody(L)}</div>
+                ${L.recFileId ? `<div data-crs-player class="flex-shrink-0 border-t border-gray-100 px-5 pt-2 pb-4 bg-white">
+                    <p data-crs-msg class="text-xs text-gray-500 mb-1 whitespace-pre-line">녹음 받는 중…</p>
+                    <input type="range" data-crs-seek min="0" max="0" step="0.1" value="0" disabled aria-label="재생 위치" class="w-full accent-indigo-600">
+                    <div class="flex justify-between text-[12px] text-gray-500"><span data-crs-cur>00:00</span><span data-crs-dur>00:00</span></div>
+                    <div class="flex items-center justify-between mt-1">
+                        <button type="button" data-crs-speed class="w-16 h-11 rounded-full bg-gray-100 text-[14px] font-bold text-gray-800" aria-label="재생 속도">1.0x</button>
+                        <div class="flex items-center gap-4">
+                            <button type="button" data-crs-back class="w-11 h-11 rounded-full text-gray-700 hover:bg-gray-100 text-[13px] font-bold" aria-label="5초 뒤로">↺5</button>
+                            <button type="button" data-crs-play disabled class="w-14 h-14 rounded-full bg-indigo-600 text-white text-xl disabled:opacity-40" aria-label="재생"><i class="fa-solid fa-play"></i></button>
+                            <button type="button" data-crs-fwd class="w-11 h-11 rounded-full text-gray-700 hover:bg-gray-100 text-[13px] font-bold" aria-label="5초 앞으로">5↻</button>
+                        </div>
+                        <span class="w-16"></span>
+                    </div>
+                    <audio data-crs-audio preload="auto" class="hidden"></audio>
+                </div>` : ''}
+            </div>`;
+            document.body.appendChild(el);
+            const au = el.querySelector('[data-crs-audio]'), seek = el.querySelector('[data-crs-seek]'), playBtn = el.querySelector('[data-crs-play]');
+            el.addEventListener('click', (e) => {
+                if (e.target === el || e.target.closest('[data-crs-close]')) { closeCallRec(); return; }
+                const ai = e.target.closest('[data-crs-ai]'); if (ai) { callAiFromSheet(L.id, ai); return; }
+                if (!au) return;
+                const at = e.target.closest('[data-crs-at]');
+                if (at) { const sec = Number(at.dataset.crsAt); if (sec >= 0 && au.src) { au.currentTime = sec; au.play().catch(() => { /* 눌러서 재생 */ }); } return; }
+                if (e.target.closest('[data-crs-play]')) { if (au.paused) au.play().catch(() => { /* 무시 */ }); else au.pause(); return; }
+                if (e.target.closest('[data-crs-back]')) { au.currentTime = Math.max(0, (au.currentTime || 0) - 5); return; }
+                if (e.target.closest('[data-crs-fwd]')) { au.currentTime = Math.min(au.duration || 0, (au.currentTime || 0) + 5); return; }
+                const sp = e.target.closest('[data-crs-speed]');
+                if (sp) { const i = (CALL_SPEEDS.indexOf(au.playbackRate) + 1) % CALL_SPEEDS.length; au.playbackRate = CALL_SPEEDS[i]; sp.textContent = CALL_SPEED_LABEL[CALL_SPEEDS[i]]; }
+            });
+            if (!au) return;
+            let lastHi = -1;
+            const hi = () => {   // 지금 나오는 말풍선 표시
+                const t = au.currentTime || 0, bs = [...el.querySelectorAll('[data-crs-at]')];
+                let k = -1; bs.forEach((b, i) => { const v = Number(b.dataset.crsAt); if (v >= 0 && v <= t + 0.3) k = i; });
+                if (k === lastHi) return; lastHi = k;
+                bs.forEach((b, i) => b.classList.toggle('ring-2', i === k));
+                bs.forEach((b, i) => b.classList.toggle('ring-indigo-400', i === k));
+            };
+            au.addEventListener('loadedmetadata', () => { seek.max = String(au.duration || 0); el.querySelector('[data-crs-dur]').textContent = callFmtSec(au.duration); });
+            au.addEventListener('timeupdate', () => { seek.value = String(au.currentTime || 0); el.querySelector('[data-crs-cur]').textContent = callFmtSec(au.currentTime); hi(); });
+            au.addEventListener('play', () => { playBtn.innerHTML = '<i class="fa-solid fa-pause"></i>'; playBtn.setAttribute('aria-label', '멈춤'); });
+            au.addEventListener('pause', () => { playBtn.innerHTML = '<i class="fa-solid fa-play"></i>'; playBtn.setAttribute('aria-label', '재생'); });
+            seek.addEventListener('input', () => { au.currentTime = Number(seek.value) || 0; });
+            const msg = el.querySelector('[data-crs-msg]');
             try {
                 const r = await callRecBlob(L);
                 if (!el.isConnected) return;
-                au.src = r.url; au.classList.remove('hidden'); msg.textContent = `${(r.blob.size / 1048576).toFixed(1)}MB · ${L.staff || ''}`;
-                au.play().catch(() => { /* 눌러서 재생 */ });
+                au.src = r.url; seek.disabled = false; playBtn.disabled = false;
+                msg.textContent = `${(r.blob.size / 1048576).toFixed(1)}MB`;
             } catch (e) {
                 msg.textContent = '❌ ' + ((e && e.message) || '녹음을 받지 못했어요');
-                msg.className = 'text-xs font-medium text-red-700 mt-1 whitespace-pre-line';
-                el.querySelector('[data-crp-drive]')?.classList.remove('hidden');
+                msg.className = 'text-xs font-medium text-red-700 mb-1 whitespace-pre-line';
             }
         }
-        function closeCallRec() { const el = document.getElementById('callRecPlayer'); if (!el) return; try { el.querySelector('audio').pause(); } catch (e) { /* 무시 */ } el.remove(); }
+        function closeCallRec() {
+            ['callRecSheet', 'callRecPlayer'].forEach(k => { const el = document.getElementById(k); if (!el) return; el.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) { /* 무시 */ } }); el.remove(); });
+        }
+        function callAiMask(t) {
+            return String(t || '')
+                .replace(/\b\d{6}\s*-\s*[1-4]\d{6}\b/g, '******-*******')          // 주민등록번호
+                .replace(/\b\d{6}[1-4]\d{6}\b/g, '*************')
+                .replace(/\b\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}\b/g, '****-****-****-****')   // 카드번호
+                .replace(/\b[1-9]\d{2,5}-\d{2,6}-\d{4,8}\b/g, '***-**-*****');      // 계좌번호 (0으로 시작하는 전화번호는 그대로)
+        }
         function callAiParse(text) {
             let t = String(text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
             const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) t = t.slice(a, b + 1);
             const j = JSON.parse(t);
-            const sum = (Array.isArray(j.summary) ? j.summary : String(j.summary || '').split('\n')).map(x => String(x || '').replace(/^[\s•\-·]+/, '').trim()).filter(Boolean).slice(0, 3).map(x => x.slice(0, 120));
-            return { aiSummary: sum.length ? sum : ['통화 내용이 거의 없어요'], aiWants: String(j.wants || '').trim().slice(0, 160), aiNext: String(j.next || '').trim().slice(0, 160) };
+            const sum = (Array.isArray(j.summary) ? j.summary : String(j.summary || '').split('\n')).map(x => callAiMask(String(x || '').replace(/^[\s•\-·]+/, '').trim())).filter(Boolean).slice(0, 3).map(x => x.slice(0, 120));
+            const tr = (Array.isArray(j.transcript) ? j.transcript : []).map(x => ({ s: x && (x.s === 'me' || x.s === 'staff' || x.s === '직원') ? 'me' : 'cu', t: callAiMask(String((x && (x.t || x.text)) || '').replace(/\s+/g, ' ').trim()).slice(0, 240), at: /^\d{1,3}:\d{2}$/.test(String((x && x.at) || '').trim()) ? String(x.at).trim() : '' })).filter(x => x.t).slice(0, 150);
+            return { aiTitle: callAiMask(String(j.title || '').trim()).slice(0, 40), aiSummary: sum.length ? sum : ['통화 내용이 거의 없어요'], aiWants: callAiMask(String(j.wants || '').trim()).slice(0, 160), aiNext: callAiMask(String(j.next || '').trim()).slice(0, 160), aiTranscript: tr };
         }
         let callAiBusy = false;
         const callAiTried = new Set();
+        const CALL_AI_SCHEMA = `{"title": "통화 내용 한 줄 (20자 안쪽 · 예: 휴대폰 결합 관련 정보 전달)", "summary": ["핵심 1", "핵심 2", "핵심 3"], "wants": "고객이 원하는 것", "next": "직원이 다음에 할 일", "transcript": [{"s": "cu", "t": "고객이 한 말", "at": "0:03"}, {"s": "me", "t": "직원이 한 말", "at": "0:07"}]}`;
+        const CALL_AI_RULES = `규칙: s는 고객이면 "cu", 매장 직원이면 "me" · at은 그 말이 시작된 시각(분:초 · 모르면 빈 문자열) · transcript는 말한 차례마다 한 줄 · 최대 120줄 · 한 줄 120자 안쪽 (길면 중요한 부분 위주로 줄이기) · summary는 1~3줄 · 한 줄 40자 안쪽 · 요금제 · 기종 · 금액 · 날짜가 나오면 꼭 넣기 · wants · next는 없으면 빈 문자열 · 주민등록번호 · 카드번호 · 계좌번호는 '***'로 가리기 · 통화 내용이 거의 없으면 summary에 "통화 내용이 거의 없어요" 한 줄 · transcript는 빈 배열.`;
         async function callAiOne(L, force) {
             const ref = doc(db, 'call_logs', L.id), me = myEmail();
             const ok = await runTransaction(db, async (tx) => {
                 const snap = await tx.get(ref);
                 if (!snap.exists()) return false;
                 const d = snap.data();
-                if (!d.recFileId) return false;
+                if (!d.recFileId && !d.extText) return false;
                 if (d.aiState === 'working' && Date.now() - (Date.parse(d.aiAt || '') || 0) < 15 * 60 * 1000) return false;
                 if (d.aiState && d.aiState !== 'working' && !force) return false;
                 tx.update(ref, { aiState: 'working', aiAt: new Date().toISOString(), aiBy: me });
                 return true;
             });
             if (!ok) return false;
+            const skip = () => updateDoc(ref, { aiState: 'skip', aiErr: '녹음이 길어서(14MB 넘음) AI 요약은 건너뛰었어요', aiAt: new Date().toISOString() }).then(() => true);
             try {
-                if (Number(L.recSize) > CALL_AI_MAX) { await updateDoc(ref, { aiState: 'skip', aiErr: '녹음이 길어서(14MB 넘음) AI 요약은 건너뛰었어요', aiAt: new Date().toISOString() }); return true; }
-                const r = await callRecBlob(L);
-                if (r.blob.size > CALL_AI_MAX) { await updateDoc(ref, { aiState: 'skip', aiErr: '녹음이 길어서(14MB 넘음) AI 요약은 건너뛰었어요', aiAt: new Date().toISOString() }); return true; }
-                const b64 = await fileToB64(r.blob);
-                let mime = String(r.mime || 'audio/mp4').toLowerCase();
-                if (/m4a|x-m4a|aac|3gpp|mp4/.test(mime) || /\.m4a$/i.test(L.recName || '')) mime = 'audio/mp4';
-                const prompt = `이 녹음은 휴대폰 매장 직원과 고객(${L.customerName || '고객'})의 전화 통화예요. 한국어로 짧게 정리해서 JSON으로만 답해 주세요.
-{"summary": ["핵심 1", "핵심 2", "핵심 3"], "wants": "고객이 원하는 것", "next": "직원이 다음에 할 일"}
-규칙: summary는 1~3줄 · 한 줄에 40자 안쪽 · 요금제 · 기종 · 금액 · 날짜가 나오면 꼭 넣기 · wants · next는 없으면 빈 문자열 · 주민등록번호 · 카드번호 · 계좌번호는 절대 쓰지 말기 · 통화 내용이 거의 없으면 summary에 "통화 내용이 거의 없어요" 한 줄.`;
-                const res = await callGemini({ contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mime, data: b64 } }, { text: prompt }] }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, { timeoutMs: 120000 });
-                const out = callAiParse(res.text);
-                await updateDoc(ref, { ...out, aiState: 'done', aiErr: '', aiAt: new Date().toISOString(), aiModel: res.model || '' });
+                const who = L.customerName || '고객';
+                let parts, src;
+                if (L.recFileId) {
+                    if (Number(L.recSize) > CALL_AI_MAX) return await skip();
+                    const r = await callRecBlob(L);
+                    if (r.blob.size > CALL_AI_MAX) return await skip();
+                    const b64 = await fileToB64(r.blob);
+                    let mime = String(r.mime || 'audio/mp4').toLowerCase();
+                    if (/m4a|x-m4a|3gpp|mp4/.test(mime) || /\.m4a$/i.test(L.recName || '')) mime = 'audio/mp4';
+                    parts = [{ inlineData: { mimeType: mime, data: b64 } }, { text: `이 녹음은 휴대폰 매장 직원과 고객(${who})의 전화 통화예요. 한국어로 JSON으로만 답해 주세요.\n${CALL_AI_SCHEMA}\n${CALL_AI_RULES}` }];
+                    src = 'audio';
+                } else {
+                    parts = [{ text: `아래 글은 휴대폰 매장 직원과 고객(${who})의 전화 통화를 다른 앱이 받아쓴 내용이에요. 한국어로 JSON으로만 답해 주세요. (at은 글에 시각이 있으면 그대로, 없으면 빈 문자열)\n${CALL_AI_SCHEMA}\n${CALL_AI_RULES}\n\n--- 받아쓴 내용 ---\n${String(L.extText).slice(0, 12000)}` }];
+                    src = 'text';
+                }
+                const res = await callGemini({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 8192 } }, { timeoutMs: 150000 });
+                let out, note = '';
+                try { out = callAiParse(res.text); }
+                catch (pe) {   // 대본이 너무 길어 답이 잘림 → 요약만 다시
+                    const short = `휴대폰 매장 직원과 고객(${who})의 전화 통화예요. 한국어로 JSON으로만 답해 주세요.\n{"title": "통화 내용 한 줄 (20자 안쪽)", "summary": ["핵심 1", "핵심 2", "핵심 3"], "wants": "고객이 원하는 것", "next": "직원이 다음에 할 일"}\n규칙: summary 1~3줄 · 한 줄 40자 안쪽 · 주민등록번호 · 카드번호 · 계좌번호는 쓰지 말기.`;
+                    const p2 = src === 'audio' ? [parts[0], { text: `이 녹음은 ${short}` }] : [{ text: `아래 글은 ${short}\n\n--- 받아쓴 내용 ---\n${String(L.extText).slice(0, 12000)}` }];
+                    const r2 = await callGemini({ contents: [{ role: 'user', parts: p2 }], generationConfig: { responseMimeType: 'application/json', temperature: 0.2 } }, { timeoutMs: 120000 });
+                    out = callAiParse(r2.text); out.aiTranscript = []; note = '통화가 길어서 대본 없이 요약만 만들었어요';
+                }
+                await updateDoc(ref, { ...out, aiNote: note, aiSrc: src, aiState: 'done', aiErr: '', aiAt: new Date().toISOString(), aiModel: res.model || '' });
                 return true;
             } catch (e) {
                 console.warn('통화 AI 요약 실패:', e);
@@ -21883,11 +22011,11 @@ familyStr + `\n` +
             if (callAiBusy || !db || !callAiOn() || !geminiApiKey || !callLogs.length) return;
             const me = myEmail(), now = Date.now();
             const todo = callLogs.filter(L => {
-                if (!L.recFileId || callAiTried.has(L.id) || !callAiCan(L)) return false;
-                const fresh = now - (Date.parse(L.recAt || L.at || '') || 0) < 7 * 86400e3;   // 일주일 안 녹음만 자동으로
+                if (!(L.recFileId || L.extText) || callAiTried.has(L.id) || !callAiCan(L)) return false;
+                const fresh = now - (Date.parse(L.recAt || L.extAt || L.at || '') || 0) < 7 * 86400e3;   // 일주일 안 녹음만 자동으로
                 if (!fresh) return false;
                 if (L.aiState && !(L.aiState === 'working' && !callAiWorking(L))) return false;
-                return L.uploader === me || now - (Date.parse(L.recAt || L.at || '') || now) > 10 * 60 * 1000;   // 대표 폰은 10분 기다렸다가 대신
+                return L.uploader === me || now - (Date.parse(L.recAt || L.extAt || L.at || '') || now) > 10 * 60 * 1000;   // 대표 폰은 10분 기다렸다가 대신
             });
             if (!todo.length) return;
             callAiBusy = true;
@@ -21905,6 +22033,45 @@ familyStr + `\n` +
             callAiBusy = true;
             try { const ok = await callAiOne(L, true); if (!ok) customAlert('AI 요약을 만들지 못했어요. 통화 기록 칸의 이유를 확인해 주세요.'); }
             finally { callAiBusy = false; }
+        });
+        /* 📞 V223 통화 · 문자 타임라인 (에이닷처럼 날짜별) — 전화 앱 통화 기록 + 강CRM에서 보낸 문자(내용) + 강CRM에서 건 전화(전화 앱 기록이 없을 때)
+           · 삼성 메시지 앱에서 직접 보낸 채팅+ 문자는 다른 앱이 못 읽어서 안 보임 */
+        let callTlAll = false;
+        function callTlRow(it, d) {
+            const h = d.getHours(), hm = `${h < 12 ? '오전' : '오후'} ${h % 12 === 0 ? 12 : h % 12}:${String(d.getMinutes()).padStart(2, '0')}`;
+            const row = (icon, iconCls, sub, subCls, extra) => `<div class="flex gap-2.5 py-2 border-t border-gray-100" data-calltl-row><span class="w-7 flex-shrink-0 text-center text-[17px] leading-6 ${iconCls}" aria-hidden="true">${icon}</span><div class="min-w-0 flex-1"><p class="text-[15px] font-bold text-gray-900 leading-tight">${hm}</p><p class="text-[12px] ${subCls}">${sub}</p>${extra || ''}</div></div>`;
+            if (it.k === 'sms') return row('💬', 'text-sky-600', `보낸 문자${it.m.by ? ' · ' + escapeHtml(it.m.by) : ''}${it.m.scheduled ? ' · ⏰ 예약' : ''}`, 'text-gray-500', `<p class="mt-1 rounded-xl bg-gray-100 px-3 py-2 text-[13px] text-gray-800 whitespace-pre-wrap break-words line-clamp-6">${escapeHtml(it.m.text || '')}</p>`);
+            if (it.k === 'tel') return row('📞', 'text-emerald-600', `발신 (강CRM에서 건 전화)${it.l.manager ? ' · ' + escapeHtml(it.l.manager) : ''}`, 'text-gray-500', '');
+            const L = it.L, bad = L.direction === 'missed' || L.direction === 'noanswer';
+            const extra = `${L.result && L.resultKey !== 'missed_in' && L.direction !== 'noanswer' ? `<span class="inline-block mt-1 text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">${escapeHtml(L.result)}</span>` : ''}${L.memo ? `<p class="text-[12px] text-gray-700 mt-0.5 break-words">📝 ${escapeHtml(L.memo)}</p>` : ''}${callRecHtml(L)}`;
+            return row(L.direction === 'missed' ? '📵' : (L.direction === 'in' ? '📲' : '📞'), bad ? 'text-red-600' : 'text-emerald-600', `${callDirLabel(L)}${L.staff ? ' · ' + escapeHtml(L.staff) : ''}`, bad ? 'text-red-600 font-bold' : 'text-gray-500', extra);
+        }
+        function buildCallTimelineHtml(c) {
+            const ids = new Set([c.id, ...prevIdsOf(c)]);
+            const logs = callLogs.filter(L => ids.has(L.customerId));
+            const items = logs.map(L => ({ t: Date.parse(L.startedAt || L.at || '') || 0, k: 'call', L }));
+            (Array.isArray(c.smsLog) ? c.smsLog : []).forEach(m => { const t = Date.parse((m && m.at) || ''); if (t) items.push({ t, k: 'sms', m }); });
+            parseContactHistory(c.contactHistory).forEach(l => {
+                if (!l.date || !/📞 전화발신/.test(l.body) || l.body.includes('📱')) return;
+                const t = new Date(`${l.date}T${l.time}:00`).getTime(); if (!t) return;
+                if (logs.some(L => Math.abs((Date.parse(L.startedAt || L.at || '') || 0) - t) <= 15 * 60 * 1000)) return;   // 전화 앱 기록이 있으면 그걸로
+                items.push({ t, k: 'tel', l });
+            });
+            if (!items.length) return '';
+            items.sort((a, b) => b.t - a.t);
+            const shown = callTlAll ? items : items.slice(0, 30), today = getTodayStr(), thisYear = new Date().getFullYear();
+            let h = `<div class="mt-2 mb-3 rounded-2xl border border-gray-200 bg-white px-3 py-2" data-calltl><p class="text-[12px] font-bold text-gray-600 pb-1">📞 통화 · 문자 <span class="font-normal text-gray-400">${items.length}건 · 최근 것부터</span></p>`, day = '';
+            shown.forEach(it => {
+                const d = new Date(it.t), ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                if (ds !== day) { day = ds; h += `<p class="text-[12px] font-bold text-gray-500 mt-2 mb-0.5" data-calltl-day>${ds === today ? '오늘 ' : ''}${d.getFullYear() !== thisYear ? d.getFullYear() + '. ' : ''}${d.getMonth() + 1}. ${d.getDate()}. ${'일월화수목금토'[d.getDay()]}요일</p>`; }
+                h += callTlRow(it, d);
+            });
+            if (!callTlAll && items.length > 30) h += `<button type="button" data-calltl-more class="w-full h-10 mt-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600">더 보기 (${items.length - 30}건)</button>`;
+            return h + '</div>';
+        }
+        profileModal.addEventListener('click', (ev) => {   // 📞 V223 타임라인 더 보기
+            if (!ev.target.closest('[data-calltl-more]')) return;
+            callTlAll = true; try { renderProfileCard(); } catch (e) { /* 무시 */ }
         });
         // 고객카드 안 '서류' 칸
         function buildDocFilesHtml(c) {
@@ -22592,7 +22759,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V222';
+        const APP_VER = 'V223';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -22600,6 +22767,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V223', d: '2026-10-25', items: [
+                ['📞 고객카드 연락 탭: 에이닷처럼 통화 · 문자 타임라인 (날짜별 · 🎙 AI 제목 · 부재중 · 보낸 문자 내용)'],
+                ['🎙 녹음 화면: 대본 말풍선(고객 왼쪽 · 나 오른쪽) · 말풍선을 누르면 그 부분부터 재생 · 재생 속도 · 5초 앞뒤'],
+                ['📞 전화 앱 v3: 전화 팝업 · 결과 창에 개통일 · 남은 할부 · 약정 종료 · 🔔 기변 시기 · 🎂 생일 · 📄 미비서류 · 🕘 지난 통화 한 줄 · 빠른 메모 버튼'],
+                ['📤 에이닷 녹음 화면 [공유] → 강CRM 전화 → 그 통화에 녹음 · 대본 글이 붙어요 (AI 요약도)'],
+                ['📵 못 받은 고객 전화는 오늘 할 일에 콜백 약속으로 들어가요 (이미 잡힌 연락 약속이 있으면 그대로 · 통화가 되면 저절로 끝)'],
+                ['👑 각 폰의 전화 앱을 새 APK(v3)로 업데이트해 주세요', 'a']] },
             { v: 'V222', d: '2026-10-25', items: [
                 ['🎙 강CRM 전화 앱 v2: 갤럭시 통화 자동 녹음 파일을 강CRM 고객 통화만 골라 대표님 드라이브 \'강CRM 녹음\' 폴더에 올려요 → 고객카드 📞 통화 기록에서 ▶ 녹음 듣기'],
                 ['🤖 녹음 AI 요약: 통화 내용 3줄 · 고객이 원하는 것 · 다음 할 일 (AI 키가 있는 폰에서 강CRM을 열면 만들어져요)'],
