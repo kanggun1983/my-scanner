@@ -1180,7 +1180,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V217</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V220</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -1263,7 +1263,12 @@
                 <label for="aiSmsDraft" class="block text-[13px] font-bold text-gray-700 mb-1 pl-1">보낼 문자 <span class="font-normal text-gray-500">(고쳐도 돼요)</span></label>
                 <textarea id="aiSmsDraft" rows="6" class="w-full p-3 border border-gray-300 rounded-xl text-[15px] leading-relaxed text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" placeholder="위에서 종류를 고르면 AI가 문자를 써줘요. 직접 써도 돼요."></textarea>
                 <p id="aiSmsStatus" role="status" class="hidden text-[13px] font-medium mt-1 pl-1"></p>
-                <button type="button" data-ig-open="aisms" class="mt-2 h-10 px-3 rounded-xl border border-violet-300 bg-violet-50 text-xs font-bold text-violet-800 inline-flex items-center gap-1.5"><i class="fa-solid fa-wand-magic-sparkles"></i>이미지 만들어서 링크로 붙이기</button>
+                <button type="button" data-ig-open="aisms" class="mt-2 h-10 px-3 rounded-xl border border-violet-300 bg-violet-50 text-xs font-bold text-violet-800 inline-flex items-center gap-1.5"><i class="fa-solid fa-wand-magic-sparkles"></i>이미지 만들어서 문자에 넣기</button>
+                <div id="aiSmsImgBox" class="hidden mt-2 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-2">
+                    <img id="aiSmsImgThumb" alt="문자에 넣을 사진" class="w-16 h-16 rounded-lg object-cover bg-white flex-shrink-0">
+                    <div class="min-w-0 flex-1"><p class="text-[14px] font-bold text-gray-900">📷 사진 1장 · 문자 안에 사진으로</p><p class="text-[12px] text-gray-600 leading-snug">[사진 넣어 보내기] → 공유 창에서 '메시지' → 받는 사람에 번호 붙여넣기 (번호는 자동으로 복사돼요)</p></div>
+                    <button type="button" id="aiSmsImgDel" class="h-9 px-2.5 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-700 flex-shrink-0">빼기</button>
+                </div>
                 <label for="aiSmsCardChk" class="mt-2 flex items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50/60 px-3 min-h-[48px] cursor-pointer">
                     <input type="checkbox" id="aiSmsCardChk" class="w-5 h-5 accent-pink-600 flex-shrink-0">
                     <span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">📇 내 명함 링크 같이 보내기</span><span id="aiSmsCardHint" class="block text-[12px] text-gray-600 truncate">문자 끝에 이 고객 전용 명함 주소가 붙어요</span></span>
@@ -1271,7 +1276,7 @@
             </div>
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" id="aiSmsCopyBtn" class="h-12 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-[15px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-regular fa-copy"></i>복사</button>
-                <button type="button" id="aiSmsSendBtn" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i>문자 보내기</button>
+                <button type="button" id="aiSmsSendBtn" class="h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-paper-plane"></i><span id="aiSmsSendLabel">문자 보내기</span></button>
             </div>
             <button type="button" id="aiSmsSchedToggle" class="hidden h-11 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-sm font-bold text-indigo-700 items-center justify-center gap-1.5"><i class="fa-regular fa-clock"></i>예약 보내기 (매장 폰으로 자동 발송)</button>
             <div id="aiSmsSchedBox" class="hidden rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 space-y-2">
@@ -5703,12 +5708,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             } catch (error) { console.error(error); customAlert(`저장하지 못했어요.\n${koreanError(error, '저장')}`); }
         });
 
-        window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '', smsBody = '') {
+        window.logActionAndCall = async function(docId, actionType, phoneNum, targetLabel = '', smsBody = '', opt = {}) {   // opt.gated: 확인 이미 함 · opt.noOpen: 기록만 (📷 V219 공유로 보낸 사진 문자)
             // 번호가 없으면 기록/건수만 올라가던 문제 → 안내만 하고 중단
             const cleanPhoneNum = phoneNum ? String(phoneNum).replace(/[^0-9]/g, '') : '';
             if (!cleanPhoneNum) return customAlert('전화번호가 없어요.\n고객 상세카드에서 번호를 먼저 입력해주세요.');
-            { const pc = docId && customerDB.find(x => x.id === docId); if (pc && !protectGate(pc)) return; }
-            { const lc = docId && customerDB.find(x => x.id === docId); if (lc && !(await lockGate(lc, targetLabel === '명함' ? '명함 보내기' : (actionType === 'tel' ? '전화' : '문자'), 'contact'))) return; }
+            if (!opt.gated) { const pc = docId && customerDB.find(x => x.id === docId); if (pc && !protectGate(pc)) return; }
+            if (!opt.gated) { const lc = docId && customerDB.find(x => x.id === docId); if (lc && !(await lockGate(lc, targetLabel === '명함' ? '명함 보내기' : (actionType === 'tel' ? '전화' : '문자'), 'contact'))) return; }
 
             if (actionType === 'tel' && docId && currentDetailId !== docId) rememberCallForResult(docId, targetLabel);
 
@@ -5772,6 +5777,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
             }
             
+            if (opt.noOpen) return;
             // 문자 내용이 있으면 문자앱에 내용까지 채워서 열기 (AI 문자 → 바로 보내기)
             window.location.href = (actionType === 'sms' && smsBody)
                 ? smsHref(cleanPhoneNum, smsBody)
@@ -10210,6 +10216,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { key: 'Ins', label: '보험 해지' }
         ];
         let smsSyncing = false;
+        let smsSyncWaitTeam = 0, smsTeamWaitGaveUp = false;   // 👥 V220 공용 명함 정보를 기다리는 중 (1 = 보통 · 2 = 바로) · 20초 넘게 안 오면 그냥 맞춤
         let smsListData = null;
         let smsListHistoryPushed = false;
         const smsListSheet = document.getElementById('smsListSheet');
@@ -10309,9 +10316,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 어느 명함: 고객카드 담당자 기준 — 👑 대표·담당 없음 = 대표 명함 / 직원 = 👥 공용 명함(그 직원으로) / 공용 명함이 꺼져 있으면 대표 명함
            · 명함번호(cardId)가 있는 고객은 개인 링크(?c=) → 고객이 열면 강CRM '명함견적'·푸시와 이어져요 */
         function smsCardOn(kind) { const m = appSettings.smsCardLink; return !!(m && typeof m === 'object' && m[kind] === true); }
+        function staffIsBoss(name) { return SUPER_ADMIN_EMAILS.some(e => { const n = staffByEmail()[e]; return n && sameStaff(n, name); }); }   // 👑 총관리자 계정에 묶인 직원 이름
         function autoCardLink(c) {
             const own = ownerOf(c || {}) || '';
-            const boss = !own || SUPER_ADMIN_EMAILS.some(e => { const n = staffByEmail()[e]; return n && sameStaff(n, own); });
+            const boss = !own || staffIsBoss(own);
             let base = DEFAULT_CARD_URL, qs = '';
             if (!boss && teamCardOn()) { const sid = teamSidFor(own); if (sid) { base = TEAM_CARD_URL; qs = 's=' + sid; } }
             return c && c.cardId ? `${base}?c=${encodeURIComponent(c.cardId)}${qs ? '&' + qs : ''}` : base + (qs ? '?' + qs : '');
@@ -10325,7 +10333,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         //   (중계 서버 v11부터는 예약마다 내용 표시(h)가 있어서 이 표시 대신 '정말 바뀐 것만' 다시 보내요 → 무료 쓰기 한도 아끼기)
         //   V184: 문자(s.)·푸시(p.) 따로 → 푸시 쪽만 바뀌면 푸시만 다시 (홍보 문자 수백 건을 괜히 다시 쓰지 않게)
         function autoTextSigs() {
-            const h = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
+            const h0 = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
+            const T = teamCardSig(), h = (v) => h0(T ? [...v, T] : v);   // 👥 V220 공용 명함(직원 · 연결)이 바뀌면 다시 맞춤 · 꺼져 있으면 예전과 똑같이
             return {
                 's.task': h([smsSetting('smsTplProm'), smsCardOn('prom')]),
                 's.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
@@ -10706,6 +10715,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!pushRelayReady() || smsSyncing || !db || !dbLoaded) return;
             // 🛡️ 고객·매장 설정이 제대로 안 불러와졌으면 맞추지 않음 (예전: 불러오기 실패 = 고객 0명으로 보고 예약을 전부 취소할 수 있었음)
             if (!settingsLoaded || dbLoadError || !customerDB.length) return;
+            if (teamData === null && !smsTeamWaitGaveUp) {   // 👥 V220 직원 고객에게 대표 명함이 붙지 않게
+                if (!smsSyncWaitTeam) setTimeout(() => { if (!smsSyncWaitTeam) return; const f = smsSyncWaitTeam === 2; smsSyncWaitTeam = 0; smsTeamWaitGaveUp = true; syncAutoSms(f ? { force: true } : {}); }, 20000);
+                smsSyncWaitTeam = Math.max(smsSyncWaitTeam, force ? 2 : 1); return;
+            }
             const last = Number(localStorage.getItem('smsAutoSyncAt') || 0);
             if (!force && Date.now() - last < SMS_SYNC_EVERY_MS) return renderSmsStats();
             if (!force && Date.now() - Number(localStorage.getItem('smsAutoSyncFailAt') || 0) < 10 * 60 * 1000) return renderSmsStats();   // 방금 실패했으면 10분 쉬기
@@ -11654,6 +11667,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return { on: o.on === true, store: { name: '', phone: '', hours: '', intro: '', ...(o.store || {}) }, staff, updated: o.updated || '' };
         }
         function teamCardOn() { return !!(teamData && teamData.on); }
+        function teamCardSig() { return teamCardOn() ? JSON.stringify(Object.entries(teamData.staff || {}).map(([sid, p]) => [sid, staffKeyName(p.key || p.name), p.active !== false]).sort()) : ''; }
         // 강CRM 직원 이름 → 공용 명함 직원번호 ('강태훈'과 '강태훈 과장'은 같은 사람)
         function teamSidFor(name, data = teamData) {
             if (!data || !String(name || '').trim()) return '';
@@ -12163,14 +12177,22 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const btn = document.getElementById('aiSmsSchedBtn');
             btn.disabled = true;
             try {
-                const r = await callSms('schedule', { items: [{ to: c.phone, text, sendAt: Math.max(at, Date.now() + 60 * 1000), name: c.name || '' }] });
+                let pic = {}, logText = text;
+                if (aiSmsImg) {   // 📷 V219 사진: 매장 폰 사진 문자(설정 켜짐) → 안 되면 링크 문자 · 꺼져 있으면 링크
+                    setAiSmsStatus('사진을 올리는 중…', 'gray');
+                    const link = await aiSmsUploadImg();
+                    pic = mmsActive() ? { mmsImage: link, linkText: `${text}\n👉 ${link}` } : {};
+                    if (!mmsActive()) { pic.text = `${text}\n👉 ${link}`; logText = pic.text; } else logText = `${text}\n📷 (사진 1장)`;
+                }
+                const r = await callSms('schedule', { items: [{ to: c.phone, text, sendAt: Math.max(at, Date.now() + 60 * 1000), name: c.name || '', ...pic }] });
                 if (!r.added) throw new Error((r.errors && r.errors[0]) || '예약하지 못했어요.');
                 saveAiSmsDraft();
                 markCardSent(c);
                 // 💬 예약 문자도 보낸 문자 기록에 (예약 표시)
-                saveDoc(doc(db, 'smart_customers', c.id), { smsLog: [...(Array.isArray(c.smsLog) ? c.smsLog : []), { at: new Date().toISOString(), by: getStaffName() || '', text, scheduled: new Date(at).toISOString() }].slice(-20) }, { merge: true }).catch(err => console.error(err));
+                saveDoc(doc(db, 'smart_customers', c.id), { smsLog: [...(Array.isArray(c.smsLog) ? c.smsLog : []), { at: new Date().toISOString(), by: getStaffName() || '', text: logText, scheduled: new Date(at).toISOString() }].slice(-20) }, { merge: true }).catch(err => console.error(err));
                 if (r.ready === false) setAiSmsStatus(`예약은 됐어요 (${fmtSmsWhen(at)}). 그런데 매장 폰 연결이 아직 안 돼 있어서, 연결되기 전엔 안 나가요.`, 'red');
-                else setAiSmsStatus(`예약했어요! ${fmtSmsWhen(at)}에 매장 폰으로 보내요.`, 'green');
+                else setAiSmsStatus(`예약했어요! ${fmtSmsWhen(at)}에 매장 폰으로 보내요.${aiSmsImg ? (pic.mmsImage ? ' (사진 문자)' : ' (사진은 링크로 · 사진 문자는 설정에서 켜요)') : ''}`, 'green');
+                if (aiSmsImg) aiSmsSetImg(null);
                 document.getElementById('aiSmsSchedBox').classList.add('hidden');
                 localStorage.removeItem('smsAutoSyncAt');
             } catch (e) { setAiSmsStatus(e.message || '예약하지 못했어요.', 'red'); }
@@ -12648,6 +12670,60 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         const aiSmsSheet = document.getElementById('aiSmsSheet');
         let aiSmsCustomerId = null;
+        let aiSmsImg = null;   // 📷 V219 문자 안에 넣을 사진 { file, url, cid }
+        function aiSmsSetImg(file, cid) {
+            if (aiSmsImg && aiSmsImg.url) { try { URL.revokeObjectURL(aiSmsImg.url); } catch (e) { /* 무시 */ } }
+            aiSmsImg = file ? { file, url: URL.createObjectURL(file), cid: cid || aiSmsCustomerId } : null;
+            const box = document.getElementById('aiSmsImgBox');
+            if (box) { box.classList.toggle('hidden', !aiSmsImg); box.classList.toggle('flex', !!aiSmsImg); }
+            const th = document.getElementById('aiSmsImgThumb'); if (th) th.src = aiSmsImg ? aiSmsImg.url : '';
+            const lb = document.getElementById('aiSmsSendLabel'); if (lb) lb.textContent = aiSmsImg ? '📷 사진 넣어 보내기' : '문자 보내기';
+        }
+        function aiSmsCanShareImg() {
+            if (!aiSmsImg || !navigator.share || !navigator.canShare) return false;
+            try { return navigator.canShare({ files: [aiSmsImg.file] }); } catch (e) { return false; }
+        }
+        async function aiSmsUploadImg() {   // 예약 · 공유가 안 되는 폰: 중계 서버 사진 저장소에 올려 주소로
+            if (aiSmsImg.link) return aiSmsImg.link;
+            const dataUrl = await fileToB64(aiSmsImg.file);
+            const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: dataUrl }, keep: true });
+            aiSmsImg.link = data.url;
+            return data.url;
+        }
+        // 📷 사진 넣어 보내기: 문자앱 열기(sms:)로는 사진을 못 넘겨서 → 폰 공유 창으로 사진 + 글 (받는 사람 번호는 복사해 둠)
+        async function aiSmsSendWithImg(c, text) {
+            const num = String(c.phone || '').replace(/[^0-9]/g, '');
+            if (!num) return customAlert('전화번호가 없어요.\n고객 상세카드에서 번호를 먼저 입력해주세요.');
+            if (!aiSmsCanShareImg()) {   // 공유가 안 되는 폰(PC · 오래된 폰) → 예전처럼 사진 링크로
+                if (!pushRelayReady()) {
+                    const a = document.createElement('a'); a.href = aiSmsImg.url; a.download = aiSmsImg.file.name; document.body.appendChild(a); a.click(); a.remove();
+                    if (!(await customConfirm('이 폰은 문자에 사진을 바로 넣을 수 없어요.\n사진은 폰에 저장했어요. 문자앱이 열리면 사진을 직접 첨부해 주세요.\n\n문자앱을 열까요?'))) return;
+                    saveAiSmsDraft(); markCardSent(c); closeAiSmsSheet();
+                    return logActionAndCall(c.id, 'sms', c.phone, '', text);
+                }
+                if (!(await customConfirm('이 폰은 문자에 사진을 바로 넣을 수 없어요.\n사진 링크를 붙여서 문자앱을 열까요?'))) return;
+                let link = '';
+                try { setAiSmsStatus('사진을 올리는 중…', 'gray'); link = await aiSmsUploadImg(); }
+                catch (e) { return setAiSmsStatus(`사진을 올리지 못했어요. ${e.message || ''}`.trim(), 'red'); }
+                saveAiSmsDraft(); markCardSent(c); closeAiSmsSheet();
+                return logActionAndCall(c.id, 'sms', c.phone, '', `${text}\n👉 ${link}`);
+            }
+            if (!protectGate(c)) return;
+            if (!(await lockGate(c, '문자', 'contact'))) return;
+            const copied = await copyTextSafe(formatPhone(c.phone) || num);
+            saveAiSmsDraft();
+            try { await navigator.share({ files: [aiSmsImg.file], text }); }
+            catch (e) {
+                if (e && e.name === 'AbortError') return setAiSmsStatus('보내기를 취소했어요. 다시 누르면 돼요.', 'gray');
+                console.warn('사진 공유 실패', e);
+                return setAiSmsStatus(`공유 창을 열지 못했어요. ${e && e.message ? e.message : ''}`.trim(), 'red');
+            }
+            markCardSent(c);
+            aiSmsSetImg(null);
+            closeAiSmsSheet();
+            logActionAndCall(c.id, 'sms', c.phone, '', `${text}\n📷 (사진 1장)`, { gated: true, noOpen: true });   // 보낸 문자 기록 (문자앱은 공유로 이미 열림)
+            if (!copied) customAlert('번호 자동 복사가 막혔어요. 메시지 앱에서 받는 사람을 직접 넣어 주세요.\n' + formatPhone(c.phone));
+        }
         let aiSmsHistoryPushed = false;
         let aiSmsBusy = false;
 
@@ -12669,6 +12745,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('aiSmsWarn').classList.toggle('hidden', !c.marketingDeny);
             document.getElementById('aiSmsDraft').value = c.smsDraft || '';
             document.getElementById('aiSmsSendBtn').disabled = !hasPhone;
+            if (!aiSmsImg || aiSmsImg.cid !== id) aiSmsSetImg(null);   // 📷 V219 다른 고객 사진은 빼고
             // 📇 명함 링크 자동 첨부 (이 폰에 기억 · 기본 켜짐) — 전용 명함 번호는 미리 만들어 둠
             const cardChk = document.getElementById('aiSmsCardChk');
             cardChk.checked = localStorage.getItem('aiSmsCard') !== '0';
@@ -12721,6 +12798,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
         }
         document.getElementById('aiSmsClose').addEventListener('click', () => closeAiSmsSheet());
+        document.getElementById('aiSmsImgDel').addEventListener('click', () => { aiSmsSetImg(null); setAiSmsStatus('사진을 뺐어요. 글만 보내져요.', 'gray'); });
         aiSmsSheet.addEventListener('click', (e) => { if (e.target === aiSmsSheet) closeAiSmsSheet(); });
 
         // 말투 (고른 말투는 이 폰에 기억)
@@ -12939,7 +13017,7 @@ ${AI_TONES[aiSmsTone]}
             const text = withCardLink(document.getElementById('aiSmsDraft').value, customerDB.find(x => x.id === aiSmsCustomerId));
             if (!text.trim()) return setAiSmsStatus('복사할 문자 내용이 없어요.', 'red');
             const copied = await copyTextSafe(text);
-            setAiSmsStatus(copied ? '복사했어요. 문자앱에 붙여넣기 하면 돼요.' : '이 폰에서 자동 복사가 막혔어요. 글을 길게 눌러 직접 복사해주세요.', copied ? 'green' : 'red');
+            setAiSmsStatus(copied ? `복사했어요. 문자앱에 붙여넣기 하면 돼요.${aiSmsImg ? ' (사진은 복사가 안 돼요 · [사진 넣어 보내기]로 보내세요)' : ''}` : '이 폰에서 자동 복사가 막혔어요. 글을 길게 눌러 직접 복사해주세요.', copied ? 'green' : 'red');
             saveAiSmsDraft();
         });
 
@@ -12949,6 +13027,7 @@ ${AI_TONES[aiSmsTone]}
             const c = customerDB.find(x => x.id === aiSmsCustomerId);
             if (!c) return;
             const text = withCardLink(document.getElementById('aiSmsDraft').value.trim(), c);
+            if (aiSmsImg) return aiSmsSendWithImg(c, text);   // 📷 V219 사진은 공유로 문자 안에
             saveAiSmsDraft();   // 저장은 뒤에서 진행 (기다리면 느린 인터넷에서 문자앱이 안 열릴 수 있음)
             markCardSent(c);
             closeAiSmsSheet();
@@ -21019,19 +21098,13 @@ familyStr + `\n` +
                 openImageGen({ title: '🔔 푸시 알림에 크게 보일 사진', prompt: [h, bd].filter(Boolean).join('. '), headline: h.slice(0, 16), aspect: '16:9', onUse: (f) => uploadPushImage(f) });
             } else if (kind === 'aisms') {
                 const draft = document.getElementById('aiSmsDraft').value;
-                openImageGen({ title: '💬 문자에 링크로 붙일 사진', prompt: cleanTplText(draft) || '휴대폰 매장 이벤트 안내', headline: '', aspect: '1:1', onUse: async (f) => {
-                    if (!pushRelayReady()) {   // 사진 저장소(중계 서버)가 없으면 폰에 저장만
-                        const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; a.click();
-                        customAlert('사진을 폰에 저장했어요.\n(사진을 링크로 붙이려면 설정 → 푸시 중계 서버 연결이 필요해요. 문자앱에서 직접 첨부해도 돼요)');
-                        return;
-                    }
-                    setAiSmsStatus('사진을 올리는 중…', 'gray');
-                    const dataUrl = await compressPushImage(f);
-                    const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' }, keep: true });
-                    const el = document.getElementById('aiSmsDraft');
-                    el.value = `${el.value.trim()}\n👉 ${data.url}`.trim();
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    setAiSmsStatus('사진 링크를 문자 끝에 붙였어요. 받는 분이 누르면 사진이 열려요.', 'green');
+                openImageGen({ title: '💬 문자 안에 넣을 사진', prompt: cleanTplText(draft) || '휴대폰 매장 이벤트 안내', headline: '', aspect: '1:1', onUse: async (f) => {
+                    try {   // 📷 V219 링크 대신 문자 안에 사진으로 (MMS에 맞게 1200px · JPEG로 줄여서)
+                        const dataUrl = await compressPushImage(f);
+                        const bl = await (await fetch(dataUrl)).blob();
+                        aiSmsSetImg(new File([bl], `kangcrm_${Date.now().toString(36)}.jpg`, { type: 'image/jpeg' }), aiSmsCustomerId);
+                        setAiSmsStatus('사진을 넣었어요. [📷 사진 넣어 보내기]를 누르면 문자 안에 사진으로 들어가요.', 'green');
+                    } catch (e) { setAiSmsStatus(e.message || '사진을 넣지 못했어요.', 'red'); }
                 } });
             }
         });
@@ -21251,6 +21324,33 @@ familyStr + `\n` +
             if (!window.PDFLib || !window.PDFLib.PDFDocument) throw new Error('PDF 도구를 못 불러왔어요');
             return window.PDFLib;
         }
+        /* 👀 V218 서류 보기: 구글 로그인 없이 앱 안에서 바로 — 서류 내용을 받아서(관리자 드라이브 = 업로드 창구 v2 · 각자 드라이브 = 이 폰 구글 연결)
+           사진은 그대로, PDF는 pdf.js(legacy · 오래된 폰도)로 쪽마다 그림 · 못 받으면 예전처럼 드라이브 미리보기 + [새 창] */
+        const DOC_PDFJS = ['https://cdn.jsdelivr.net/npm/pdfjs-dist@6.2.108/legacy/build/', 'https://unpkg.com/pdfjs-dist@6.2.108/legacy/build/'];
+        let docPdfJsP = null;
+        function docLoadPdfJs() {
+            if (!docPdfJsP) {
+                docPdfJsP = (async () => {
+                    for (const base of DOC_PDFJS) {
+                        try {
+                            const L = await import(base + 'pdf.min.mjs');
+                            if (L && L.getDocument) { L.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.min.mjs'; return { L, base }; }
+                        } catch (e) { console.warn('PDF 보기 도구', base, e); }
+                    }
+                    throw new Error('PDF 보기 도구를 못 불러왔어요');
+                })();
+                docPdfJsP.catch(() => { docPdfJsP = null; });
+            }
+            return docPdfJsP;
+        }
+        const docBlobCache = new Map();   // fileId → Blob (최근 6개 · 다시 열 때 · 합칠 때 안 받아도 되게)
+        async function docBlobOf(f) {
+            const k = f.fileId;
+            if (docBlobCache.has(k)) { const b = docBlobCache.get(k); docBlobCache.delete(k); docBlobCache.set(k, b); return b; }
+            const b = await docFetchBlob(f);
+            docBlobCache.set(k, b); while (docBlobCache.size > 6) docBlobCache.delete(docBlobCache.keys().next().value);
+            return b;
+        }
         async function docBuildBundle(files) {   // files: File[] (순서대로) → { blob, pages, left: 못 넣은 PDF }
             const pdfs = files.filter(docIsPdf), imgs = files.filter(f => !docIsPdf(f));
             if (pdfs.length) {
@@ -21334,7 +21434,7 @@ familyStr + `\n` +
             try {
                 for (let i = 0; i < list.length; i++) {
                     showUploadToast(`📑 서류 받는 중… ${i + 1} / ${list.length}`);
-                    try { const bl = await docFetchBlob(list[i]); files.push(new File([bl], list[i].name || `서류${i + 1}`, { type: bl.type || list[i].mime || '' })); used.push(list[i]); }
+                    try { const bl = await docBlobOf(list[i]); files.push(new File([bl], list[i].name || `서류${i + 1}`, { type: bl.type || list[i].mime || '' })); used.push(list[i]); }
                     catch (e) { if (e.code === 'OLD_SCRIPT') throw e; skip.push(list[i].name); }
                 }
                 if (files.length < 2) { hideUploadToast(); return customAlert(`합칠 수 있는 서류가 ${files.length}개뿐이에요.${skip.length ? `\n받지 못한 것: ${skip.slice(0, 3).join(', ')}${mode === 'self' ? '\n(각자 드라이브 방식은 이 폰에서 올린 서류만 합칠 수 있어요)' : ''}` : ''}`); }
@@ -21353,18 +21453,95 @@ familyStr + `\n` +
                 customAlert(e.message || '합치지 못했어요.');
             }
         }
-        function docViewAll(cid) {   // 👀 한 번에 보기 (구글 드라이브 미리보기를 한 화면에)
+        let docViewUrls = [];
+        function docViewFree() { docViewUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch (e) { /* 무시 */ } }); docViewUrls = []; }
+        const docIsPdfRec = (f) => /pdf/i.test(f.mime || '') || /\.pdf$/i.test(f.name || '');
+        function docDriveFallback(f, why) {   // 앱에서 못 받았을 때: 예전 드라이브 미리보기
+            return `<div data-dv-fb>${why ? `<p class="px-3 py-2 text-[12px] leading-relaxed text-amber-900 bg-amber-50 border-b border-amber-100" data-dv-why>${why}</p>` : ''}${f.fileId ? `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(f.fileId)}/preview" loading="lazy" title="${escapeHtml(f.name || '서류')}" class="block w-full border-0 bg-gray-100" style="height: ${f.bundle || docIsPdfRec(f) ? '78vh' : '62vh'}" allow="autoplay"></iframe><p class="px-3 py-2 text-[11px] text-gray-500">드라이브 미리보기는 드라이브 권한이 있는 구글 계정으로 로그인된 폰에서만 보여요 · 안 보이면 [새 창]</p>` : '<p class="px-3 py-6 text-center text-[13px] text-gray-500">[새 창]으로 열어 주세요</p>'}</div>`;
+        }
+        function docWhy(e) {
+            if (e && e.code === 'OLD_SCRIPT') return isSuperAdmin ? '앱 안에서 바로 보려면 관리자 드라이브 업로드 창구를 v2로 바꿔 주세요 (새 kangcrm-drive-upload.gs 붙여넣고 새 버전 배포 · 가이드 8장). 지금은 드라이브 미리보기로 보여드려요.' : '앱 안에서 바로 보려면 대표님이 업로드 창구를 v2로 바꿔야 해요. 지금은 드라이브 미리보기로 보여드려요.';
+            if (e && e.code === 'NO_ACCESS') return '이 폰에서 올린 서류가 아니라서 앱 안에서 바로 못 열어요 (각자 드라이브 방식). 드라이브 미리보기로 보여드려요.';
+            return `앱 안에서 못 불러왔어요${e && e.message ? ` (${escapeHtml(String(e.message).slice(0, 60))})` : ''}. 드라이브 미리보기로 보여드려요.`;
+        }
+        async function docRenderOne(box, f) {   // 성공하면 true
+            const alive = () => document.body.contains(box);
+            if (!f.fileId) { box.innerHTML = docDriveFallback(f, ''); return false; }
+            if ((f.mode || driveMode()) !== 'admin' && !driveTokenValid()) {   // 각자 드라이브: 구글 연결은 눌러서 (연결 창이 막히지 않게)
+                box.innerHTML = `<div class="px-3 py-3 border-b border-gray-100"><button type="button" data-dv-gis class="w-full h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">🔗 구글 연결하고 앱에서 바로 보기</button></div>${docDriveFallback(f, '')}`;
+                return false;
+            }
+            box.innerHTML = '<p class="px-3 py-10 text-center text-[13px] text-gray-500" data-dv-wait><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> 불러오는 중…</p>';
+            let bl;
+            try { bl = await docBlobOf(f); } catch (e) { console.warn('서류 받기', e); if (alive()) box.innerHTML = docDriveFallback(f, docWhy(e)); return false; }
+            if (!alive()) return false;
+            const isPdf = /pdf/i.test(bl.type || '') || docIsPdfRec(f);
+            if (!isPdf) {
+                const u = URL.createObjectURL(bl); docViewUrls.push(u);
+                box.innerHTML = `<img src="${u}" alt="${escapeHtml(f.name || '서류')}" class="block w-full h-auto bg-white" data-dv-img>`;
+                return true;
+            }
+            let pdf = null;
+            try {
+                const { L, base } = await docLoadPdfJs(), root = base.replace(/legacy\/build\/$/, '');
+                pdf = await L.getDocument({ data: new Uint8Array(await bl.arrayBuffer()), isEvalSupported: false, cMapUrl: root + 'cmaps/', cMapPacked: true, standardFontDataUrl: root + 'standard_fonts/', wasmUrl: root + 'wasm/' }).promise;
+                if (!alive()) return false;
+                const n = pdf.numPages, max = Math.min(n, 40), dpr = Math.min(2, window.devicePixelRatio || 1);
+                const W = Math.max(300, Math.min(1000, box.clientWidth || 360));
+                box.innerHTML = '';
+                for (let i = 1; i <= max && alive(); i++) {
+                    const pg = await pdf.getPage(i), v1 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: (W * dpr) / v1.width });
+                    const cv = document.createElement('canvas'); cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+                    const x = cv.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, cv.width, cv.height);
+                    await pg.render({ canvasContext: x, viewport: vp }).promise;
+                    try { pg.cleanup(); } catch (e) { /* 무시 */ }
+                    if (n > 1) box.insertAdjacentHTML('beforeend', `<p class="px-3 py-1 text-[11px] font-bold text-gray-500 bg-gray-50 border-t border-gray-100" data-dv-pno>${i} / ${n}쪽</p>`);
+                    const jb = await new Promise(res => cv.toBlob(res, 'image/jpeg', 0.88));   // 그림으로 바꿔 두면 폰 메모리를 덜 씀
+                    if (jb) {
+                        const u = URL.createObjectURL(jb); docViewUrls.push(u);
+                        const im = document.createElement('img'); im.src = u; im.alt = `${f.name || '서류'} ${i}쪽`; im.className = 'block w-full h-auto bg-white'; im.dataset.dvPage = String(i);
+                        box.appendChild(im); cv.width = 0; cv.height = 0;
+                    } else { cv.className = 'block w-full h-auto bg-white'; cv.dataset.dvPage = String(i); box.appendChild(cv); }
+                }
+                if (n > max) box.insertAdjacentHTML('beforeend', `<p class="px-3 py-2 text-[12px] text-gray-600 border-t border-gray-100">앞 ${max}쪽까지 보여요 · 나머지는 [새 창]</p>`);
+                return true;
+            } catch (e) {
+                console.warn('PDF 보기', e);
+                if (!alive()) return false;
+                const u = URL.createObjectURL(bl); docViewUrls.push(u);
+                box.innerHTML = `<div class="px-3 py-3 border-b border-gray-100"><a href="${u}" target="_blank" rel="noopener" download="${escapeHtml(f.name || '서류.pdf')}" class="w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-[14px] font-bold flex items-center justify-center" data-dv-file>📄 PDF 파일로 열기</a></div>${docDriveFallback(f, 'PDF를 앱 안에서 그리지 못했어요. [PDF 파일로 열기]나 아래 드라이브 미리보기로 보세요.')}`;
+                return false;
+            } finally { if (pdf) { try { pdf.destroy(); } catch (e) { /* 무시 */ } } }
+        }
+        async function docViewRun(sh, list) {   // 하나씩 차례로 (큰 PDF를 한꺼번에 받지 않게)
+            for (const f of list) {
+                if (!document.body.contains(sh)) return;
+                const box = [...sh.querySelectorAll('[data-dv]')].find(el => el.dataset.dv === f.id);
+                const body = box && box.querySelector('[data-dv-body]');
+                if (!body || body.dataset.done === '1') continue;
+                if (await docRenderOne(body, f)) body.dataset.done = '1';
+            }
+        }
+        function docViewAll(cid, onlyId) {   // 👀 서류 보기 (V218: 앱 안에서 바로 · 못 받으면 드라이브 미리보기) — onlyId면 그 서류 하나
             const c = customerDB.find(x => x.id === cid); if (!c) return;
-            const list = docVisibleOf(c).shown;
+            const V = docVisibleOf(c), list = onlyId ? V.all.filter(f => f.id === onlyId) : V.shown;
+            if (!list.length) return;
             const old = document.getElementById('docViewSheet'); if (old) old.remove();
+            docViewFree();
             const sh = document.createElement('div'); sh.id = 'docViewSheet';
             sh.className = 'fixed inset-0 z-[80] flex flex-col bg-gray-900/95';
-            sh.innerHTML = `<div class="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white" style="padding-top: max(8px, env(safe-area-inset-top))"><p class="flex-1 min-w-0 text-[16px] font-bold text-gray-900 truncate">👀 ${escapeHtml(c.name || '고객')} 서류 ${list.length}개</p><button type="button" data-dv-x class="w-11 h-11 rounded-full text-gray-600 text-xl" aria-label="닫기">✕</button></div>
-                <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-[12px] text-gray-200 leading-relaxed">구글 드라이브 미리보기예요. 드라이브 권한이 있는 구글 계정으로 로그인된 폰에서 보여요 · 안 보이면 [새 창].</p>
-                ${list.map(f => `<section class="rounded-2xl bg-white overflow-hidden" data-dv="${escapeHtml(f.id)}"><div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100"><i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i><span class="flex-1 min-w-0 text-[13px] font-bold text-gray-900 truncate">${escapeHtml(f.name || '')}${f.bundle ? ` <span class="text-[11px] font-bold text-indigo-700">📑 ${Number(f.pages) || ''}쪽 묶음</span>` : ''}</span><a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700 flex items-center">새 창 ↗</a></div>
-                    ${f.fileId ? `<iframe src="https://drive.google.com/file/d/${encodeURIComponent(f.fileId)}/preview" loading="lazy" title="${escapeHtml(f.name || '서류')}" class="block w-full border-0 bg-gray-100" style="height: ${f.bundle || /pdf/.test(f.mime || '') ? '78vh' : '62vh'}" allow="autoplay"></iframe>` : '<p class="px-3 py-6 text-center text-[13px] text-gray-500">[새 창]으로 열어 주세요</p>'}</section>`).join('')}</div>`;
-            sh.addEventListener('click', (e) => { if (e.target.closest('[data-dv-x]')) sh.remove(); });
+            sh.innerHTML = `<div class="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-white" style="padding-top: max(8px, env(safe-area-inset-top))"><p class="flex-1 min-w-0 text-[16px] font-bold text-gray-900 truncate">👀 ${escapeHtml(c.name || '고객')} ${onlyId ? '서류' : `서류 ${list.length}개`}</p><button type="button" data-dv-x class="w-11 h-11 rounded-full text-gray-600 text-xl" aria-label="닫기">✕</button></div>
+                <div class="flex-1 min-h-0 overflow-y-auto p-3 space-y-3"><p class="text-[12px] text-gray-200 leading-relaxed" data-dv-note>앱 안에서 바로 보여요 · 두 손가락으로 벌리면 크게 보여요.</p>
+                ${list.map(f => `<section class="rounded-2xl bg-white overflow-hidden" data-dv="${escapeHtml(f.id)}"><div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100"><i class="fa-regular ${docIsPdfRec(f) ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i><span class="flex-1 min-w-0 text-[13px] font-bold text-gray-900 truncate">${escapeHtml(f.name || '')}${f.bundle ? ` <span class="text-[11px] font-bold text-indigo-700">📑 ${Number(f.pages) || ''}쪽 묶음</span>` : ''}</span><a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700 flex items-center">새 창 ↗</a></div><div data-dv-body></div></section>`).join('')}</div>`;
+            sh.addEventListener('click', async (e) => {
+                if (e.target.closest('[data-dv-x]')) { sh.remove(); docViewFree(); return; }
+                if (e.target.closest('[data-dv-gis]')) {
+                    try { await getDriveToken(false); } catch (er) { return customAlert(er.message); }
+                    docViewRun(sh, list);
+                }
+            });
             document.body.appendChild(sh);
+            docViewRun(sh, list);
         }
         // 고객카드 안 '서류' 칸
         function buildDocFilesHtml(c) {
@@ -21373,7 +21550,7 @@ familyStr + `\n` +
             const mode = driveMode();
             const row = (f) => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
                     <i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
-                    <a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>
+                    ${f.fileId ? `<button type="button" data-docview="${escapeHtml(f.id)}" class="flex-1 min-w-0 text-left text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</button>` : `<a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>`}
                     ${f.bundle ? `<span class="flex-shrink-0 text-[11px] font-bold text-white bg-indigo-600 rounded px-1.5 py-0.5" data-doc-bundle>📑 ${Number(f.pages) || ''}쪽</span>` : ''}
                     <span class="text-[11px] text-gray-500 flex-shrink-0">${escapeHtml(String(f.at || '').slice(5, 10).replace('-', '/'))} · ${escapeHtml(managerKey(f.uploaderName || '') || '')}</span>
                     <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
@@ -21410,6 +21587,7 @@ familyStr + `\n` +
             const up = ev.target.closest('[data-paction="docup"]');
             const del = ev.target.closest('[data-docdel]');
             if (ev.target.closest('[data-paction="docviewall"]') && currentProfileId) { docViewAll(currentProfileId); return; }   // 👀 V216
+            const dv1 = ev.target.closest('[data-docview]'); if (dv1 && currentProfileId) { docViewAll(currentProfileId, dv1.dataset.docview); return; }   // 👀 V218 하나만
             if (ev.target.closest('[data-paction="docmerge"]') && currentProfileId) { docMergeExisting(currentProfileId); return; }   // 📑 V216
             if (up && currentProfileId) {
                 if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
@@ -21459,7 +21637,7 @@ familyStr + `\n` +
             const sc = document.getElementById('driveSecret'); if (sc && isSuperAdmin) sc.onchange = () => saveDriveSetting({ driveSecret: sc.value.trim() });
             const cb = document.getElementById('driveConnectBtn'); if (cb) cb.onclick = async () => { try { gisToken = null; await getDriveToken(true); customAlert('이 폰을 구글 드라이브에 연결했어요.'); renderDriveSettings(); } catch (e) { customAlert(e.message); } };
             const tb = document.getElementById('driveTestBtn'); if (tb) tb.onclick = async () => {
-                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? `✅ 업로드 창구가 정상이에요.${Number(d.version) >= 2 ? ' (v2 · 예전 서류 합치기 돼요)' : '\n📑 예전 서류 합치기를 쓰려면 창구를 v2로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).'}` : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
+                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? `✅ 업로드 창구가 정상이에요.${Number(d.version) >= 2 ? ' (v2 · 👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기 돼요)' : '\n👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기를 쓰려면 창구를 v2로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).'}` : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
                 catch (e) { customAlert('업로드 주소에 연결하지 못했어요. 주소와 배포 설정(액세스: 모든 사용자)을 확인해 주세요.'); }
             };
         }
@@ -22051,7 +22229,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V217';
+        const APP_VER = 'V220';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -22059,6 +22237,17 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V220', d: '2026-10-25', items: [
+                ['👥 직원 공용 명함을 저장하면 이미 예약된 자동 문자(홍보 · 생일 · 안부 등)의 명함 링크도 바로 새 명함으로 바뀌어요', 'a'],
+                ['👥 [+ 직원 추가]는 강CRM 직원 칸이 비어 있게 → 직접 골라요 · 명함 이름과 강CRM 직원이 다르면 ⚠️ 경고 · 저장할 때 한 번 더 물어봐요', 'a'],
+                ['💬 앱을 켜자마자 자동 문자를 맞출 때 공용 명함 정보를 다 불러온 뒤에 맞춰요 (직원 고객에게 대표 명함이 붙지 않게)']] },
+            { v: 'V219', d: '2026-10-25', items: [
+                ['📷 AI 문자에 만든 사진이 이제 링크가 아니라 문자 안에 사진으로 들어가요: [📷 사진 넣어 보내기] → 공유 창에서 \'메시지\' → 받는 사람에 번호 붙여넣기 (번호는 자동 복사)'],
+                ['📷 사진을 넣고 [예약 보내기]를 하면 매장 폰으로 사진 문자 (사진 문자 설정이 꺼져 있으면 사진 링크로)']] },
+            { v: 'V218', d: '2026-10-25', items: [
+                ['👀 서류 보기: 구글 로그인 없이 앱 안에서 바로 보여요 (사진은 그대로 · PDF는 쪽마다 이어서) · 두 손가락으로 벌리면 크게'],
+                ['👀 고객카드 서류 이름을 눌러도 앱 안에서 바로 열려요 (1개여도) · 묶음에 들어간 원본도'],
+                ['👑 관리자 드라이브 방식은 업로드 창구 v2가 있어야 앱 안에서 보여요 (V216 때 바꿨으면 그대로) · 못 불러오면 예전처럼 드라이브 미리보기', 'a']] },
             { v: 'V217', d: '2026-10-20', items: [
                 ['⚖️ 비교 안내서에 🤝 복지할인 (기초생활 · 기초연금은 요금에 맞춰 자동 · 장애인 · 유공자 · 차상위 등은 금액 입력) · 요금제 변경 뒤에도 같이 계산'],
                 ['⚖️ 고객 비교표에 요금 계산도 한 줄씩 (월정액 − 선택약정 25% − 결합 − 복지 − 요금DC카드 = 요금)']] },
@@ -22319,12 +22508,20 @@ familyStr + `\n` +
         let teamDraft = null, teamDirty = false, teamPhotoSid = '';
         const TEAM_MAX = 15;
         const TEAM_DEF_STORE = { name: 'LGU+ 진천점', hours: '10:00 - 20:00 (연중무휴)' };
+        function teamWarnHtml(p) {   // 👥 V220
+            if (!p || !p.key) return '';
+            const out = [];
+            if (p.name && !sameStaff(p.name, p.key)) out.push(`⚠️ 명함 이름 '${escapeHtml(p.name)}'과 강CRM 직원 '${escapeHtml(p.key)}'이 달라요. '${escapeHtml(p.key)}' 담당 고객에게 가는 명함이에요. 맞는지 확인해 주세요.`);
+            if (staffIsBoss(p.key)) out.push(`👑 '${escapeHtml(p.key)}'은 총관리자 계정이라, 이 사람 담당 고객의 자동 문자에는 대표 명함이 나가요.`);
+            return out.map(t => `<p class="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5" data-team-warn>${t}</p>`).join('');
+        }
         function teamStaffNames() {   // 강CRM 직원 이름 (로그인 계정에 묶인 이름 + 내 이름)
             const m = new Map();
             [...Object.values(staffByEmail()), getStaffName()].forEach(n => { const v = String(n || '').trim(); const k = staffKeyName(v); if (v && k !== '담당자미상' && !m.has(k)) m.set(k, v); });
             return [...m.values()].sort((a, b) => a.localeCompare(b, 'ko'));
         }
         function onTeamData() {
+            if (smsSyncWaitTeam) { const f = smsSyncWaitTeam === 2; smsSyncWaitTeam = 0; setTimeout(() => { try { syncAutoSms(f ? { force: true } : {}); } catch (e) { /* 무시 */ } }, 0); }   // 👥 V220 기다리던 자동 문자 맞추기
             if (!teamDirty) teamDraft = null;
             renderTeamSettings();
             if (cardSendSheet.style.display === 'flex') renderCardSendWhich();
@@ -22368,6 +22565,7 @@ familyStr + `\n` +
                     <label class="block text-xs font-bold text-gray-600">강CRM 직원 <span class="font-normal text-gray-500">(이 직원이 보낸 명함 · 견적요청 알림을 받을 사람)</span>
                         <select data-tf="key" ${dis} class="${field}"><option value="">고르세요</option>${keyOpts.map(n => `<option value="${escapeHtml(n)}" ${n === p.key ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>
                     ${p.key && !keyOk ? `<p class="text-xs font-bold text-amber-800">⚠️ '${escapeHtml(p.key)}' 이름으로 로그인한 직원이 없어요. 알림이 안 갈 수 있어요.</p>` : ''}
+                    <div data-tf-warn class="space-y-1">${teamWarnHtml(p)}</div>
                     <div class="grid grid-cols-2 gap-2">
                         <label class="text-xs font-bold text-gray-600">명함에 보일 이름<input data-tf="name" maxlength="12" value="${escapeHtml(p.name)}" ${dis} placeholder="홍길동" class="${field}"></label>
                         <label class="text-xs font-bold text-gray-600">직함<input data-tf="title" maxlength="10" value="${escapeHtml(p.title)}" ${dis} placeholder="사원 · 대리" class="${field}"></label>
@@ -22414,12 +22612,12 @@ familyStr + `\n` +
                 <div class="border-t border-gray-100 pt-3 space-y-2">
                     <p class="text-[14px] font-bold text-gray-900">직원 프로필 <span class="text-xs font-medium text-gray-500">${sids.length}명</span></p>
                     ${sids.map(prof).join('') || '<p class="text-sm text-gray-600 text-center py-4">아직 프로필이 없어요. 아래 [+ 직원 추가]로 넣어주세요.</p>'}
-                    ${missing.length ? `<p class="text-xs text-gray-600 pl-1">프로필 없는 직원: <b>${missing.map(escapeHtml).join(', ')}</b> → 이 직원이 보낸 공용 명함은 매장 정보로 보여요</p>` : ''}
-                    <button type="button" id="teamAddBtn" ${dis} class="w-full h-11 rounded-xl border-2 border-dashed border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40"><i class="fa-solid fa-plus"></i> 직원 추가${missing.length ? ` (${escapeHtml(missing[0])})` : ''}</button>
+                    ${missing.length ? `<p class="text-xs text-gray-600 pl-1">프로필 없는 직원: <b>${missing.map(n => escapeHtml(n) + (staffIsBoss(n) ? ' (👑 대표 명함으로 나가면 괜찮아요)' : '')).join(', ')}</b> → 이 직원이 보낸 공용 명함은 매장 정보로 보여요</p>` : ''}
+                    <button type="button" id="teamAddBtn" ${dis} class="w-full h-11 rounded-xl border-2 border-dashed border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40"><i class="fa-solid fa-plus"></i> 직원 추가</button>
                 </div>
                 <p id="teamDirtyNote" class="hidden text-xs font-bold text-pink-700 text-center">저장 안 한 내용이 있어요 · [저장]을 눌러야 명함에 반영돼요</p>
                 <button type="button" id="teamSaveBtn" disabled class="w-full h-12 rounded-xl bg-gray-100 text-gray-500 text-[15px] font-bold">저장</button>
-                <p id="teamSaved" class="hidden text-xs font-bold text-green-700 text-center"><i class="fa-solid fa-check"></i> 저장됨 · 명함에 바로 반영돼요</p>`;
+                <p id="teamSaved" class="hidden text-xs font-bold text-green-700 text-center"><i class="fa-solid fa-check"></i> 저장됨 · 명함에 바로 반영돼요 · 예약된 자동 문자 명함도 맞춰요</p>`;
             teamMarkDirty(teamDirty);
             box.querySelector('#teamCopyBtn').onclick = async () => { const ok = await copyTextSafe(TEAM_CARD_URL); customAlert(ok ? '공용 명함 주소를 복사했어요.' : `복사가 막혔어요. 길게 눌러 복사해주세요.\n${TEAM_CARD_URL}`); };
             if (locked) return;
@@ -22431,7 +22629,7 @@ familyStr + `\n` +
                     const k = el.dataset.tf;
                     if (k === 'retire') el.onchange = () => { p.active = !el.checked; teamMarkDirty(); renderTeamSettings(); };
                     else if (k === 'key') el.onchange = () => { p.key = el.value; if (!p.name && el.value) p.name = managerKey(el.value); teamMarkDirty(); renderTeamSettings(); };
-                    else el.oninput = () => { p[k] = k === 'phone' ? el.value.replace(/[^0-9]/g, '') : el.value.trim(); teamMarkDirty(); };
+                    else el.oninput = () => { p[k] = k === 'phone' ? el.value.replace(/[^0-9]/g, '') : el.value.trim(); teamMarkDirty(); if (k === 'name') { const w = art.querySelector('[data-tf-warn]'); if (w) w.innerHTML = teamWarnHtml(p); } };
                 });
                 art.querySelector('[data-team-photo]').onclick = () => { teamPhotoSid = sid; const f = document.getElementById('teamPhotoFile'); f.value = ''; f.click(); };
                 art.querySelector('[data-team-nophoto]').onclick = () => { p.photo = ''; teamMarkDirty(); renderTeamSettings(); };
@@ -22442,8 +22640,7 @@ familyStr + `\n` +
             });
             box.querySelector('#teamAddBtn').onclick = () => {
                 if (Object.keys(D.staff).length >= TEAM_MAX) return customAlert(`직원 프로필은 ${TEAM_MAX}명까지 넣을 수 있어요.`);
-                const key = missing[0] || '';
-                D.staff[newTeamSid(D.staff)] = { key, name: key ? managerKey(key) : '', title: '', phone: '', photo: '', active: true };
+                D.staff[newTeamSid(D.staff)] = { key: '', name: '', title: '', phone: '', photo: '', active: true };   // 👥 V220 강CRM 직원은 직접 고르기
                 teamMarkDirty(); renderTeamSettings();
             };
             box.querySelector('#teamSaveBtn').onclick = () => saveTeamSettings();
@@ -22462,6 +22659,8 @@ familyStr + `\n` +
             if (new Set(keys).size !== keys.length) bad.push('같은 강CRM 직원이 두 번 들어가 있어요');
             if (D.store.phone && !/^0\d{8,10}$/.test(D.store.phone)) bad.push('대표번호를 확인해주세요');
             if (bad.length) return customAlert(bad.join('\n'));
+            const diff = Object.values(D.staff).filter(p => p.key && p.name && !sameStaff(p.name, p.key));   // 👥 V220
+            if (diff.length && !(await customConfirm(`명함 이름과 강CRM 직원이 다른 프로필이 있어요.\n\n${diff.map(p => `· 명함 '${p.name}' → 강CRM 직원 '${p.key}'`).join('\n')}\n\n강CRM 직원 담당 고객에게 그 명함이 나가요. 그대로 저장할까요?`))) return;
             if (D.on && !teamCardOn() && !(await customConfirm("[직원은 공용 명함으로 보내기]를 켜요.\n깃허브(kanggun1983.github.io)에 team 폴더를 올렸나요?\n안 올렸으면 직원이 보낸 명함이 안 열려요."))) return;
             const json = JSON.stringify({ ...D, updated: getTodayStr() });
             if (json.length > 900000) return customAlert('사진이 너무 커서 저장할 수 없어요. 사진을 몇 개 빼주세요.');
@@ -22472,6 +22671,7 @@ familyStr + `\n` +
                 teamDirty = false; teamDraft = null;
                 renderTeamSettings();
                 const s = document.getElementById('teamSaved'); if (s) { s.classList.remove('hidden'); setTimeout(() => s.classList.add('hidden'), 2500); }
+                if (pushRelayReady()) Promise.resolve(syncAutoSms({ force: true })).catch(e => console.warn('자동 문자 다시 맞추기', e));   // 👥 V220 예약된 자동 문자 명함 링크도 바로
             } catch (e) {
                 customAlert(koreanError(e, '저장'));
                 if (btn) btn.disabled = false;
