@@ -358,7 +358,7 @@
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer">
                                         <input type="radio" name="discountType" value="공시지원금" class="w-4 h-4 text-blue-600" onchange="toggleSelectContractOptions(false)">
-                                        <span class="text-sm font-bold text-gray-700">공시지원금</span>
+                                        <span class="text-sm font-bold text-gray-700">공통지원금</span>
                                     </label>
                                     <label class="flex items-center gap-1 cursor-pointer">
                                         <input type="radio" name="discountType" value="해당없음" class="w-4 h-4 text-gray-600" onchange="toggleSelectContractOptions(false)">
@@ -378,6 +378,10 @@
                                         <input type="radio" name="selectContractTerm" value="24개월" class="w-4 h-4 text-green-600 focus:ring-green-500">
                                         <span class="text-sm font-bold text-green-700">24개월</span>
                                     </label>
+                                </div>
+                                <div id="scanSubsidyBox" class="hidden grid grid-cols-2 gap-2 w-full">
+                                    <label id="scanPubWrap" class="block min-w-0"><span class="block text-xs font-bold text-blue-700 mb-1">공통지원금</span><input type="text" id="val-pub-support" inputmode="numeric" autocomplete="off" class="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-[15px] font-bold text-gray-800 outline-none focus:ring-1 focus:ring-blue-400" placeholder="예: 500,000"></label>
+                                    <label id="scanDistWrap" class="block min-w-0"><span class="block text-xs font-bold text-purple-700 mb-1">유통망지원금</span><input type="text" id="val-dist-support" inputmode="numeric" autocomplete="off" class="w-full h-11 px-3 bg-white border border-gray-300 rounded-lg text-[15px] font-bold text-gray-800 outline-none focus:ring-1 focus:ring-purple-400" placeholder="예: 300,000"></label>
                                 </div>
                             </div>
                         </div>
@@ -1200,7 +1204,7 @@
                 <h3 id="setAppTitle" class="text-[13px] font-bold text-gray-600 pl-1">앱 정보</h3>
                 <div class="bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between">
                     <span class="text-[15px] font-medium text-gray-900">버전</span>
-                    <span id="appVerLabel" class="text-sm text-gray-600">V224</span>
+                    <span id="appVerLabel" class="text-sm text-gray-600">V225</span>
                 </div>
                 <button type="button" id="whatsNewBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[56px] px-4 py-2 flex items-center justify-between text-left hover:bg-gray-50"><span class="text-[15px] font-medium text-gray-900">📢 업데이트 소식</span><span class="text-sm font-bold text-indigo-700">보기 <i class="fa-solid fa-chevron-right text-xs" aria-hidden="true"></i></span></button>
             </section>
@@ -2793,9 +2797,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <option value="선택약정(12+12개월)">선택약정(12+12개월)</option>
                             <option value="선택약정(24개월)">선택약정(24개월)</option>
                             <option value="선택약정">선택약정(기본)</option>
-                            <option value="공시지원금">공시지원금</option>
+                            <option value="공시지원금">공통지원금</option>
                             <option value="해당없음">해당없음(만료)</option>
                         </select>
+                        <div id="modalSubsidyBox" class="hidden mt-2 grid grid-cols-2 gap-1.5">
+                            <label id="modalPubWrap" class="block min-w-0"><span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-0.5">공통지원금</span><input type="text" id="modalPubSupport" inputmode="numeric" autocomplete="off" class="modal-input text-xs sm:text-sm" placeholder="0"></label>
+                            <label id="modalDistWrap" class="block min-w-0"><span class="block text-[10px] sm:text-xs text-purple-700 font-bold mb-0.5">유통망지원금</span><input type="text" id="modalDistSupport" inputmode="numeric" autocomplete="off" class="modal-input text-xs sm:text-sm" placeholder="0"></label>
+                        </div>
                     </div>
                     <div class="bg-gray-50 p-2 sm:p-3 rounded-lg border border-gray-200 focus-within:border-indigo-500">
                         <span class="block text-[10px] sm:text-xs text-gray-500 mb-1">생년월일/나이</span>
@@ -4445,6 +4453,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (existing.discountType && existing.discountType !== '미정' && (!curBase || existing.discountType.startsWith(curBase))) {
                 restoreDiscountTypeUI(existing.discountType); // 같은 유형이면 저장된 약정개월(예: 24개월)까지 복원
             }
+            if (Number(existing.publicSupport) > 0) fillIfBlank('val-pub-support', Number(existing.publicSupport).toLocaleString('ko-KR'));   // 🏷 V225
+            if (Number(existing.distSupport) > 0) fillIfBlank('val-dist-support', Number(existing.distSupport).toLocaleString('ko-KR'));
 
             customAlert(`📋 이미 등록된 고객이에요${existing.name ? ' (' + existing.name + ')' : ''}.\n저장하면 기존 정보에 합쳐지고, 이번 사진에 없는 항목은 기존 값이 그대로 유지돼요.${existing.marketingDeny ? '\n⚠️ 마케팅 수신거부 고객이에요.' : ''}`);
         }
@@ -4507,8 +4517,22 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         });
         const radioInputs = document.querySelectorAll('input[name="discountType"]');
         radioInputs.forEach(radio => {
-            radio.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
+            radio.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); syncSubsidyInputs(); });
         });
+        // 🏷 V225 공통지원금이면 공통지원금 칸 · 선택약정 · 공통지원금이면 유통망지원금 칸 (스캔 화면 · 고객 정보 수정 같이)
+        function subsidyShow(dt) { const t = String(dt || ''); return { pub: /공시|공통/.test(t), dist: /공시|공통|선택약정|선약/.test(t) }; }
+        function syncSubsidyInputs() {
+            const ck = document.querySelector('input[name="discountType"]:checked'), w = subsidyShow(ck ? ck.value : '');
+            document.getElementById('scanSubsidyBox').classList.toggle('hidden', !w.dist);
+            document.getElementById('scanPubWrap').classList.toggle('hidden', !w.pub);
+        }
+        function syncModalSubsidy() {
+            const w = subsidyShow(document.getElementById('modalDiscount').value);
+            document.getElementById('modalSubsidyBox').classList.toggle('hidden', !w.dist);
+            document.getElementById('modalPubWrap').classList.toggle('hidden', !w.pub);
+        }
+        function subsidyNum(id) { const el = document.getElementById(id); return el ? (Number(String(el.value || '').replace(/[^\d]/g, '')) || 0) : 0; }
+        function dtLabel(dt) { return String(dt || '').replace(/공시지원금/g, '공통지원금'); }   // 🏷 V225 저장값은 그대로 · 화면 이름만
         const selectTermInputs = document.querySelectorAll('input[name="selectContractTerm"]');
         selectTermInputs.forEach(radio => {
             radio.addEventListener('change', () => { document.getElementById('saveDbBtn').classList.remove('hidden'); });
@@ -4534,7 +4558,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
             let baseType = null;
             if (dtValue.includes('선택약정')) baseType = '선택약정';
-            else if (dtValue.includes('공시지원금')) baseType = '공시지원금';
+            else if (/공시지원금|공통지원금/.test(dtValue)) baseType = '공시지원금';
             else if (dtValue.includes('해당없음')) baseType = '해당없음';
             if (!baseType) return;
 
@@ -4550,6 +4574,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     }
                 }
             }
+            syncSubsidyInputs();
         }
 
         // ─────────────────────────────────────────────
@@ -5399,6 +5424,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             
             const radios = document.getElementsByName('discountType'); for (let r of radios) r.checked = false;
             toggleSelectContractOptions(false);
+            ['val-pub-support', 'val-dist-support'].forEach(id => { document.getElementById(id).value = ''; }); syncSubsidyInputs();
         };
 
         // 스캔 실패 이유를 원인별로 알려주기 (예전엔 원인과 상관없이 영어 오류문 + '키를 새로 발급' 안내만 떴음)
@@ -5700,6 +5726,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 tvProd: keepIfBlank('tvProd', document.getElementById('val-tv').value),
                 wiredDate: keepIfBlank('wiredDate', document.getElementById('val-wireddate').value),
                 discountType: finalDiscount,
+                ...(/공시/.test(finalDiscount) && subsidyNum('val-pub-support') > 0 ? { publicSupport: subsidyNum('val-pub-support') } : {}),   // 🏷 V225
+                ...(subsidyShow(finalDiscount).dist && subsidyNum('val-dist-support') > 0 ? { distSupport: subsidyNum('val-dist-support') } : {}),
                 
                 legalName: finalLegalName,
                 legalPhone: finalLegalPhone,
@@ -5952,7 +5980,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     escapeCSV(c.device || [c.internetProd, c.tvProd].filter(Boolean).join(' + ')),
                     escapeCSV(c.activationDate),
                     escapeCSV(c.plan),
-                    escapeCSV(c.discountType),
+                    escapeCSV(dtLabel(c.discountType)),
                     escapeCSV(c.installment),
                     escapeCSV(c.fee),
                     escapeCSV((c.combination || '') + (c.welfare && c.welfare !== '해당없음' ? ' / ' + c.welfare : '')),
@@ -7628,7 +7656,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if ((c.discountType || '').includes('선택약정')) {
                     discountBadge = `<span class="bg-green-50 text-green-700 border border-green-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">${escapeHtml(c.discountType)}</span>`;
                 } else if ((c.discountType || '').includes('공시지원금')) {
-                    discountBadge = `<span class="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">공시지원금</span>`;
+                    discountBadge = `<span class="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">공통지원금</span>`;
                 } else if ((c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료')) {
                     discountBadge = `<span class="bg-gray-100 text-gray-500 border border-gray-200 text-[11px] px-2 py-1 rounded font-bold whitespace-nowrap shadow-sm">해당없음</span>`;
                 } else {
@@ -8822,11 +8850,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (discountSelect.selectedIndex === -1 && c.discountType) {
                 let opt = document.createElement('option');
                 opt.value = c.discountType;
-                opt.text = c.discountType;
+                opt.text = dtLabel(c.discountType);
                 opt.dataset.temp = '1';
                 discountSelect.add(opt);
                 discountSelect.value = c.discountType;
             }
+            document.getElementById('modalPubSupport').value = Number(c.publicSupport) > 0 ? Number(c.publicSupport).toLocaleString('ko-KR') : '';   // 🏷 V225
+            document.getElementById('modalDistSupport').value = Number(c.distSupport) > 0 ? Number(c.distSupport).toLocaleString('ko-KR') : '';
+            syncModalSubsidy();
 
             document.getElementById('modalLegalName').value = c.legalName || '';
             document.getElementById('modalLegalPhone').value = c.legalPhone || '';
@@ -9020,7 +9051,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             // 3칸 요약 (영업상태 / 사용기간 / 할인유형)
             const hasAct = !!(c.activationDate && c.activationDate.length === 10);
             const act = getDdayAndMonths(c.activationDate);
-            const discount = (c.discountType && c.discountType !== '미정') ? c.discountType : '';
+            const discount = (c.discountType && c.discountType !== '미정') ? dtLabel(c.discountType) : '';
             const discountBase = discount.split('(')[0];
             const discountTerm = discount.includes('(') ? discount.split('(')[1].replace(')', '') : '';
             const statCells = `
@@ -9149,7 +9180,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 ...(filled(c.repTargetPlan) ? [profileKV('변경 후 요금제', `${escapeHtml(c.repTargetPlan)}${Number(c.targetPlanFee) > 0 ? ` <span class="text-[12px] text-gray-500 font-medium">월 ${Number(c.targetPlanFee).toLocaleString('ko-KR')}원</span>` : ''}`)] : []),
                 profileKV('월 요금', profileValue(c.fee || (Number(c.planFee) > 0 ? `${Number(c.planFee).toLocaleString('ko-KR')}원` : ''))),   // 💰 V205 개통등록 월요금
                 profileKV('개통일', actHtml),
-                profileKV('할인유형', profileValue(c.discountType === '미정' ? '' : c.discountType)),
+                profileKV('할인유형', profileValue(c.discountType === '미정' ? '' : dtLabel(c.discountType))),
+                ...(/공시/.test(c.discountType || '') && Number(c.publicSupport) > 0 ? [profileKV('공통지원금', `${Number(c.publicSupport).toLocaleString('ko-KR')}원`)] : []),   // 🏷 V225
+                ...(Number(c.distSupport) > 0 ? [profileKV('유통망지원금', `${Number(c.distSupport).toLocaleString('ko-KR')}원`)] : []),
                 profileKV('할부 잔여', instHtml),
                 ...(String(c.installment2 || '').trim() ? [profileKV('💳 이중할부', (() => { const b = inst2BaseOf(c), d = String(getDynamicInstallment(c.installment2, b) || ''); return `<span class="text-pink-600">${escapeHtml(d.includes('완납') ? '완납' : d)}</span>${d !== c.installment2 ? `<br><span class="text-[11px] text-gray-400 font-medium">${escapeHtml(b || '기준일 미상')} 기준: ${escapeHtml(c.installment2)}</span>` : ''}`; })())] : []),
                 profileKV('평균 사용량', profileValue(c.usage)),
@@ -13130,7 +13163,7 @@ ${AI_TONES[aiSmsTone]}
                 carrier: v('modalCarrier'), dob: v('modalDob'), device: v('modalDevice'), interestModel: v('modalInterest').trim(),
                 installment: inst, installmentBaseDate: v('modalInstallmentBase') || (inst ? getTodayStr() : ''),
                 installment2: inst2, installment2BaseDate: inst2 ? (inst2 === modalInst2Original.trim() ? modalInst2BaseOriginal : getTodayStr()) : '',
-                discountType: v('modalDiscount'), plan: v('modalPlan'), fee: v('modalFee'), wiredFee: v('modalWiredFee'), usage: v('modalUsage'),
+                discountType: v('modalDiscount'), publicSupport: subsidyNum('modalPubSupport') || '', distSupport: subsidyNum('modalDistSupport') || '', plan: v('modalPlan'), fee: v('modalFee'), wiredFee: v('modalWiredFee'), usage: v('modalUsage'),
                 repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: v('modalTvOnly') || '',
                 wiredDate: v('modalWiredDate'), repFamily: v('modalFamily'),
@@ -13147,7 +13180,7 @@ ${AI_TONES[aiSmsTone]}
             return f;
         }
         let detailFormBase = null;
-        const DETAIL_LABELS = { fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 월요금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
+        const DETAIL_LABELS = { publicSupport: '공통지원금', distSupport: '유통망지원금', fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 월요금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
         function detailFieldLabel(k) {
             if (DETAIL_LABELS[k]) return DETAIL_LABELS[k];
             const m = /^prom([A-Za-z0-9]+)(Date|Memo|Chk)$/.exec(k);
@@ -13333,7 +13366,7 @@ ${AI_TONES[aiSmsTone]}
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할부정보</th>
                             <td style="border: 1px solid #ccc; padding: 10px;">${c.installment ? `${escapeHtml(getDynamicInstallment(c.installment, getInstallmentBaseDate(c)))}<br><span style="font-size: 9pt; color: #888;">(${escapeHtml(getInstallmentBaseDate(c) || '기준일 미상')} 기준: ${escapeHtml(c.installment)})</span>` : '-'}</td>
                             <th style="border: 1px solid #ccc; padding: 10px; background: #f9f9f9;">할인유형</th>
-                            <td style="border: 1px solid #ccc; padding: 10px;">${escapeHtml(c.discountType || '-')}</td>
+                            <td style="border: 1px solid #ccc; padding: 10px;">${escapeHtml(dtLabel(c.discountType) || '-')}</td>
                         </tr>
                     </table>
 
@@ -14295,7 +14328,8 @@ familyStr + `\n` +
             }
         });
 
-        const moneyFields = ['val-installment', 'val-installment2', 'modalInstallment2', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalTargetFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'rep-wired-fee', 'pros-pay', 'detailProsPay'];   // rep-wired-fee 추가 (V86)
+        document.getElementById('modalDiscount').addEventListener('change', syncModalSubsidy);   // 🏷 V225
+        const moneyFields = ['val-pub-support', 'val-dist-support', 'modalPubSupport', 'modalDistSupport', 'val-installment', 'val-installment2', 'modalInstallment2', 'val-fee', 'val-wired-fee', 'modalInstallment', 'modalFee', 'modalTargetFee', 'modalWiredFee', 'rep-principal', 'rep-subsidy', 'rep-usim-pay', 'wired-rep-subsidy', 'wired-rep-fee', 'rep-wired-subsidy', 'rep-wired-fee', 'pros-pay', 'detailProsPay'];   // rep-wired-fee 추가 (V86)
         moneyFields.forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -19976,8 +20010,11 @@ familyStr + `\n` +
 
         /* =====================================================================
            🔄 지금 바꾸면 (V209) — 고객카드 모바일 탭
-           · 약정 끝나는 날 · 남은 할부(개통등록 할부원금이 있으면 연 5.9% 원리금균등으로 정확히) · 공시 반환금(지원금 × 남은 기간 · 대략)
-           · 선택약정 할인반환금은 통신사마다 달라서 '조회'로만 · 요금제 유지 약속
+           · 약정 끝나는 날 · 남은 할부(개통등록 할부원금이 있으면 연 5.9% 원리금균등으로 정확히) · 요금제 유지 약속
+           · 🏷 V225 위약금 3가지 (통신 3사 공식 · SKT '18.3.5 · KT '18.9.1 · LG U+ '20.2.1 이후 가입 기준 · 그 전 가입은 약정이 다 끝남)
+             - 공통지원금: 개통 180일 안 = 전액 · 그 뒤 = 지원금 × 남은 약정일 ÷ (약정일 − 180일)
+             - 선택약정 할인반환금: 받은 할인(월요금 25% × 쓴 기간) · 24개월 약정 180일 안 = 전액, 그 뒤 × 남은 일 ÷ (약정일 − 180일) · 12개월(12+12) 90일
+             - 유통망지원금(매장): 개통 191일 안 = 전액 · 그 뒤 = 지원금 × 남은 약정일 ÷ (약정일 − 191일)
            ===================================================================== */
         function changeNowInfo(c) {
             if (!c || !/^\d{4}-\d{2}-\d{2}$/.test(c.activationDate || '') || c.activationDate > getTodayStr()) return null;   // 개통 6개월 뒤 '미정'으로 풀린 고객도 (기변 대상)
@@ -19988,7 +20025,7 @@ familyStr + `\n` +
             const dayMs = 86400000, totalDays = Math.max(1, Math.round((Date.parse(end) - Date.parse(ad)) / dayMs)), usedDays = Math.max(0, Math.round((Date.parse(today) - Date.parse(ad)) / dayMs));
             const remDays = term ? Math.max(0, Math.round((Date.parse(end) - Date.parse(today)) / dayMs)) : 0;
             const now = new Date(), remMonths = term && remDays > 0 ? Math.max(0, (endD.getFullYear() - now.getFullYear()) * 12 + endD.getMonth() - now.getMonth() - (endD.getDate() < now.getDate() ? 1 : 0)) : 0;
-            const mode = /공시/.test(dt) ? '공시' : (/선택|선약/.test(dt) ? '선약' : '');
+            const mode = /공시|공통/.test(dt) ? '공시' : (/선택|선약/.test(dt) ? '선약' : '');
             let inst = null;
             const P0 = Number(c.loanPrincipal) || 0, n = parseInstallmentMonths(String(c.installment || '').split('/')[1] || '') || 0;
             if (P0 > 0 && n > 0) {
@@ -20002,27 +20039,44 @@ familyStr + `\n` +
                 else { const a = parseKoreanAmount(String(dyn.split('/')[0] || '').replace(/^약\s*/, '').replace(/\s/g, '')); if (a !== null && a >= 0) inst = { amt: a, months: parseInstallmentMonths(dyn.split('/')[1] || '') || 0 }; }
             }
             const inst2 = String(c.installment2 || '').trim() ? String(getDynamicInstallment(c.installment2, inst2BaseOf(c)) || '') : '';
-            const pub = Number(c.publicSupport) || 0;
-            const pubBack = mode === '공시' && pub > 0 && remDays > 0 ? Math.floor(pub * remDays / totalDays / 10) * 10 : 0;
-            const selGot = mode === '선약' && Number(c.planFee) > 0 ? Math.round(Number(c.planFee) * 0.25 * Math.min(term || 24, Math.floor(usedDays / 30.4))) : 0;
+            const car = carrierKeepKey(c.carrier), big3 = car !== 'ETC', fl10 = (x) => Math.max(0, Math.floor(x / 10) * 10);
+            const back = (amt, free) => !(amt > 0) ? 0 : (usedDays < free ? amt : (remDays > 0 && totalDays > free ? fl10(amt * remDays / (totalDays - free)) : 0));   // 🏷 V225 통신사 공식 (free = 전액 기간)
+            const pub = Number(c.publicSupport) || 0, pubFree = term && term <= 12 ? 90 : 180;
+            const pubBack = mode === '공시' && big3 && remDays > 0 ? back(pub, pubFree) : 0;
+            const feeTxt = String(c.fee || '').replace(/\s+/g, '').replace(/^월/, ''), feeN = /^[\d,.]+(만([\d,]+천?)?)?원?$/.test(feeTxt) ? (parseKoreanAmount(feeTxt) || 0) : 0;
+            const fee = Number(c.planFee) > 0 ? Number(c.planFee) : feeN, selFree = term && term <= 12 ? 90 : 180;
+            const selGot = mode === '선약' && fee > 0 ? Math.round(fee * 0.25 * Math.min(usedDays, totalDays) / (365 / 12)) : 0;   // 받은 할인 (월요금 25% × 쓴 기간)
+            const selBack = mode === '선약' && big3 && remDays > 0 && selGot > 0 ? back(selGot, selFree) : 0;
+            const dist = Number(c.distSupport) || 0, distBack = back(dist, DIST_KEEP_DAYS);
             const plan = c.promPlanDate && String(c.promPlanDate).length >= 10 && !c.promPlanChk ? { date: String(c.promPlanDate).slice(0, 10), left: daysFromToday(String(c.promPlanDate).slice(0, 10)) } : null;
-            return { term, end, remDays, remMonths, usedDays, mode, pub, inst, inst2, pubBack, selGot, plan };
+            const dayAfter = (n) => { const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+            return { term, end, remDays, remMonths, usedDays, totalDays, mode, car, big3, pub, pubFree, inst, inst2, pubBack, fee, selGot, selFree, selBack, dist, distBack, distEnd: dayAfter(DIST_KEEP_DAYS), pubEnd: dayAfter(pubFree), selEnd: dayAfter(selFree), plan };
         }
+        const DIST_KEEP_DAYS = 191;   // 🏷 V225 유통망지원금 유지일 (개통일 + 191일 · 매장 규칙)
+        const CN_CAR = { SKT: 'SKT', KT: 'KT', LGU: 'LG U+', ETC: '알뜰폰·기타' };
         function changeNowHtml(c) {
             const I = changeNowInfo(c); if (!I) return '';
+            const sub = (t) => `<br><span class="text-[11px] text-gray-500">${t}</span>`, amt = (n) => `약 <b>${arWon(n)}원</b>`;
             const rows = [['약정', I.term ? `${I.term}개월 · ${gdDot(I.end)} 끝 ${I.remDays > 0 ? `(<b>${I.remMonths}개월</b> 남음)` : '<b class="text-emerald-700">(끝났어요)</b>'}` : '무약정']];
             if (I.inst) rows.push(['남은 할부', I.inst.amt > 0 ? `<b>${I.inst.exact ? '' : '약 '}${arWon(I.inst.amt)}원</b> · ${I.inst.months}개월` : '<b class="text-emerald-700">완납</b>']);
             if (I.inst2) rows.push(['💳 이중할부', escapeHtml(I.inst2)]);
-            if (I.mode === '공시') rows.push(['공시 반환금', I.pubBack ? `약 <b>${arWon(I.pubBack)}원</b><br><span class="text-[11px] text-gray-500">공시 ${wonMan(I.pub)} × 남은 기간 · 통신사 조회가 정확</span>` : (I.remDays > 0 ? '<span class="text-gray-500">공시지원금 금액을 몰라요 (통신사 조회)</span>' : '없어요')]);
-            if (I.mode === '선약') rows.push(['선택약정', I.remDays > 0 ? `할인반환금 있어요<br><span class="text-[11px] text-gray-500">통신사 조회${I.selGot ? ` · 받은 할인 약 ${wonMan(I.selGot)}` : ''}</span>` : '반환금 없어요']);
+            let unknown = '';
+            if (I.mode === '공시') rows.push(['공통지원금 위약금', I.remDays <= 0 ? '없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.pub > 0
+                ? `${amt(I.pubBack)}${sub(`공통 ${wonMan(I.pub)} · ${I.usedDays < I.pubFree ? `${gdDot(I.pubEnd)}까지 전액 (${I.pubFree}일)` : `${I.pubFree}일 지나 남은 기간 비례`}`)}`
+                : ((unknown = ' + 공통지원금 위약금'), '<span class="text-gray-500">공통지원금 금액을 넣으면 계산돼요</span>')))]);
+            if (I.mode === '선약') rows.push(['선택약정 할인반환금', I.remDays <= 0 ? '반환금 없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.selGot > 0
+                ? `${amt(I.selBack)}${sub(`받은 할인 약 ${wonMan(I.selGot)} (월 ${arWon(I.fee)}원 × 25%) · ${I.usedDays < I.selFree ? `${I.selFree === 180 ? 6 : 3}개월 안이라 전액` : `${I.selFree}일 지나 남은 기간 비례`}`)}`
+                : ((unknown = ' + 선택약정 할인반환금'), '<span class="text-gray-500">월요금을 넣으면 계산돼요</span>')))]);
+            if (I.dist > 0) rows.push(['유통망지원금 위약금', I.distBack > 0 ? `${I.usedDays < DIST_KEEP_DAYS ? `<b>${arWon(I.distBack)}원</b>` : amt(I.distBack)}${sub(`유통망 ${wonMan(I.dist)} · ${I.usedDays < DIST_KEEP_DAYS ? `${gdDot(I.distEnd)}까지 전액 (${DIST_KEEP_DAYS}일)` : `${DIST_KEEP_DAYS}일 지나 남은 기간 비례`}`)}` : `없어요${sub(`유통망 ${wonMan(I.dist)} · 약정 끝`)}`]);
             if (I.plan) rows.push(['요금제 유지', I.plan.left > 0 ? `${gdDot(I.plan.date)}까지 <b>D-${I.plan.left}</b><br><span class="text-[11px] text-gray-500">그 전엔 요금제를 낮추면 안 돼요</span>` : '끝났어요 · 낮춰도 돼요']);
-            const sure = (I.pubBack || 0) + ((I.inst && I.inst.amt) || 0);
+            const sure = (I.pubBack || 0) + (I.selBack || 0) + (I.distBack || 0) + ((I.inst && I.inst.amt) || 0);
             const verdict = !I.term || I.remDays <= 0 ? (I.inst && I.inst.amt > 0 ? '✅ 약정 끝 · 남은 할부만 정리하면 바꾸기 좋아요' : '✅ 약정 · 할부 다 끝 · 바꾸기 좋아요') : (I.remMonths <= 3 ? `⏳ 약정 ${I.remMonths}개월 남음 · ${gdDot(I.end)}부터 반환금 없이` : `약정 ${I.remMonths}개월 남음 · 지금 바꾸면 반환금이 있어요`);
             return `<div class="mt-3 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5" data-change-now>
-                <div class="flex items-center justify-between gap-2 mb-1"><p class="text-[14px] font-extrabold text-sky-900">🔄 지금 바꾸면</p><span class="text-[11px] text-sky-700">${Math.floor(I.usedDays / 30.4)}개월째 사용</span></div>
+                <div class="flex items-center justify-between gap-2 mb-1"><p class="text-[14px] font-extrabold text-sky-900">🔄 지금 바꾸면</p><span class="text-[11px] text-sky-700">${CN_CAR[I.car]} · ${Math.floor(I.usedDays / 30.4)}개월째 사용</span></div>
                 <p class="text-[13px] font-bold text-gray-900 mb-1">${verdict}</p>
                 ${rows.map(([l, v]) => `<div class="flex items-start justify-between gap-3 py-0.5 text-[13px]"><span class="text-gray-600 flex-shrink-0">${l}</span><span class="text-right text-gray-900 leading-snug">${v}</span></div>`).join('')}
-                ${sure ? `<p class="mt-1 pt-1.5 border-t border-sky-100 text-[13px] text-gray-900">지금 바꾸면 대략 <b class="text-[15px]">${arWon(sure)}원</b>${I.mode === '선약' && I.remDays > 0 ? ' + 선택약정 할인반환금' : ''}</p>` : ''}
+                ${sure ? `<p class="mt-1 pt-1.5 border-t border-sky-100 text-[13px] text-gray-900">지금 바꾸면 대략 <b class="text-[15px]">${arWon(sure)}원</b>${unknown || (!I.big3 && I.remDays > 0 && I.mode ? ' + 통신사 위약금' : '')}</p>` : ''}
+                ${I.pubBack || I.selBack ? `<p class="text-[11px] text-gray-500 leading-snug">${CN_CAR[I.car]} 공식으로 계산한 대략값 · 정확한 금액은 통신사 조회</p>` : ''}
                 <div class="mt-2 grid grid-cols-2 gap-1.5"><button type="button" data-cn-guide class="h-10 rounded-lg bg-indigo-600 text-white text-[13px] font-bold">📝 기변 안내서</button><button type="button" data-cn-cmp class="h-10 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-[13px] font-bold">⚖️ 비교 안내서</button></div></div>`;
         }
         profileModal.addEventListener('click', (ev) => {   // 🔄 V209
@@ -22786,7 +22840,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V224';
+        const APP_VER = 'V225';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -22794,6 +22848,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V225', d: '2026-10-25', items: [
+                ['🏷 할인 유형 \'공시지원금\' → \'공통지원금\' · 공통지원금을 고르면 금액 칸 · 선택약정 · 공통지원금이면 유통망지원금 칸 (스캔 화면 · 고객 정보 수정 · 고객카드)'],
+                ['🔄 고객카드 [지금 바꾸면]: 통신사 공식으로 공통지원금 위약금 · 선택약정 할인반환금 · 유통망지원금 위약금(191일)을 금액으로 계산해서 합계에 더해요']] },
             { v: 'V224', d: '2026-10-25', items: [
                 ['📞 전화 앱 v4: 강CRM처럼 맨 아래 고정 메뉴 (통화 기록 · 녹음 · 설정) · 통화 기록 칸에 오늘 요약 · 받은/건/부재 거르기 · 누르면 통화 한 건 화면'],
                 ['🔗 전화 앱 통화 한 건 화면의 [강CRM 카드]를 누르면 강CRM에서 그 고객카드가 바로 열려요'],
