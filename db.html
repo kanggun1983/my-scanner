@@ -17608,7 +17608,7 @@ familyStr + `\n` +
                         <div class="grid grid-cols-[1fr_120px] gap-2">${arIn('ar-target', '변경후 요금제', c.repTargetPlan || '', { ph: '예) 5G 라이트' })}${arIn('ar-targetfee', '변경후 월요금 (원)', c.targetPlanFee ? arWon(c.targetPlanFee) : '', { num: true, ph: '0' })}</div>
                     </div>
                     <div class="col-span-2 grid grid-cols-3 gap-2">
-                    ${arSel('ar-term', '약정개월', ['24개월', '12개월', '무약정'], '24개월')}
+                    ${arSel('ar-term', '약정개월', ['24개월', '12개월', '12+12개월', '무약정'], '24개월')}
                     ${arSel('ar-inst', '단말기할부', ['24개월', '36개월', '30개월', '48개월', '12개월', '일시불'], '24개월')}
                     ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
                     </div>
@@ -19699,6 +19699,11 @@ familyStr + `\n` +
         function gdTitle(g) { return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
         function gdFindCust(phone) { const d = phoneDigits(phone); if (!/^01\d{8,9}$/.test(d)) return null; return customerDB.find(c => c.id === d || phoneDigits(c.phone) === d) || null; }
         function gdCarOf(v) { return /^알뜰/.test(String(v || '')) ? '알뜰폰' : (GD_CARRIERS.includes(v) ? v : ''); }
+        // 📄 V234 선택약정 12+12: 12개월 뒤 다시 12개월 약정 (재약정하면 25% 할인이 이어짐)
+        function gdReTermText(g) {
+            const d = /^\d{4}-\d{2}-\d{2}$/.test(String(g && g.date || '')) ? g.date : getTodayStr();
+            return `${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월쯤 12개월 재약정하면 25% 할인이 이어져요 (모두 24개월)`;
+        }
         function gdKeepDefault(g) {
             const d = dealerByName(g.dealer);
             if (d) {   // 🏢 V212: 유통망지원금이면 189일(거래처 설정) · 아니면 공시 / 선약 따로
@@ -19907,7 +19912,7 @@ familyStr + `\n` +
             ] : [['단말기', '없음'], ['#', '유심단독 개통이라 단말기 대금이 없어요.'], '-', ['월 할부금', '0원', 1]];
             const B = [
                 ['요금제', g.plan.name || '-', 1], ['월정액', W(c.pfee)],
-                ...(g.sup === '선약' ? [[`선택약정 ${g.term}개월`, M(c.sel)]] : (g.sup === '공시' ? [['약정', `${g.term}개월`]] : [])),
+                ...(g.sup === '선약' ? [[`선택약정 ${g.term}개월`, M(c.sel)], ...(g.term === '12+12' ? [['#', gdReTermText(g)]] : [])] : (g.sup === '공시' ? [['약정', `${g.term}개월`]] : [])),
                 ...(c.wel ? [['복지할인', M(c.wel)], ['#', gdWelLabel(g)]] : []),
                 ...(c.comb ? [[g.plan.combName || '결합할인', M(c.comb)]] : []),
                 ...(c.card ? [['요금DC카드 (매달)', M(c.card)], ...(String(g.plan.cardName || '').trim() ? [['#', String(g.plan.cardName).trim()]] : [])] : []),
@@ -20187,9 +20192,9 @@ familyStr + `\n` +
                 <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap"><span class="text-sm font-bold text-indigo-900">할부원금 <b id="gdLoan" class="text-[17px]">${arWon(c.loan)}</b>원</span><span class="text-sm font-bold text-indigo-900">월 할부금 약 <b id="gdMonth" class="text-[17px]">${arWon(c.month)}</b>원</span></div>
                 <p id="gdLoanSub" class="text-xs text-gray-600 text-right -mt-1">${gdLoanSub(c)}</p>`);
             h += gdSec('B · 요금', `${gdChips('sup', dev ? [['선약', '요금할인 (선택약정)'], ['공시', '단말할인 (공시)']] : [['선약', '선택약정'], ['없음', '약정 없음']], g.sup)}
-                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}
+                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', g.sup === '선약' ? [['24', '24개월'], ['12', '12개월'], ['12+12', '12+12개월']] : [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('<span class="text-red-600">*</span> 요금제', gdInp('plan.name', g.plan.name, { list: 'gdPlanList', ph: '예) 라이트 39' }))}${gdLbl('<span class="text-red-600">*</span> 월정액', gdInp('plan.fee', g.plan.fee, { money: true }))}</div>
-                ${g.sup === '선약' ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700 flex justify-between"><span>선택약정 ${g.term}개월 (25%)</span><b id="gdSel" class="text-gray-900">-${arWon(c.sel)}원</b></div>` : ''}
+                ${g.sup === '선약' ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700 flex justify-between"><span>선택약정 ${g.term}개월 (25%)</span><b id="gdSel" class="text-gray-900">-${arWon(c.sel)}원</b></div>${g.term === '12+12' ? `<p class="text-xs text-gray-600 -mt-1" data-gd-1212>${gdReTermText(g)}</p>` : ''}` : ''}
                 <div class="grid grid-cols-2 gap-2">
                     ${gdLbl('복지할인', `<select data-gd="plan.welType" class="${gdCls}">${GD_WELFARE.map(([v, l]) => `<option value="${v}" ${g.plan.welType === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`)}
                     ${g.plan.welType ? gdLbl(`복지할인 금액 <span id="gdWelTag" class="font-normal text-indigo-700">${gdWelAutoOn(g) ? '· 자동 (고쳐도 돼요)' : ''}</span>`, gdInp('plan.wel', gdWelAutoOn(g) ? c.wel : g.plan.wel, { money: true, id: 'gdWel' })) : '<div></div>'}
@@ -20295,8 +20300,9 @@ familyStr + `\n` +
                 gdDirty = true;
                 if (k === 'kind') { gd.kind = v === 'usim' ? 'usim' : 'dev'; if (gd.kind === 'usim' && gd.sup === '공시') gd.sup = '선약'; if (gd.kind === 'dev' && gd.sup === '없음') gd.sup = '선약'; }
                 else if (k === 'carrier') { gd.carrier = v; if (!gd.keepTouched) gd.keep.code = gdKeepDefault(gd); const d = dealerByName(gd.dealer); if (d && gdCarOf(d.carrier) && gdCarOf(d.carrier) !== v) gdApplyDealer(gd, ''); }
-                else if (k === 'term') gd.term = Number(v) || 24;
+                else if (k === 'term') gd.term = v === '12+12' ? '12+12' : (Number(v) || 24);   // 📄 V234 12+12
                 else gd[k] = v;
+                if (k === 'sup' && gd.sup !== '선약' && gd.term === '12+12') gd.term = 24;   // 공시엔 12+12가 없어요
                 if ((k === 'sup' || k === 'kind') && !gd.keepTouched) gd.keep.code = gdKeepDefault(gd);   // 📅 V212
                 if (gd.kind !== 'usim' && gd.sup === '공시' && (gd.dev.pubAuto || !gd.dev.pub)) { const m = gdModelInfo(gd); if (m && m.pub) { gd.dev.pub = m.pub; gd.dev.pubAuto = true; } }   // 공시: 지원금표에서 (개통종류마다 다름)
                 gdRender(); return;
@@ -23679,7 +23685,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V233';
+        const APP_VER = 'V234';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23687,6 +23693,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V234', d: '2026-10-26', items: [
+                ['📄 안내서 선택약정에 12+12개월: 약정 [24개월] [12개월] [12+12개월] · 고객 안내서에 \'○년 ○월쯤 12개월 재약정하면 25% 할인이 이어져요\' · 개통등록으로 넘기면 고객카드 할인 유형도 선택약정(12+12개월)']] },
             { v: 'V233', d: '2026-10-26', items: [
                 ['💵 급여 계산: 🎯 목표 → [💵 급여 명세서] (또는 설정 → 매장 운영 → 💵 급여 계산) · 그 달 개통 정산(실마진)으로 통신사별 무선 · 홈 수익 → 영업활동비 빼기 → 인센 · GR · 3.3%까지 회사 명세서 모양으로', 'a'],
                 ['🧮 급여 방식을 여러 개 만들어 두고 직원마다 \'○월부터\' 바꿔 끼워요 (이직하거나 방식이 바뀌어도 지난 달은 그대로) · 빼기 줄 · 인센 계산법 · GR · 공제를 골라서 · 숫자를 바꾸면 미리 보기가 바로', 'a'],
