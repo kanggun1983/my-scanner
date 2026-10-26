@@ -4769,6 +4769,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const TOP_TAB_OFF = "flex-1 sm:flex-none px-4 sm:px-8 py-3 font-bold text-gray-400 hover:text-indigo-500 border-b-4 border-transparent hover:bg-gray-50 rounded-t-xl flex items-center justify-center gap-2 transition-all";
         window.switchTab = function(tabId) {
             if (!['scanner', 'db', 'guide', 'stock', 'settings'].includes(tabId)) tabId = 'db';
+            if (tabId !== 'settings') { try { if (window.__setPageLeave) window.__setPageLeave(); } catch (e) { /* 무시 */ } }   // 🗂️ V230 다른 탭으로 가면 설정은 첫 화면으로
             setTimeout(() => { try { syncScanSaveBar(); if (tabId === 'scanner') fillRegStoreDefault(); } catch (e) { /* 준비 전 */ } }, 0);
             if (tabId !== 'db' && selectionMode) setSelectionMode(false);
             const views = { scanner: 'scannerView', db: 'dbView', guide: 'guideView', stock: 'stockView', settings: 'settingsView' };
@@ -5213,8 +5214,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
         let isSuperAdmin = false;
-        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle', 'setPromPushTitle', 'subPromoTitle', 'subSmsGateTitle'];
-        const ADMIN_ONLY_GROUPS = ['grpPromoTitle', 'grpSubsidyTitle'];   // V187: 직원 폰엔 아예 숨김 (홍보·지원금표 = 대표 일)
+        const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle', 'setPromPushTitle', 'subPromoTitle', 'subSmsGateTitle', 'setMissTitle', 'setCardSmsTitle', 'setDealerTitle'];   // V230 콜매니저 문자 · 명함 문자 · 거래처 칸도
+        const ADMIN_ONLY_GROUPS = ['grpPromoTitle', 'grpSubsidyTitle', 'subPushAllTitle'];   // V230 고객 전체 푸시는 푸시 알림 화면으로 옮겨도 대표만   // V187: 직원 폰엔 아예 숨김 (홍보·지원금표 = 대표 일)
         const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn', 'calcOpenReqBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
         // 잠금은 '잠금이 한 것'만 풀어요 — 원래 기능 때문에 꺼둔 칸(예: 자동 약속을 끄면 유지 조건 칸이 흐려짐)은 그대로
         function setAdminLock(el, lock) {
@@ -5245,6 +5246,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try { syncReassignBtns(); } catch (e) { /* 준비 전 */ }
             try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
             try { renderSubsidyStale(); } catch (e) { /* 준비 전 */ }
+            try { renderSetHome(); } catch (e) { /* 준비 전 */ }   // V230 대표 · 직원에 따라 보이는 버튼
             try { const tb = document.getElementById('teamSetBox'); if (tb && tb.dataset.admin !== (isSuperAdmin ? '1' : '0')) renderTeamSettings(); } catch (e) { /* 준비 전 */ }   // 👥 공용 명함 칸 (총관리자 여부가 바뀔 때만 다시 그림)
             ['settingsStoreName', 'pushRelayUrl'].forEach(id => { const el = document.getElementById(id); if (el) { setAdminLock(el, !isSuperAdmin); el.title = isSuperAdmin ? '' : '총관리자만 바꿀 수 있어요'; } });
             const badge = document.getElementById('settingsRoleBadge');
@@ -14553,6 +14555,7 @@ familyStr + `\n` +
                 }
                 return;
             }
+            if (window.__setPageBack && window.__setPageBack()) return;   // 🗂️ V230 설정 페이지 → 설정 첫 화면
             if (currentProfileId) return closeProfileCard(true);
             if (selectionMode) return setSelectionMode(false, true);
         });
@@ -23049,7 +23052,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V229';
+        const APP_VER = 'V230';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23057,6 +23060,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V230', d: '2026-10-26', items: [
+                ['🗂️ 설정 화면 정리: 첫 화면에 버튼으로 (기본 · 문자 · 알림 · 정책 · 거래처 · 관리) → 누르면 그 설정만 열려요 · 버튼마다 켜짐 · 꺼짐이 보여요'],
+                ['💬 문자 · 알림을 나눴어요: 푸시 알림 · 자동 문자 · 명함 문자 · 콜매니저 문자 · 홍보 문자 (위 칩으로 바로 옮겨 다녀요)'],
+                ['💰 정책 · 지원금(지원금표 · 개통 후 약속 기본값 · 번호이동 수수료)과 🏢 거래처를 따로 · 맨 위 찾기에서 칸 이름을 치면 그 화면으로 바로 · 뒤로가기 = 설정 첫 화면'],
+                ['연결이 필요한 게 있으면 첫 화면 맨 위 노란 띠로 알려 줘요', 'a']] },
             { v: 'V229', d: '2026-10-26', items: [
                 ['⏰ 부재 재연락 문자 보낼 때를 직접 골라요: 콜매니저 \'연결 안 됨\' 창의 [⏰ 직접 입력] → 날짜(7일 안) · 시간 (저녁 9시~아침 8시를 고르면 아침 9시에 보내요)'],
                 ['📢 (광고) 표시 켜고 끄기: 설정 → 💬 자동 안내 → 📵에서 매장 기본값 · \'콜매니저 창에서 문자마다\'를 켜면 직원이 보낼 때마다 스위치로 골라요 (영업 문자는 (광고) 표시가 필요해요 · 수신거부 안내는 그대로)'],
@@ -23565,6 +23573,184 @@ familyStr + `\n` +
         renderTeamSettings();
 
         /* =====================================================================
+           🗂️ V230 설정 정리 — 첫 화면: 찾기 · 확인 필요 띠 · 묶음별 버튼 (켜짐 · 꺼짐) → 누르면 그 설정만 (페이지)
+           · 칸(입력 · 버튼)은 그대로 옮겨요 → 저장 · 👑 잠금 · 찾기가 예전처럼
+           · 문자 · 알림 = 푸시 알림 · 자동 문자 · 명함 문자 · 콜매니저 문자 · 홍보 문자 (위 칩으로 오가기)
+           · 정책 · 지원금 = 지원금표 + 개통 후 자동 약속 기본값 + 번호이동 수수료 · 거래처 = 거래처별 조건
+           · 안드로이드 뒤로가기 · [‹ 설정] = 첫 화면 · 다른 탭으로 가면 첫 화면으로
+           ===================================================================== */
+        const SET_PAGES = [
+            { id: 'me', grp: '기본', title: '내 정보 · 계정', icon: 'fa-user', tone: 'indigo' },
+            { id: 'card', grp: '기본', title: '고객 명함', icon: 'fa-id-card', tone: 'indigo' },
+            { id: 'store', grp: '기본', title: '매장 운영', icon: 'fa-store', tone: 'indigo' },
+            { id: 'push', grp: '문자 · 알림', title: '푸시 알림', icon: 'fa-bell', tone: 'pink', msg: true },
+            { id: 'auto', grp: '문자 · 알림', title: '자동 문자', icon: 'fa-comment-sms', tone: 'pink', msg: true },
+            { id: 'cardsms', grp: '문자 · 알림', title: '명함 문자', icon: 'fa-link', tone: 'pink', msg: true },
+            { id: 'miss', grp: '문자 · 알림', title: '콜매니저 문자', icon: 'fa-phone', tone: 'pink', msg: true },
+            { id: 'promo', grp: '문자 · 알림', title: '홍보 문자', icon: 'fa-bullhorn', tone: 'pink', msg: true },
+            { id: 'policy', grp: '정책 · 거래처', title: '정책 · 지원금', icon: 'fa-file-invoice-dollar', tone: 'amber' },
+            { id: 'dealer', grp: '정책 · 거래처', title: '거래처', icon: 'fa-building', tone: 'amber' },
+            { id: 'staff', grp: '정책 · 거래처', title: '직원 · 담당', icon: 'fa-users', tone: 'amber' },
+            { id: 'conn', grp: '관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
+            { id: 'data', grp: '관리', title: '데이터', icon: 'fa-database', tone: 'cyan' },
+            { id: 'app', grp: '관리', title: '앱 정보', icon: 'fa-circle-info', tone: 'cyan' }
+        ];
+        const SET_TONE = { indigo: ['bg-indigo-50', 'text-indigo-700'], pink: ['bg-pink-50', 'text-pink-700'], amber: ['bg-amber-50', 'text-amber-700'], cyan: ['bg-cyan-50', 'text-cyan-700'] };
+        let setPageEls = null, setPageOpen = '', setPagePushed = false;
+        // 첫 화면 버튼 상태 · 확인 필요 띠 · 대표/직원에 따라 보이는 버튼
+        function renderSetHome() {
+            if (!setPageEls) return;
+            const st = (id, text, tone) => { const el = document.querySelector(`[data-set-st="${id}"]`); if (!el) return; el.textContent = text; el.className = `text-[12px] font-bold leading-snug ${tone === 'ok' ? 'text-emerald-700' : (tone === 'warn' ? 'text-amber-700' : 'text-gray-500')}`; };
+            const T = (f) => { try { f(); } catch (e) { /* 준비 전 */ } };
+            T(() => { const n = getStaffName(); st('me', n || '직원 이름 없음', n ? '' : 'warn'); });
+            T(() => { const d = calcData || {}, n = [d.visitBookOn !== false, d.myPhoneOn !== false, d.refOn !== false].filter(Boolean).length; st('card', !reviewUrl() ? '리뷰 주소 없음' : (n ? `기능 ${n}개 켜짐` : '추가 기능 꺼짐'), !reviewUrl() ? 'warn' : (n ? 'ok' : '')); });
+            T(() => st('store', ownerLockOn() ? '담당자 잠금 켜짐' : '담당자 잠금 꺼짐', ownerLockOn() ? 'ok' : ''));
+            T(() => st('push', autoPushOn() ? '자동 푸시 켜짐' : '자동 푸시 꺼짐', autoPushOn() ? 'ok' : ''));
+            T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn'].filter(k => smsSetting(k)).length; st('auto', n ? `${n}개 켜짐` : '모두 꺼짐', n ? 'ok' : ''); });
+            T(() => { const n = ['prom', 'bday', 'visit', 'act', 'miss', 'promo'].filter(k => smsCardOn(k)).length; st('cardsms', n ? `링크 ${n}곳 붙임` : '링크 안 붙임', n ? 'ok' : ''); });
+            T(() => st('miss', smsSetting('smsAutoMissOn') ? '부재 연락 켜짐' : '꺼짐', smsSetting('smsAutoMissOn') ? 'ok' : ''));
+            T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '꺼짐', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
+            st('policy', '지원금표 · 약속 규칙', ''); st('dealer', '유지 조건 · 정책 금액', ''); st('staff', '계정 · 담당 넘기기', '');
+            const warns = [];
+            T(() => { if (!pushRelayReady()) warns.push('중계 서버 연결이 필요해요'); });
+            T(() => { if (!(calcData && calcData.alert && calcData.alert.url)) warns.push('상담 알림 서버가 없어요'); });
+            T(() => { if (!geminiApiKey) warns.push('AI 키가 없어요'); });
+            st('conn', warns.length ? `확인 필요 ${warns.length}곳` : '모두 연결됨', warns.length ? 'warn' : 'ok');
+            T(() => { const t = String((document.getElementById('trashCount') || {}).textContent || '').trim(); st('data', t ? `휴지통 ${t}` : '보호 · 휴지통', ''); });
+            T(() => st('app', `${APP_VER} · 업데이트 소식`, ''));
+            const bar = document.getElementById('setAlertBar'), bt = document.getElementById('setAlertText');
+            if (bar) bar.classList.toggle('hidden', !warns.length);
+            if (bt) bt.textContent = warns.length ? `확인 필요 ${warns.length}곳 · ${warns[0]}` : '';
+            // 보이는 칸이 하나도 없는 페이지는 버튼 · 칩도 숨김 (예: 직원 폰의 홍보 문자)
+            SET_PAGES.forEach(p => {
+                const pg = setPageEls[p.id]; if (!pg) return;
+                const vis = [...pg.querySelector('.kc-page-body').children].some(el => !el.classList.contains('hidden') && !el.dataset.setInfo);
+                document.querySelectorAll(`[data-set-tile="${p.id}"], [data-set-chip="${p.id}"]`).forEach(b => b.classList.toggle('hidden', !vis));
+            });
+            document.querySelectorAll('#setHome [data-set-grp]').forEach(g => g.classList.toggle('hidden', !g.querySelector('[data-set-tile]:not(.hidden)')));
+        }
+        (() => {
+            const view = document.getElementById('settingsView');
+            if (!view || document.getElementById('setHome')) return;
+            const $ = (id) => document.getElementById(id);
+            const secOf = (tid) => view.querySelector(`section[aria-labelledby="${tid}"]`);
+            const mk = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+            const grps = [...new Set(SET_PAGES.map(p => p.grp))];
+            const home = mk(`<div id="setHome" class="kc-home space-y-4">
+                <button type="button" id="setAlertBar" data-set-go="conn" class="hidden w-full min-h-[48px] rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2.5 flex items-center gap-2 text-left"><i class="fa-solid fa-triangle-exclamation text-amber-700" aria-hidden="true"></i><span id="setAlertText" class="flex-1 min-w-0 text-[14px] font-bold text-amber-900"></span><i class="fa-solid fa-chevron-right text-amber-800" aria-hidden="true"></i></button>
+                ${grps.map(g => `<section aria-label="${g}" data-set-grp="${g}" class="space-y-2"><h3 class="text-[13px] font-bold text-gray-600 pl-1">${g}</h3><div class="grid grid-cols-3 gap-2">${SET_PAGES.filter(p => p.grp === g).map(p => `<button type="button" data-set-go="${p.id}" data-set-tile="${p.id}" class="min-h-[104px] bg-white border border-gray-200 rounded-2xl px-2.5 py-3 flex flex-col items-start gap-1.5 text-left hover:bg-gray-50 active:scale-[.98] transition"><span class="w-9 h-9 rounded-xl ${SET_TONE[p.tone][0]} flex items-center justify-center flex-shrink-0"><i class="fa-solid ${p.icon} ${SET_TONE[p.tone][1]}" aria-hidden="true"></i></span><span class="text-[14px] font-bold text-gray-900 leading-tight">${p.title}</span><span data-set-st="${p.id}" class="text-[12px] font-bold text-gray-500 leading-snug"></span></button>`).join('')}</div></section>`).join('')}
+            </div>`);
+            const chips = SET_PAGES.filter(p => p.msg);
+            const pages = {};
+            SET_PAGES.forEach(p => {
+                pages[p.id] = mk(`<div class="kc-page hidden space-y-4" data-set-page="${p.id}" data-path="${p.msg ? '문자 · 알림 › ' : ''}${p.title}">
+                    <div class="kc-page-head space-y-3">
+                        <div class="flex items-center gap-1"><button type="button" data-set-back class="h-11 -ml-1 pl-1 pr-2 rounded-xl text-indigo-700 font-bold text-[15px] flex items-center gap-1 hover:bg-indigo-50"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i>설정</button><h2 class="min-w-0 text-xl font-bold text-gray-900">${p.title}</h2></div>
+                        ${p.msg ? `<nav aria-label="문자 · 알림" class="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">${chips.map(c => `<button type="button" data-set-go="${c.id}" data-set-chip="${c.id}"${c.id === p.id ? ' aria-current="page"' : ''} class="flex-shrink-0 h-9 px-3 rounded-full text-[13px] font-bold ${c.id === p.id ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700'}">${c.title}</button>`).join('')}</nav>` : ''}
+                    </div>
+                    <div class="kc-page-body space-y-4"></div>
+                </div>`);
+            });
+            const put = (id, ...els) => { const body = pages[id].querySelector('.kc-page-body'); els.forEach(el => { if (el) body.appendChild(el); }); };
+            const hideH = (tid) => { const h = $(tid); if (h) h.classList.add('hidden'); };
+
+            // 📇 명함 문자: 문구마다 있던 '문자에 명함 링크 붙이기'를 한곳에 (원래 자리엔 바로 가기 버튼)
+            const CARD_KINDS = { prom: ['약속일 안내', '자동 문자'], bday: ['생일 축하', '자동 문자'], visit: ['방문 약속 전날', '자동 문자'], act: ['개통 뒤 안부', '자동 문자'], miss: ['부재 고객 자동 연락', '콜매니저 문자'], promo: ['홍보 문자 (광고)', '홍보 문자'] };
+            const cardSec = mk(`<section class="space-y-2" aria-labelledby="setCardSmsTitle"><h3 id="setCardSmsTitle" class="text-[13px] font-bold text-gray-600 pl-1">📇 문자에 고객 명함 링크 붙이기</h3><div id="setCardSmsBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3"><p class="text-xs text-gray-600 leading-relaxed">켜면 그 문자 끝에 고객 전용 명함 링크가 붙어요. 고객이 명함에서 견적 · 방문 예약 · 알림 받기를 바로 해요. 👑 총관리자만 바꿀 수 있어요.</p></div><p class="text-xs text-gray-500 leading-relaxed pl-1">고객이 명함에서 보내는 상담 문자는 맨 앞에 [명함상담/회원번호:명함번호]가 붙어서 와요.</p></section>`);
+            const cardBox = cardSec.querySelector('#setCardSmsBox');
+            view.querySelectorAll('input[data-sms-card]').forEach(inp => {
+                const lab = inp.closest('label'); if (!lab) return;
+                const info = CARD_KINDS[inp.dataset.smsCard] || [inp.dataset.smsCard, ''];
+                const go = document.createElement('button');
+                go.type = 'button'; go.dataset.setGo = 'cardsms';
+                go.className = 'h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700 flex items-center gap-1';
+                go.innerHTML = '📇 명함 링크 붙이기 <i class="fa-solid fa-chevron-right text-[10px]" aria-hidden="true"></i>';
+                lab.replaceWith(go);
+                [...lab.childNodes].forEach(n => { if (n !== inp) n.remove(); });
+                lab.className = 'flex items-start gap-3 min-h-[44px] cursor-pointer';
+                inp.className = 'w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0 disabled:opacity-40';
+                lab.insertAdjacentHTML('beforeend', `<span class="min-w-0"><span class="block text-[15px] font-bold text-gray-900">${info[0]}</span><span class="block text-xs text-gray-500">${info[1]}</span></span>`);
+                cardBox.appendChild(lab);
+            });
+
+            // 📞 콜매니저 문자: 자동 안내 안의 📵 부재 고객 자동 연락 칸들 ('늘 지켜요'까지)
+            const missSec = mk(`<section class="space-y-2" aria-labelledby="setMissTitle"><h3 id="setMissTitle" class="text-[13px] font-bold text-gray-600 pl-1">📵 부재 고객 자동 연락 <span class="font-normal">(영업 전화를 안 받은 고객 → 명함 문자)</span></h3><div id="setMissBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3"></div></section>`);
+            { const st0 = $('smsAutoMissOn') && $('smsAutoMissOn').closest('label'), box = missSec.querySelector('#setMissBox'), list = [];
+              for (let el = st0; el && el.id !== 'smsAutoSaved' && el.id !== 'smsListBtn'; el = el.nextElementSibling) { list.push(el); if (/^늘 지켜요/.test(String(el.textContent || '').trim())) break; }
+              list.forEach(el => box.appendChild(el));
+              box.insertAdjacentHTML('beforeend', '<button type="button" data-set-sms-list class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800">예약된 문자 보기</button>'); }
+
+            // 🏢 거래처: 개통 후 자동 약속 안의 거래처별 조건 · 번호이동 수수료는 정책으로
+            const dealerSec = mk(`<section class="space-y-2" aria-labelledby="setDealerTitle"><h3 id="setDealerTitle" class="text-[13px] font-bold text-gray-600 pl-1">개통등록에서 거래처를 고르면 유지 조건 · 정책 금액이 저절로 들어가요 <span class="font-normal">(재고 화면 거래처와 같은 목록)</span></h3></section>`);
+            { const db0 = $('dealerBox'), fee = $('mnpFeeRow'), autoSec = secOf('setAutoTitle');
+              const card = autoSec && autoSec.querySelector(':scope > div');
+              if (fee && card) { const p2 = card.querySelectorAll(':scope > p')[1]; if (p2) p2.insertAdjacentElement('afterend', fee); else card.prepend(fee); }
+              if (db0) dealerSec.appendChild(db0); }
+
+            // 🔔 푸시 알림: 고객 자동 푸시는 자동 문자 › 보내는 방법에서 (바로 가기)
+            const pushInfo = mk(`<div data-set-info="1" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"><p class="text-[15px] font-bold text-gray-900">🔔 고객에게 가는 자동 푸시</p><p class="text-xs text-gray-600 leading-relaxed">약속일 · 생일 · 방문 전날 · 개통 안부 · 내 폰 정보 푸시 켜고 끄기 · 아이콘은 자동 문자 › 보내는 방법에서 해요.</p><button type="button" data-set-go="auto" class="h-10 px-3 rounded-xl border border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-700">자동 문자로 가기 ›</button></div>`);
+
+            // 저장됨 표시는 어느 화면에서나 보이게 (아래 가운데)
+            { const sv = $('smsAutoSaved'); if (sv) { sv.className = 'hidden fixed left-1/2 -translate-x-1/2 bottom-24 z-[80] rounded-full bg-gray-900/90 text-white text-sm font-bold px-4 py-2 shadow-lg'; document.body.appendChild(sv); } }
+
+            const storeGrp = secOf('grpStoreTitle');
+            put('me', secOf('grpMeTitle')); hideH('grpMeTitle');
+            put('card', secOf('grpCardTitle')); hideH('grpCardTitle');
+            put('store', secOf('setSettleTitle'));
+            put('push', pushInfo, secOf('subPushAllTitle'), secOf('setPromPushTitle'));
+            put('auto', secOf('grpAutoTitle')); hideH('grpAutoTitle');
+            put('cardsms', cardSec);
+            put('miss', missSec);
+            put('promo', secOf('grpPromoTitle')); hideH('grpPromoTitle');
+            put('policy', secOf('grpSubsidyTitle'), secOf('setAutoTitle')); hideH('grpSubsidyTitle');
+            put('dealer', dealerSec);
+            put('staff', secOf('setStaffTitle'));
+            put('conn', secOf('grpConnTitle')); hideH('grpConnTitle');
+            put('data', secOf('setPrivacyTitle'), secOf('setTrashTitle'));
+            put('app', secOf('setAppTitle'));
+            if (storeGrp) storeGrp.classList.add('hidden');   // 다 옮기고 빈 묶음 (요약 칸만 남음)
+
+            const search = $('setSearch'), h2 = view.querySelector(':scope > h2');
+            const sub = mk('<p class="kc-set-sub text-xs text-gray-500 -mt-2 pl-1">버튼을 누르면 그 설정만 열려요</p>');
+            if (h2) h2.insertAdjacentElement('afterend', sub);
+            (search || sub).insertAdjacentElement('afterend', home);
+            let last = home;
+            SET_PAGES.forEach(p => { last.insertAdjacentElement('afterend', pages[p.id]); last = pages[p.id]; });
+            { const hn = $('setStaffHideNote'); if (hn) home.appendChild(hn); }
+            setPageEls = pages;
+            const homeOnly = [h2, sub, search, home];
+
+            function openPage(id, opts) {
+                const o = opts || {}, pg = pages[id]; if (!pg) return;
+                Object.values(pages).forEach(x => x.classList.toggle('hidden', x !== pg));
+                homeOnly.forEach(el => { if (el) el.classList.add('hidden'); });
+                setPageOpen = id;
+                if (!setPagePushed) { setPagePushed = true; pushAppState({ setPage: id }); }
+                try { renderSetHome(); } catch (e) { /* 준비 전 */ }
+                if (!o.keepScroll && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+            }
+            function closePage(viaBack) {
+                if (!setPageOpen) return false;
+                Object.values(pages).forEach(x => x.classList.add('hidden'));
+                homeOnly.forEach(el => { if (el) el.classList.remove('hidden'); });
+                setPageOpen = '';
+                if (setPagePushed) { setPagePushed = false; if (!viaBack) historyBackSilently(); }
+                if (typeof window.scrollTo === 'function') window.scrollTo(0, 0);
+                return true;
+            }
+            window.__setOpenPage = openPage;
+            window.__setPageBack = () => (setPageOpen ? closePage(true) : false);
+            window.__setPageLeave = () => { if (setPageOpen) closePage(false); };
+            view.addEventListener('click', e => {
+                const g = e.target.closest('[data-set-go]');
+                if (g && view.contains(g)) { e.preventDefault(); openPage(g.dataset.setGo); return; }
+                if (e.target.closest('[data-set-back]')) { closePage(false); return; }
+                if (e.target.closest('[data-set-sms-list]')) { const b = $('smsListBtn'); if (b) b.click(); }
+            });
+            try { renderSetHome(); } catch (e) { /* 준비 전 */ }
+        })();
+
+        /* =====================================================================
            🗂️ 설정 화면: 제목을 누르면 펼치고 접기 (펼친 칸은 이 폰에 기억)
            ===================================================================== */
         (() => {
@@ -23595,7 +23781,7 @@ familyStr + `\n` +
                 btn.addEventListener('click', () => { const on = body.classList.contains('hidden'); set(on); open[id] = on; try { localStorage.setItem('setOpen', JSON.stringify(open)); } catch (e) { /* 무시 */ } });
             });
             const t = view.querySelector(':scope > h2');
-            if (t) { const note = document.createElement('p'); note.className = 'text-xs text-gray-500 -mt-2 pl-1'; note.textContent = '제목을 누르면 펼쳐져요'; t.insertAdjacentElement('afterend', note); }
+            if (t && !document.getElementById('setHome')) { const note = document.createElement('p'); note.className = 'text-xs text-gray-500 -mt-2 pl-1'; note.textContent = '제목을 누르면 펼쳐져요'; t.insertAdjacentElement('afterend', note); }
         })();
 
         /* =====================================================================
@@ -23604,6 +23790,7 @@ familyStr + `\n` +
            · 요약: 펼치지 않아도 묶음 상태가 보이게 (켜짐·꺼짐·연결 필요)
            ===================================================================== */
         function renderSetSums() {
+            try { renderSetHome(); } catch (e) { /* 준비 전 */ }   // 🗂️ V230 첫 화면 버튼 상태
             const put = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
             const ok = (t) => `<span class="text-emerald-700">${t}</span>`, warn = (t) => `<span class="text-amber-700">${t}</span>`;
             try { put('sumMe', escapeHtml(`${getStaffName() || '직원 이름 없음'} · ${msgStoreName()}`)); } catch (e) { /* 무시 */ }
@@ -23633,8 +23820,10 @@ familyStr + `\n` +
             const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, '');
             // 지원금표 창 안 칸 (설정 화면엔 버튼만 있어서 따로)
             const SUBSIDY = ['통신사별 지원금 엑셀 올리기', '알뜰유심 요금제 (정책표 사진)', '요금제 낮출 때 위약금 기준', '공통지원금·유통망지원금 유지 기간', "명함에 '유통망지원금 받기' 보이기", "명함에 '월 납부액 직접 계산해 보기' 보이기", '명함 견적표 보기'];
-            const hiddenUp = (el) => { for (let x = el; x && x !== view; x = x.parentElement) { if (x.classList && x.classList.contains('hidden') && !x.classList.contains('kc-acc-body')) return true; } return false; };
+            const hiddenUp = (el) => { for (let x = el; x && x !== view; x = x.parentElement) { if (x.classList && x.classList.contains('hidden') && !x.classList.contains('kc-acc-body') && !x.classList.contains('kc-page')) return true; } return false; };
             const groupTitle = (el) => {
+                const pg = el.closest('[data-set-page]');   // 🗂️ V230 페이지 이름 (예: 문자 · 알림 › 콜매니저 문자)
+                if (pg) return pg.dataset.path || '';
                 const sec = el.closest('#settingsView > section');
                 const h = sec && (sec.querySelector(':scope > button h3') || sec.querySelector(':scope > h3'));
                 return h ? String((h.childNodes[0] && h.childNodes[0].textContent) || h.textContent).trim() : '';
@@ -23649,7 +23838,7 @@ familyStr + `\n` +
             function cands() {
                 const out = [];
                 view.querySelectorAll('section h3, label, p, button, summary, span[class*="text-[15px]"]').forEach(el => {
-                    if (el.closest('#setSearch') || hiddenUp(el)) return;
+                    if (el.closest('#setSearch') || el.closest('.kc-home, .kc-page-head') || hiddenUp(el)) return;   // V230 첫 화면 버튼 · 페이지 머리는 빼고
                     const hb = el.closest('button[aria-controls]');
                     if (hb && !(el.matches('h3') && !hb.parentElement.dataset.grp)) return;   // 묶음 제목 버튼은 빼고 · 휴지통·앱 정보 같은 한 칸짜리 제목은 넣기
                     if (el.matches('span') && el.closest('label, button')) return;
@@ -23689,6 +23878,8 @@ familyStr + `\n` +
             // 그 칸으로 가기: 묶음 펼치기 → 화면 가운데로 → 2초 반짝 → 입력칸이면 커서
             window.setJump = function (el) {
                 if (!el) return;
+                const pgEl = el.closest('[data-set-page]');   // 🗂️ V230 그 칸이 있는 페이지 열기
+                if (pgEl && window.__setOpenPage) window.__setOpenPage(pgEl.dataset.setPage, { keepScroll: true });
                 const sec = el.closest('#settingsView > section');
                 if (sec) { const body = sec.querySelector(':scope > .kc-acc-body'), btn = sec.querySelector(':scope > button[aria-controls]'); if (body && body.classList.contains('hidden') && btn) btn.click(); }
                 const det = el.closest('details'); if (det) det.open = true;
