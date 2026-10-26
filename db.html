@@ -1112,7 +1112,8 @@
                     <button type="button" id="callUnpairBtn" class="hidden w-full h-10 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-600">이 폰 연결 표시 지우기</button>
                     <div class="border-t border-gray-100 pt-3 space-y-2">
                         <p class="text-[14px] font-bold text-gray-900">🎙 통화 녹음 백업 · 🤖 AI 요약 <span class="text-xs font-bold text-indigo-700">(V222 · 콜매니저)</span></p>
-                        <p class="text-xs text-gray-600 leading-relaxed">갤럭시 전화 앱 → ⋮ → 설정 → 통화 녹음 → '통화 자동 녹음'을 켜 두면, 콜매니저가 강CRM 고객 통화 녹음만 골라 대표님 구글 드라이브 '강CRM 녹음/월/고객' 폴더에 올려요 (지우지 않고 계속 보관). 에이닷처럼 파일이 안 보이는 녹음 앱은 녹음 화면의 [공유] → '콜매니저'. 고객카드 📞 통화에서 🎙 제목을 누르면 대본 · 듣기. 서류 클라우드 백업이 '관리자 드라이브' 방식이고 업로드 창구가 v3여야 해요.</p>
+                        <p class="text-xs text-gray-600 leading-relaxed">갤럭시 전화 앱 → ⋮ → 설정 → 통화 녹음 → '통화 자동 녹음'을 켜 두면, 콜매니저가 강CRM 고객 통화 녹음만 골라 대표님 구글 드라이브 '강CRM 녹음/월/고객' 폴더에 올려요 (지우지 않고 계속 보관). 에이닷처럼 파일이 안 보이는 녹음 앱은 녹음 화면의 [공유] → '콜매니저'. 고객카드 📞 통화에서 🎙 제목을 누르면 대본 · 듣기. 올리는 곳은 아래 '🎙 녹음 백업'에서 골라요 (서류 백업 방식과 따로 · V231) · 업로드 창구가 v3여야 해요.</p>
+                        <div id="recSetBox" class="space-y-2"></div>
                         <label class="flex items-start gap-2 text-[14px] font-bold text-gray-900"><input type="checkbox" id="callAiOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0 disabled:opacity-50"><span>🤖 녹음 AI 요약 (3줄 · 원하는 것 · 다음 할 일)<span class="block text-xs font-normal text-gray-500">녹음을 구글 AI(Gemini)에 보내 요약해요 · AI 키가 있는 폰(받은 직원 · 대표님)에서 강CRM을 열면 만들어져요 · 14MB(약 15분) 넘는 녹음은 건너뛰어요</span></span></label>
                         <p id="callRecInfo" role="status" class="text-xs font-medium text-gray-600 leading-relaxed"></p>
                     </div>
@@ -21904,12 +21905,40 @@ familyStr + `\n` +
             t.textContent = callAppOn() ? '✅ 이 폰은 콜매니저와 연결했어요. 강CRM에서 건 전화도 결과는 콜매니저가 물어봐요.' : (android ? '앱을 깐 뒤, 이 폰의 크롬(강CRM)에서 [이 폰을 콜매니저와 연결]을 눌러요.' : '안드로이드 폰에서만 돼요 (아이폰 · PC는 안 돼요).');
             const off = document.getElementById('callUnpairBtn'); if (off) off.classList.toggle('hidden', !callAppOn());
             const ai = document.getElementById('callAiOn'); if (ai) { ai.checked = callAiOn(); ai.disabled = !isSuperAdmin; }
+            try { if (!document.getElementById('recSetBox').contains(document.activeElement)) renderRecSettings(); } catch (e) { /* 준비 전 */ }   // 🎙 V231
             const ri = document.getElementById('callRecInfo');
             if (ri) {
-                const admin = driveMode() === 'admin' && !!String(appSettings.driveScriptUrl || '').trim();
-                ri.innerHTML = [admin ? '✅ 서류 백업이 관리자 드라이브 방식이라 녹음을 올릴 수 있어요' : "<span class=\"text-red-700\">⚠️ 녹음 백업은 서류 클라우드 백업이 '관리자 드라이브' 방식일 때만 돼요 (설정 → 서류 클라우드 백업)</span>",
+                const rm = recMode(), hasUrl = !!String(appSettings.driveScriptUrl || '').trim();   // 🎙 V231 녹음 백업은 따로
+                ri.innerHTML = [rm === 'admin' ? (hasUrl ? '✅ 콜매니저가 녹음을 대표님 드라이브 \'강CRM 녹음\'에 올려요' : '<span class="text-red-700">⚠️ 녹음 업로드 주소가 없어요 (위 🎙 녹음 백업에서 넣어요)</span>') : '<span class="text-amber-700">🎙 녹음 백업이 꺼져 있어요 · 콜매니저는 녹음을 7일 보관했다가 켜면 올려요</span>',
                     geminiApiKey ? '🤖 이 폰에 AI 키가 있어요 (요약을 만들 수 있어요)' : '🤖 이 폰엔 AI 키가 없어요 (다른 폰에서 만든 요약은 보여요)'].join('<br>');
             }
+        }
+        // 🎙 V231 통화 녹음 백업 (서류 백업과 따로): 끄기 · 대표님 구글 드라이브 · 정한 적 없으면 예전처럼 서류가 관리자 드라이브일 때만
+        function recMode() { const v = appSettings.recMode; if (v === 'off' || v === 'admin') return v; return driveMode() === 'admin' ? 'admin' : 'off'; }
+        function renderRecSettings() {
+            const box = document.getElementById('recSetBox'); if (!box) return;
+            const mode = recMode(), locked = !isSuperAdmin, docAdmin = driveMode() === 'admin', url = String(appSettings.driveScriptUrl || '').trim();
+            const radio = (v, title, sub) => `<label class="flex items-start gap-3 rounded-xl border ${mode === v ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white'} px-3 py-2.5 cursor-pointer"><input type="radio" name="recMode" value="${v}" ${mode === v ? 'checked' : ''} ${locked ? 'disabled' : ''} class="mt-1 w-5 h-5 accent-indigo-600 flex-shrink-0"><span class="min-w-0"><span class="block text-[15px] font-bold text-gray-900">${title}</span><span class="block text-xs text-gray-600 leading-relaxed">${sub}</span></span></label>`;
+            const field = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white disabled:bg-gray-50';
+            box.innerHTML = `<p class="text-[13px] font-bold text-gray-800">🎙 녹음 백업 <span class="text-xs font-bold text-indigo-700">(V231 · 서류 백업과 따로)</span></p>
+                ${radio('off', '끄기', '콜매니저가 녹음을 올리지 않아요 (7일 보관했다가 켜면 올려요)')}
+                ${radio('admin', '대표님 구글 드라이브', "'강CRM 녹음/월/고객' 폴더에 모아요 · 서류가 각자 드라이브여도 녹음은 여기로")}
+                ${mode !== 'admin' ? '' : (docAdmin ? `<p class="text-xs leading-relaxed ${url ? 'text-emerald-700' : 'text-red-700'}">${url ? '✅ 서류 백업(관리자 드라이브)과 같은 업로드 창구로 올려요' : '⚠️ 아래 서류 클라우드 백업에 업로드 주소를 넣어 주세요'}</p>`
+                    : `<label class="block text-xs font-bold text-gray-600">업로드 주소 (앱스 스크립트 · 서류 관리자 방식과 같은 창구)<input id="recScriptUrl" ${locked ? 'disabled' : ''} value="${escapeHtml(url)}" placeholder="https://script.google.com/macros/s/…/exec" class="mt-1 ${field}"></label>
+                    <label class="block text-xs font-bold text-gray-600">업로드 비밀번호<input id="recSecret" ${locked ? 'disabled' : ''} value="${escapeHtml(isSuperAdmin ? (appSettings.driveSecret || '') : (appSettings.driveSecret ? '••••••' : ''))}" placeholder="앱스 스크립트에 넣은 SECRET과 같게" class="mt-1 ${field}"></label>
+                    <button type="button" id="recTestBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">연결 확인</button>`)}`;
+            box.querySelectorAll('input[name="recMode"]').forEach(r => r.onchange = () => saveRecSetting({ recMode: r.value }));
+            const su = document.getElementById('recScriptUrl'); if (su) su.onchange = () => saveRecSetting({ driveScriptUrl: su.value.trim() });
+            const sc = document.getElementById('recSecret'); if (sc && isSuperAdmin) sc.onchange = () => saveRecSetting({ driveSecret: sc.value.trim() });
+            const tb = document.getElementById('recTestBtn'); if (tb) tb.onclick = async () => {
+                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? (Number(d.version) >= 3 ? '✅ 업로드 창구가 정상이에요. 🎙 통화 녹음을 올릴 수 있어요.' : '⚠️ 업로드 창구가 예전 버전이에요. kangcrm-drive-upload.gs를 새로 배포해 주세요 (v3부터 녹음).') : '⚠️ 업로드 창구가 응답했지만 준비가 안 됐어요. 앱스 스크립트의 SECRET을 확인해 주세요.'); }
+                catch (e) { customAlert('업로드 주소에 연결하지 못했어요. 주소와 배포 설정(액세스: 모든 사용자)을 확인해 주세요.'); }
+            };
+        }
+        async function saveRecSetting(patch) {
+            if (!isSuperAdmin) { renderRecSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderCallAppSettings(); renderRecSettings(); try { renderDriveSettings(); } catch (e) { /* 무시 */ } stockToast(patch.recMode ? (patch.recMode === 'admin' ? '🎙 녹음을 대표님 드라이브에 올려요' : '🎙 녹음 백업을 껐어요') : '저장했어요'); }
+            catch (e) { customAlert(koreanError(e, '저장')); }
         }
         function callAiOn() { return appSettings.callAiOn !== false; }
         document.getElementById('callAiOn').addEventListener('change', async (e) => {
@@ -22466,7 +22495,7 @@ familyStr + `\n` +
         }
         async function saveDriveSetting(patch) {
             if (!isSuperAdmin) return;
-            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderDriveSettings(); }
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderDriveSettings(); try { renderCallAppSettings(); } catch (e) { /* 무시 */ } }
             catch (e) { customAlert(koreanError(e, '저장')); }
         }
 
@@ -23052,7 +23081,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V230';
+        const APP_VER = 'V231';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23060,6 +23089,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V231', d: '2026-10-26', items: [
+                ['🎙 통화 녹음 백업을 서류 백업과 따로 골라요: 설정 → 연결 관리 → 콜매니저 → 녹음 백업 (끄기 · 대표님 구글 드라이브) · 서류는 각자 드라이브여도 녹음은 대표님 드라이브 \'강CRM 녹음\'에 모여요'],
+                ['📞 콜매니저 v4.9: 설정 때문에 못 올린 녹음은 버리지 않고 7일 보관했다가, 녹음 백업을 켜면 올려요 (예전 버전에서 못 올린 최근 녹음도 한 번 다시 찾아요)'],
+                ['👑 콜매니저 v4.9 새 APK를 각 폰에 다시 설치해 주세요 · 녹음 백업을 대표님 드라이브로 고르고, 서류가 각자 방식이면 업로드 주소 · 비밀번호도 넣어요', 'a']] },
             { v: 'V230', d: '2026-10-26', items: [
                 ['🗂️ 설정 화면 정리: 첫 화면에 버튼으로 (기본 · 문자 · 알림 · 정책 · 거래처 · 관리) → 누르면 그 설정만 열려요 · 버튼마다 켜짐 · 꺼짐이 보여요'],
                 ['💬 문자 · 알림을 나눴어요: 푸시 알림 · 자동 문자 · 명함 문자 · 콜매니저 문자 · 홍보 문자 (위 칩으로 바로 옮겨 다녀요)'],
