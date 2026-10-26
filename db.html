@@ -946,6 +946,10 @@
                     </span>
                     <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
                 </button>
+                <button type="button" id="planInfoBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">📶 요금제 혜택 (기본 제공량)</span><span class="text-[13px] text-gray-600 leading-snug">안내서 · 명함에서 요금제를 고르면 음성 · 문자 · 데이터 · 혜택이 같이 보여요 · 통신사가 바꾸면 여기서 고쳐요</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
                 <div id="calcManageInner" class="hidden space-y-4">
                     <div class="space-y-2">
                         <p class="text-[14px] font-bold text-gray-900">통신사별 지원금</p>
@@ -3824,7 +3828,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* ↩️ V207: 코드로 만들었다 지우는 작은 창들도 폰 [뒤로]로 닫히게
            · 창이 화면에 붙으면 기록 한 칸 · ✕로 닫으면 그 한 칸 되돌림 · [뒤로]면 맨 위 창의 ✕를 대신 눌러줌 */
-        const BACK_SHEETS = ['docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet'];
+        const BACK_SHEETS = ['docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet', 'planInfoSheet'];
         const backSheetOn = new Set(), backSheetPopped = new Set();
         function backSheetSync() {
             BACK_SHEETS.forEach(id => {
@@ -6871,6 +6875,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <button type="button" data-el-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800">닫기</button></div>`;
         }
         document.getElementById('editLogBtn').addEventListener('click', openEditLogSheet);
+        document.getElementById('planInfoBtn').addEventListener('click', () => { piView = { car: 'LG U+', edit: -2 }; openPlanInfoSheet(); });   // 📶 V236
         document.getElementById('payOpenBtn').addEventListener('click', () => openPaySheet());   // 💵 V233
 
         /* 💰 정산 미입력 (👑 대표) → 한 건씩 바로 입력 · 고객카드 개통 기록의 [정산 입력]도 같은 창 */
@@ -19699,10 +19704,191 @@ familyStr + `\n` +
         function gdTitle(g) { return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
         function gdFindCust(phone) { const d = phoneDigits(phone); if (!/^01\d{8,9}$/.test(d)) return null; return customerDB.find(c => c.id === d || phoneDigits(c.phone) === d) || null; }
         function gdCarOf(v) { return /^알뜰/.test(String(v || '')) ? '알뜰폰' : (GD_CARRIERS.includes(v) ? v : ''); }
-        // 📄 V234 선택약정 12+12: 12개월 뒤 다시 12개월 약정 (재약정하면 25% 할인이 이어짐)
+        /* =====================================================================
+           📶 요금제 혜택 (V236) — 음성 · 문자 · 데이터 · 부가통화 · 공유 · 혜택 · 연령 혜택 · 초과 요금
+           · 기본값: 통신사 공식 페이지 · 보도자료 (2026-10-26 확인) · 👑 대표가 설정 → 정책 → 📶 요금제 혜택에서 고치면 calcData.planInfo (명함도 같이)
+           · 안내서 편집 화면 · 고객 안내서 그림 · 명함 폰값계산에 보여줌 · 이름이 조금 달라도 (티빙 플러스플랜115 → 플러스플랜115) 찾음
+           ===================================================================== */
+        const PLAN_INFO_DEF = { ver: '2026-10-26', plans: {
+'LG U+': [
+ { n: '플러스플랜130', f: 130000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', b: ['플러스 혜택 중 택 1 (패키지 요금제로 가입)', '올인원 결합 시 500M 인터넷 기본 제공 (플러스플랜95 이상)'], src: 'LG유플러스 보도자료 2026.5.28 · 요금제 안내' },
+ { n: '플러스플랜115', f: 115000, v: '유/무선 무제한', s: '무제한', x: '영상/부가통화 300분', d: '완전 무제한', sh: '별도 공유 데이터 최대 100GB · 데이터 주고받기 가능', b: ['데이터 주고받기 일반 2회 · 결합 기준 가족 8회 (1회 최대 1GB · 만 19세 미만 주기 불가)', '참 쉬운 가족 가입 시 공유 데이터 50GB (1회 최대 5GB)', '스마트기기 · 데이터쉐어링 요금 할인 (휴대폰 회선당 2회선 · 최대 11,000원)', '멤버십 VVIP 등급', '매너콜 · U+zone · U+카카오내비 · mVoIP', '플러스 혜택 중 택 1 (프리미엄플러스 · 데일리플러스 · 패키지 요금제로 가입)', '올인원 결합 시 500M 인터넷 기본 제공'], o: '음성 1.98원/초 · 영상 3.3원/초', src: 'LG유플러스 가입 안내서 · 보도자료 2026.5.28' },
+ { n: '플러스플랜105', f: 105000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', b: ['플러스 혜택 중 택 1 (패키지 요금제로 가입)', '올인원 결합 시 500M 인터넷 기본 제공'], src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '플러스플랜95', f: 95000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', b: ['플러스 혜택 중 택 1 (패키지 요금제로 가입)', '올인원 결합 시 500M 인터넷 기본 제공'], src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜MAX', f: 85000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한 (속도 제한 없음)', src: 'LG유플러스 요금제 페이지 · 보도자료 2026.5.28' },
+ { n: '데이터플랜150GB', f: 75000, d: '150GB + 다 쓰면 최대 5Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜125GB', f: 70000, d: '125GB + 다 쓰면 최대 5Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜95GB', f: 68000, d: '95GB + 다 쓰면 최대 3Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜80GB', f: 66000, d: '80GB + 다 쓰면 최대 1Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜50GB', f: 63000, d: '50GB + 다 쓰면 최대 1Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜31GB', f: 61000, v: '유/무선 무제한', s: '무제한', x: '영상/부가통화 300분', d: '31GB + 다 쓰면 1Mbps 속도로 무제한', sh: '기본 데이터 안에서 주고받기 · 쉐어링 · 테더링', b: ['데이터 주고받기 일반 2회 · 결합 기준 가족 4회 (1회 최대 1GB · 만 19세 미만 주기 불가)', '매너콜 · U+zone · U+카카오내비 · mVoIP'], o: '음성 1.98원/초 · 영상 3.3원/초', src: 'LG유플러스 가입 안내서 · 보도자료 2026.5.28' },
+ { n: '데이터플랜24GB', f: 59000, d: '24GB + 다 쓰면 최대 1Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜14GB', f: 55000, d: '14GB + 다 쓰면 최대 1Mbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜9GB', f: 47000, d: '9GB + 다 쓰면 최대 400Kbps', age: [['청소년', '11GB + 다 쓰면 최대 1Mbps (자동)'], ['만 20세가 되면', '데이터 4GB 추가 (자동)']], src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜5GB', f: 37000, d: '5GB + 다 쓰면 최대 400Kbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜1.5GB', f: 33000, d: '1.5GB + 다 쓰면 최대 400Kbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜750MB', f: 29000, d: '750MB + 다 쓰면 최대 400Kbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: '데이터플랜300MB', f: 28000, d: '300MB + 다 쓰면 최대 400Kbps', src: 'LG유플러스 보도자료 2026.5.28' },
+ { n: 'LTE 키즈 22', f: 22000, k: 'kids', v: '60분 + 지정번호 2개(망내) 무제한', s: '기본 제공', d: '700MB + 다 쓰면 최대 400Kbps', b: ['만 12세 이하'], src: 'LG유플러스 요금제 페이지' }
+],
+'SKT': [
+ { n: '베스트 Max', f: 129000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 · 테더링 140GB', b: ['T 멤버십 VIP', '스마트기기 2회선 요금 무료'], age: [['청소년 (만 18세 이하)', '공유 · 테더링 160GB (+20GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '베스트 Pro', f: 119000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 · 테더링 120GB', b: ['T 멤버십 VIP', '스마트기기 2회선 요금 무료'], age: [['청소년 (만 18세 이하)', '공유 · 테더링 140GB (+20GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '베스트 109', f: 109000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 · 테더링 100GB', b: ['T 멤버십 VIP', '스마트기기 2회선 요금 무료'], age: [['청소년 (만 18세 이하)', '공유 · 테더링 120GB (+20GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '베스트 99', f: 99000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 · 테더링 80GB', b: ['T 멤버십 VIP', '스마트기기 2회선 요금 무료'], age: [['청소년 (만 18세 이하)', '공유 · 테더링 100GB (+20GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '베스트 89', f: 89000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 · 테더링 60GB', b: ['T 멤버십 VIP', '스마트기기 1회선 요금 무료'], age: [['청소년 (만 18세 이하)', '공유 · 테더링 80GB (+20GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 79', f: 79000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '250GB + 다 쓰면 최대 5Mbps', sh: '공유 · 테더링 54GB', b: ['스마트기기 1회선 요금 50% 할인'], age: [['청소년 (만 18세 이하)', '300GB (+50GB) · 공유 60GB (+6GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 69', f: 69000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '110GB + 다 쓰면 최대 5Mbps', sh: '공유 · 테더링 48GB', age: [['청소년 (만 18세 이하)', '160GB (+50GB) · 공유 50GB (+2GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 59 75GB업', f: 68000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '99GB (기본 24GB + 충전 75GB) + 다 쓰면 최대 1Mbps', sh: '공유 · 테더링 24GB', age: [['청소년 (만 18세 이하)', '136GB (+37GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 59 50GB업', f: 66000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '74GB (기본 24GB + 충전 50GB) + 다 쓰면 최대 1Mbps', sh: '공유 · 테더링 24GB', age: [['청소년 (만 18세 이하)', '96GB (+22GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 59 30GB업', f: 64000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '54GB (기본 24GB + 충전 30GB) + 다 쓰면 최대 1Mbps', sh: '공유 · 테더링 24GB', age: [['청소년 (만 18세 이하)', '72GB (+18GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 59 13GB업', f: 62000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '37GB (기본 24GB + 충전 13GB) + 다 쓰면 최대 1Mbps', sh: '공유 · 테더링 24GB', age: [['청소년 (만 18세 이하)', '51GB (+14GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 59', f: 59000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '24GB + 다 쓰면 최대 1Mbps', sh: '공유 · 테더링 24GB', b: ['데이터 충전 가능 (1회성 충전형)'], age: [['청소년 (만 18세 이하)', '36GB (+12GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 55', f: 55000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '15GB + 다 쓰면 최대 1Mbps', sh: '기본 제공량 안에서 공유 · 테더링', b: ['데이터 충전 가능 (1회성 충전형)'], age: [['청소년 (만 18세 이하)', '21GB (+6GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 49', f: 49000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '11GB + 다 쓰면 최대 400kbps', sh: '기본 제공량 안에서 공유 · 테더링', b: ['데이터 충전 가능 (1회성 충전형)'], age: [['청소년 (만 18세 이하)', '15GB (+4GB) · 커피 · 영화 · 로밍 50% 할인']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 45', f: 45000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '8GB + 다 쓰면 최대 400kbps', sh: '기본 제공량 안에서 공유 · 테더링', b: ['데이터 충전 가능 (1회성 충전형)'], age: [['청소년 (만 18세 이하)', '10.5GB (+2.5GB) · 커피 · 영화 · 로밍 50% 할인'], ['청년 (만 19~34세)', '10GB (+2GB) · 커피 · 영화 · 로밍 50% 할인'], ['시니어 (만 65세 이상)', '10.5GB (+2.5GB) + 최대 1Mbps · 영상/부가통화 400분 (+100분)']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: '라이트 39', f: 39000, v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '6GB + 다 쓰면 최대 400kbps', sh: '기본 제공량 안에서 공유 · 테더링', b: ['데이터 충전 가능 (1회성 충전형)'], age: [['청소년 (만 18세 이하)', '7.5GB (+1.5GB) · 커피 · 영화 · 로밍 50% 할인'], ['청년 (만 19~34세)', '7GB (+1GB) · 커피 · 영화 · 로밍 50% 할인'], ['시니어 (만 65세 이상)', '7.5GB (+1.5GB)']], src: 'T다이렉트샵 베스트 · 라이트 가이드' },
+ { n: 'ZEM플랜 퍼펙트', f: 36000, k: 'kids', v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 300분', d: '6GB + 다 쓰면 최대 1Mbps', sh: '테더링 · 함께쓰기는 기본 데이터 안에서', b: ['만 12세 이하 · 1인 1회선', 'ZEM 앱 데이터 무료', '만 14세 생일 다음 달 요금제 자동 변경'], o: '문자 초과 SMS 22원 · MMS 33원 / 110원', src: 'T world 상품원장' },
+ { n: 'ZEM플랜 베스트', f: 26000, k: 'kids', v: '집/이동전화 무제한', s: '기본 제공', x: '영상/부가통화 100분', d: '3GB + 다 쓰면 최대 400kbps', src: 'T world 상품원장' },
+ { n: 'ZEM플랜 스마트', f: 19800, k: 'kids', v: 'SK텔레콤 지정 2회선 무제한', s: '기본 제공', x: '영상/부가통화 60분', d: '1.5GB + 다 쓰면 최대 400kbps', src: 'T world 상품원장' }
+],
+'KT': [
+ { n: '초이스130', f: 130000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 100GB', age: [['스쿨덤 (만 18세 이하)', '공유 200GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 200GB'], ['65+덤 (만 65~74세)', '공유 150GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 200GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '초이스 더블', f: 120000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 90GB', age: [['스쿨덤 (만 18세 이하)', '공유 180GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 180GB'], ['65+덤 (만 65~74세)', '공유 135GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 180GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '초이스110', f: 110000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 80GB', age: [['스쿨덤 (만 18세 이하)', '공유 160GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 160GB'], ['65+덤 (만 65~74세)', '공유 120GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 160GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직100', f: 100000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 70GB', age: [['스쿨덤 (만 18세 이하)', '공유 140GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 140GB'], ['65+덤 (만 65~74세)', '공유 105GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 140GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '초이스90', f: 90000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 60GB', age: [['스쿨덤 (만 18세 이하)', '공유 120GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 120GB'], ['65+덤 (만 65~74세)', '공유 90GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 120GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직80', f: 80000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '완전 무제한', sh: '공유 데이터 50GB', age: [['스쿨덤 (만 18세 이하)', '공유 100GB · 안심박스'], ['Y덤 (만 19~34세)', '공유 100GB'], ['65+덤 (만 65~74세)', '공유 75GB · 안심박스'], ['75+덤 (만 75세 이상)', '공유 100GB · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직110GB', f: 69000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '110GB + 다 쓰면 최대 5Mbps', age: [['스쿨덤 (만 18세 이하)', '220GB + 5Mbps · 안심박스'], ['Y덤 (만 19~34세)', '220GB + 5Mbps'], ['65+덤 (만 65~74세)', '165GB + 5Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '220GB + 5Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직90GB', f: 67000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '90GB + 다 쓰면 최대 1Mbps', age: [['스쿨덤 (만 18세 이하)', '180GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '180GB + 1Mbps'], ['65+덤 (만 65~74세)', '135GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '180GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직70GB', f: 65000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '70GB + 다 쓰면 최대 1Mbps', age: [['스쿨덤 (만 18세 이하)', '140GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '140GB + 1Mbps'], ['65+덤 (만 65~74세)', '105GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '140GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직50GB', f: 63000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '50GB + 다 쓰면 최대 1Mbps', age: [['스쿨덤 (만 18세 이하)', '100GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '100GB + 1Mbps'], ['65+덤 (만 65~74세)', '75GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '100GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직30GB', f: 61000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '30GB + 다 쓰면 최대 1Mbps', age: [['스쿨덤 (만 18세 이하)', '60GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '60GB + 1Mbps'], ['65+덤 (만 65~74세)', '45GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '60GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직21GB', f: 58000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '21GB + 다 쓰면 최대 1Mbps', b: ['같은 월정액 이월형도 있어요 (남은 데이터 다음 달로)'], age: [['스쿨덤 (만 18세 이하)', '42GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '42GB + 1Mbps'], ['65+덤 (만 65~74세)', '32GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '42GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직14GB', f: 55000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '14GB + 다 쓰면 최대 1Mbps', b: ['같은 월정액 이월형도 있어요 (남은 데이터 다음 달로)'], age: [['스쿨덤 (만 18세 이하)', '28GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '28GB + 1Mbps'], ['65+덤 (만 65~74세)', '21GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '28GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직10GB', f: 50000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '10GB + 다 쓰면 최대 400Kbps', b: ['같은 월정액 이월형도 있어요 (남은 데이터 다음 달로)'], age: [['스쿨덤 (만 18세 이하)', '20GB + 1Mbps · 안심박스'], ['Y덤 (만 19~34세)', '20GB + 400Kbps'], ['65+덤 (만 65~74세)', '15GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '20GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직7GB', f: 45000, v: '기본 제공', s: '기본 제공', x: '영상/부가통화 300분', d: '7GB + 다 쓰면 최대 400Kbps', b: ['같은 월정액 이월형도 있어요 (남은 데이터 다음 달로)'], age: [['스쿨덤 (만 18세 이하)', '14GB + 400Kbps · 안심박스'], ['Y덤 (만 19~34세)', '14GB + 400Kbps'], ['65+덤 (만 65~74세)', '11GB + 1Mbps · 안심박스'], ['75+덤 (만 75세 이상)', '14GB + 1Mbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직4GB', f: 37000, v: '기본 제공', s: '기본 제공', d: '4GB + 다 쓰면 최대 400Kbps', b: ['같은 월정액 이월형도 있어요 (이월형은 영상/부가통화 300분)'], age: [['스쿨덤 (만 18세 이하)', '8GB + 400Kbps · 안심박스'], ['Y덤 (만 19~34세)', '8GB + 400Kbps'], ['65+덤 (만 65~74세)', '6GB + 400Kbps · 안심박스'], ['75+덤 (만 75세 이상)', '8GB + 400Kbps · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직1.4GB', f: 33000, v: '기본 제공', s: '기본 제공', d: '1.4GB + 다 쓰면 최대 400Kbps', age: [['스쿨덤 (만 18세 이하)', '2.8GB + 400Kbps · 안심박스'], ['Y덤 (만 19~34세)', '2.8GB + 400Kbps'], ['65+덤 (만 65~74세)', '2.1GB + 400Kbps · 영상/부가통화 100분 · 안심박스'], ['75+덤 (만 75세 이상)', '2.8GB + 400Kbps · 영상/부가통화 100분 · 안심박스']], src: 'KT닷컴 연령별 덤 혜택' },
+ { n: '베이직600MB', f: 28900, v: '180분', s: '180건', d: '600MB + 다 쓰면 최대 400Kbps', age: [['스쿨덤 (만 18세 이하)', '1,000MB + 400Kbps · 안심박스'], ['65+덤 (만 65~74세)', '800MB + 400Kbps · 음성/문자 기본 제공 · 영상/부가통화 100분 · 안심박스'], ['75+덤 (만 75세 이상)', '1,000MB + 400Kbps · 음성/문자 기본 제공 · 영상/부가통화 100분 · 안심박스']], src: 'KT닷컴 연령별 덤 혜택 · KT 통합요금제 안내' },
+ { n: '음성18.7', f: 18700, k: 'senior', v: '100분', s: '100건', d: '300MB', age: [['스쿨덤 (만 18세 이하)', '600MB + 이월'], ['65+덤 (만 65~74세)', '300MB + 이월 · 음성 130분 · 문자 150건'], ['75+덤 (만 75세 이상)', '300MB + 이월 · 음성 130분 · 문자 150건']], src: 'KT닷컴 연령별 덤 혜택' }
+]
+} };
+        PLAN_INFO_DEF.notes = { 'LG U+': [['시니어 (만 65세 이상)', '음성 · 문자 무제한 (자동)']] };
+        const PI_CARS = ['LG U+', 'SKT', 'KT'];
+        function planInfoData() { const P = calcData && calcData.planInfo; return P && P.plans ? P : PLAN_INFO_DEF; }
+        function piCar(c) { c = String(c || ''); return /알뜰/.test(c) ? '' : (/LG|U\+|유플/i.test(c) ? 'LG U+' : (/SK/i.test(c) ? 'SKT' : (/KT/i.test(c) ? 'KT' : ''))); }
+        const piKey = (s) => String(s || '').toUpperCase().replace(/[\s()[\]·\-_/]/g, '');
+        function planInfoFind(car, name) {
+            const k = piKey(name), list = (planInfoData().plans || {})[piCar(car)] || [];
+            if (!k || !list.length) return null;
+            const hit = list.find(p => piKey(p.n) === k);
+            if (hit) return hit;
+            return list.filter(p => { const pk = piKey(p.n); return pk.length >= 4 && k.includes(pk); }).sort((a, b) => piKey(b.n).length - piKey(a.n).length)[0] || null;
+        }
+        function planInfoAges(car, p) { const N = ((planInfoData().notes || PLAN_INFO_DEF.notes || {})[piCar(car)]) || []; return [...((p && p.age) || []), ...(p && p.k ? [] : N)]; }
+        const piLab = (l, v) => v ? (String(v).startsWith(l) ? String(v) : `${l} ${v}`) : '';   // '음성 음성 …' 안 되게
+        function planInfoHtml(car, p, o = {}) {
+            if (!p) return '';
+            const chip = (ic, lab, t) => t ? `<span class="inline-flex items-center gap-1 rounded-lg bg-white border border-indigo-100 px-2 py-1 text-[12px] text-indigo-950"><span aria-hidden="true">${ic}</span>${String(t).startsWith(lab) ? '' : `<span class="text-gray-600">${lab}</span> `}<b>${escapeHtml(t)}</b></span>` : '';
+            const lines = [p.x, p.sh, ...(p.b || [])].filter(Boolean), ages = planInfoAges(car, p);
+            return `<div class="rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2.5 space-y-1.5" data-plan-info="${escapeHtml(p.n)}">
+                <p class="text-[12px] font-bold text-indigo-900">📶 ${escapeHtml(p.n)} ${o.title || '기본 제공'}${p.f ? ` <span class="font-medium text-indigo-700">· 월 ${arWon(p.f)}원</span>` : ''}</p>
+                <div class="flex flex-wrap gap-1">${chip('📞', '음성', p.v)}${chip('✉', '문자', p.s)}${chip('📶', '데이터', p.d)}</div>
+                ${lines.length ? `<ul class="text-[12px] text-gray-800 space-y-0.5 leading-snug">${lines.map(t => `<li class="flex gap-1.5"><span class="text-indigo-400" aria-hidden="true">·</span><span>${escapeHtml(t)}</span></li>`).join('')}</ul>` : ''}
+                ${ages.length && !o.short ? `<ul class="text-[12px] text-gray-700 space-y-0.5 leading-snug">${ages.map(([a, t]) => `<li><b class="text-gray-900">${escapeHtml(a)}</b> ${escapeHtml(t)}</li>`).join('')}</ul>` : ''}
+                ${p.o ? `<p class="text-[11px] text-gray-600">기본 제공량을 넘으면 ${escapeHtml(p.o)}</p>` : ''}
+                <p class="text-[10px] text-gray-500">출처: ${escapeHtml(p.src || '대표 입력')}</p></div>`;
+        }
+        // 고객 안내서 그림 · 문자에 쓰는 글 (줄마다)
+        function planInfoLines(car, p) {
+            if (!p) return [];
+            const top = [piLab('음성', p.v), piLab('문자', p.s), piLab('데이터', p.d)].filter(Boolean).join(' · ');
+            return [top, ...[p.x, p.sh, ...(p.b || [])].filter(Boolean), ...planInfoAges(car, p).map(([a, t]) => `${a}: ${t}`), p.o ? `기본 제공량을 넘으면 ${p.o}` : ''].filter(Boolean);
+        }
+        // 서명할 때 그때 혜택 그대로 남김 (나중에 대표가 고쳐도 서명한 안내서는 그대로)
+        function gdPiSnap(g) {
+            const cur = planInfoFind(g.carrier, g.plan && g.plan.name), kp = g.keep && g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null;
+            return { cur: cur ? { ...cur, ages: planInfoAges(g.carrier, cur) } : null, keep: kp ? { ...kp, ages: planInfoAges(g.carrier, kp) } : null };
+        }
+        function gdPiOf(g, which) {
+            if (g.st !== 'draft' && g.pi && typeof g.pi === 'object') { const s = g.pi[which]; return s ? { ...s, age: s.ages || s.age || [], k: 'snap' } : null; }
+            const p = planInfoFind(g.carrier, which === 'keep' ? g.keep && g.keep.target : g.plan && g.plan.name);
+            return p;
+        }
+
+        // ── ⚙️ 설정 → 정책 → 📶 요금제 혜택 (👑 고치기 · 직원은 보기) ──
+        let piView = { car: 'LG U+', edit: -2 };
+        function openPlanInfoSheet() {
+            let sh = document.getElementById('planInfoSheet');
+            if (!sh) { sh = document.createElement('div'); sh.id = 'planInfoSheet'; sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50'; sh.addEventListener('click', planInfoClick); sh.addEventListener('input', (e) => { if (e.target.id === 'piF') { const n = Number(String(e.target.value).replace(/[^\d]/g, '')) || 0; e.target.value = n ? arWon(n) : ''; } }); document.body.appendChild(sh); }
+            const top = sh.firstElementChild ? sh.firstElementChild.scrollTop : 0, P = planInfoData(), list = (P.plans || {})[piView.car] || [], edited = !!(calcData && calcData.planInfo && calcData.planInfo.plans);
+            const lock = !isSuperAdmin, fld = 'mt-1 w-full px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            const form = (p, i) => `<div class="rounded-2xl border-2 border-indigo-300 bg-white p-3 space-y-2" data-pi-form="${i}">
+                <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 120px"><label class="block text-xs font-bold text-gray-600">요금제 이름<input id="piN" value="${escapeHtml(p.n || '')}" class="${fld} h-11"></label><label class="block text-xs font-bold text-gray-600">월정액 (원)<input id="piF" inputmode="numeric" value="${p.f ? arWon(p.f) : ''}" class="${fld} h-11 text-right"></label></div>
+                ${[['piV', '음성', p.v, '예) 집/이동전화 무제한'], ['piS', '문자', p.s, '예) 기본 제공'], ['piD', '데이터', p.d, '예) 31GB + 다 쓰면 1Mbps'], ['piX', '영상 · 부가통화', p.x, '예) 영상/부가통화 300분'], ['piSh', '공유 · 테더링', p.sh, '예) 공유 데이터 100GB'], ['piO', '기본 제공량을 넘으면', p.o, '예) 음성 1.98원/초 · 영상 3.3원/초'], ['piSrc', '출처', p.src, '예) 통신사 요금제 페이지']].map(([id, l, v, ph]) => `<label class="block text-xs font-bold text-gray-600">${l}<input id="${id}" value="${escapeHtml(v || '')}" placeholder="${ph}" class="${fld} h-11"></label>`).join('')}
+                <label class="block text-xs font-bold text-gray-600">혜택 <span class="font-medium">(한 줄에 하나)</span><textarea id="piB" rows="3" class="${fld} py-2 text-[14px]">${escapeHtml((p.b || []).join('\n'))}</textarea></label>
+                <label class="block text-xs font-bold text-gray-600">연령 혜택 <span class="font-medium">(한 줄에 하나 · '대상: 내용')</span><textarea id="piA" rows="3" class="${fld} py-2 text-[14px]">${escapeHtml((p.age || []).map(([a, t]) => `${a}: ${t}`).join('\n'))}</textarea></label>
+                <div class="grid grid-cols-3 gap-2"><button type="button" data-pi-save class="col-span-2 h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">저장</button><button type="button" data-pi-cancel class="h-11 rounded-xl border border-gray-300 text-[14px] font-bold text-gray-700">취소</button></div>
+                ${i >= 0 ? `<button type="button" data-pi-del="${i}" class="w-full h-10 rounded-xl text-[13px] font-bold text-red-700">이 요금제 지우기</button>` : ''}</div>`;
+            const row = (p, i) => piView.edit === i ? form(p, i) : `<div class="py-2.5 border-b border-gray-100 last:border-0 flex items-start gap-2" data-pi-row="${i}"><div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-gray-900">${escapeHtml(p.n)}${p.f ? ` <span class="font-medium text-gray-600">· ${arWon(p.f)}원</span>` : ''}${p.k === 'kids' ? ' <span class="text-[11px] font-bold text-amber-700">키즈</span>' : (p.k === 'senior' ? ' <span class="text-[11px] font-bold text-amber-700">시니어</span>' : '')}</p><p class="text-xs text-gray-600 truncate">${escapeHtml([piLab('음성', p.v), piLab('데이터', p.d), p.sh].filter(Boolean).join(' · ') || '내용을 아직 안 넣었어요')}</p></div>${lock ? '' : `<button type="button" data-pi-edit="${i}" class="h-9 px-3 rounded-lg border border-gray-300 text-[13px] font-bold text-gray-700">고치기</button>`}</div>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-gray-50 rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto">
+                <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-2 py-1.5 flex items-center gap-1"><p class="flex-1 pl-2 text-[17px] font-bold text-gray-900">📶 요금제 혜택</p><button type="button" data-pi-close aria-label="닫기" class="w-11 h-11 rounded-xl text-gray-500 text-xl">✕</button></div>
+                <div class="p-3 space-y-3">
+                <p class="text-[13px] text-gray-700 leading-relaxed">안내서 · 명함에서 요금제를 고르면 음성 · 문자 · 데이터 · 혜택이 같이 보여요. 기본값은 통신사 공식 페이지 · 보도자료 기준(${escapeHtml(PLAN_INFO_DEF.ver)})이에요${edited ? ' · <b class="text-indigo-800">대표님이 고친 내용</b>으로 보여주는 중' : ''}. 통신사가 바꾸면 여기서 고쳐 주세요.</p>
+                <div class="grid grid-cols-3 gap-1.5">${PI_CARS.map(k => `<button type="button" data-pi-car="${k}" aria-pressed="${k === piView.car}" class="h-10 rounded-xl text-[14px] font-bold ${k === piView.car ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700'}">${k}</button>`).join('')}</div>
+                <div class="bg-white border border-gray-200 rounded-2xl px-3">${list.map(row).join('') || '<p class="py-4 text-center text-sm text-gray-600">요금제가 없어요.</p>'}</div>
+                ${lock ? '<p class="text-xs text-gray-500">고치기는 👑 대표만 해요.</p>' : (piView.edit === -1 ? form({}, -1) : '<button type="button" data-pi-add class="w-full h-12 rounded-xl border border-dashed border-indigo-300 bg-white text-[14px] font-bold text-indigo-700">+ 요금제 더하기</button>')}
+                ${!lock && edited ? '<button type="button" data-pi-reset class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">기본값(공식 페이지)으로 되돌리기</button>' : ''}
+                </div></div>`;
+            sh.firstElementChild.scrollTop = top;
+        }
+        async function planInfoSave(plans) {
+            const next = calcNormalize(calcData);
+            next.planInfo = { ver: getTodayStr(), base: PLAN_INFO_DEF.ver, plans, notes: planInfoData().notes || PLAN_INFO_DEF.notes };
+            return calcSave(next, true);
+        }
+        async function planInfoClick(e) {
+            const sh = document.getElementById('planInfoSheet'); if (!sh) return;
+            if (e.target === sh || e.target.closest('[data-pi-close]')) { sh.remove(); piView.edit = -2; return; }
+            const cb = e.target.closest('[data-pi-car]'); if (cb) { piView = { car: cb.dataset.piCar, edit: -2 }; openPlanInfoSheet(); return; }
+            if (!isSuperAdmin) return;
+            const ed = e.target.closest('[data-pi-edit]'); if (ed) { piView.edit = Number(ed.dataset.piEdit); openPlanInfoSheet(); return; }
+            if (e.target.closest('[data-pi-add]')) { piView.edit = -1; openPlanInfoSheet(); return; }
+            if (e.target.closest('[data-pi-cancel]')) { piView.edit = -2; openPlanInfoSheet(); return; }
+            const plans = JSON.parse(JSON.stringify(planInfoData().plans || {}));
+            plans[piView.car] = plans[piView.car] || [];
+            if (e.target.closest('[data-pi-reset]')) {
+                if (!(await customConfirm('고친 요금제 혜택을 모두 지우고 기본값(공식 페이지 기준)으로 되돌릴까요?'))) return;
+                const next = calcNormalize(calcData); delete next.planInfo;
+                if (await calcSave(next, true)) { piView.edit = -2; openPlanInfoSheet(); stockToast('📶 기본값으로 되돌렸어요'); }
+                return;
+            }
+            const del = e.target.closest('[data-pi-del]');
+            if (del) {
+                const i = Number(del.dataset.piDel), p = plans[piView.car][i]; if (!p) return;
+                if (!(await customConfirm(`'${p.n}' 요금제 혜택을 지울까요?`))) return;
+                plans[piView.car].splice(i, 1);
+                if (await planInfoSave(plans)) { piView.edit = -2; openPlanInfoSheet(); stockToast('지웠어요'); }
+                return;
+            }
+            if (!e.target.closest('[data-pi-save]')) return;
+            const val = (id) => String((sh.querySelector('#' + id) || {}).value || '').trim();
+            const n = val('piN'); if (!n) return customAlert('요금제 이름을 넣어 주세요.');
+            const i = piView.edit, old = i >= 0 ? plans[piView.car][i] || {} : {};
+            if (plans[piView.car].some((x, j) => j !== i && piKey(x.n) === piKey(n))) return customAlert('같은 이름의 요금제가 있어요.');
+            const p = { ...old, n, f: Number(val('piF').replace(/[^\d]/g, '')) || 0 };
+            [['v', 'piV'], ['s', 'piS'], ['d', 'piD'], ['x', 'piX'], ['sh', 'piSh'], ['o', 'piO'], ['src', 'piSrc']].forEach(([k, id]) => { const v = val(id); if (v) p[k] = v; else delete p[k]; });
+            const b = val('piB').split('\n').map(t => t.trim()).filter(Boolean); if (b.length) p.b = b; else delete p.b;
+            const a = val('piA').split('\n').map(t => t.trim()).filter(Boolean).map(t => { const j = t.indexOf(':'); return j > 0 ? [t.slice(0, j).trim(), t.slice(j + 1).trim()] : ['', t]; }); if (a.length) p.age = a; else delete p.age;
+            if (i >= 0) plans[piView.car][i] = p; else plans[piView.car].push(p);
+            if (await planInfoSave(plans)) { piView.edit = -2; openPlanInfoSheet(); stockToast(`📶 ${n} 저장했어요 (안내서 · 명함에 바로)`); }
+        }
+        // 📄 V234 선택약정 12+12 (V236: LG U+ · SKT만): 12개월마다 위약금이 끝나고, 첫 약정이 끝나면 자동으로 12개월 연장 (두 번째 12개월도 12개월 약정 기준)
+        function gd1212Ok(g) { return ['LG U+', 'SKT'].includes(g && g.carrier); }
         function gdReTermText(g) {
             const d = /^\d{4}-\d{2}-\d{2}$/.test(String(g && g.date || '')) ? g.date : getTodayStr();
-            return `${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월쯤 12개월 재약정하면 25% 할인이 이어져요 (모두 24개월)`;
+            return `12개월마다 위약금이 끝나요 · ${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월에 첫 약정이 끝나면 자동으로 12개월 연장돼 25% 할인이 그대로 이어져요`;
         }
         function gdKeepDefault(g) {
             const d = dealerByName(g.dealer);
@@ -19985,11 +20171,15 @@ familyStr + `\n` +
                 rows.forEach((w, i) => { const yy = y + 50 + i * (size + 8); if (w.first) { x.beginPath(); x.arc(L + 19, yy - size / 3, 2.2, 0, Math.PI * 2); x.fillStyle = o.color; x.fill(); } T(w.l, L + 28, yy, size, 400, o.color); });
                 y += ph + 12;
             };
+            const piCur = gdPiOf(g, 'cur');   // 📶 V236 요금제 혜택 (서명한 안내서는 그때 것 그대로)
+            if (piCur) panel(`${piCur.n} 기본 제공 · 혜택`, planInfoLines(g.carrier, piCur), { fill: '#F8FAFF', stroke: '#C7D2FE', titleColor: '#1E3A8A', color: '#1F2937', size: 12 });
             const kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             if (kd || g.keep.target) {
                 const ls = [];
                 if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(g.keep.code)} 유지 → ${gdDot(kd)}부터 바꿀 수 있어요`);
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
+                const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
+                if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
                 panel('요금제 유지 · 변경 안내', ls, { fill: '#EEF2FF', stroke: '#C7D2FE', titleColor: '#312E81', color: '#1E1B4B' });
             }
             const pl = (g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${p.kind} ${String(p.name || '').trim() || '(이름 없음)'}${gdNum(p.fee) ? ` (월 ${W(gdNum(p.fee))})` : ''}${p.code ? ` · ${keepLabel(p.code)} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; });
@@ -20092,7 +20282,7 @@ familyStr + `\n` +
         // 👥 V208 복사: other=true면 고객 · 일련번호 · 중고보상 · 사은품은 비우고 기종 · 요금제 · 할인 · 유지는 그대로
         function gdCopyOf(g0, other) {
             const n = gdClone(g0);
-            ['signed', 'sent', 'act', 'imgUrl', 'notes', 'notesV', 'calc', 'title'].forEach(k => delete n[k]);
+            ['signed', 'sent', 'act', 'imgUrl', 'notes', 'notesV', 'calc', 'title', 'pi'].forEach(k => delete n[k]);
             Object.assign(n, { id: gdNewId(), st: 'draft', date: getTodayStr(), createdAt: '', createdBy: getStaffName() || '', updatedAt: '' });
             if (other) { Object.assign(n, { custId: '', name: '', phone: '', gift: '' }); if (n.dev) { n.dev.serial = ''; n.dev.used = 0; } }
             return n;
@@ -20192,9 +20382,10 @@ familyStr + `\n` +
                 <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap"><span class="text-sm font-bold text-indigo-900">할부원금 <b id="gdLoan" class="text-[17px]">${arWon(c.loan)}</b>원</span><span class="text-sm font-bold text-indigo-900">월 할부금 약 <b id="gdMonth" class="text-[17px]">${arWon(c.month)}</b>원</span></div>
                 <p id="gdLoanSub" class="text-xs text-gray-600 text-right -mt-1">${gdLoanSub(c)}</p>`);
             h += gdSec('B · 요금', `${gdChips('sup', dev ? [['선약', '요금할인 (선택약정)'], ['공시', '단말할인 (공시)']] : [['선약', '선택약정'], ['없음', '약정 없음']], g.sup)}
-                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', g.sup === '선약' ? [['24', '24개월'], ['12', '12개월'], ['12+12', '12+12개월']] : [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}
+                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', g.sup === '선약' && gd1212Ok(g) ? [['24', '24개월'], ['12', '12개월'], ['12+12', '12+12개월']] : [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('<span class="text-red-600">*</span> 요금제', gdInp('plan.name', g.plan.name, { list: 'gdPlanList', ph: '예) 라이트 39' }))}${gdLbl('<span class="text-red-600">*</span> 월정액', gdInp('plan.fee', g.plan.fee, { money: true }))}</div>
                 ${g.sup === '선약' ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700 flex justify-between"><span>선택약정 ${g.term}개월 (25%)</span><b id="gdSel" class="text-gray-900">-${arWon(c.sel)}원</b></div>${g.term === '12+12' ? `<p class="text-xs text-gray-600 -mt-1" data-gd-1212>${gdReTermText(g)}</p>` : ''}` : ''}
+                <div id="gdPlanInfo">${planInfoHtml(g.carrier, planInfoFind(g.carrier, g.plan.name))}</div>
                 <div class="grid grid-cols-2 gap-2">
                     ${gdLbl('복지할인', `<select data-gd="plan.welType" class="${gdCls}">${GD_WELFARE.map(([v, l]) => `<option value="${v}" ${g.plan.welType === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`)}
                     ${g.plan.welType ? gdLbl(`복지할인 금액 <span id="gdWelTag" class="font-normal text-indigo-700">${gdWelAutoOn(g) ? '· 자동 (고쳐도 돼요)' : ''}</span>`, gdInp('plan.wel', gdWelAutoOn(g) ? c.wel : g.plan.wel, { money: true, id: 'gdWel' })) : '<div></div>'}
@@ -20204,7 +20395,8 @@ familyStr + `\n` +
                 <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between"><span class="text-sm font-bold text-indigo-900">월 요금</span><span><b id="gdPlanNet" class="text-[17px] text-indigo-900">${arWon(c.planNet)}</b><span class="text-sm text-indigo-900">원</span></span></div>
                 <div id="gdPlanWarn">${gdPlanWarn(g, c)}</div>`);
             h += gdSec('요금제 유지 · 바꿀 요금제', `<div class="grid gap-2 items-end" style="grid-template-columns: minmax(0, 1fr) auto">${gdLbl('요금제 유지', `<select data-gd="keep.code" class="${gdCls}">${gdKeepOpts(g.keep.code)}</select>`)}<p id="gdKeepDate" class="pb-3 text-[13px] font-bold text-purple-800">${kd ? `${gdDot(kd)}부터 변경` : ''}</p></div>
-                <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('유지 후 바꿀 요금제', gdInp('keep.target', g.keep.target, { list: 'gdPlanList', ph: '예) 5G 라이트' }))}${gdLbl('변경 후 월요금', gdInp('keep.targetFee', g.keep.targetFee, { money: true }))}</div>`);
+                <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('유지 후 바꿀 요금제', gdInp('keep.target', g.keep.target, { list: 'gdPlanList', ph: '예) 5G 라이트' }))}${gdLbl('변경 후 월요금', gdInp('keep.targetFee', g.keep.targetFee, { money: true }))}</div>
+                <div id="gdKeepInfo">${planInfoHtml(g.carrier, g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null, { title: '(바꿀 요금제)', short: true })}</div>`);
             h += gdSec('C · 유심 · 부가 · 보험', `<div class="grid grid-cols-2 gap-2">${gdLbl('유심비', gdInp('usim.fee', g.usim.fee, { money: true }))}${gdLbl('유심 납부', `<select data-gd="usim.pay" class="${gdCls}">${GD_USIM_PAY.map(v => `<option value="${v}" ${g.usim.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}</div>
                 <div id="gdProms" class="space-y-1.5">${gdPromRows(g)}</div>
                 <p id="gdAddFee" class="text-[12px] font-bold text-indigo-800">${c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : ''}</p>
@@ -20225,6 +20417,8 @@ familyStr + `\n` +
             (gd.promises || []).forEach((p, i) => { const el = gdInner.querySelector(`[data-gd-pdate="${i}"]`); if (el) { const d = p.code ? computeKeepDate(gd.date, p.code) : ''; el.innerHTML = d ? `${gdDot(d)}부터<br>해지 가능` : ''; } });
             set('gdAddFee', c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : '');
             const pw = document.getElementById('gdPlanWarn'); if (pw) { const h = gdPlanWarn(gd, c); if (pw.innerHTML !== h) pw.innerHTML = h; }
+            const piBox = (id, name, o) => { const el = document.getElementById(id); if (!el) return; const p = name ? planInfoFind(gd.carrier, name) : null, k = p ? `${gd.carrier}|${p.n}|${(calcData && calcData.planInfo && calcData.planInfo.ver) || ''}` : ''; if (el.dataset.k !== k) { el.dataset.k = k; el.innerHTML = planInfoHtml(gd.carrier, p, o); } };   // 📶 V236
+            piBox('gdPlanInfo', gd.plan.name); piBox('gdKeepInfo', gd.keep.target, { title: '(바꿀 요금제)', short: true });
         }
         function gdSetPath(path, v) { const ks = path.split('.'); let o = gd; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]] = o[ks[i]] || {}; o[ks[ks.length - 1]] = v; }
         function gdPutInput(path, v) { const el = gdInner.querySelector(`[data-gd="${path}"]`); if (el && document.activeElement !== el) el.value = GD_MONEY.has(path) ? (v ? arWon(v) : '') : v; }
@@ -20303,6 +20497,7 @@ familyStr + `\n` +
                 else if (k === 'term') gd.term = v === '12+12' ? '12+12' : (Number(v) || 24);   // 📄 V234 12+12
                 else gd[k] = v;
                 if (k === 'sup' && gd.sup !== '선약' && gd.term === '12+12') gd.term = 24;   // 공시엔 12+12가 없어요
+                if (k === 'carrier' && gd.term === '12+12' && !gd1212Ok(gd)) gd.term = 24;   // 📄 V236 12+12는 LG U+ · SKT만
                 if ((k === 'sup' || k === 'kind') && !gd.keepTouched) gd.keep.code = gdKeepDefault(gd);   // 📅 V212
                 if (gd.kind !== 'usim' && gd.sup === '공시' && (gd.dev.pubAuto || !gd.dev.pub)) { const m = gdModelInfo(gd); if (m && m.pub) { gd.dev.pub = m.pub; gd.dev.pubAuto = true; } }   // 공시: 지원금표에서 (개통종류마다 다름)
                 gdRender(); return;
@@ -20445,7 +20640,7 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
-                g.notes = gdNotesFor(g); g.notesV = 2;   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
+                g.notes = gdNotesFor(g); g.notesV = 2; g.pi = gdPiSnap(g);   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -20861,14 +21056,29 @@ familyStr + `\n` +
             const dist = Number(c.distSupport) || 0, distBack = back(dist, DIST_KEEP_DAYS);
             const plan = c.promPlanDate && String(c.promPlanDate).length >= 10 && !c.promPlanChk ? { date: String(c.promPlanDate).slice(0, 10), left: daysFromToday(String(c.promPlanDate).slice(0, 10)) } : null;
             const dayAfter = (n) => { const x = new Date(y, m - 1, d + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
-            return { term, end, remDays, remMonths, usedDays, totalDays, mode, car, big3, pub, pubFree, inst, inst2, pubBack, fee, selGot, selFree, selBack, dist, distBack, distEnd: dayAfter(DIST_KEEP_DAYS), pubEnd: dayAfter(pubFree), selEnd: dayAfter(selFree), plan };
+            // 📄 V236 12+12 (LG U+ · SKT): 12개월마다 위약금 · 첫 12개월이 끝나면 자동으로 두 번째 12개월 (새 12개월 약정 · 받은 할인도 그 12개월 것만) · 공통 · 유통망은 첫 12개월 그대로
+            let termLabel = '', end2 = end, rem2 = remDays, remM2 = remMonths, selUsed = usedDays, selGot2 = selGot, selBack2 = selBack, selStart = ad;
+            if (term === 12 && /12\s*\+\s*12/.test(termTxt + ' ' + dt)) {
+                const e2D = new Date(y, m - 1 + 24, d), e2 = `${e2D.getFullYear()}-${String(e2D.getMonth() + 1).padStart(2, '0')}-${String(e2D.getDate()).padStart(2, '0')}`;
+                if (remDays > 0) termLabel = '12+12개월 (첫 12개월)';
+                else if (today < e2) {
+                    termLabel = '12+12개월 (두 번째 12개월)';
+                    const tot2 = Math.max(1, Math.round((Date.parse(e2) - Date.parse(end)) / dayMs)), used2 = Math.max(0, Math.round((Date.parse(today) - Date.parse(end)) / dayMs));
+                    rem2 = Math.max(0, Math.round((Date.parse(e2) - Date.parse(today)) / dayMs)); end2 = e2; selUsed = used2; selStart = end;
+                    remM2 = rem2 > 0 ? Math.max(0, (e2D.getFullYear() - now.getFullYear()) * 12 + e2D.getMonth() - now.getMonth() - (e2D.getDate() < now.getDate() ? 1 : 0)) : 0;
+                    selGot2 = mode === '선약' && fee > 0 ? Math.round(fee * 0.25 * Math.min(used2, tot2) / (365 / 12)) : 0;
+                    selBack2 = mode === '선약' && big3 && rem2 > 0 && selGot2 > 0 ? (used2 < selFree ? selGot2 : (tot2 > selFree ? fl10(selGot2 * rem2 / (tot2 - selFree)) : 0)) : 0;
+                } else { termLabel = '12+12개월 (끝)'; end2 = e2; }
+            }
+            const selAfter = (n) => { const [a1, a2, a3] = selStart.split('-').map(Number), x = new Date(a1, a2 - 1, a3 + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+            return { term, termLabel, end: end2, remDays: rem2, remMonths: remM2, usedDays, totalDays, mode, car, big3, pub, pubFree, inst, inst2, pubBack, fee, selGot: selGot2, selFree, selBack: selBack2, selUsed, dist, distBack, distEnd: dayAfter(DIST_KEEP_DAYS), pubEnd: dayAfter(pubFree), selEnd: selAfter(selFree), plan };
         }
         const DIST_KEEP_DAYS = 191;   // 🏷 V225 유통망지원금 유지일 (개통일 + 191일 · 매장 규칙)
         const CN_CAR = { SKT: 'SKT', KT: 'KT', LGU: 'LG U+', ETC: '알뜰폰·기타' };
         function changeNowHtml(c) {
             const I = changeNowInfo(c); if (!I) return '';
             const sub = (t) => `<br><span class="text-[11px] text-gray-500">${t}</span>`, amt = (n) => `약 <b>${arWon(n)}원</b>`;
-            const rows = [['약정', I.term ? `${I.term}개월 · ${gdDot(I.end)} 끝 ${I.remDays > 0 ? `(<b>${I.remMonths}개월</b> 남음)` : '<b class="text-emerald-700">(끝났어요)</b>'}` : '무약정']];
+            const rows = [['약정', I.term ? `${I.termLabel || `${I.term}개월`} · ${gdDot(I.end)} 끝 ${I.remDays > 0 ? `(<b>${I.remMonths}개월</b> 남음)` : '<b class="text-emerald-700">(끝났어요)</b>'}` : '무약정']];
             if (I.inst) rows.push(['남은 할부', I.inst.amt > 0 ? `<b>${I.inst.exact ? '' : '약 '}${arWon(I.inst.amt)}원</b> · ${I.inst.months}개월` : '<b class="text-emerald-700">완납</b>']);
             if (I.inst2) rows.push(['💳 이중할부', escapeHtml(I.inst2)]);
             let unknown = '';
@@ -20876,7 +21086,7 @@ familyStr + `\n` +
                 ? `${amt(I.pubBack)}${sub(`공통 ${wonMan(I.pub)} · ${I.usedDays < I.pubFree ? `${gdDot(I.pubEnd)}까지 전액 (${I.pubFree}일)` : `${I.pubFree}일 지나 남은 기간 비례`}`)}`
                 : ((unknown = ' + 공통지원금 위약금'), '<span class="text-gray-500">공통지원금 금액을 넣으면 계산돼요</span>')))]);
             if (I.mode === '선약') rows.push(['선택약정 할인반환금', I.remDays <= 0 ? '반환금 없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.selGot > 0
-                ? `${amt(I.selBack)}${sub(`받은 할인 약 ${wonMan(I.selGot)} (월 ${arWon(I.fee)}원 × 25%) · ${I.usedDays < I.selFree ? `${I.selFree === 180 ? 6 : 3}개월 안이라 전액` : `${I.selFree}일 지나 남은 기간 비례`}`)}`
+                ? `${amt(I.selBack)}${sub(`받은 할인 약 ${wonMan(I.selGot)} (월 ${arWon(I.fee)}원 × 25%${I.termLabel && /두 번째/.test(I.termLabel) ? ' · 두 번째 12개월' : ''}) · ${(I.selUsed ?? I.usedDays) < I.selFree ? `${I.selFree === 180 ? 6 : 3}개월 안이라 전액` : `${I.selFree}일 지나 남은 기간 비례`}`)}`
                 : ((unknown = ' + 선택약정 할인반환금'), '<span class="text-gray-500">월요금을 넣으면 계산돼요</span>')))]);
             if (I.dist > 0) rows.push(['유통망지원금 위약금', I.distBack > 0 ? `${I.usedDays < DIST_KEEP_DAYS ? `<b>${arWon(I.distBack)}원</b>` : amt(I.distBack)}${sub(`유통망 ${wonMan(I.dist)} · ${I.usedDays < DIST_KEEP_DAYS ? `${gdDot(I.distEnd)}까지 전액 (${DIST_KEEP_DAYS}일)` : `${DIST_KEEP_DAYS}일 지나 남은 기간 비례`}`)}` : `없어요${sub(`유통망 ${wonMan(I.dist)} · 약정 끝`)}`]);
             if (I.plan) rows.push(['요금제 유지', I.plan.left > 0 ? `${gdDot(I.plan.date)}까지 <b>D-${I.plan.left}</b><br><span class="text-[11px] text-gray-500">그 전엔 요금제를 낮추면 안 돼요</span>` : '끝났어요 · 낮춰도 돼요']);
@@ -23685,7 +23895,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V234';
+        const APP_VER = 'V236';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23693,8 +23903,14 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V236', d: '2026-10-26', items: [
+                ['📶 요금제 혜택: 안내서에서 요금제를 고르면 음성 · 문자 · 데이터 · 영상/부가통화 · 공유 데이터 · 혜택 · 청소년 · 청년 · 시니어 혜택 · 초과 요금이 바로 · 고객 안내서 그림에도 · 바꿀 요금제도 (3사 통합요금제 · 키즈 · 시니어 · 공식 페이지 기준)'],
+                ['📄 12+12개월은 LG U+ · SKT만 · 안내 문구 \'12개월마다 위약금이 끝나요 · 첫 약정이 끝나면 자동으로 12개월 연장\' · 고객카드 \'지금 바꾸면\'도 두 번째 12개월은 그 12개월 기준으로 반환금 계산'],
+                ['👑 설정 → 정책 → 📶 요금제 혜택: 통신사가 요금제를 바꾸면 대표가 직접 고치기 · 더하기 · 지우기 (명함 폰값계산에도 같이)', 'a']] },
+            { v: 'V235', d: '2026-10-26', items: [
+                ['📄 안내서 12+12개월 안내 고침: 재약정이 아니라 첫 12개월이 끝나면 자동으로 12개월 연장돼 25% 할인이 그대로 이어져요']] },
             { v: 'V234', d: '2026-10-26', items: [
-                ['📄 안내서 선택약정에 12+12개월: 약정 [24개월] [12개월] [12+12개월] · 고객 안내서에 \'○년 ○월쯤 12개월 재약정하면 25% 할인이 이어져요\' · 개통등록으로 넘기면 고객카드 할인 유형도 선택약정(12+12개월)']] },
+                ['📄 안내서 선택약정에 12+12개월: 약정 [24개월] [12개월] [12+12개월] · 고객 안내서에 자동 연장 안내 · 개통등록으로 넘기면 고객카드 할인 유형도 선택약정(12+12개월)']] },
             { v: 'V233', d: '2026-10-26', items: [
                 ['💵 급여 계산: 🎯 목표 → [💵 급여 명세서] (또는 설정 → 매장 운영 → 💵 급여 계산) · 그 달 개통 정산(실마진)으로 통신사별 무선 · 홈 수익 → 영업활동비 빼기 → 인센 · GR · 3.3%까지 회사 명세서 모양으로', 'a'],
                 ['🧮 급여 방식을 여러 개 만들어 두고 직원마다 \'○월부터\' 바꿔 끼워요 (이직하거나 방식이 바뀌어도 지난 달은 그대로) · 빼기 줄 · 인센 계산법 · GR · 공제를 골라서 · 숫자를 바꾸면 미리 보기가 바로', 'a'],
