@@ -19971,7 +19971,7 @@ familyStr + `\n` +
             finally { if (btn && document.body.contains(btn)) btn.disabled = false; }
         }
         function gdRenderDone() {
-            const g = gd, relay = pushRelayReady(), canDel = isSuperAdmin || ((g.signed ? g.signed.by : g.createdBy) === getStaffName() && !g.act);
+            const g = gd, relay = pushRelayReady(), canDel = gdCanDel(g);   // V232 대표가 정한 규칙
             document.getElementById('gdTitle').textContent = gdStage === 'done' ? '서명 완료' : '구매 안내서';
             document.getElementById('gdDraft').classList.add('hidden');
             const sentTxt = g.sent ? `📩 ${gdMD(isoDay(g.sent.at))} ${gdHM(g.sent.at)} ${escapeHtml(g.sent.via || '')}로 보냄` : '';
@@ -20008,6 +20008,7 @@ familyStr + `\n` +
             if (e.target.closest('[data-gd-copy2]')) { gdCopyOther(gd); return; }
             if (e.target.closest('[data-gd-del]')) {
                 const g = gd;
+                if (!gdCanDel(g)) return customAlert('이 안내서는 지울 수 없어요 (👑 대표가 정한 규칙).');
                 if (!(await customConfirm(`${g.name || '이 고객'} · ${gdTitle(g)}\n서명한 안내서를 지울까요? (되돌릴 수 없어요)`))) return;
                 try {
                     await deleteDoc(doc(db, 'smart_guides', g.id));
@@ -20121,6 +20122,34 @@ familyStr + `\n` +
         }
         function gdIsPending(g) { return g.st !== 'draft' && !g.act && String(g.date || '') >= addDaysStr(getTodayStr(), -14); }
         function gdRenderTab() { gdListen(); gdBadge(); gdRenderList(); }
+        /* 🗑 V232 안내서 지우기: 👑 대표는 전체 · 직원은 본인이 만든 것(개통등록 전) · 대표가 '대표만'으로 바꿀 수 있어요 (안내서 기본값) */
+        let gdSel = null, gdShown = [];   // 고르는 중이면 Set (안내서 id)
+        function gdDelMode() { return appSettings.guideDelMode === 'admin' ? 'admin' : 'own'; }
+        function gdCanDel(g) {
+            if (!g) return false;
+            if (isSuperAdmin) return true;
+            if (gdDelMode() === 'admin') return false;
+            const by = (g.signed && g.signed.by) || g.createdBy || '';
+            return !!by && by === (getStaffName() || '') && !g.act;
+        }
+        async function gdDeleteOne(g) {
+            await deleteDoc(doc(db, 'smart_guides', g.id));
+            deleteDoc(doc(db, 'smart_guide_signs', g.id)).catch(err => console.warn(err));
+            if (g.custId) txCustomerUpdate(g.custId, (cur) => (Array.isArray(cur.guides) && cur.guides.some(x => x && x.id === g.id) ? { guides: cur.guides.filter(x => x && x.id !== g.id), __audit: '구매 안내서' } : {})).catch(err => console.warn(err));
+            gdList = gdList.filter(x => x.id !== g.id);
+        }
+        async function gdDeleteMany(ids) {
+            const gs = ids.map(id => gdList.find(x => x.id === id)).filter(g => g && gdCanDel(g));
+            if (!gs.length) return customAlert(gdDelMode() === 'admin' && !isSuperAdmin ? '안내서는 👑 대표만 지울 수 있어요.' : '지울 수 있는 안내서를 골라 주세요.');
+            const head = gs.length === 1 ? `${gs[0].name || '이 고객'} · ${gs[0].title || gdTitle(gs[0])}` : `안내서 ${gs.length}개`;
+            const signed = gs.some(g => g.st !== 'draft');
+            if (!(await customConfirm(`${head}\n${signed ? '서명한 안내서도 같이 지워져요. ' : ''}지울까요? (되돌릴 수 없어요)`))) return;
+            let ok = 0, fail = 0;
+            for (const g of gs) { try { await gdDeleteOne(g); ok++; } catch (err) { fail++; console.warn(err); } }
+            if (gdSel) { gs.forEach(g => gdSel.delete(g.id)); if (!gdSel.size || !ok) gdSel = null; }
+            gdRenderList(); gdBadge();
+            if (fail) customAlert(`${ok}개 지웠어요 · ${fail}개는 못 지웠어요 (인터넷 · 권한을 확인해 주세요)`); else stockToast(`🗑 안내서 ${ok}개를 지웠어요`);
+        }
         function gdRenderList() {
             const view = document.getElementById('guideView');
             if (!view || view.classList.contains('hidden')) return;
@@ -20129,23 +20158,30 @@ familyStr + `\n` +
             const pend = all.filter(gdIsPending), drafts = all.filter(g => g.st === 'draft'), todays = all.filter(g => g.date === today);
             if (gdFilter === 'pend' && !pend.length) gdFilter = '';
             const chip = (v, l) => `<button type="button" data-gd-f="${v}" class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${gdFilter === v ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${l}</button>`;
-            document.getElementById('gdChips').innerHTML = chip('', `전체 ${all.length}`) + chip('today', `오늘 ${todays.length}`) + (pend.length ? chip('pend', `⏳ 개통등록 전 ${pend.length}`) : '') + (drafts.length ? chip('draft', `💾 임시 저장 ${drafts.length}`) : '');
+            const delAny = all.some(gdCanDel);   // 🗑 V232
+            if (gdSel && !delAny) gdSel = null;
+            const selChip = delAny ? `<button type="button" ${gdSel ? 'data-gd-selx' : 'data-gd-selmode'} class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${gdSel ? 'bg-red-600 border-red-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${gdSel ? '✕ 고르기 끝' : '☑ 선택'}</button>` : '';
+            document.getElementById('gdChips').innerHTML = chip('', `전체 ${all.length}`) + chip('today', `오늘 ${todays.length}`) + (pend.length ? chip('pend', `⏳ 개통등록 전 ${pend.length}`) : '') + (drafts.length ? chip('draft', `💾 임시 저장 ${drafts.length}`) : '') + selChip;
             document.getElementById('gdPendBox').innerHTML = pend.length && gdFilter !== 'pend' ? `<button type="button" data-gd-f="pend" class="w-full text-left rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-center gap-2"><span class="flex-1 text-[14px] font-bold text-amber-900">⏳ 서명하고 아직 개통등록 안 한 안내서 ${pend.length}건<span class="block text-xs font-medium text-amber-800">눌러서 열고 [지금 개통등록 하기] → 안내서 내용이 그대로 들어가요</span></span><i class="fa-solid fa-chevron-right text-amber-700 text-xs" aria-hidden="true"></i></button>` : '';
             const q = gdQuery.trim().toLowerCase(), qd = q.replace(/\D/g, '');
             const rows = (gdFilter === 'pend' ? pend : gdFilter === 'draft' ? drafts : gdFilter === 'today' ? todays : all)
                 .filter(g => !q || [g.name, g.title, g.plan && g.plan.name, g.dev && g.dev.name, g.dev && g.dev.code].some(v => String(v || '').toLowerCase().includes(q)) || (qd.length >= 4 && phoneDigits(g.phone).includes(qd)));
             const box = document.getElementById('gdListBox');
             if (!gdListReady) { box.innerHTML = '<p class="py-8 text-center text-sm text-gray-500">불러오는 중…</p>'; return; }
-            box.innerHTML = rows.length ? rows.slice(0, 150).map(g => {
+            gdShown = rows.slice(0, 150);
+            if (gdSel) [...gdSel].forEach(id => { if (!gdList.some(x => x.id === id)) gdSel.delete(id); });
+            const selBar = gdSel ? `<div class="sticky top-0 z-10 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2"><span class="flex-1 min-w-0 text-[14px] font-bold text-red-900">${gdSel.size ? `${gdSel.size}개 골랐어요` : '지울 안내서를 눌러서 골라요'}</span><button type="button" data-gd-selall class="h-9 px-2.5 rounded-lg border border-red-200 bg-white text-[12px] font-bold text-red-800">전체</button><button type="button" data-gd-seldel ${gdSel.size ? '' : 'disabled'} class="h-9 px-3 rounded-lg bg-red-600 text-white text-[13px] font-bold disabled:opacity-40">🗑 삭제</button><button type="button" data-gd-selx class="w-9 h-9 rounded-lg text-red-800 text-[15px] font-bold" aria-label="고르기 끝">✕</button></div>` : '';
+            box.innerHTML = selBar + (rows.length ? rows.slice(0, 150).map(g => {
                 const c = g.calc || gdCalc(g), badge = g.st === 'draft' ? '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">💾 임시 저장</span>'
                     : `${g.sent ? '<span class="text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">📩 보냄</span>' : '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">✍ 서명</span>'} ${g.act ? '<span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 rounded px-1.5 py-0.5">✅ 개통등록</span>' : (gdIsPending(g) ? '<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">⏳ 개통등록 전</span>' : '')}`;
-                return `<div class="flex items-stretch gap-1.5"><button type="button" data-gd-open="${escapeHtml(g.id)}" class="flex-1 min-w-0 text-left bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-center gap-3 hover:bg-gray-50">
+                const canDel = gdCanDel(g), picked = !!(gdSel && gdSel.has(g.id));   // 🗑 V232
+                return `<div class="flex items-stretch gap-1.5"><button type="button" ${gdSel ? 'data-gd-pick' : 'data-gd-open'}="${escapeHtml(g.id)}" ${gdSel ? `aria-pressed="${picked}"` : ''} ${gdSel && !canDel ? 'disabled' : ''} class="flex-1 min-w-0 text-left rounded-2xl border px-3 py-2.5 flex items-center gap-3 disabled:opacity-40 ${picked ? 'bg-red-50 border-red-400 ring-2 ring-red-200' : 'bg-white border-gray-200 hover:bg-gray-50'}">${gdSel ? `<span class="flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${picked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 bg-white'}" aria-hidden="true">${picked ? '<i class="fa-solid fa-check text-[12px]"></i>' : ''}</span>` : ''}
                     <span class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${g.kind === 'usim' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}"><i class="fa-solid ${g.kind === 'usim' ? 'fa-sim-card' : 'fa-mobile-screen-button'}" aria-hidden="true"></i></span>
                     <span class="flex-1 min-w-0"><span class="block text-[15px] font-bold text-gray-900 truncate">${escapeHtml(g.name || '이름 없음')} <span class="font-medium text-gray-500 text-[13px]">${escapeHtml(phoneDigits(g.phone).slice(-4))}</span></span>
                     <span class="block text-[13px] text-gray-700 truncate">${escapeHtml(g.title || gdTitle(g))}</span>
                     <span class="flex flex-wrap items-center gap-1 mt-0.5 text-[12px] text-gray-500">${gdMD(g.date)} · ${escapeHtml((g.signed && g.signed.by) || g.createdBy || '')} ${badge}</span></span>
-                    <span class="flex-shrink-0 text-right"><span class="block text-[11px] text-gray-500">매달</span><b class="text-[14px] text-gray-900">${arWon(c.total)}원</b></span></button><button type="button" data-gd-dup="${escapeHtml(g.id)}" class="flex-shrink-0 w-12 rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-[11px] font-bold leading-tight flex flex-col items-center justify-center gap-0.5" aria-label="다른 고객으로 복사"><i class="fa-regular fa-copy text-[15px]" aria-hidden="true"></i>복사</button></div>`;
-            }).join('') : `<div class="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center"><p class="text-3xl mb-2">📝</p><p class="text-[15px] font-bold text-gray-900">${q || gdFilter ? '맞는 안내서가 없어요' : '아직 안내서가 없어요'}</p><p class="text-[13px] text-gray-600 mt-1 leading-relaxed">위 <b>단말 구매</b> · <b>유심단독</b>을 눌러서<br>고객 앞에서 쓰고 서명을 받아요.</p></div>`;
+                    <span class="flex-shrink-0 text-right"><span class="block text-[11px] text-gray-500">매달</span><b class="text-[14px] text-gray-900">${arWon(c.total)}원</b></span></button>${gdSel ? '' : `<div class="flex-shrink-0 w-12 flex flex-col gap-1.5"><button type="button" data-gd-dup="${escapeHtml(g.id)}" class="flex-1 min-h-[44px] rounded-2xl border border-indigo-200 bg-indigo-50 text-indigo-800 text-[11px] font-bold leading-tight flex flex-col items-center justify-center gap-0.5" aria-label="다른 고객으로 복사"><i class="fa-regular fa-copy text-[15px]" aria-hidden="true"></i>복사</button>${canDel ? `<button type="button" data-gd-rm="${escapeHtml(g.id)}" class="h-11 rounded-2xl border border-red-200 bg-red-50 text-red-700 text-[11px] font-bold leading-tight flex flex-col items-center justify-center gap-0.5" aria-label="${escapeHtml(g.name || '안내서')} 안내서 삭제"><i class="fa-regular fa-trash-can text-[14px]" aria-hidden="true"></i>삭제</button>` : ''}</div>`}</div>`;
+            }).join('') : `<div class="rounded-2xl border border-dashed border-gray-300 bg-white px-4 py-8 text-center"><p class="text-3xl mb-2">📝</p><p class="text-[15px] font-bold text-gray-900">${q || gdFilter ? '맞는 안내서가 없어요' : '아직 안내서가 없어요'}</p><p class="text-[13px] text-gray-600 mt-1 leading-relaxed">위 <b>단말 구매</b> · <b>유심단독</b>을 눌러서<br>고객 앞에서 쓰고 서명을 받아요.</p></div>`);
             document.getElementById('gdAdminRow').innerHTML = isSuperAdmin ? '<button type="button" data-gd-admin class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">👑 안내서 기본값 (매장 이름 · 전화 · 유의사항 · 📌 조건별)</button>' : '';
         }
         function gdAdmSugHtml(cur) {
@@ -20169,6 +20205,9 @@ familyStr + `\n` +
                 <div class="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-2.5 space-y-2"><p class="text-[14px] font-bold text-indigo-950">📌 조건별 유의사항 <span class="text-[11px] font-medium text-gray-600">해당될 때만 들어가요</span></p>
                     ${gdNoteRules().map(r => { const dup = gdNotes().some(l => r.gate.test(l)); return `<div class="rounded-xl bg-white border border-gray-200 p-2 space-y-1"><label class="flex items-center gap-2 cursor-pointer"><input type="checkbox" data-gnr-on="${r.k}" ${r.on ? 'checked' : ''} class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span class="flex-1 min-w-0 text-[13px] font-bold text-gray-900">${escapeHtml(r.label)}</span><button type="button" data-gnr-reset="${r.k}" class="flex-shrink-0 text-[11px] font-bold text-gray-500 underline">기본 문구</button></label>${dup ? '<p class="text-[11px] font-bold text-amber-700">공통 유의사항에 같은 얘기 줄이 있어서 그 줄이 대신 들어가요</p>' : ''}<textarea data-gnr-text="${r.k}" rows="3" class="w-full px-2 py-1.5 border border-gray-300 rounded-lg text-[13px] text-gray-900 leading-snug">${escapeHtml(r.text)}</textarea></div>`; }).join('')}
                     <p class="text-[11px] text-gray-600 leading-relaxed">바뀌는 칸: {유통망지원금} {유통망유지일} {유통망유지기간} {할부카드}=(카드 이름) {할부카드할인} {요금카드}=(카드 이름) {요금카드할인} {공시지원금} {중고보상} {요금제유지일} · 한 칸에 여러 줄도 돼요</p></div>
+                <div class="rounded-2xl border border-red-100 bg-red-50/40 p-2.5 space-y-1.5"><p class="text-[14px] font-bold text-gray-900">🗑 안내서 지우기 <span class="text-[11px] font-medium text-gray-600">목록 [삭제] · 안내서 안 [지우기]</span></p>
+                    <label class="flex items-start gap-2 rounded-xl bg-white border border-gray-200 px-2.5 py-2 cursor-pointer"><input type="radio" name="gdAdmDel" value="own" ${gdDelMode() === 'own' ? 'checked' : ''} class="mt-0.5 w-5 h-5 accent-indigo-600 flex-shrink-0"><span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">대표는 전체 · 담당자는 본인 것만</span><span class="block text-[11px] text-gray-600 leading-relaxed">직원은 본인이 만든 안내서 중 개통등록 전인 것만 지워요</span></span></label>
+                    <label class="flex items-start gap-2 rounded-xl bg-white border border-gray-200 px-2.5 py-2 cursor-pointer"><input type="radio" name="gdAdmDel" value="admin" ${gdDelMode() === 'admin' ? 'checked' : ''} class="mt-0.5 w-5 h-5 accent-indigo-600 flex-shrink-0"><span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">대표만</span><span class="block text-[11px] text-gray-600 leading-relaxed">직원 폰엔 삭제 버튼이 안 보여요</span></span></label></div>
                 <p class="text-xs text-gray-500 leading-relaxed">모든 직원 폰의 새 안내서에 들어가요. 직원이 자기 폰에서 '다음에도 이 이름'을 정했으면 그 폰은 그 이름을 써요. 이미 서명한 안내서는 그때 문구 그대로예요.</p>
                 <button type="button" data-save class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button></div>`;
             document.body.appendChild(sh);
@@ -20188,7 +20227,8 @@ familyStr + `\n` +
                 const name = document.getElementById('gdAdmName').value.trim().slice(0, 40), tel = document.getElementById('gdAdmTel').value.trim().slice(0, 30);
                 const notes = document.getElementById('gdAdmNotes').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 10).join('\n');
                 const rules = {}; GD_NOTE_RULES.forEach(r => { const on = !!(sh.querySelector(`[data-gnr-on="${r.k}"]`) || {}).checked, tx = String((sh.querySelector(`[data-gnr-text="${r.k}"]`) || {}).value || '').split('\n').map(x => x.trim()).filter(Boolean).join('\n').slice(0, 500); rules[r.k] = { on, text: tx === r.t ? '' : tx }; });
-                try { await saveDoc(doc(db, 'smart_global', 'settings'), { guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules }, { merge: true }); appSettings = { ...appSettings, guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules }; sh.remove(); stockToast('저장했어요'); }
+                const delMode = ((sh.querySelector('input[name="gdAdmDel"]:checked') || {}).value === 'admin') ? 'admin' : 'own';   // 🗑 V232
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules, guideDelMode: delMode }, { merge: true }); appSettings = { ...appSettings, guideStoreName: name, guideStoreTel: tel, guideNotes: notes, guideNoteRules: rules, guideDelMode: delMode }; sh.remove(); stockToast('저장했어요'); gdRenderList(); }
                 catch (err) { customAlert(koreanError(err, '저장')); }
             });
         }
@@ -20196,6 +20236,13 @@ familyStr + `\n` +
             const n = e.target.closest('[data-gd-new]'); if (n) { gdNew(n.dataset.gdNew, null); return; }
             const f = e.target.closest('[data-gd-f]'); if (f) { gdFilter = f.dataset.gdF; gdRenderList(); return; }
             if (e.target.closest('[data-cmp-open]')) { cmpOpen(null); return; }   // ⚖️ V209
+            // 🗑 V232 지우기 · 여러 개 고르기
+            if (e.target.closest('[data-gd-selmode]')) { gdSel = new Set(); gdRenderList(); return; }
+            if (e.target.closest('[data-gd-selx]')) { gdSel = null; gdRenderList(); return; }
+            if (e.target.closest('[data-gd-selall]') && gdSel) { const ids = gdShown.filter(gdCanDel).map(g => g.id), allOn = ids.length && ids.every(id => gdSel.has(id)); ids.forEach(id => { if (allOn) gdSel.delete(id); else gdSel.add(id); }); gdRenderList(); return; }
+            if (e.target.closest('[data-gd-seldel]') && gdSel) { gdDeleteMany([...gdSel]); return; }
+            const pk = e.target.closest('[data-gd-pick]'); if (pk && gdSel) { const id = pk.dataset.gdPick; if (gdSel.has(id)) gdSel.delete(id); else gdSel.add(id); gdRenderList(); return; }
+            const rm = e.target.closest('[data-gd-rm]'); if (rm) { gdDeleteMany([rm.dataset.gdRm]); return; }
             const dup = e.target.closest('[data-gd-dup]'); if (dup) { gdGet(dup.dataset.gdDup).then(g0 => g0 ? gdCopyOther(g0) : customAlert('안내서를 찾지 못했어요.')); return; }   // 👥 V208
             const o = e.target.closest('[data-gd-open]'); if (o) { gdOpenById(o.dataset.gdOpen); return; }
             if (e.target.closest('[data-gd-admin]')) gdOpenAdmin();
@@ -23081,7 +23128,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V231';
+        const APP_VER = 'V232';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23089,6 +23136,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V232', d: '2026-10-26', items: [
+                ['🗑 안내서 목록에서 바로 지워요: 줄마다 [복사] 아래 [삭제] · [☑ 선택]을 누르면 여러 개 골라서 한 번에 (임시 저장 정리할 때 편해요)'],
+                ['👑 누가 지울지 대표가 정해요: 안내서 기본값 → 🗑 안내서 지우기 (대표는 전체 · 담당자는 본인 것만 / 대표만)', 'a']] },
             { v: 'V231', d: '2026-10-26', items: [
                 ['🎙 통화 녹음 백업을 서류 백업과 따로 골라요: 설정 → 연결 관리 → 콜매니저 → 녹음 백업 (끄기 · 대표님 구글 드라이브) · 서류는 각자 드라이브여도 녹음은 대표님 드라이브 \'강CRM 녹음\'에 모여요'],
                 ['📞 콜매니저 v4.9: 설정 때문에 못 올린 녹음은 버리지 않고 7일 보관했다가, 녹음 백업을 켜면 올려요 (예전 버전에서 못 올린 최근 녹음도 한 번 다시 찾아요)'],
