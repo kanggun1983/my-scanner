@@ -1211,6 +1211,13 @@
                     <button type="button" id="juminCleanBtn" class="hidden w-full h-11 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-sm font-bold text-red-700">예전에 저장된 주민번호 뒷자리 지우기</button>
                 </div>
             </section>
+            <section id="setBackupSec" class="hidden space-y-2" aria-labelledby="setBackupTitle">
+                <h3 id="setBackupTitle" class="text-[13px] font-bold text-gray-600 pl-1">🗄️ 데이터 백업 · 되살리기 <span class="font-normal text-gray-500">(👑 대표만)</span></h3>
+                <button type="button" id="backupOpenBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">🗄️ 백업 목록 · 되살리기 · 파일로 받기</span><span id="backupSub" class="text-[13px] text-gray-600 leading-snug">하루 한 번 자동 백업 · 지워진 고객 되살리기</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
+            </section>
             <section class="space-y-2" aria-labelledby="setTrashTitle">
                 <h3 id="setTrashTitle" class="text-[13px] font-bold text-gray-600 pl-1">휴지통 <span id="trashCount" class="font-medium"></span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -2821,7 +2828,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <option value="선택약정(24개월)">선택약정(24개월)</option>
                             <option value="선택약정">선택약정(기본)</option>
                             <option value="공시지원금">공통지원금</option>
-                            <option value="해당없음">해당없음(만료)</option>
+                            <option value="해당없음">해당없음(만료 · 무약정)</option>
                         </select>
                         <div id="modalSubsidyBox" class="hidden mt-2 grid grid-cols-2 gap-1.5">
                             <label id="modalPubWrap" class="block min-w-0"><span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-0.5">공통지원금</span><input type="text" id="modalPubSupport" inputmode="numeric" autocomplete="off" class="modal-input text-xs sm:text-sm" placeholder="0"></label>
@@ -3828,7 +3835,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* ↩️ V207: 코드로 만들었다 지우는 작은 창들도 폰 [뒤로]로 닫히게
            · 창이 화면에 붙으면 기록 한 칸 · ✕로 닫으면 그 한 칸 되돌림 · [뒤로]면 맨 위 창의 ✕를 대신 눌러줌 */
-        const BACK_SHEETS = ['docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet', 'planInfoSheet'];
+        const BACK_SHEETS = ['bkSheet', 'docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet', 'planInfoSheet'];
         const backSheetOn = new Set(), backSheetPopped = new Set();
         function backSheetSync() {
             BACK_SHEETS.forEach(id => {
@@ -3969,6 +3976,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         attachDBListeners(); 
                         attachCalcListeners();   // 📱 명함 폰값계산 · 상담요청
                         seedStaffAccounts().finally(() => { try { attachStaffAccounts(); } catch (e) { console.warn(e); } });   // 👤 직원 계정 목록 (V167)
+                        if (isSuperAdmin) setTimeout(() => { try { bkAuto(); } catch (e) { console.warn(e); } }, 60000);   // 🗄️ V237 하루 한 번 자동 백업 (켜고 1분 뒤)
                         try { startAccessLog(); } catch (e) { console.warn(e); }   // 🕒 직원 접속 기록 (V170)
                         try { pinStart(); } catch (e) { console.warn(e); }   // 🔒 화면 잠금 PIN (V208)
                     } else if (user) {
@@ -4967,13 +4975,16 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             };
         }
 
+        // 📄 V237 12개월 · 12+12 약정 고객은 12개월부터 기변 타겟 (위약금이 12개월 단위로 끝나요)
+        function mobileTermOf(c) { const t = `${(c && c.contractTerm) || ''} ${(c && c.discountType) || ''}`; if (/무약정/.test(t)) return 0; if (/12\s*\+\s*12/.test(t)) return 1212; const m = t.match(/(\d+)\s*개월/); return m ? Number(m[1]) : 24; }
+        function mobileTargetMonths(c) { const t = mobileTermOf(c); return t === 12 || t === 1212 ? 12 : MOBILE_TARGET_MONTHS; }
         function isMobileExpiryTarget(c) {
             if (c.salesStatus === '고객거부') return false;
             const months = getDdayAndMonths(c.activationDate).months;
             // 개통한 지 6개월이 안 된 고객은 제외 (예전엔 알뜰폰처럼 할인이 '해당없음'이면 어제 개통해도 '약정 끝남'으로 떴음)
             if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.activationDate || '')) && months < 6) return false;
             const isExpired = (c.discountType || '').includes('해당없음') || (c.discountType || '').includes('만료');
-            return months >= MOBILE_TARGET_MONTHS || isExpired;
+            return months >= mobileTargetMonths(c) || isExpired;
         }
         function isWiredExpiryTarget(c) {
             if (c.salesStatus === '고객거부') return false;
@@ -6098,7 +6109,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             setText('dashPromiseCount', promiseCount);
             setText('dashPromiseSub', promiseOverdue > 0 ? `지연 ${promiseOverdue}명` : (promiseToday > 0 ? `오늘 ${promiseToday}명` : `${PROMISE_DAYS_AHEAD}일 안`));
             setText('dashMobileCount', mobileCount);
-            setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월↑`);
+            setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월↑ · 12약정 12↑`);
             setText('dashWiredCount', wiredCount);
             setText('dashWiredSub', wiredExpired > 0 ? `만료 ${wiredExpired}명` : `${WIRED_TARGET_DAYS}일 안`);
             setText('dashBirthdayCount', birthdayCount);
@@ -6877,6 +6888,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         document.getElementById('editLogBtn').addEventListener('click', openEditLogSheet);
         document.getElementById('planInfoBtn').addEventListener('click', () => { piView = { car: 'LG U+', edit: -2 }; openPlanInfoSheet(); });   // 📶 V236
         document.getElementById('payOpenBtn').addEventListener('click', () => openPaySheet());   // 💵 V233
+        document.getElementById('backupOpenBtn').addEventListener('click', () => openBackupSheet());   // 🗄️ V237
 
         /* 💰 정산 미입력 (👑 대표) → 한 건씩 바로 입력 · 고객카드 개통 기록의 [정산 입력]도 같은 창 */
         /* =====================================================================
@@ -8183,6 +8195,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
                 let targetBadges = '';
                 if(calc.months >= 18) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">18M+</span>`;
+                else if (calc.months >= 12 && mobileTargetMonths(c) === 12) targetBadges += `<span class="bg-orange-50 text-orange-600 border border-orange-200 text-[10px] px-1 rounded font-bold">${mobileTermOf(c) === 1212 ? '12+12 · 12M+' : '12개월 약정 끝'}</span>`;   // V237
                 else if(calc.months >= 6) targetBadges += `<span class="bg-yellow-50 text-yellow-600 border border-yellow-200 text-[10px] px-1 rounded font-bold">M+6</span>`;
                 if((c.discountType || '').includes('해당없음')) targetBadges += `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1 rounded font-bold">약정만료</span>`;
 
@@ -8453,13 +8466,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const famTargets = famMembers.length ? [c, ...famMembers].filter(x => isMobileExpiryTarget(x)).length : 0;
                 if (famMembers.length && famTargets >= 2 && isMobileExpiryTarget(c)) {
                     tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: '타겟', title: '가족 동시 기변', sub: `가족 ${famMembers.length + 1}명 중 ${famTargets}명 기변 시기` });
-                } else if (!famMembers.length && months >= MOBILE_TARGET_MONTHS && hasCombo) {
+                } else if (!famMembers.length && months >= mobileTargetMonths(c) && hasCombo) {
                     tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: '타겟', title: '가족 동시 기변', sub: c.combination });
                 } else if (isMobileExpiryTarget(c)) {
                     const dt = c.discountType || '';
                     const expired = dt.includes('만료');
                     const noContract = !expired && dt.includes('해당없음');   // 약정 없이 쓰는 고객 (알뜰폰 등)
-                    tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: expired ? '만료' : '타겟', title: expired ? '무선 약정 끝남' : (noContract ? '약정 없는 고객' : '기변 상담 대상'), sub: noContract ? `${months > 0 ? months + '개월째 사용 · ' : ''}언제든 기변 가능` : (months > 0 ? `${months}개월째 사용` : '') });
+                    const t12 = !expired && !noContract && months < MOBILE_TARGET_MONTHS ? mobileTermOf(c) : 0;   // V237 12개월 · 12+12
+                    tasks.push({ rank: 5, order: -months, tone: 'indigo', badge: expired ? '만료' : '타겟', title: expired ? '무선 약정 끝남' : (noContract ? '약정 없는 고객' : (t12 === 12 ? '12개월 약정 끝남' : (t12 === 1212 ? '12+12 첫 12개월 끝남' : '기변 상담 대상'))), sub: noContract ? `${months > 0 ? months + '개월째 사용 · ' : ''}언제든 기변 가능` : (t12 === 12 ? `${months}개월째 사용 · 위약금 없이 기변 가능` : (t12 === 1212 ? `${months}개월째 사용 · 위약금이 다시 작을 때라 기변 적기` : (months > 0 ? `${months}개월째 사용` : ''))) });
                 }
             }
             tasks.sort((a, b) => (a.rank - b.rank) || (a.order - b.order));
@@ -8984,6 +8998,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { const pa = document.getElementById('prospectAutoChk'); if (pa) pa.checked = appSettings.prospectAutoOff !== true; }
             { const eb = document.getElementById('editLogBtn'); if (eb) { eb.classList.toggle('hidden', !isSuperAdmin); eb.classList.toggle('flex', !!isSuperAdmin); const n = isSuperAdmin ? editLogRows('key', 7).length : 0; document.getElementById('editLogCount').textContent = n ? `최근 7일 ${n}건` : ''; } }   // 📝 V197
             { const pb = document.getElementById('payOpenBtn'); if (pb) { pb.classList.toggle('hidden', !isSuperAdmin); pb.classList.toggle('flex', !!isSuperAdmin); } }   // 💵 V233
+            { const bs = document.getElementById('setBackupSec'); if (bs) bs.classList.toggle('hidden', !isSuperAdmin); }   // 🗄️ V237
             { const wb = document.getElementById('wiredReviewBtn'); if (wb) { wb.classList.toggle('hidden', !isSuperAdmin); wb.classList.toggle('flex', !!isSuperAdmin); const n = isSuperAdmin ? wiredSuspects().length : 0; document.getElementById('wiredReviewCount').textContent = n ? `${n}건` : '· 없음 👍'; } }   // 📺 V196
             try { renderDriveSettings(); } catch (e) { /* 준비 전 */ }
             { const pp = document.getElementById('promPushChk'); if (pp) pp.checked = appSettings.promPushOn === true; }
@@ -15725,7 +15740,7 @@ familyStr + `\n` +
         async function toggleStaffAlert() {
             if (staffAlertState() === 'on') {
                 if (!(await customConfirm('이 폰에서 상담요청 알림을 그만 받을까요?'))) return;
-                try { const OS = await loadOneSignalForStaff(); await OS.User.removeTag('kcrm_staff'); await OS.User.PushSubscription.optOut(); } catch (e) { /* 무시 */ }   // 알림 등록 자체도 끔 (남아 있으면 이 폰이 명함 고객으로 섞일 수 있음)
+                try { const OS = await loadOneSignalForStaff(); try { await staffPushUnregister(OS); } catch (e2) { console.warn('알림 폰 등록 빼기 실패', e2); } await OS.User.removeTag('kcrm_staff'); await OS.User.PushSubscription.optOut(); } catch (e) { /* 무시 */ }   // 알림 등록 자체도 끔 (남아 있으면 이 폰이 명함 고객으로 섞일 수 있음)
                 try { localStorage.removeItem('kcrmStaffAlert'); } catch (e) { /* 무시 */ }
                 renderCalcRequests();
                 return;
@@ -15744,9 +15759,11 @@ familyStr + `\n` +
                 const email = (auth && auth.currentUser && auth.currentUser.email) || '';
                 if (email) await OS.login(staffOneSignalId());
                 await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
+                const reg = await staffPushRegister(OS, true).catch(e => { console.warn('알림 폰 등록 실패', e); return 'fail'; });   // 🔔 V237
                 localStorage.setItem('kcrmStaffAlert', 'on');
                 const d = calcData || calcNormalize(null);
-                customAlert(d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 견적요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.');
+                customAlert((d.alert && d.alert.url ? '이제 강CRM을 닫아놔도 명함 견적요청이 오면 이 폰으로 알림이 와요.' : '이 폰은 알림 받을 준비가 됐어요.\n총관리자가 [명함 폰값계산 → 상담 알림 서버]를 연결하면 알림이 오기 시작해요.')
+                    + (reg === 'ok' ? '' : '\n\n⚠️ 알림 받는 폰 등록은 아직 못 했어요. 강CRM을 다시 열면 저절로 다시 해요.'));
             } catch (e) {
                 console.error(e);
                 customAlert(String(e && e.message) === 'denied' ? '알림이 차단돼 있어요.\n크롬 주소창 왼쪽 아이콘 → 권한 → 알림을 허용으로 바꾼 뒤 다시 눌러주세요.' : '알림 설정에 실패했어요. 잠시 후 다시 해주세요.');
@@ -15754,6 +15771,53 @@ familyStr + `\n` +
             renderCalcRequests();
         }
 
+        // 🔐 V237 알림 서버에 '강CRM 로그인한 사람'임을 보여주는 표 (알림 서버 v4.1이 구글 공개키로 확인)
+        async function myIdToken() { try { return auth && auth.currentUser && auth.currentUser.getIdToken ? await auth.currentUser.getIdToken() : ''; } catch (e) { return ''; } }
+        /* 🔔 V237 알림 받는 폰 등록 — staff_push/{이메일}.devices[구독번호] (알림 서버 v4.1은 여기 등록된 폰에만 보내요)
+           · [이 폰으로 알림 받기]를 켜거나 강CRM을 열 때 자동으로 · 끄면 빠짐 · 👑 총관리자가 설정 → 직원 계정에서 [해제]하면 removed에 남아서 직원이 직접 다시 켤 때까지 안 들어감
+           · 예전엔 '직원' 꼬리표(tag)만 보고 보냈는데, 꼬리표는 폰 쪽에서 붙이는 거라 남이 흉내 낼 수 있었음 */
+        async function pushSubId(OS) {
+            const get = () => { try { return (OS && OS.User && OS.User.PushSubscription && OS.User.PushSubscription.id) || ''; } catch (e) { return ''; } };
+            for (let i = 0; i < 20 && !get(); i++) await new Promise(r => setTimeout(r, 400));
+            return get();
+        }
+        async function pushDevLabel() {
+            const ua = navigator.userAgent || '';
+            let model = ''; try { if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) model = String((await navigator.userAgentData.getHighEntropyValues(['model'])).model || '').trim(); } catch (e) { /* 무시 */ }
+            if (!model) { const m = ua.match(/Android [\d.]+; ([^;)]+)/); model = m && m[1].trim() !== 'K' ? m[1].trim() : ''; }
+            const os = /iphone|ipad|ipod/i.test(ua) ? '아이폰' : (/android/i.test(ua) ? '안드로이드' : (/windows/i.test(ua) ? 'PC' : (/mac os/i.test(ua) ? '맥' : '기기')));
+            const br = /SamsungBrowser/i.test(ua) ? '삼성 인터넷' : (/Edg\//.test(ua) ? '엣지' : (/Chrome\//.test(ua) ? '크롬' : (/Safari\//.test(ua) ? '사파리' : '브라우저')));
+            const app = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ? ' 앱' : '';
+            return `${os}${model ? ' ' + model.slice(0, 24) : ''} · ${br}${app}`;
+        }
+        async function staffPushRegister(OS, manual) {
+            const em = myEmail().toLowerCase();
+            if (!em || !db) return 'nouser';
+            const id = await pushSubId(OS);
+            if (!id) return 'noid';
+            const ref = doc(db, 'staff_push', em);
+            const snap = await getDoc(ref), cur = snap.exists() ? (snap.data() || {}) : {};
+            const removed = { ...(cur.removed || {}) }, devices = { ...(cur.devices || {}) }, now = new Date().toISOString();
+            if (removed[id] && !manual) return 'removed';   // 총관리자가 끊은 폰
+            const nm = staffKeyName(getStaffName()) || '';
+            if (!manual && devices[id] && Date.now() - (Date.parse(devices[id].seen || devices[id].at || '') || 0) < 12 * 3600e3 && cur.name === nm) return 'ok';   // 12시간 안에 확인함 → 안 씀
+            delete removed[id];
+            devices[id] = { at: (devices[id] && devices[id].at) || now, seen: now, label: await pushDevLabel(), ver: APP_VER };
+            Object.keys(devices).forEach(k => { if (k !== id && (Date.parse((devices[k] || {}).seen || (devices[k] || {}).at || '') || 0) < Date.now() - 60 * 864e5) delete devices[k]; });   // 60일 넘게 안 보인 예전 등록 정리
+            await saveDoc(ref, { email: em, name: nm, devices, removed, updatedAt: now });
+            return 'ok';
+        }
+        async function staffPushUnregister(OS) {
+            const em = myEmail().toLowerCase();
+            if (!em || !db) return;
+            const id = await pushSubId(OS); if (!id) return;
+            const ref = doc(db, 'staff_push', em);
+            const snap = await getDoc(ref); if (!snap.exists()) return;
+            const cur = snap.data() || {}, devices = { ...(cur.devices || {}) };
+            if (!devices[id]) return;
+            delete devices[id];
+            await saveDoc(ref, { ...cur, email: em, devices, updatedAt: new Date().toISOString() });
+        }
         // 강CRM 열 때마다 이 폰을 다시 '직원'으로 확인 (같은 폰에서 명함을 열어보면 고객으로 바뀌는 걸 되돌림)
         function staffOneSignalId() {
             const email = (auth && auth.currentUser && auth.currentUser.email) || '';
@@ -15767,6 +15831,13 @@ familyStr + `\n` +
                 const id = staffOneSignalId();
                 if (id) await OS.login(id);
                 await OS.User.addTags({ kcrm_staff: '1', staff_name: staffKeyName(getStaffName()), kcrm_admin: isSuperAdmin ? '1' : '0' });
+                const reg = await staffPushRegister(OS, false).catch(e => { console.warn('알림 폰 등록 실패', e); return 'fail'; });   // 🔔 V237
+                if (reg === 'removed') {   // 👑 총관리자가 이 폰 알림을 끊음 → 직원이 직접 다시 켤 때까지 끔
+                    try { localStorage.removeItem('kcrmStaffAlert'); } catch (e) { /* 무시 */ }
+                    try { await OS.User.removeTag('kcrm_staff'); } catch (e) { /* 무시 */ }
+                    try { if (document.getElementById('calcAlertBtn')) renderCalcRequests(); } catch (e) { /* 무시 */ }
+                    return;
+                }
                 // 아침 약속 알림 서버가 '호규'↔'임호규'처럼 이름이 조금 달라도 찾을 수 있게, 알림 받는 직원 이름을 매장 설정에 적어둠
                 const nm = staffKeyName(getStaffName());
                 if (nm && nm !== '담당자미상' && db) saveDoc(doc(db, 'smart_global', 'settings'), { staffAlertNames: { [nm]: Date.now() } }, { merge: true }).catch(() => {});
@@ -17966,7 +18037,7 @@ familyStr + `\n` +
                     `할부원금 : ${r.price ? arWon(r.loan) : ''}\n` +
                     `할부개월수 : ${arVal('ar-inst')}\n` +
                     (arInst2() ? `이중할부 : ${arInst2()}\n` : '') +
-                    `공시/선약 : ${r.sup === '공시' ? '공시' : `선약 ${arVal('ar-term')}`}\n` +
+                    `공시/선약 : ${r.sup === '공시' ? '공시' : (arVal('ar-term') === '무약정' ? '무약정' : `선약 ${arVal('ar-term')}`)}\n` +   // V237 무약정은 '선약 무약정'이 아니라 '무약정'
                     `지원금 : ${arVal('ar-subsidy')}\n` +
                     `중고폰 : ${arMode === 'mobile' ? usedPhoneText(arUsedPhone()) : ''}\n` +
                     `접수처 : ${arVal('ar-branch') || arVal('ar-store')}\n` +
@@ -18044,7 +18115,7 @@ familyStr + `\n` +
                     ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee'), fee: `${arWon(arNum('ar-planfee'))}원` } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금 · V205 고객카드 월 요금도
                     discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
-                    discountType: r.sup === '공시' ? '공시지원금' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)'),
+                    discountType: r.sup === '공시' ? '공시지원금' : (arVal('ar-term') === '무약정' ? '해당없음' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)')),   // V237 무약정 = 할인 없음 (기변 타겟 '약정 없는 고객')
                     salesStatus: '판매성공', salesStatusAt: d,
                     missingDocs: document.getElementById('ar-missing').checked ? (arVal('ar-missing-text') || '있음') : '',
                     // 🌸 악세 예약 → 악세정산 앱 예약 목록에 자동으로
@@ -18056,7 +18127,7 @@ familyStr + `\n` +
                     repInternetTv: arVal('ar-inttv'), repCombination: arVal('ar-comb'),
                     repType: arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : ''),
                     repUsim: [arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / '), repUsimPay: arVal('ar-usimfee'),
-                    repInstallment: arVal('ar-inst'), repDiscount: r.sup === '공시' ? '공시' : `선약 ${arVal('ar-term')}`
+                    repInstallment: arVal('ar-inst'), repDiscount: r.sup === '공시' ? '공시' : (arVal('ar-term') === '무약정' ? '무약정' : `선약 ${arVal('ar-term')}`)
                 });
                 {   // 📄 V208 미비서류 → 다음 날 '오늘 할 일' (같은 내용을 다시 저장하면 처음 날짜 그대로)
                     const md = upd.missingDocs;
@@ -21127,7 +21198,7 @@ familyStr + `\n` +
             cm.plan = { name: '', fee: 0, comb: 0, card: 0, cardName: '', welType: '', wel: 0, welAuto: true, ...(cm.plan || {}) };
             cm.keep = { code: '', target: '', targetFee: 0, ...(cm.keep || {}) };
             cm.icard = { name: '', amt: 0, ...(cm.icard || {}) };
-            cm.cash = gdNum(cm.cash); cm.dealer = String(cm.dealer || ''); cm.term = Number(cm.term) || 24;
+            cm.cash = gdNum(cm.cash); cm.dealer = String(cm.dealer || ''); cm.term = Number(cm.term) || 24; cm.selTerm = cm.selTerm === '12+12개월' ? '12+12개월' : '24개월';   // V237 선택약정 12+12
             cm.adds = (Array.isArray(cm.adds) ? cm.adds : []).filter(a => a && typeof a === 'object').map(a => ({ kind: a.kind === '보험' ? '보험' : '부가', name: String(a.name || '').slice(0, 30), fee: gdNum(a.fee), code: String(a.code || ''), ...(a.fromDealer ? { fromDealer: true } : {}) }));
             if (!Array.isArray(cm.devs) || !cm.devs.length) cm.devs = [cmpBlankDev()];
             cm.devs = cm.devs.map(d => ({ ...cmpBlankDev(), ...(d || {}) }));
@@ -21252,6 +21323,7 @@ familyStr + `\n` +
             const hint = cmpWelHint(cm);
             return `<div class="grid grid-cols-2 gap-2">${cmpLbl('🤝 복지할인', `<select data-cm="plan.welType" class="${gdCls}">${GD_WELFARE.map(([v, l]) => `<option value="${v}" ${t === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`)}${t ? cmpLbl(`복지할인 (월)${auto ? ' <span class="font-normal text-indigo-700">· 자동</span>' : ''}`, `<input data-cm="plan.wel" inputmode="numeric" value="${!auto && gdNum(cm.plan.wel) ? arWon(cm.plan.wel) : ''}" placeholder="${auto ? '자동 (고쳐도 돼요)' : '0'}" class="${gdCls} text-right">`) : ''}</div>${auto ? `<p class="-mt-1 text-[11px] font-bold text-indigo-700" data-cm-welhint>${hint}</p>` : (t && !autoOk ? '<p class="-mt-1 text-[11px] text-gray-500">매달 할인 금액을 넣어요 (통신사 · 복지 종류마다 달라요)</p>' : '')}`;
         }
+        const cmp1212 = (cm) => !!cm && cm.selTerm === '12+12개월' && ['LG U+', 'SKT'].includes(cm.carrier);   // V237
         function cmpRender() {
             if (!cmp) return;
             if (cmpStage === 'send') return cmpRenderSend();
@@ -21261,6 +21333,7 @@ familyStr + `\n` +
             const autoK = cm.devs.length ? cmpKeepCode({ ...cm, keep: { ...cm.keep, code: '' } }, cm.devs[0], '선약') : '';
             h += cmpSec('공통 · 요금', `${DL.length ? cmpLbl('거래처 <span class="font-normal text-gray-500">(부가 · 보험 · 요금제 유지가 거래처 조건대로)</span>', `<select data-cm="dealer" class="${gdCls}"><option value="">- 고르지 않음 -</option>${DL.map(d => `<option value="${escapeHtml(d.name)}" ${stockKey(d.name) === stockKey(cm.dealer) ? 'selected' : ''}>${escapeHtml(d.name)}</option>`).join('')}</select>`) : ''}
                 ${cmpLbl('통신사', cmpPick('carrier', GD_CARRIERS, cm.carrier))}${cmpLbl('개통종류 <span class="font-normal text-gray-500">(공시지원금이 달라요)</span>', cmpPick('actType', GD_TYPES, cm.actType))}
+                ${['LG U+', 'SKT'].includes(cm.carrier) ? cmpLbl('선택약정 약정 <span class="font-normal text-gray-500">(12+12: 12개월마다 위약금이 끝나고 자동으로 12개월 연장 · 할인은 같아요)</span>', cmpPick('selTerm', ['24개월', '12+12개월'], cm.selTerm)) : ''}
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 120px">${cmpLbl('요금제', cmpInp('plan.name', cm.plan.name, { list: 'cmpPlanList', ph: '예) 5G 프리미어 에센셜' }))}${cmpLbl('월정액', cmpInp('plan.fee', cm.plan.fee, { money: true }))}</div>
                 <div class="grid grid-cols-3 gap-2">${cmpLbl('결합할인 (월)', cmpInp('plan.comb', cm.plan.comb, { money: true }))}${cmpLbl('요금DC카드 (월)', cmpInp('plan.card', cm.plan.card, { money: true }))}${cmpLbl('할부', `<select data-cm="inst" class="${gdCls}">${GD_INST.map(n => `<option value="${n}" ${Number(cm.inst) === n ? 'selected' : ''}>${n ? n + '개월' : '일시불'}</option>`).join('')}</select>`)}</div>
                 ${cmpWelHtml(cm)}
@@ -21295,7 +21368,7 @@ familyStr + `\n` +
             const cell = (r, k) => {
                 const c = r[k], mode = k === 'sel' ? '선약' : '공시', win = r.better === mode, best = R.best && R.best.i === r.i && R.best.k === k && (R.rows.length > 1 || win);
                 return `<div class="rounded-xl border-2 ${win ? 'border-indigo-500 bg-indigo-50/70' : 'border-gray-200 bg-white'} p-2.5 flex flex-col gap-0.5 min-w-0" data-cm-cell="${r.i}|${k}">
-                    <p class="text-[13px] font-extrabold ${win ? 'text-indigo-800' : 'text-gray-700'}">${k === 'sel' ? '선택약정 25%' : '공시지원금'}</p>
+                    <p class="text-[13px] font-extrabold ${win ? 'text-indigo-800' : 'text-gray-700'}">${k === 'sel' ? `선택약정 25%${cmp1212(cmp) ? ' · 12+12' : ''}` : '공시지원금'}</p>
                     ${best ? '<p><span class="text-[11px] font-bold text-white bg-rose-600 rounded px-1.5 py-0.5">★ 가장 저렴</span></p>' : (win ? '<p><span class="text-[11px] font-bold text-indigo-700">✔ 더 저렴</span></p>' : '')}
                     <p class="text-[11px] text-gray-500 mt-0.5">${c.tl.length ? '처음 매달' : '매달'}</p><p class="text-[21px] font-extrabold text-gray-900 leading-none" data-cm-total>${arWon(c.first)}<span class="text-[13px]">원</span></p>
                     <p class="text-[12px] text-gray-600 mt-1">휴대폰 ${arWon(c.month)} + 요금 ${arWon(c.planNet)}${c.addFee ? ` + 부가·보험 ${arWon(c.addFee)}` : ''}</p>
@@ -21376,7 +21449,7 @@ familyStr + `\n` +
             const cust = customerDB.find(x => x.id === cmp.custId) || gdFindCust(cmp.phone) || null;
             if (cust && !protectGate(cust)) return;
             const g = gdBlank('dev', cust);
-            Object.assign(g, { carrier: gdCarOf(cmp.carrier) || g.carrier, actType: cmp.actType || g.actType, sup: mode, term: Number(cmp.term) || 24, dealer: cmp.dealer || g.dealer });
+            Object.assign(g, { carrier: gdCarOf(cmp.carrier) || g.carrier, actType: cmp.actType || g.actType, sup: mode, term: mode === '선약' && cmp1212(cmp) ? '12+12' : (Number(cmp.term) || 24), dealer: cmp.dealer || g.dealer });   // V237 12+12
             Object.assign(g.dev, { name: String(dv.name || '').trim().slice(0, 40), price: gdNum(dv.price), pub: gdNum(dv.pub), extra: gdNum(mode === '공시' ? dv.addPub : dv.addSel), etc: cmpEtcFor(dv, mode), etcName: cmpEtcFor(dv, mode) ? String(dv.etcName || '').trim().slice(0, 20) : '', card: gdNum(cmp.icard.amt), cardName: String(cmp.icard.name || '').trim().slice(0, 60), prepay: gdNum(cmp.cash), inst: Number(cmp.inst) || 0 });
             Object.assign(g.plan, { name: String(cmp.plan.name || '').trim(), fee: gdNum(cmp.plan.fee), comb: gdNum(cmp.plan.comb), card: gdNum(cmp.plan.card), welType: cmp.plan.welType || '', wel: gdNum(cmp.plan.wel), welAuto: cmp.plan.welAuto !== false });
             Object.assign(g.keep, { target: String(cmp.keep.target || '').trim().slice(0, 60), targetFee: gdNum(cmp.keep.targetFee) });
@@ -21391,7 +21464,7 @@ familyStr + `\n` +
             const R = cmpCalc(cm), st = gdStoreDefault(), ls = [`[${st.name || msgStoreName()}] ${cm.name ? `${cm.name}님, ` : ''}상담하신 기종 · 요금 비교예요.`];
             if (cm.plan.name) ls.push(`· 요금제 ${cm.plan.name}${gdNum(cm.plan.fee) ? ` (월 ${arWon(cm.plan.fee)}원)` : ''} · 할부 ${Number(cm.inst) ? cm.inst + '개월' : '일시불'}`);
             const one = (c) => `${c.tl.length ? '처음 ' : ''}매달 ${arWon(c.first)}원${c.tl.length ? ` → ${gdMD(c.tl[c.tl.length - 1].date)}부터 ${arWon(c.tl[c.tl.length - 1].v)}원` : ''}`;
-            R.rows.forEach(r => ls.push(`· ${r.dv.name || `기종 ${r.i + 1}`}: 선택약정 ${one(r.sel)} / 공시 ${one(r.pub)}`));
+            R.rows.forEach(r => ls.push(`· ${r.dv.name || `기종 ${r.i + 1}`}: 선택약정${cmp1212(cmp) ? '(12+12)' : ''} ${one(r.sel)} / 공시 ${one(r.pub)}`));
             if (R.best) { const r = R.rows.find(x => x.i === R.best.i); ls.push(`→ 추천: ${r.dv.name || `기종 ${r.i + 1}`} ${R.best.k === 'sel' ? '선택약정' : '공시지원금'}`); }
             if (st.tel) ls.push(`문의 ${st.tel}`);
             return ls.join('\n');
@@ -21459,7 +21532,7 @@ familyStr + `\n` +
                 box(L, y, IW, bh, { stroke: '#E5E7EB', r: 14 });
                 { const [s1, z1] = fit(r.dv.name || `기종 ${r.i + 1}`, IW - 200, 19, 800); T(s1, L + 16, y + 32, z1, 800); }
                 T(`출고가 ${W(gdNum(r.dv.price))}`, RR - 16, y + 32, 13, 500, '#4B5563', 'right');
-                [['sel', '선택약정 25%', L1], ['pub', '공시지원금', L2]].forEach(([k, label, LS], j) => {
+                [['sel', `선택약정 25%${cmp1212(cmp) ? ' · 12+12' : ''}`, L1], ['pub', '공시지원금', L2]].forEach(([k, label, LS], j) => {
                     const c = r[k], cx = L + 16 + j * (cw + 12), cy = y + 46, mode = k === 'sel' ? '선약' : '공시', win = r.better === mode, best = R.best && R.best.i === r.i && R.best.k === k && (R.rows.length > 1 || win);
                     box(cx, cy, cw, ch, win ? { fill: '#EEF2FF', stroke: '#6366F1', lw: 2, r: 12 } : { fill: '#FFFFFF', stroke: '#D1D5DB', r: 12 });
                     T(label, cx + 12, cy + 24, 14, 800, win ? '#3730A3' : '#374151');
@@ -22005,9 +22078,9 @@ familyStr + `\n` +
             igStatus('그림 설명을 정리하는 중…', 'gray');
             const prompt = await igEnglishPrompt();
             igStatus(ig.quality === 'best' ? '고화질로 그리는 중… (20~60초)' : '무료 AI가 그리는 중… (5~20초)', 'gray');
-            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'image', prompt, aspect: ig.aspect, quality: ig.quality }) });
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'image', prompt, aspect: ig.aspect, quality: ig.quality, idToken: await myIdToken() }) });
             const j = await r.json().catch(() => ({}));
-            if (!r.ok || !j.ok || !j.image) throw { message: r.status === 429 ? 'free-limit' : (j.error === 'no-ai' ? 'free-setup' : `free ${j.error || r.status}`), detail: j.detail || '' };
+            if (!r.ok || !j.ok || !j.image) throw { message: r.status === 429 ? 'free-limit' : (j.error === 'no-ai' || j.error === 'login' ? 'free-setup' : `free ${j.error || r.status}`), detail: j.detail || '' };
             const mime = String(j.image).startsWith('iVBOR') ? 'image/png' : 'image/jpeg';
             return { blob: await igOverlay(b64ToBlob(j.image, mime)), model: j.model || '' };
         }
@@ -23391,10 +23464,11 @@ familyStr + `\n` +
                 if (!url) return customAlert('알림 서버 주소가 아직 없어요.\n설정 → 🔌 연결 → 상담 알림 서버에 주소를 넣어주세요.');
                 tb.disabled = true; tb.textContent = '보내는 중…';
                 try {
-                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'promTest' }) });
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'promTest', idToken: await myIdToken() }) });
                     const data = await res.json().catch(() => ({}));
                     if (data.ok && data.total === undefined) customAlert('알림 서버가 예전 버전(v1)이에요. kangcrm-alert-worker.js(v2) 코드로 바꿔 배포해주세요.\n(방금 테스트 상담요청 알림이 한 번 갔을 수 있어요)');
                     else if (data.ok) customAlert(`보냈어요! 오늘 약속 ${data.total}건${data.late ? ` · 지난 미처리 ${data.late}건` : ''}\n` + (data.sent || []).map(x => `· ${x.staff}: ${x.count}건 → 폰 ${x.recipients || 0}대`).join('\n') + '\n\n폰이 0대면 그 직원 폰에서 \'이 폰으로 알림 받기\'를 껐다 켜주세요.');
+                    else if (data.error === 'login') customAlert('알림 서버가 로그인을 확인하지 못했어요.\n' + (data.detail || '') + (res.status === 403 ? '' : '\n\n강CRM을 새로고침한 뒤 다시 눌러 주세요.'));
                     else if (/FIREBASE_SA/.test(String(data.error))) customAlert('알림 서버에 Firebase 서비스 계정(FIREBASE_SA)이 아직 없어요. 설치 안내대로 넣어주세요.');
                     else if (!res.ok && res.status === 404 || /POST only|service/.test(String(data.error))) customAlert('알림 서버가 예전 버전이에요. kangcrm-alert-worker.js(v2)로 바꿔 배포해주세요.');
                     else customAlert('보내지 못했어요: ' + (data.error || res.status));
@@ -23417,9 +23491,10 @@ familyStr + `\n` +
                 if (!url) return customAlert('알림 서버 주소가 아직 없어요.\n설정 → 🔌 연결 → 상담 알림 서버에 주소를 넣어주세요.');
                 dtb.disabled = true; dtb.textContent = '보내는 중…';
                 try {
-                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daySumTest' }) });
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'daySumTest', idToken: await myIdToken() }) });
                     const data = await res.json().catch(() => ({}));
                     if (data.ok && data.title) customAlert(`보냈어요! 👑 대표 폰 ${data.recipients || 0}대\n\n${data.title}\n${data.body || ''}` + (data.recipients ? '' : '\n\n폰이 0대면 대표 폰에서 \'이 폰으로 알림 받기\'를 껐다 켜주세요.'));
+                    else if (data.error === 'login') customAlert('알림 서버가 로그인을 확인하지 못했어요.\n' + (data.detail || '') + (res.status === 403 ? '' : '\n\n강CRM을 새로고침한 뒤 다시 눌러 주세요.'));
                     else if (/FIREBASE_SA/.test(String(data.error))) customAlert('알림 서버에 Firebase 서비스 계정(FIREBASE_SA)이 아직 없어요. 설치 안내대로 넣어주세요.');
                     else if (data.ok || data.recipients !== undefined) customAlert('알림 서버가 예전 버전이에요. kangcrm-alert-worker.js(v3.8) 코드로 바꿔 배포해주세요.\n(방금 테스트 상담요청 알림이 한 번 갔을 수 있어요)');
                     else customAlert('보내지 못했어요: ' + (data.error || res.status));
@@ -23503,6 +23578,8 @@ familyStr + `\n` +
                     if (teamCardOn()) { const b36 = parseFloat(r.data.build || '0') >= 3.6; add('알림 서버', '👥 공용 명함 알림 (보낸 직원 + 총관리자)', b36 ? 'ok' : 'warn', b36 ? '공용 명함 견적요청은 그 명함을 보낸 직원과 👑 총관리자 폰으로만 가요' : '알림 서버를 v3.6으로 바꿔 배포해 주세요. 그 전엔 공용 명함 요청도 모든 직원에게 가요.'); }
                     if (d.alert && d.alert.interest === true) { const b35 = parseFloat(r.data.build || '0') >= 3.5; add('알림 서버', '👀 관심 고객 푸시 (켜짐)', b35 ? 'ok' : 'warn', b35 ? '견적 보다 나감 · 계산만 해봄도 직원 폰으로 알림 (아침 9시~밤 9시)' : "알림 서버를 v3.5로 바꿔 배포해 주세요. 그 전엔 알림 제목이 '명함 상담요청'으로 보여요."); }
                     add('알림 서버', '🆓 무료 AI 이미지 (v3 · Workers AI)', r.data.imageReady ? 'ok' : 'warn', r.data.imageReady ? '' : (v < 3 ? '알림 서버 코드를 v3로 바꿔 배포하고, 바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.' : '바인딩에 Workers AI(변수 이름 AI)를 추가해 주세요.'));
+                    { const b41 = parseFloat(r.data.build || '0') >= 4.1, nDev = Object.values(staffPushDocs).reduce((a, p) => a + Object.keys((p && p.devices) || {}).length, 0);
+                      add('알림 서버', '🔐 로그인 확인 · 🔔 등록된 폰에만 (v4.1)', b41 ? 'ok' : 'warn', b41 ? `테스트 알림 · 그림은 강CRM 로그인일 때만 · 알림은 등록된 폰${isSuperAdmin ? ` ${nDev}대` : ''}에만 가요` : '알림 서버 코드를 v4.1(kangcrm-alert-worker.js)로 바꿔 붙여넣어 주세요. 예전 코드는 서버 주소를 아는 사람이 오늘 매출 요약을 볼 수 있어요.'); }
                     add('알림 서버', '📦 재고 · 📄 미비서류 아침 알림 (v4.0)', parseFloat(r.data.build || '0') >= 4.0 ? 'ok' : 'warn', parseFloat(r.data.build || '0') >= 4.0 ? '대표 아침 알림에 오래된 재고 · 유심 부족 · 미비서류가 같이 가요' : '알림 서버 코드를 v4.0으로 바꿔 배포하면 대표 아침 알림에 재고 · 미비서류도 같이 가요 (강CRM 화면엔 지금도 보여요)');
                     add('알림 서버', '아침 약속 알림 (v2 · FIREBASE_SA)', v < 2 ? 'bad' : (r.data.promReady ? 'ok' : 'bad'), v < 2 ? '알림 서버 코드를 v2로 바꿔 배포해 주세요.' : (r.data.promReady ? `Cron 트리거: 아침 9:30 '30 0 * * *'${r.data.build && parseFloat(r.data.build) >= 3.2 ? " · 오후 1시도 받으려면 '0 4 * * *' 하나 더" : ''}` : 'Cloudflare에 FIREBASE_SA(서비스 계정 JSON)를 넣어주세요.'));
                 } catch (e) { add('알림 서버', '서버 연결', 'bad', '주소에 연결하지 못했어요. 주소를 확인해 주세요.'); }
@@ -23785,6 +23862,258 @@ familyStr + `\n` +
         }
 
         /* =====================================================================
+           🗄️ 데이터 백업 · 되살리기 (V237 · 👑 대표만)
+           · smart_backup/{id}: { at, by, auto, note, ver, counts:{컬렉션: 개수}, raw, bytes, parts, gz }
+             smart_backup_parts/{id}_{i}: { d: base64 조각 (70만 자씩) }  ← 백업 내용 = gzip으로 줄인 JSON
+           · 하루 한 번 자동: 대표 강CRM이 켜지고 1분 뒤 · 오늘 백업이 없으면 · 자동 백업은 최근 14개 · 직접/되돌리기 전 백업은 최근 6개
+           · 담는 것: 고객 · 매장 설정·재고 · 명함 계산기·공용 명함 · 급여 · 안내서 · 직원 계정 (서명 그림 · 견적요청 · 통화 · 접속 기록은 빼요)
+           · 되살리기: ♻️ 지워진 것만 (완전히 지워진 + 휴지통) · ⏪ 그 날짜 내용으로 전부 (백업 뒤 새로 생긴 건 그대로 · 먼저 지금 상태를 자동 백업)
+           · 📥 파일로 받기 (.json.gz) · 📂 파일에서 불러오기
+           ===================================================================== */
+        const BK_COLS = [['smart_customers', '고객'], ['smart_global', '매장 설정 · 재고'], ['card_public', '명함 계산기 · 공용 명함'], ['smart_pay', '급여'], ['smart_guides', '안내서'], ['staff_accounts', '직원 계정']];
+        const BK_KEEP_AUTO = 14, BK_KEEP_HAND = 6, BK_PART = 700000;
+        let bkList = null, bkBusy = false, bkView = { mode: 'list' };
+        const bkLabel = (col) => (BK_COLS.find(c => c[0] === col) || [col, col])[1];
+        const bkYmd = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+        function bkIdNow() { const d = new Date(); return 'b' + bkYmd(d).replace(/-/g, '') + '-' + [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join('') + Math.random().toString(36).slice(2, 5); }
+        function bkWhen(iso) {
+            const t = Date.parse(iso || ''); if (!isFinite(t)) return '-';
+            const d = new Date(t), ymd = bkYmd(t), today = getTodayStr(), yest = bkYmd(Date.now() - 864e5);
+            return `${ymd === today ? '오늘' : (ymd === yest ? '어제' : `${d.getMonth() + 1}월 ${d.getDate()}일`)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+        }
+        const bkSize = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)}MB` : `${Math.max(1, Math.round(n / 1024))}KB`;
+        async function bkGzip(str) {
+            const bytes = new TextEncoder().encode(str);
+            if (typeof CompressionStream === 'undefined') return { gz: false, bytes };
+            const cs = new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'));
+            return { gz: true, bytes: new Uint8Array(await new Response(cs).arrayBuffer()) };
+        }
+        async function bkGunzip(bytes) {
+            if (!(bytes[0] === 0x1f && bytes[1] === 0x8b)) return new TextDecoder().decode(bytes);
+            if (typeof DecompressionStream === 'undefined') throw new Error('이 폰 브라우저는 압축된 백업을 못 풀어요. 크롬을 최신으로 바꿔 주세요.');
+            return await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+        }
+        function bkB64(bytes) { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); }
+        function bkUnB64(s) { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; }
+        function bkStable(v) {   // 칸 순서가 달라도 같은 내용이면 같게
+            if (Array.isArray(v)) return '[' + v.map(bkStable).join(',') + ']';
+            if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + bkStable(v[k])).join(',') + '}';
+            return JSON.stringify(v === undefined ? null : v);
+        }
+        function bkCheck(j) { if (!j || j.app !== 'kangcrm' || j.kind !== 'backup' || !j.data || typeof j.data !== 'object') throw new Error('강CRM 백업 파일이 아니에요.'); return j; }
+        async function bkSnapshot() {
+            const data = {}, counts = {};
+            for (const [col] of BK_COLS) {
+                const snap = await getDocs(collection(db, col));
+                const o = {}; snap.forEach(d => { o[d.id] = d.data(); });
+                data[col] = o; counts[col] = Object.keys(o).length;
+            }
+            return { data, counts };
+        }
+        async function bkLoadList() {
+            const snap = await getDocs(collection(db, 'smart_backup'));
+            const L = []; snap.forEach(d => L.push({ id: d.id, ...(d.data() || {}) }));
+            L.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+            bkList = L; bkSubUpdate();
+            return L;
+        }
+        async function bkDrop(m) {
+            for (let i = 0; i < (Number(m.parts) || 1); i++) await deleteDoc(doc(db, 'smart_backup_parts', `${m.id}_${i}`)).catch(() => {});
+            await deleteDoc(doc(db, 'smart_backup', m.id)).catch(() => {});
+        }
+        async function bkPrune() {
+            const L = await bkLoadList();
+            const drop = [...L.filter(m => m.auto).slice(BK_KEEP_AUTO), ...L.filter(m => !m.auto).slice(BK_KEEP_HAND)];
+            for (const m of drop) await bkDrop(m);
+            if (drop.length) { bkList = L.filter(m => !drop.includes(m)); bkSubUpdate(); }
+        }
+        async function bkMake(auto, note) {
+            if (!isSuperAdmin || !db) throw new Error('👑 대표만 백업할 수 있어요.');
+            if (bkBusy) throw new Error('다른 백업 · 되살리기가 진행 중이에요. 잠시 뒤 다시 해주세요.');
+            bkBusy = true;
+            try {
+                const { data, counts } = await bkSnapshot();
+                if (auto && !counts.smart_customers) return null;   // 고객이 0명일 땐 자동 백업 안 함 (좋은 백업을 밀어내지 않게)
+                const at = new Date().toISOString(), by = getStaffName() || myEmail();
+                const json = JSON.stringify({ app: 'kangcrm', kind: 'backup', v: 1, ver: APP_VER, at, by, data });
+                const z = await bkGzip(json), b64 = bkB64(z.bytes), id = bkIdNow(), parts = Math.max(1, Math.ceil(b64.length / BK_PART));
+                for (let i = 0; i < parts; i++) await setDoc(doc(db, 'smart_backup_parts', `${id}_${i}`), { d: b64.slice(i * BK_PART, (i + 1) * BK_PART), i, of: parts });
+                const meta = { at, by, auto: !!auto, note: note || '', ver: APP_VER, counts, raw: json.length, bytes: z.bytes.length, parts, gz: z.gz };
+                await setDoc(doc(db, 'smart_backup', id), meta);   // 조각을 다 쓴 뒤에 목록에 올림 (중간에 끊긴 백업은 안 보이게)
+                await bkPrune();
+                return { id, ...meta };
+            } finally { bkBusy = false; }
+        }
+        async function bkBytes(meta) {
+            let b64 = '';
+            for (let i = 0; i < (Number(meta.parts) || 1); i++) {
+                const s = await getDoc(doc(db, 'smart_backup_parts', `${meta.id}_${i}`));
+                if (!s.exists()) throw new Error(`백업 조각 ${i + 1}/${meta.parts}개가 없어요. 다른 날짜 백업을 골라 주세요.`);
+                b64 += String((s.data() || {}).d || '');
+            }
+            return bkUnB64(b64);
+        }
+        async function bkRead(meta) { return bkCheck(JSON.parse(await bkGunzip(await bkBytes(meta)))); }
+        async function bkAuto() {   // ☁️ 하루 한 번 (대표 폰에서)
+            if (!isSuperAdmin || !db) return null;
+            try {
+                const L = await bkLoadList(), today = getTodayStr();
+                if (L.some(m => m.auto && m.at && bkYmd(Date.parse(m.at)) === today)) return null;
+                if (!customerDB.length) return null;   // 고객을 아직 못 불러왔으면 다음에
+                return await bkMake(true);
+            } catch (e) { console.warn('자동 백업 실패', e); return null; }
+        }
+        function bkSubUpdate() {
+            const el = document.getElementById('backupSub'); if (!el) return;
+            const m = bkList && bkList[0];
+            el.textContent = m ? `마지막 백업: ${bkWhen(m.at)} · 고객 ${Number((m.counts || {}).smart_customers || 0).toLocaleString('ko-KR')}명 · ${bkList.length}개 보관 중` : '하루 한 번 자동 백업 · 지워진 고객 되살리기';
+        }
+        async function bkDownload(meta) {
+            const bytes = await bkBytes(meta), gz = bytes[0] === 0x1f && bytes[1] === 0x8b;
+            const d = new Date(Date.parse(meta.at) || Date.now());
+            const name = `강CRM백업_${bkYmd(d)}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}.json${gz ? '.gz' : ''}`;
+            downloadBlob(new Blob([bytes], { type: gz ? 'application/gzip' : 'application/json' }), name);
+        }
+        // 지금 상태와 비교 → 되살릴 계획
+        async function bkPlan(j) {
+            const plan = [];
+            for (const [col, label] of BK_COLS) {
+                const B = j.data[col]; if (!B || typeof B !== 'object') continue;
+                const snap = await getDocs(collection(db, col)); const cur = {}; snap.forEach(d => { cur[d.id] = d.data(); });
+                const ids = Object.keys(B);
+                const gone = ids.filter(id => !cur[id]);
+                const trashed = col === 'smart_customers' ? ids.filter(id => cur[id] && cur[id].deletedAt && !(B[id] || {}).deletedAt) : [];
+                const changed = ids.filter(id => cur[id] && bkStable(cur[id]) !== bkStable(B[id]));
+                plan.push({ col, label, total: ids.length, now: Object.keys(cur).length, gone, trashed, changed, added: Object.keys(cur).filter(id => !B[id]).length, B });
+            }
+            return plan;
+        }
+        async function bkApply(j, plan, cols, mode, onStep) {
+            if (!isSuperAdmin) throw new Error('👑 대표만 되살릴 수 있어요.');
+            const jobs = [];
+            plan.filter(p => cols.includes(p.col)).forEach(p => {
+                const ids = mode === 'all' ? p.changed.concat(p.gone) : p.gone.concat(p.trashed);
+                [...new Set(ids)].forEach(id => jobs.push([p.col, id, p.B[id]]));
+            });
+            let done = 0;
+            for (let i = 0; i < jobs.length; i += 25) {
+                await Promise.all(jobs.slice(i, i + 25).map(([col, id, data]) => setDoc(doc(db, col, id), stripUndefined(data))));
+                done = Math.min(jobs.length, i + 25); if (onStep) onStep(done, jobs.length);
+            }
+            if (jobs.some(x => x[0] === 'smart_customers') && typeof scheduleSmsResync === 'function') { try { scheduleSmsResync(); } catch (e) { /* 무시 */ } }
+            return jobs.length;
+        }
+
+        // ── 화면 ──
+        function openBackupSheet() {
+            if (!isSuperAdmin) return customAlert('백업 · 되살리기는 👑 대표만 할 수 있어요.');
+            bkView = { mode: 'list' };
+            paySheetEl('bkSheet', 'z-[70]', bkClick, sh => sh.addEventListener('change', bkChange));
+            bkRender();
+            bkLoadList().then(() => { if (bkView.mode === 'list') bkRender(); }).catch(e => { bkView.msg = koreanError(e, '불러오기'); bkRender(); });
+        }
+        function bkRender() {
+            const sh = document.getElementById('bkSheet'); if (!sh) return;
+            const V = bkView, head = (t) => payHead(t, 'data-bk-close', V.mode === 'restore' ? '<button type="button" data-bk-back class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">← 목록</button>' : '');
+            const msg = V.msg ? `<p class="text-[13px] font-bold rounded-xl px-3 py-2 ${V.msgTone === 'green' ? 'bg-emerald-50 text-emerald-800' : (V.msgTone === 'gray' ? 'bg-indigo-50 text-indigo-900' : 'bg-red-50 text-red-800')}" role="status">${escapeHtml(V.msg)}</p>` : '';
+            let body;
+            if (V.mode === 'restore') {
+                const P = V.plan;
+                if (!P) body = `<p class="p-8 text-center text-sm text-gray-600">지금 상태와 비교하는 중…</p>`;
+                else {
+                    const sel = V.sel, nGone = P.filter(p => sel.has(p.col)).reduce((a, p) => a + new Set(p.gone.concat(p.trashed)).size, 0), nAll = P.filter(p => sel.has(p.col)).reduce((a, p) => a + p.changed.length + p.gone.length, 0);
+                    body = `<div class="bg-white border border-gray-200 rounded-2xl p-3 space-y-1"><p class="text-[15px] font-bold text-gray-900">${escapeHtml(V.title)}</p><p class="text-xs text-gray-600">백업한 사람: ${escapeHtml(V.j.by || '-')} · 강CRM ${escapeHtml(V.j.ver || '')}</p></div>
+                        <p class="text-[13px] font-bold text-gray-700 pl-1">되살릴 것 고르기</p>
+                        <div class="space-y-2">${P.map(p => {
+                            const g = new Set(p.gone.concat(p.trashed)).size;
+                            return `<label class="flex items-start gap-3 bg-white border ${sel.has(p.col) ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-gray-200'} rounded-2xl p-3 cursor-pointer">
+                                <input type="checkbox" data-bk-col="${p.col}" ${sel.has(p.col) ? 'checked' : ''} class="mt-1 w-5 h-5 accent-indigo-600 flex-shrink-0">
+                                <span class="min-w-0 flex-1"><span class="block text-[15px] font-bold text-gray-900">${escapeHtml(p.label)}</span>
+                                <span class="block text-xs text-gray-600 leading-relaxed">백업 ${p.total.toLocaleString('ko-KR')}개 · 지금 ${p.now.toLocaleString('ko-KR')}개</span>
+                                <span class="block text-xs leading-relaxed ${g ? 'font-bold text-red-700' : 'text-gray-500'}">지워진 것 ${g}개${p.trashed.length ? ` (휴지통 ${p.trashed.length})` : ''}</span>
+                                <span class="block text-xs text-gray-600 leading-relaxed">백업 뒤 내용이 바뀐 것 ${p.changed.length}개 · 백업 뒤 새로 생긴 것 ${p.added}개 (그대로 둬요)</span></span></label>`;
+                        }).join('')}</div>
+                        <button type="button" data-bk-do="gone" ${nGone && !bkBusy ? '' : 'disabled'} class="w-full min-h-[52px] rounded-2xl bg-indigo-600 text-white text-[15px] font-bold disabled:opacity-40">♻️ 지워진 것만 되살리기 (${nGone}개)</button>
+                        <button type="button" data-bk-do="all" ${nAll && !bkBusy ? '' : 'disabled'} class="w-full min-h-[48px] rounded-2xl border-2 border-red-300 bg-white text-red-700 text-[14px] font-bold disabled:opacity-40">⏪ 그 날짜 내용으로 전부 되돌리기 (${nAll}개)</button>
+                        <p class="text-xs text-gray-600 leading-relaxed px-1">· 지워진 것만: 백업에는 있는데 지금 없는 것 · 휴지통에 들어간 고객을 백업 때 내용으로 꺼내요. 다른 고객은 안 건드려요.<br>· 전부 되돌리기: 고른 칸을 백업 때 내용으로 덮어써요 (그 뒤에 적은 연락 기록 등은 사라져요). 하기 전에 <b>지금 상태를 자동으로 백업</b>해 둬서 다시 되돌릴 수 있어요. 백업 뒤에 새로 생긴 고객은 지우지 않아요.</p>`;
+                }
+                sh.innerHTML = `<div class="${PAY_BOX}">${head('♻️ 백업에서 되살리기')}<div class="p-3 space-y-3">${msg}${body}</div></div>`;
+                return;
+            }
+            const L = bkList;
+            const rows = !L ? '<p class="p-6 text-center text-sm text-gray-600">백업 목록을 불러오는 중…</p>'
+                : (L.length ? L.map(m => `<div class="bg-white border border-gray-200 rounded-2xl p-3 space-y-2">
+                        <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${escapeHtml(bkWhen(m.at))}</span><span class="text-xs font-bold rounded-full px-2 py-0.5 ${m.auto ? 'bg-gray-100 text-gray-700' : (m.note ? 'bg-amber-50 text-amber-800' : 'bg-indigo-50 text-indigo-800')}">${m.auto ? '자동' : escapeHtml(m.note || '직접')}</span></div>
+                        <p class="text-xs text-gray-600">고객 ${Number((m.counts || {}).smart_customers || 0).toLocaleString('ko-KR')}명 · 안내서 ${Number((m.counts || {}).smart_guides || 0).toLocaleString('ko-KR')}개 · ${bkSize(Number(m.bytes) || 0)} · ${escapeHtml(m.by || '')}</p>
+                        <div class="grid grid-cols-2 gap-2"><button type="button" data-bk-dl="${escapeHtml(m.id)}" class="h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-800">📥 파일로 받기</button><button type="button" data-bk-restore="${escapeHtml(m.id)}" class="h-10 rounded-xl border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800">♻️ 되살리기</button></div>
+                    </div>`).join('') : '<p class="p-6 text-center text-sm text-gray-600">아직 백업이 없어요. [☁️ 지금 백업]을 눌러 주세요.</p>');
+            sh.innerHTML = `<div class="${PAY_BOX}">${head('🗄️ 데이터 백업 · 되살리기')}<div class="p-3 space-y-3">
+                <div class="bg-white border border-gray-200 rounded-2xl p-3 space-y-1"><p class="text-[13px] text-gray-700 leading-relaxed">☁️ <b>하루 한 번 자동</b>으로 백업해요 (대표 강CRM이 켜질 때). 자동 백업은 최근 ${BK_KEEP_AUTO}개, 직접 한 백업은 최근 ${BK_KEEP_HAND}개를 보관해요.</p><p class="text-xs text-gray-600 leading-relaxed">담는 것: ${BK_COLS.map(c => c[1].replace(/ · /g, '·')).join(', ')}<br>빼는 것: 서명 그림, 명함 견적요청, 통화·접속 기록</p></div>
+                ${msg}
+                <div class="grid grid-cols-2 gap-2"><button type="button" data-bk-now="1" ${bkBusy ? 'disabled' : ''} class="h-12 rounded-xl bg-indigo-600 text-white text-[14px] font-bold disabled:opacity-40">☁️ 지금 백업</button><label class="h-12 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800 flex items-center justify-center cursor-pointer">📂 파일에서 불러오기<input type="file" data-bk-file="1" accept=".gz,.json,application/gzip,application/json" class="hidden"></label></div>
+                <p class="text-[13px] font-bold text-gray-700 pl-1">백업 목록</p>
+                ${rows}</div></div>`;
+        }
+        function bkSetMsg(t, tone) { bkView.msg = t; bkView.msgTone = tone || ''; bkRender(); }
+        async function bkStartRestore(src, title) {
+            bkView = { mode: 'restore', title, j: null, plan: null, sel: new Set(['smart_customers']) };
+            bkRender();
+            try {
+                const j = src.meta ? await bkRead(src.meta) : src.j;
+                bkView.j = j;
+                bkView.plan = await bkPlan(j);
+                if (!bkView.plan.some(p => p.col === 'smart_customers')) bkView.sel = new Set(bkView.plan.slice(0, 1).map(p => p.col));
+            } catch (e) { bkView.msg = String((e && e.message) || e); bkView.plan = []; }
+            bkRender();
+        }
+        async function bkDo(mode) {
+            const V = bkView, cols = [...V.sel], P = (V.plan || []).filter(p => V.sel.has(p.col));
+            if (!cols.length || !P.length) return;
+            const n = mode === 'all' ? P.reduce((a, p) => a + p.changed.length + p.gone.length, 0) : P.reduce((a, p) => a + new Set(p.gone.concat(p.trashed)).size, 0);
+            const what = P.map(p => p.label).join(' · ');
+            if (mode === 'all') {
+                if (!(await customConfirm(`⏪ ${what}을(를) ${V.title.replace(/ 백업.*$/, '')} 내용으로 전부 되돌릴까요?\n\n${n}개를 백업 때 내용으로 덮어써요. 그 뒤에 적은 연락 기록 · 바꾼 내용은 사라져요.\n(하기 전에 지금 상태를 자동으로 백업해 둬요)`))) return;
+            } else if (!(await customConfirm(`♻️ ${what}에서 지워진 ${n}개를 백업 때 내용으로 되살릴까요?\n다른 것은 안 건드려요.`))) return;
+            try {
+                if (mode === 'all') { bkSetMsg('되돌리기 전에 지금 상태를 백업하는 중…', 'gray'); await bkMake(false, '되돌리기 전'); }
+                bkBusy = true; bkSetMsg('되살리는 중…', 'gray');
+                const done = await bkApply(V.j, V.plan, cols, mode, (k, t) => { bkView.msg = `되살리는 중… ${k.toLocaleString('ko-KR')} / ${t.toLocaleString('ko-KR')}`; bkView.msgTone = 'gray'; bkRender(); });
+                bkBusy = false;
+                bkView.plan = await bkPlan(V.j);
+                bkSetMsg(mode === 'all' ? `✅ ${done.toLocaleString('ko-KR')}개를 백업 때 내용으로 되돌렸어요. 잘못 되돌렸으면 백업 목록의 '되돌리기 전' 백업으로 다시 되살리면 돼요.` : `✅ ${done.toLocaleString('ko-KR')}개를 되살렸어요.`, 'green');
+            } catch (e) { bkBusy = false; bkSetMsg(koreanError(e, '저장')); }
+        }
+        async function bkClick(e) {
+            const sh = document.getElementById('bkSheet'); if (!sh) return;
+            if (e.target === sh || e.target.closest('[data-bk-close]')) { if (bkBusy && !(await customConfirm('아직 진행 중이에요. 창을 닫아도 뒤에서 계속돼요. 닫을까요?'))) return; sh.remove(); return; }
+            if (e.target.closest('[data-bk-back]')) { bkView = { mode: 'list' }; bkRender(); return; }
+            if (e.target.closest('[data-bk-now]')) {
+                bkSetMsg('백업하는 중…', 'gray');
+                try { const m = await bkMake(false); bkSetMsg(`✅ 백업했어요 · 고객 ${Number(m.counts.smart_customers || 0).toLocaleString('ko-KR')}명 · ${bkSize(m.bytes)}`, 'green'); }
+                catch (err) { bkSetMsg(koreanError(err, '저장')); }
+                return;
+            }
+            const dl = e.target.closest('[data-bk-dl]');
+            if (dl) { const m = (bkList || []).find(x => x.id === dl.dataset.bkDl); if (!m) return; dl.disabled = true; try { await bkDownload(m); } catch (err) { bkSetMsg(String((err && err.message) || err)); } dl.disabled = false; return; }
+            const rs = e.target.closest('[data-bk-restore]');
+            if (rs) { const m = (bkList || []).find(x => x.id === rs.dataset.bkRestore); if (m) bkStartRestore({ meta: m }, `${bkWhen(m.at)} 백업${m.auto ? '' : ` (${m.note || '직접'})`}`); return; }
+            const go = e.target.closest('[data-bk-do]');
+            if (go && !go.disabled) { bkDo(go.dataset.bkDo); return; }
+        }
+        async function bkChange(e) {
+            const c = e.target.closest('[data-bk-col]');
+            if (c) { if (c.checked) bkView.sel.add(c.dataset.bkCol); else bkView.sel.delete(c.dataset.bkCol); bkRender(); return; }
+            const f = e.target.closest('[data-bk-file]');
+            if (f && f.files && f.files[0]) {
+                const file = f.files[0];
+                try {
+                    const j = bkCheck(JSON.parse(await bkGunzip(new Uint8Array(await file.arrayBuffer()))));
+                    bkStartRestore({ j }, `${bkWhen(j.at)} 백업 (파일: ${file.name})`);
+                } catch (err) { bkSetMsg(`파일을 못 읽었어요: ${String((err && err.message) || err)}`); }
+            }
+        }
+
+        /* =====================================================================
            👤 직원 계정 (👑 총관리자 · V167) — staff_accounts/list
            · 여기서 추가한 구글 계정만 강CRM·악세정산 연결에 들어올 수 있어요 (Firebase 규칙이 이 목록을 봐요)
            · 총관리자 두 계정은 코드에 고정 · 지우면 그 직원은 바로 못 들어와요 (담당 고객은 그대로 → [담당 고객 넘기기])
@@ -23801,7 +24130,62 @@ familyStr + `\n` +
                 await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
             } catch (e) { console.warn('직원 계정 목록 만들기 실패', e); }
         }
+        /* 🔔 V237 직원마다 이름 · 전화번호(staff_accounts/list info[이메일].phone) · 알림 받는 폰(staff_push) */
+        let staffPushDocs = {}, staffPushUnsub = null, saEditEm = '';
+        function saPhoneOf(em) { const inf = staffAccounts && staffAccounts.info && staffAccounts.info[em]; return (inf && inf.phone) || ''; }
+        function saMd(iso) { const t = Date.parse(iso || ''); if (!isFinite(t)) return ''; const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}`; }
+        function saExtraHtml(em, locked) {
+            const ph = saPhoneOf(em), nm = staffByEmail()[em] || '';
+            if (!locked && saEditEm === em) return `<div class="rounded-xl bg-indigo-50/60 border border-indigo-200 p-2 space-y-2">
+                    <label class="block"><span class="block text-xs font-bold text-gray-700 mb-1">이름</span><input id="saEditName" type="text" maxlength="20" autocomplete="off" value="${escapeHtml(nm)}" placeholder="예: 임호규" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></label>
+                    <label class="block"><span class="block text-xs font-bold text-gray-700 mb-1">전화번호</span><input id="saEditPhone" type="tel" inputmode="tel" maxlength="13" autocomplete="off" value="${escapeHtml(ph ? formatPhone(ph) : '')}" placeholder="010-0000-0000" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></label>
+                    <div class="flex gap-2"><button type="button" data-sa-edit-cancel="1" class="flex-1 h-10 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">취소</button><button type="button" data-sa-edit-save="${escapeHtml(em)}" class="flex-1 h-10 rounded-xl bg-indigo-600 text-white text-sm font-bold">저장</button></div>
+                </div>`;
+            const phoneLine = `<p class="text-xs text-gray-700">📞 ${ph ? `<a href="tel:${escapeHtml(String(ph).replace(/\D/g, ''))}" class="font-bold text-indigo-700 underline underline-offset-2">${escapeHtml(formatPhone(ph))}</a>` : '<span class="text-gray-500">전화번호 없음</span>'}</p>`;
+            let devHtml = '';
+            if (isSuperAdmin) {
+                const P = staffPushDocs[em], devs = P && P.devices ? Object.entries(P.devices).sort((a, b) => String((b[1] || {}).seen || '').localeCompare(String((a[1] || {}).seen || ''))) : [];
+                devHtml = devs.length ? `<div class="space-y-1">${devs.map(([id, d]) => `<div class="flex items-center gap-2"><span class="flex-1 min-w-0 text-xs text-gray-700 truncate">🔔 ${escapeHtml((d && d.label) || '폰')} · 등록 ${saMd(d && d.at)}${d && d.seen && saMd(d.seen) !== saMd(d.at) ? ` · 최근 ${saMd(d.seen)}` : ''}</span><button type="button" data-sa-unpush="${escapeHtml(em)}|${escapeHtml(id)}" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">해제</button></div>`).join('')}</div>`
+                    : '<p class="text-xs text-gray-500">🔕 알림 받는 폰 없음 · 그 직원 폰에서 명함견적 → [이 폰으로 알림 받기]</p>';
+            }
+            return phoneLine + devHtml + (locked ? '' : `<button type="button" data-sa-edit="${escapeHtml(em)}" class="h-9 px-3 rounded-lg border border-indigo-200 bg-white text-xs font-bold text-indigo-700"><i class="fa-solid fa-pen"></i> 이름 · 전화번호</button>`);
+        }
+        async function saSaveEdit(em) {
+            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            if (!staffAccounts) return customAlert('직원 계정 목록을 불러오는 중이에요. 잠시 뒤 다시 해주세요.');
+            const nm = String((document.getElementById('saEditName') || {}).value || '').trim().replace(/\s+/g, ' ').slice(0, 20);
+            const raw = String((document.getElementById('saEditPhone') || {}).value || '').replace(/\D/g, '');
+            if (raw && !/^01\d{8,9}$/.test(raw)) return customAlert('전화번호를 확인해주세요. (010으로 시작하는 휴대폰 번호)');
+            const old = staffByEmail()[em] || '';
+            if (nm) { const hit = Object.entries(staffByEmail()).find(([e, v]) => e !== em && v && sameStaff(v, nm)); if (hit) return customAlert(`'${hit[1]}'은(는) 다른 직원 계정(${hit[0]})의 이름이에요.`); }
+            const n = old ? staffCustomerCount(old) : 0;
+            if (old && nm && !sameStaff(old, nm) && n && !(await customConfirm(`이름을 '${old}' → '${nm}'(으)로 바꿀까요?\n\n⚠️ 고객 ${n}명의 담당자는 '${old}' 그대로예요. 바꾼 뒤 [담당 고객 넘기기]로 '${nm}'에게 넘겨 주세요.`))) return;
+            try {
+                if (nm && nm !== old) { await saveDoc(doc(db, 'smart_global', 'settings'), { staffByEmail: { [em]: nm } }, { merge: true }); appSettings.staffByEmail = { ...staffByEmail(), [em]: nm }; }
+                const inf = { ...(staffAccounts.info[em] || {}) };
+                if (raw) inf.phone = raw; else delete inf.phone;
+                if (String((staffAccounts.info[em] || {}).phone || '') !== String(inf.phone || '')) await writeStaffAccounts(staffAccounts.emails, { ...staffAccounts.info, [em]: inf });
+                saEditEm = '';
+                renderStaffAccounts();
+            } catch (e) { customAlert(koreanError(e, '저장')); }
+        }
+        async function staffPushRemove(em, id) {
+            if (!isSuperAdmin) return;
+            const P = staffPushDocs[em] || {}, d = (P.devices || {})[id] || {};
+            if (!(await customConfirm(`${staffByEmail()[em] || em} · '${d.label || '폰'}'의 알림을 끊을까요?\n그 직원이 그 폰에서 [이 폰으로 알림 받기]를 다시 누르기 전까지 알림이 안 가요.`))) return;
+            const devices = { ...(P.devices || {}) }; delete devices[id];
+            try { await saveDoc(doc(db, 'staff_push', em), { ...P, email: em, devices, removed: { ...(P.removed || {}), [id]: new Date().toISOString() }, updatedAt: new Date().toISOString(), by: getStaffName() || '' }); }
+            catch (e) { customAlert(koreanError(e, '저장')); }
+        }
+        function attachStaffPush() {
+            if (!isSuperAdmin || staffPushUnsub || !db) return;
+            staffPushUnsub = onSnapshot(collection(db, 'staff_push'), snap => {
+                const o = {}; snap.forEach(d => { o[String(d.id).toLowerCase()] = d.data() || {}; });
+                staffPushDocs = o; renderStaffAccounts();
+            }, err => console.warn('알림 폰 명단 불러오기 실패', err));
+        }
         function attachStaffAccounts() {
+            try { attachStaffPush(); } catch (e) { console.warn(e); }   // 🔔 V237
             if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
             staffAcctUnsub = onSnapshot(doc(db, 'staff_accounts', 'list'), snap => {
                 const d = snap.exists() ? (snap.data() || {}) : null;
@@ -23819,7 +24203,7 @@ familyStr + `\n` +
         function renderStaffAccounts() {
             const box = document.getElementById('staffAcctBox');
             if (!box) return;
-            if (document.activeElement && document.activeElement.id === 'saNewEmail') return;   // 입력 중엔 다시 그리지 않음
+            if (document.activeElement && ['saNewEmail', 'saEditName', 'saEditPhone'].includes(document.activeElement.id)) return;   // 입력 중엔 다시 그리지 않음
             const locked = !isSuperAdmin, byEmail = staffByEmail();
             const list = staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e));
             const row = (em, fixed) => {
@@ -23829,6 +24213,7 @@ familyStr + `\n` +
                 return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
                     <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
                     <p class="text-xs text-gray-600">${fixed ? '총관리자 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                    ${saExtraHtml(em, locked)}
                     ${locked ? '' : accessLineHtml(em)}
                     ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
                 </div>`;
@@ -23852,6 +24237,11 @@ familyStr + `\n` +
             box.querySelectorAll('[data-sa-move]').forEach(b => b.onclick = () => reassignFromStaff(b.dataset.saMove));
             box.querySelectorAll('[data-sa-del]').forEach(b => b.onclick = () => removeStaffAccount(b.dataset.saDel));
             box.querySelectorAll('[data-sa-log]').forEach(b => b.onclick = () => openAccessSheet(b.dataset.saLog));
+            box.querySelectorAll('[data-sa-edit]').forEach(b => b.onclick = () => { saEditEm = b.dataset.saEdit; renderStaffAccounts(); const i = document.getElementById('saEditName'); if (i) i.focus(); });
+            box.querySelectorAll('[data-sa-edit-cancel]').forEach(b => b.onclick = () => { saEditEm = ''; renderStaffAccounts(); });
+            box.querySelectorAll('[data-sa-edit-save]').forEach(b => b.onclick = () => saSaveEdit(b.dataset.saEditSave));
+            box.querySelectorAll('[data-sa-unpush]').forEach(b => b.onclick = () => { const v = b.dataset.saUnpush, i = v.lastIndexOf('|'); staffPushRemove(v.slice(0, i), v.slice(i + 1)); });
+            { const ph = box.querySelector('#saEditPhone'); if (ph) ph.addEventListener('input', () => { const d = ph.value.replace(/\D/g, '').slice(0, 11); ph.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d); }); }
             const add = box.querySelector('#saAddBtn'); if (add) add.onclick = () => addStaffAccount(box.querySelector('#saNewEmail').value);
         }
         async function writeStaffAccounts(emails, info) {
@@ -23877,6 +24267,7 @@ familyStr + `\n` +
             const info = { ...staffAccounts.info }; delete info[em];
             try { await writeStaffAccounts(staffAccounts.emails.filter(e => e !== em), info); }
             catch (e) { return customAlert(koreanError(e, '저장')); }
+            try { await deleteDoc(doc(db, 'staff_push', em)); } catch (e) { /* 무시 (알림 서버도 목록에 없는 계정 폰은 빼요) */ }   // 🔔 V237
             const sid = nm && teamData ? teamSidFor(nm) : '';
             if (sid && teamData.staff[sid].active !== false && await customConfirm(`👥 직원 공용 명함에서 ${nm} 명함도 '매장 이름·대표번호'로 바꿀까요?\n(이미 보낸 명함도 바로 매장 정보로 보여요)`)) {
                 try {
@@ -23895,7 +24286,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V236';
+        const APP_VER = 'V237';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -23903,6 +24294,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V237', d: '2026-10-27', items: [
+                ['🗄️ 데이터 백업: 하루 한 번 자동으로 고객 · 설정 · 계산기 · 급여 · 안내서 · 직원 계정 백업 (최근 14개) · 설정 → 🗄️ 데이터 백업에서 [지금 백업] · [📥 파일로 받기] · ♻️ 지워진 것만 / ⏪ 그 날짜로 전부 되살리기', 'a'],
+                ['👤 설정 → 직원 계정: 직원마다 이름 · 전화번호 적기 · 🔔 알림 받는 폰 보기 · [해제]', 'a'],
+                ['🔔 명함 견적요청 · 약속 알림은 강CRM에서 [이 폰으로 알림 받기]로 등록된 폰에만 가요 (강CRM을 열면 저절로 등록) · 직원 계정에서 빠진 사람 폰은 자동으로 빠져요'],
+                ['🔐 알림 서버 v4.1: 약속 알림 · 마감 요약 테스트는 👑 대표 로그인일 때만 · 무료 그림은 직원 로그인일 때만 (서버 주소를 알아도 남이 못 써요) · 알림 서버 코드와 Firestore 규칙을 새로 붙여 넣어 주세요', 'a'],
+                ['📄 12개월 · 12+12 약정 고객은 기변 타겟을 12개월부터 (\'12개월 약정 끝남\' · \'12+12 첫 12개월 끝남\') · 비교 안내서도 선택약정 24개월 / 12+12개월 고르기 (LG U+ · SKT)'],
+                ['🐞 개통등록에서 약정을 \'무약정\'으로 고르면 개통 문자에 \'선약 무약정\'으로 나가고 할인 유형이 선택약정으로 저장되던 것 고침 (→ 무약정 · 해당없음)']] },
             { v: 'V236', d: '2026-10-26', items: [
                 ['📶 요금제 혜택: 안내서에서 요금제를 고르면 음성 · 문자 · 데이터 · 영상/부가통화 · 공유 데이터 · 혜택 · 청소년 · 청년 · 시니어 혜택 · 초과 요금이 바로 · 고객 안내서 그림에도 · 바꿀 요금제도 (3사 통합요금제 · 키즈 · 시니어 · 공식 페이지 기준)'],
                 ['📄 12+12개월은 LG U+ · SKT만 · 안내 문구 \'12개월마다 위약금이 끝나요 · 첫 약정이 끝나면 자동으로 12개월 연장\' · 고객카드 \'지금 바꾸면\'도 두 번째 12개월은 그 12개월 기준으로 반환금 계산'],
@@ -24479,7 +24877,7 @@ familyStr + `\n` +
             T(() => { if (!(calcData && calcData.alert && calcData.alert.url)) warns.push('상담 알림 서버가 없어요'); });
             T(() => { if (!geminiApiKey) warns.push('AI 키가 없어요'); });
             st('conn', warns.length ? `확인 필요 ${warns.length}곳` : '모두 연결됨', warns.length ? 'warn' : 'ok');
-            T(() => { const t = String((document.getElementById('trashCount') || {}).textContent || '').trim(); st('data', t ? `휴지통 ${t}` : '보호 · 휴지통', ''); });
+            T(() => { const t = String((document.getElementById('trashCount') || {}).textContent || '').trim(); st('data', t ? `백업 · 휴지통 ${t}` : '보호 · 백업 · 휴지통', ''); });
             T(() => st('app', `${APP_VER} · 업데이트 소식`, ''));
             const bar = document.getElementById('setAlertBar'), bt = document.getElementById('setAlertText');
             if (bar) bar.classList.toggle('hidden', !warns.length);
@@ -24569,7 +24967,7 @@ familyStr + `\n` +
             put('dealer', dealerSec);
             put('staff', secOf('setStaffTitle'));
             put('conn', secOf('grpConnTitle')); hideH('grpConnTitle');
-            put('data', secOf('setPrivacyTitle'), secOf('setTrashTitle'));
+            put('data', secOf('setPrivacyTitle'), secOf('setBackupTitle'), secOf('setTrashTitle'));   // 🗄️ V237 백업
             put('app', secOf('setAppTitle'));
             if (storeGrp) storeGrp.classList.add('hidden');   // 다 옮기고 빈 묶음 (요약 칸만 남음)
 
