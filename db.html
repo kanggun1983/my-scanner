@@ -3389,10 +3389,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const remember = (ok) => { try { if (ok) localStorage.setItem('kcrmAccessOk', emailLc); else if (localStorage.getItem('kcrmAccessOk') === emailLc) localStorage.removeItem('kcrmAccessOk'); } catch (e) { /* 무시 */ } return { ok }; };
                 if (snap.exists()) {
                     const d = snap.data() || {};
-                    staffAccounts = { emails: Array.isArray(d.emails) ? d.emails : [], info: d.info || {} };
-                    return remember(staffAccounts.emails.map(e => String(e).toLowerCase()).includes(emailLc));
+                    staffAccounts = { emails: Array.isArray(d.emails) ? d.emails : [], info: d.info || {}, storeMoved: !!d.storeMoved };
+                    return remember(staffAccounts.emails.map(e => String(e).toLowerCase()).includes(emailLc) || storeWaiting(emailLc));
                 }
-                return remember(ALLOWED_EMAILS.includes(emailLc));
+                return remember(ALLOWED_EMAILS.includes(emailLc) || STORE_PHONE_EMAILS.includes(emailLc));
             } catch (e) {
                 if (/permission/i.test(String((e && e.code) || e))) return { ok: false };
                 // 인터넷이 잠깐 끊겼을 때: 예전 목록이거나, 이 폰에서 전에 들어온 적 있는 계정이면 그대로 (새로 추가한 직원이 지하철에서 앱을 열어도 튕기지 않게)
@@ -3400,7 +3400,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 return { ok: ALLOWED_EMAILS.includes(emailLc) || before === emailLc, offline: true };
             }
         }
-        const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com', 'phoneplace0070@gmail.com'];   // 👑 총관리자 — 매장 공용 설정을 바꿀 수 있음
+        const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com'];   // 👑 대표(총관리자) — 한 명뿐 · 매장 공용 설정을 바꿀 수 있음
+        const STORE_PHONE_EMAILS = ['phoneplace0070@gmail.com'];   // 🏪 V248 예전 총관리자였던 매장폰 — 직원 계정 목록에 한 번만 옮기고(storeMoved) 그 뒤엔 보통 직원처럼 (지우기 가능)
+        const storeWaiting = (em) => STORE_PHONE_EMAILS.includes(em) && !(staffAccounts && staffAccounts.storeMoved);   // 아직 안 옮겼으면 튕기지 않게
 
         let db, auth, customerDB = [], currentFilter = 'all';
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
@@ -24695,12 +24697,18 @@ familyStr + `\n` +
             if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
             staffAcctUnsub = onSnapshot(doc(db, 'staff_accounts', 'list'), snap => {
                 const d = snap.exists() ? (snap.data() || {}) : null;
-                staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {} } : null;
+                staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {}, storeMoved: !!d.storeMoved } : null;
                 const me = myEmail().toLowerCase();
-                if (staffAccounts && me && !SUPER_ADMIN_EMAILS.includes(me) && !staffAccounts.emails.includes(me)) {   // 이 계정이 목록에서 빠졌으면 바로 로그아웃
+                if (staffAccounts && me && !SUPER_ADMIN_EMAILS.includes(me) && !storeWaiting(me) && !staffAccounts.emails.includes(me)) {   // 이 계정이 목록에서 빠졌으면 바로 로그아웃
                     customAlert('총관리자가 이 계정의 강CRM 사용을 멈췄어요. 로그아웃할게요.');
                     try { signOut(auth); } catch (e) { /* 무시 */ }
                     return;
+                }
+                if (staffAccounts && isSuperAdmin && !staffAccounts.storeMoved) {   // 🏪 V248 매장폰을 직원 계정 목록으로 한 번만 옮겨요 (그 뒤 지우면 그대로 지워진 채)
+                    const add = STORE_PHONE_EMAILS.filter(e => !staffAccounts.emails.includes(e)), info = { ...staffAccounts.info };
+                    add.forEach(e => { info[e] = { ...(info[e] || {}), addedAt: (info[e] && info[e].addedAt) || getTodayStr(), addedBy: '매장폰 (자동)' }; });
+                    staffAccounts.storeMoved = true; staffAccounts.emails = [...staffAccounts.emails, ...add]; staffAccounts.info = info;
+                    saveDoc(doc(db, 'staff_accounts', 'list'), { emails: staffAccounts.emails, info, storeMoved: true, updatedAt: new Date().toISOString(), by: getStaffName() || '' }, { merge: true }).catch(e => console.warn('매장폰 계정 넣기 실패', e));
                 }
                 renderStaffAccounts();
             }, err => { console.warn('직원 계정 목록 불러오기 실패', err); renderStaffAccounts(); });
@@ -24788,21 +24796,100 @@ familyStr + `\n` +
                 saveRoles(Array.isArray(appSettings.roles) && appSettings.roles.length ? null : roleList(), { ...(appSettings.staffRole || {}), [em]: sr.value });
             }
         });
+        /* 🪪 V248 공용 명함을 직원 계정 칸에서 바로 — card_public/team 의 그 직원 프로필 (강CRM 직원 이름으로 묶임) */
+        let teamRowEm = '';
+        function teamSidOf(em, D) {
+            const nm = staffByEmail()[em]; if (!nm || !D || !D.staff) return '';
+            const k = staffKeyName(nm);
+            return Object.keys(D.staff).find(s => staffKeyName(D.staff[s].key || '') === k) || '';
+        }
+        function teamRowHtml(em, locked) {
+            const nm = staffByEmail()[em] || '';
+            const editing = !locked && teamRowEm === em && !!teamDraft;
+            const D = editing ? teamDraft : (teamData || teamNormalize(null));
+            const sid = teamSidOf(em, D), p = sid ? D.staff[sid] : null;
+            const head = `<span class="text-[11px] font-bold text-pink-700">🪪 공용 명함${teamCardOn() ? '' : ' <span class="font-normal text-gray-500">(지금 꺼짐 · 모두 대표 명함)</span>'}</span>`;
+            const pic = (q, sz) => q && q.photo ? `<img src="${escapeHtml(q.photo)}" alt="" class="${sz} rounded-full object-cover bg-gray-100 flex-shrink-0 ${q.active === false ? 'opacity-40' : ''}">` : `<span class="${sz} rounded-full bg-gray-100 text-gray-400 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-user"></i></span>`;
+            if (!editing) {
+                const txt = p ? `${escapeHtml(p.name || '이름 없음')}${p.title ? ' ' + escapeHtml(p.title) : ''} · ${p.active === false ? '🏪 매장 정보로 보이는 중' : escapeHtml(p.phone ? formatPhone(p.phone) : '대표번호')}`
+                    : SUPER_ADMIN_EMAILS.includes(em) ? '<span class="text-gray-500">👑 대표는 대표 명함으로 나가요 (안 만들어도 돼요)</span>' : (nm ? '<span class="text-gray-500">명함 프로필 없음 → 매장 정보로 보여요</span>' : '<span class="text-gray-500">이름을 먼저 넣어 주세요</span>');
+                const btns = p ? `<a href="${TEAM_CARD_URL}?s=${sid}" target="_blank" rel="noopener" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700 flex items-center">보기</a>${locked ? '' : `<button type="button" data-tr-open="${escapeHtml(em)}" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-pink-200 bg-white text-xs font-bold text-pink-700"><i class="fa-solid fa-pen"></i> 고치기</button>`}`
+                    : (locked || !nm ? '' : `<button type="button" data-tr-open="${escapeHtml(em)}" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-pink-200 bg-white text-xs font-bold text-pink-700">＋ 명함 만들기</button>`);
+                return `<div class="flex items-center gap-2 rounded-xl bg-pink-50/50 border border-pink-100 px-2 py-1.5">${pic(p, 'w-9 h-9')}<div class="flex-1 min-w-0">${head}<p class="text-xs text-gray-800 truncate">${txt}</p></div>${btns}</div>`;
+            }
+            const field = 'mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white', retired = p.active === false;
+            return `<div data-tr-edit="${sid}" class="rounded-xl bg-pink-50/60 border border-pink-200 p-2.5 space-y-2">
+                <div class="flex items-center gap-3">${pic(p, 'w-14 h-14')}<div class="min-w-0 flex-1">${head}<p class="text-[11px] text-gray-500">명함 번호 ${sid} · 이 직원 담당 고객 · 견적요청 알림과 묶여요</p></div></div>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-xs font-bold text-gray-600">명함에 보일 이름<input data-tre="name" maxlength="12" value="${escapeHtml(p.name)}" placeholder="홍길동" class="${field}"></label>
+                    <label class="text-xs font-bold text-gray-600">직함<input data-tre="title" maxlength="10" value="${escapeHtml(p.title)}" placeholder="사원 · 대리" class="${field}"></label>
+                    <label class="col-span-2 text-xs font-bold text-gray-600">직통번호 <span class="font-normal text-gray-500">(명함 [전화] 버튼 · 비우면 대표번호)</span><input data-tre="phone" type="tel" inputmode="tel" maxlength="13" value="${escapeHtml(p.phone ? formatPhone(p.phone) : '')}" placeholder="010-0000-0000" class="${field}"></label>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-tre-photo="${sid}" class="h-10 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800"><i class="fa-solid fa-camera"></i> 사진 ${p.photo ? '바꾸기' : '넣기'}</button>
+                    <button type="button" data-tre-nophoto="${sid}" ${p.photo ? '' : 'disabled'} class="h-10 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700 disabled:opacity-40">사진 빼기</button>
+                </div>
+                <label class="flex items-center justify-between gap-3 rounded-xl ${retired ? 'bg-amber-100' : 'bg-white'} px-3 py-2 cursor-pointer"><span class="text-[13px] font-bold text-gray-900 leading-snug">🏪 매장 이름·대표번호로 보이기<br><span class="text-[11px] font-medium text-gray-600">퇴사·휴직 때 · 이미 보낸 명함도 매장 정보로 바뀌어요</span></span><input type="checkbox" data-tre="retire" ${retired ? 'checked' : ''} class="w-6 h-6 accent-amber-600 flex-shrink-0"></label>
+                <div class="flex gap-2"><button type="button" data-tre-del="${sid}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">프로필 삭제</button><button type="button" data-tre-cancel="1" class="flex-1 h-10 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">취소</button><button type="button" data-tre-save="1" class="flex-1 h-10 rounded-xl bg-pink-600 text-white text-sm font-bold">저장</button></div>
+            </div>`;
+        }
+        function teamRowRefresh() { try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ } }
+        document.addEventListener('click', async (e) => {
+            const t = e.target.closest('[data-tr-open],[data-tre-photo],[data-tre-nophoto],[data-tre-del],[data-tre-cancel],[data-tre-save]');
+            if (!t || !isSuperAdmin) return;
+            if (t.dataset.trOpen) {
+                const em = t.dataset.trOpen, nm = staffByEmail()[em] || '';
+                if (!nm) return customAlert('먼저 [이름 · 전화번호]에서 이 직원 이름을 넣어 주세요.');
+                if (teamRowEm && teamRowEm !== em && teamDirty && !(await customConfirm('다른 직원 명함을 고치던 중이에요. 저장하지 않고 넘어갈까요?'))) return;
+                if (teamRowEm && teamRowEm !== em) { teamDraft = null; teamMarkDirty(false); }
+                if (!teamDraft) teamDraft = calcClone(teamData || teamNormalize(null));
+                if (!teamSidOf(em, teamDraft)) {
+                    if (Object.keys(teamDraft.staff).length >= TEAM_MAX) return customAlert(`직원 프로필은 ${TEAM_MAX}명까지 넣을 수 있어요.`);
+                    teamDraft.staff[newTeamSid(teamDraft.staff)] = { key: nm, name: managerKey(nm), title: (String(nm).match(MANAGER_TITLE_RE) || [''])[0].trim(), phone: String(saPhoneOf(em) || '').replace(/\D/g, ''), photo: '', active: true };
+                    teamMarkDirty();
+                }
+                teamRowEm = em; teamRowRefresh(); renderTeamSettings(); return;
+            }
+            const D = teamDraft; if (!D) return;
+            const sid = teamSidOf(teamRowEm, D), p = sid ? D.staff[sid] : null;
+            if (t.dataset.treCancel) { teamRowEm = ''; teamDraft = null; teamMarkDirty(false); renderTeamSettings(); teamRowRefresh(); return; }
+            if (!p) return;
+            if (t.dataset.trePhoto) { teamPhotoSid = sid; const f = document.getElementById('teamPhotoFile'); f.value = ''; f.click(); return; }
+            if (t.dataset.treNophoto) { p.photo = ''; teamMarkDirty(); teamRowRefresh(); return; }
+            if (t.dataset.treDel) {
+                if (!(await customConfirm(`${p.name || '이 직원'} 공용 명함 프로필을 삭제할까요?\n이미 보낸 공용 명함은 매장 이름·대표번호로 보여요.\n(퇴사·휴직이면 '매장 이름·대표번호로 보이기'를 켜도 돼요)`))) return;
+                delete D.staff[sid]; teamMarkDirty();
+            }
+            await saveTeamSettings();
+            if (!teamDirty) { teamRowEm = ''; teamRowRefresh(); stockToast('🪪 공용 명함을 저장했어요'); }
+        });
+        document.addEventListener('input', (e) => {
+            const el = e.target.closest('[data-tre]'); if (!el || !teamDraft || el.dataset.tre === 'retire') return;
+            const p = teamDraft.staff[teamSidOf(teamRowEm, teamDraft)]; if (!p) return;
+            p[el.dataset.tre] = el.dataset.tre === 'phone' ? el.value.replace(/[^0-9]/g, '') : el.value.trim(); teamMarkDirty();
+        });
+        document.addEventListener('change', (e) => {
+            const el = e.target.closest('[data-tre="retire"]'); if (!el || !teamDraft) return;
+            const p = teamDraft.staff[teamSidOf(teamRowEm, teamDraft)]; if (!p) return;
+            p.active = !el.checked; teamMarkDirty(); teamRowRefresh();
+        });
         function renderStaffAccounts() {
             const box = document.getElementById('staffAcctBox');
             if (!box) return;
-            if (document.activeElement && ['saNewEmail', 'saEditName', 'saEditPhone'].includes(document.activeElement.id)) return;   // 입력 중엔 다시 그리지 않음
+            if (document.activeElement && (['saNewEmail', 'saEditName', 'saEditPhone'].includes(document.activeElement.id) || (document.activeElement.closest && document.activeElement.closest('[data-tr-edit]') && document.activeElement.matches('input:not([type=checkbox])')))) return;   // 입력 중엔 다시 그리지 않음
             const locked = !isSuperAdmin, byEmail = staffByEmail();
-            const list = staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+            const list = (staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e))).filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+            STORE_PHONE_EMAILS.forEach(e => { if (storeWaiting(e) && !list.includes(e)) list.push(e); });
             const row = (em, fixed) => {
                 const nm = byEmail[em] || (staffAccounts && staffAccounts.info[em] && staffAccounts.info[em].memo) || '';
                 const n = staffCustomerCount(byEmail[em] || '');
                 const inf = staffAccounts && staffAccounts.info[em];
                 return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
                     <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
-                    <p class="text-xs text-gray-600">${fixed ? '총관리자 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                    <p class="text-xs text-gray-600">${fixed ? '👑 대표 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
                     ${roleLineHtml(em, fixed, locked)}
                     ${saExtraHtml(em, locked)}
+                    ${teamRowHtml(em, locked)}
                     ${locked ? '' : accessLineHtml(em)}
                     ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
                 </div>`;
@@ -24834,7 +24921,7 @@ familyStr + `\n` +
             const add = box.querySelector('#saAddBtn'); if (add) add.onclick = () => addStaffAccount(box.querySelector('#saNewEmail').value);
         }
         async function writeStaffAccounts(emails, info) {
-            await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+            await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, storeMoved: !!(staffAccounts && staffAccounts.storeMoved), updatedAt: new Date().toISOString(), by: getStaffName() || '' });   // 🏪 V248 표시 유지 (지운 매장폰이 다시 안 들어오게)
         }
         async function addStaffAccount(raw) {
             if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
@@ -24875,7 +24962,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V247';
+        const APP_VER = 'V248';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24883,6 +24970,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V248', d: '2026-11-02', items: [
+                ['🪪 공용 명함을 직원 칸에서 바로: 설정 → 직원 · 담당의 직원마다 명함 이름 · 직함 · 직통번호 · 사진을 고치고, 없으면 [＋ 명함 만들기]', 'a'],
+                ['👑 대표는 한 명(010-4444-3353)만 · 매장폰 계정은 보통 직원 계정으로 (직급 고르기 · 지우기 가능)', 'a']] },
             { v: 'V247', d: '2026-11-01', items: [
                 ['🎖 직급 · 권한: 설정 → 직원 · 담당에서 직원마다 직급(점장 · 매니저 · 직접 추가)을 고르고, 👑 대표가 직급마다 할 수 있는 걸 켜고 꺼요'],
                 ['🔑 권한 11가지: 다른 직원 고객 고치기 · 고객 지우기 · 엑셀 전체 · 정산 보기 · 정산 입력 · 개통 취소 · 목표 · 급여 · 홍보 · 전체 푸시 · 자동 안내 · 정책 · 거래처 · 안내서 지우기'],
@@ -25283,8 +25373,8 @@ familyStr + `\n` +
         }
         function onTeamData() {
             if (smsSyncWaitTeam) { const f = smsSyncWaitTeam === 2; smsSyncWaitTeam = 0; setTimeout(() => { try { syncAutoSms(f ? { force: true } : {}); } catch (e) { /* 무시 */ } }, 0); }   // 👥 V220 기다리던 자동 문자 맞추기
-            if (!teamDirty) teamDraft = null;
-            renderTeamSettings();
+            if (!teamDirty) { teamDraft = null; teamRowEm = ''; }
+            renderTeamSettings(); try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
             if (cardSendSheet.style.display === 'flex') renderCardSendWhich();
         }
         function newTeamSid(exist) {
@@ -25311,6 +25401,8 @@ familyStr + `\n` +
             const missing = names.filter(n => !used.has(staffKeyName(n)));
             const st = D.store || {};
             const me = myTeamProfile();
+            const acctKeys = [...SUPER_ADMIN_EMAILS, ...((staffAccounts && staffAccounts.emails) || [])].map(e => staffByEmail()[e]).filter(Boolean).map(staffKeyName);   // 🪪 V248
+            const linkedSids = sids.filter(sd => D.staff[sd].key && acctKeys.includes(staffKeyName(D.staff[sd].key))), orphanSids = sids.filter(sd => !linkedSids.includes(sd));
             const prof = (sid) => {
                 const p = D.staff[sid], retired = p.active === false;
                 const keyOpts = [...new Set([...(p.key ? [p.key] : []), ...names])];
@@ -25372,9 +25464,11 @@ familyStr + `\n` +
                 </div>
                 <div class="border-t border-gray-100 pt-3 space-y-2">
                     <p class="text-[14px] font-bold text-gray-900">직원 프로필 <span class="text-xs font-medium text-gray-500">${sids.length}명</span></p>
-                    ${sids.map(prof).join('') || '<p class="text-sm text-gray-600 text-center py-4">아직 프로필이 없어요. 아래 [+ 직원 추가]로 넣어주세요.</p>'}
+                    <div class="rounded-xl bg-pink-50 border border-pink-100 px-3 py-2 space-y-1.5"><p class="text-[13px] font-bold text-pink-900">🪪 직원마다 명함은 <b>설정 → 직원 · 담당</b>의 직원 칸에서 고쳐요</p>
+                        ${linkedSids.length ? `<p class="text-xs text-gray-700">${linkedSids.map(sd => escapeHtml((D.staff[sd].name || D.staff[sd].key) + (D.staff[sd].title ? ' ' + D.staff[sd].title : '')) + (D.staff[sd].active === false ? ' (매장 정보)' : '')).join(' · ')}</p>` : ''}
+                        <button type="button" data-set-jump="setStaffTitle" class="h-9 px-3 rounded-lg border border-pink-200 bg-white text-xs font-bold text-pink-700">직원 · 담당으로 가기 ›</button></div>
+                    ${orphanSids.length ? `<p class="text-xs font-bold text-amber-800 pl-1">⚠️ 강CRM 직원 계정과 안 묶인 프로필 ${orphanSids.length}개 · 강CRM 직원을 고르거나 삭제해 주세요</p>${orphanSids.map(prof).join('')}` : ''}
                     ${missing.length ? `<p class="text-xs text-gray-600 pl-1">프로필 없는 직원: <b>${missing.map(n => escapeHtml(n) + (staffIsBoss(n) ? ' (👑 대표 명함으로 나가면 괜찮아요)' : '')).join(', ')}</b> → 이 직원이 보낸 공용 명함은 매장 정보로 보여요</p>` : ''}
-                    <button type="button" id="teamAddBtn" ${dis} class="w-full h-11 rounded-xl border-2 border-dashed border-gray-300 bg-white text-sm font-bold text-gray-800 disabled:opacity-40"><i class="fa-solid fa-plus"></i> 직원 추가</button>
                 </div>
                 <p id="teamDirtyNote" class="hidden text-xs font-bold text-pink-700 text-center">저장 안 한 내용이 있어요 · [저장]을 눌러야 명함에 반영돼요</p>
                 <button type="button" id="teamSaveBtn" disabled class="w-full h-12 rounded-xl bg-gray-100 text-gray-500 text-[15px] font-bold">저장</button>
@@ -25399,7 +25493,7 @@ familyStr + `\n` +
                     delete D.staff[sid]; teamMarkDirty(); renderTeamSettings();
                 };
             });
-            box.querySelector('#teamAddBtn').onclick = () => {
+            if (box.querySelector('#teamAddBtn')) box.querySelector('#teamAddBtn').onclick = () => {
                 if (Object.keys(D.staff).length >= TEAM_MAX) return customAlert(`직원 프로필은 ${TEAM_MAX}명까지 넣을 수 있어요.`);
                 D.staff[newTeamSid(D.staff)] = { key: '', name: '', title: '', phone: '', photo: '', active: true };   // 👥 V220 강CRM 직원은 직접 고르기
                 teamMarkDirty(); renderTeamSettings();
@@ -25459,7 +25553,7 @@ familyStr + `\n` +
                 }
                 URL.revokeObjectURL(url);
                 teamDraft.staff[sid].photo = out;
-                teamMarkDirty(); renderTeamSettings();
+                teamMarkDirty(); renderTeamSettings(); teamRowRefresh();
             } catch (err) { console.error(err); customAlert('사진을 읽지 못했어요. 다른 사진으로 해주세요.'); }
         });
         renderTeamSettings();
