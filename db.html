@@ -8234,7 +8234,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if(c.carrier === 'SKT') carrierBadge = `<span class="bg-red-50 text-red-600 border border-red-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">SKT</span>`;
                 else if(c.carrier === 'KT') carrierBadge = `<span class="bg-cyan-50 text-cyan-600 border border-cyan-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">KT</span>`;
                 else if(c.carrier === 'LG U+') carrierBadge = `<span class="bg-pink-50 text-pink-600 border border-pink-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">LG</span>`;
-                else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${escapeHtml(c.carrier)}</span>`;
+                else if(c.carrier && c.carrier.includes('알뜰폰')) carrierBadge = `<span class="bg-yellow-50 text-yellow-700 border border-yellow-200 text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 shadow-sm whitespace-nowrap">${escapeHtml(carrierLabel(c.carrier, c.mvnoBrand))}</span>`;
 
                 const instBase = getInstallmentBaseInfo(c);
                 let dynamicInstallment = getDynamicInstallment(c.installment, instBase.date);
@@ -9617,7 +9617,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
             }
             const carrierColor = { 'SKT': 'text-red-500', 'KT': 'text-cyan-600', 'LG U+': 'text-pink-600' }[c.carrier] || ((c.carrier || '').includes('알뜰폰') ? 'text-yellow-700' : 'text-gray-800');
-            const carrierHtml = (c.carrier && c.carrier !== '미정') ? `<span class="${carrierColor}">${e(c.carrier)}</span>` : PROFILE_DASH;
+            const carrierHtml = (c.carrier && c.carrier !== '미정') ? `<span class="${carrierColor}">${e(carrierLabel(c.carrier, c.mvnoBrand))}</span>` : PROFILE_DASH;   // 📶 알뜰폰(SK)[세븐모바일]
             const consentHtml = c.marketingDeny ? '광고성 <span class="text-red-500">거부</span>' : '광고성 <span class="text-green-600">동의</span>';
             const legalText = [c.legalName, c.legalPhone ? `(${formatPhone(c.legalPhone)})` : ''].filter(Boolean).join(' ');
 
@@ -17354,6 +17354,12 @@ familyStr + `\n` +
            ===================================================================== */
         function canSeeSettle() { return isSuperAdmin || appSettings.hideSettleFromStaff !== true; }
         const AR_CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
+        // 📶 알뜰폰 브랜드 — 통신사 칸은 그대로 '알뜰폰(SK)' (통계 · 정책이 이 값을 씀) · 브랜드는 mvnoBrand 칸에 따로 · 보여줄 때만 '알뜰폰(SK)[세븐모바일]'
+        const MVNO_BRANDS = ['세븐모바일', 'SK스노우맨', '프리티', '아이즈모바일', 'KT M모바일', 'KT스카이라이프', '에넥스텔레콤', '티플러스', 'U+유모바일', 'LG헬로모바일', '인스모바일', '이야기모바일', '토스모바일', 'KB리브엠'];
+        function isMvno(car) { return /^알뜰/.test(String(car || '')); }
+        function carrierLabel(car, brand) { const b = String(brand || '').trim(); return car && b && isMvno(car) ? `${car}[${b}]` : (car || ''); }
+        function mvnoBrandList() { const s = new Set(MVNO_BRANDS); (customerDB || []).forEach(c => { const b = c && String(c.mvnoBrand || '').trim(); if (b) s.add(b); }); return [...s].slice(0, 80); }
+        function mvnoNetOf(t) { const m = String(t || '').match(/^알뜰폰\((SK|KT|LG)\)/); return m ? m[1] : ''; }
         const AR_ACT_TYPES = ['신규', '번호이동', '기변', '에이징', '가개통', '유심신규', '유심MNP'];
         const AR_HOME_ITEMS = ['인터넷', 'TV', '집전화', '인터넷전화', '와이파이', '홈IoT', '인공지능AI', '신용카드', '기타'];
         const arWon = (n) => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
@@ -17598,7 +17604,7 @@ familyStr + `\n` +
             arItems = arItems.filter(it => !(it.fromDealer && !it.touched));
             if (arDealer) {
                 const car = document.getElementById('ar-carrier');
-                if (arDealer.carrier && car && (picked || !car.value) && car.value !== arDealer.carrier) { car.value = arDealer.carrier; arPrevFill(); renderArPicker(); }   // 거래처를 직접 고르면 그 거래처 통신사로
+                if (arDealer.carrier && car && (picked || !car.value) && car.value !== arDealer.carrier) { car.value = arDealer.carrier; arPrevFill(); renderArPicker(); arSyncVis(); }   // 거래처를 직접 고르면 그 거래처 통신사로
                 const amtOk = canSeeSettle();   /* 💰 V211 줄마다 정책 ± 금액 */
                 arDealer.addons.filter(a => a.code || (amtOk && a.amount && a.name)).forEach(a => arItems.push({ kind: '부가', name: a.name, amount: amtOk ? a.amount || 0 : 0, code: a.code, days: 0, autoDate: true, fromDealer: true }));
                 if (arDealer.ins.code || (amtOk && arDealer.ins.amount && arDealer.ins.name)) arItems.push({ kind: '보험', name: arDealer.ins.name, amount: amtOk ? arDealer.ins.amount || 0 : 0, code: arDealer.ins.code, days: 0, autoDate: true, fromDealer: true });
@@ -17623,6 +17629,7 @@ familyStr + `\n` +
             b.querySelectorAll('[data-mnp]').forEach(x => x.classList.toggle('hidden', !mnp));
             b.querySelectorAll('[data-carwrap]').forEach(x => x.classList.toggle('col-span-2', !mnp));   // 번호이동이 아니면 통신사 칸 넓게 (빈칸 없이)
             if (!mnp) { const pv = document.getElementById('ar-prev'); if (pv) pv.value = ''; } else arPrevFill();
+            { const mv = isMvno(arVal('ar-carrier')); b.querySelectorAll('[data-mvno]').forEach(x => x.classList.toggle('hidden', !mv)); const pe = document.getElementById('ar-mvno-prev'); if (pe) pe.textContent = mv && arVal('ar-mvno') ? `보고서 · 고객카드에 ${carrierLabel(arVal('ar-carrier'), arVal('ar-mvno'))}로 나와요` : ''; }   // 📶 알뜰폰 브랜드 칸
             const uo = document.getElementById('ar-tg-usim'), usimOnly = !!(uo && uo.checked);
             b.querySelectorAll('[data-dev], [data-dev-sec]').forEach(x => x.classList.toggle('hidden', usimOnly));
             const sup = (document.querySelector('input[name="ar-sup"]:checked') || {}).value || '선약';
@@ -17677,6 +17684,7 @@ familyStr + `\n` +
                     ${!DL.length && isSuperAdmin ? '<p class="col-span-2 text-xs text-gray-500">💡 설정 → 🏪 매장 운영 → 개통 후 자동 약속에서 거래처를 등록하면, 여기서 고르기만 해도 요금제·부가·보험 유지가 자동으로 들어가요.</p>' : ''}
                     <div data-carwrap class="min-w-0 col-span-2">${arSel('ar-carrier', '통신사', [['', '- 선택 -'], ...AR_CARRIERS], car0, { req: true })}</div>
                     <div data-mnp class="hidden min-w-0">${arSel('ar-prev', '전통신사 (이동 전)', [['', '-'], 'SKT', 'KT', 'LG U+', '알뜰폰'], '')}</div>
+                    <div data-mvno class="${isMvno(car0) ? '' : 'hidden'} col-span-2 min-w-0">${arIn('ar-mvno', '알뜰폰 브랜드 (예: 세븐모바일)', isMvno(car0) ? (c.mvnoBrand || '') : '', { list: 'arMvnoList', ph: '예) 세븐모바일' })}<datalist id="arMvnoList">${mvnoBrandList().map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist><p id="ar-mvno-prev" class="mt-1 text-xs font-bold text-yellow-800"></p></div>
                     <div class="col-span-2 grid grid-cols-[1fr_120px] gap-2">${arIn('ar-plan', '요금제', c.plan || '', { ph: '예) 5G 프리미어 에센셜' })}${arIn('ar-planfee', '월요금 (원)', c.planFee ? arWon(c.planFee) : '', { num: true, ph: '0' })}</div>
                     <div class="col-span-2 rounded-xl bg-purple-50/70 border border-purple-100 p-2 space-y-2">
                         <div class="flex items-center gap-2"><span class="text-xs font-bold text-purple-900 flex-shrink-0">요금제 유지</span><select id="ar-k-plan" aria-label="요금제 유지 조건" class="flex-1 min-w-0 h-10 px-2 border border-purple-200 rounded-lg text-[14px] font-bold text-gray-900 bg-white"></select><span id="ar-k-plan-date" class="text-[13px] font-bold text-purple-800 flex-shrink-0"></span></div>
@@ -17904,7 +17912,9 @@ familyStr + `\n` +
             const dEl = document.getElementById('ar-date');
             if (dEl) dEl.addEventListener('change', () => { renderArItems(); arRecalc(); });
             const cEl2 = document.getElementById('ar-carrier');
-            if (cEl2) cEl2.addEventListener('change', () => renderArPicker());
+            if (cEl2) cEl2.addEventListener('change', () => { renderArPicker(); arSyncVis(); });
+            const mvEl = document.getElementById('ar-mvno');
+            if (mvEl) mvEl.addEventListener('input', () => arSyncVis());
             if (arMode === 'mobile') { arSetPlanKeep(arDefaultPlanCode()); arSyncVis(); arApplyDealer(arDealer); arStockHit = null; arStockSync(); arActPrefilled = ''; arActTarget = ''; arPrefillVals = {}; arActSync(); arUsimNote(); }   // 거래처 조건 (요금제 유지 · 부가·보험 줄) · 📦 재고 수
             else renderArItems();
             arRecalc();
@@ -18019,7 +18029,8 @@ familyStr + `\n` +
                 const r = arCalc();
                 const fam = arVal('ar-family');
                 const device = [[arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / ');
-                const typeStr = arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : (arVal('ar-carrier') ? ` (${arVal('ar-carrier')})` : ''));
+                const carL = carrierLabel(arVal('ar-carrier'), arVal('ar-mvno'));   // 📶 알뜰폰(SK)[세븐모바일]
+                const typeStr = arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${carL})` : (carL ? ` (${carL})` : ''));
                 const addonNames = arItems.filter(it => it.kind === '부가' && it.name).map(it => it.name).join(', ');
                 const insNames = arItems.filter(it => it.kind === '보험' && it.name).map(it => it.name).join(', ');
                 const feeOf = (id) => arNum(id) > 0 ? ` (${arWon(arNum(id))}원)` : '';
@@ -18113,7 +18124,7 @@ familyStr + `\n` +
                 const d = arVal('ar-date'), model = usimOnly ? '' : arVal('ar-model');
                 const n = parseInt(arVal('ar-inst'), 10);
                 Object.assign(upd, {
-                    name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), activationDate: d,
+                    name: arVal('ar-name'), phone: formatPhone(digits), carrier: arVal('ar-carrier'), mvnoBrand: isMvno(arVal('ar-carrier')) ? arVal('ar-mvno').slice(0, 30) : '', activationDate: d,
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-shop'), openDealer: arVal('ar-store'), repManager: arVal('ar-manager'),   // 🏪 V227 개통점 = 우리 매장 · 개통거래처 = 거래처
                     plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: '', insurance: '',
                     ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee'), fee: `${arWon(arNum('ar-planfee'))}원` } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금 · V205 고객카드 월 요금도
@@ -18129,7 +18140,7 @@ familyStr + `\n` +
                     repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('ar-address'), repFamily: arVal('ar-family'),
                     repUsedPhone: usedPhoneText(arUsedPhone()), repBranch: arVal('ar-branch'), repSubsidy: arVal('ar-subsidy'), repTargetPlan: arVal('ar-target'),
                     repInternetTv: arVal('ar-inttv'), repCombination: arVal('ar-comb'),
-                    repType: arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${arVal('ar-carrier')})` : ''),
+                    repType: arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${carrierLabel(arVal('ar-carrier'), arVal('ar-mvno'))})` : ''),
                     repUsim: [arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / '), repUsimPay: arVal('ar-usimfee'),
                     repInstallment: arVal('ar-inst'), repDiscount: r.sup === '공시' ? '공시' : (arVal('ar-term') === '무약정' ? '무약정' : `선약 ${arVal('ar-term')}`)
                 });
@@ -18163,7 +18174,7 @@ familyStr + `\n` +
                 const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
                 const usimHit = arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null;
                 if (usimHit && !(sameAct && sameAct.usimStockId)) usimNewId = usimHit.id;
-                const actRec = { date: d, kind: '무선', staff: arVal('ar-manager') || getStaffName() || '', store: arVal('ar-store'), shop: arVal('ar-shop'), carrier: arVal('ar-carrier'), actType: arVal('ar-type'), plan: arVal('ar-plan'), model: model || undefined, color: model ? arVal('ar-color') || undefined : undefined,
+                const actRec = { date: d, kind: '무선', staff: arVal('ar-manager') || getStaffName() || '', store: arVal('ar-store'), shop: arVal('ar-shop'), carrier: arVal('ar-carrier'), mvno: (isMvno(arVal('ar-carrier')) && arVal('ar-mvno').slice(0, 30)) || undefined, actType: arVal('ar-type'), plan: arVal('ar-plan'), model: model || undefined, color: model ? arVal('ar-color') || undefined : undefined,
                     planFee: arNum('ar-planfee') || undefined, device: model ? [model, arVal('ar-color')].filter(Boolean).join(' ') : (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), serial: usimOnly ? '' : arVal('ar-serial'), usim: arVal('ar-usim'),
                     used: arUsedPhone() || undefined, promKeys: arKeepPlan().map(k => k.key), dist: arNum('ar-dist') || undefined,
                     stockId: arStockHit && !usimOnly && stockSerialMatch(arStockHit.serial, arVal('ar-serial')) ? arStockHit.id : undefined,
@@ -18188,12 +18199,12 @@ familyStr + `\n` +
                 upd.repAddons = [upd.addons].filter(Boolean).join(', '); upd.repInsurance = upd.insurance || '';
                 if (!upd.discountCard && names('제휴카드')) upd.discountCard = names('제휴카드');
                 if (keepLatest) {   // 예전 날짜 개통: 고객 '최근' 칸은 건드리지 않음
-                    ['carrier', 'activationDate', 'actType', 'prevCarrier', 'openStore', 'openDealer', 'plan', 'contractTerm', 'addons', 'insurance', 'planFee', 'fee', 'targetPlanFee', 'discountCard', 'usimFee', 'usimModel', 'usimSerial', 'discountType', 'salesStatusAt',
+                    ['carrier', 'mvnoBrand', 'activationDate', 'actType', 'prevCarrier', 'openStore', 'openDealer', 'plan', 'contractTerm', 'addons', 'insurance', 'planFee', 'fee', 'targetPlanFee', 'discountCard', 'usimFee', 'usimModel', 'usimSerial', 'discountType', 'salesStatusAt',
                         'device', 'deviceSerial', 'repDevice', 'repPrincipal', 'devicePrice', 'publicSupport', 'switchSupport', 'distSupport', 'prepay', 'cashPay', 'cardPay', 'unpaid', 'loanPrincipal', 'installment', 'installmentBaseDate',
                         'policyItems', 'repAddons', 'repInsurance', 'repType', 'repUsim', 'repUsimPay', 'repInstallment', 'repDiscount', 'repTargetPlan', 'usedPhone', 'repUsedPhone', 'missingDocs', 'missingDocsAt', 'missingDocsDue', 'wiredDate', 'internetProd', 'tvProd'].forEach(k => delete upd[k]);
                     Object.keys(upd).filter(k => /^prom(Plan|Addon\d?|Ins|Card|Other)(Date|Memo|Chk)$/.test(k)).forEach(k => delete upd[k]);
                 }
-                note = `[개통등록 ${d.slice(5).replace('-', '/')}] ${[arVal('ar-type'), arVal('ar-carrier'), model || arVal('ar-usim'), arVal('ar-plan')].filter(Boolean).join(' · ')}${arVal('ar-memo') ? ' / ' + arVal('ar-memo') : ''}`;
+                note = `[개통등록 ${d.slice(5).replace('-', '/')}] ${[arVal('ar-type'), carrierLabel(arVal('ar-carrier'), arVal('ar-mvno')), model || arVal('ar-usim'), arVal('ar-plan')].filter(Boolean).join(' · ')}${arVal('ar-memo') ? ' / ' + arVal('ar-memo') : ''}`;
             } else {
                 const items = [...document.querySelectorAll('input[name="hr-item"]:checked')].map(x => x.value);
                 const done = arVal('hr-status') === '완료';
@@ -18226,7 +18237,7 @@ familyStr + `\n` +
             upd.repManager = isM ? (keepStaff || (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager'))) : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
-                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (cur.deletedAt) upd.deletedAt = '';
                 if (cur.name && cur.name !== upd.name && !(await customConfirm(`기존 이름 '${cur.name}'을(를) '${upd.name}'(으)로 바꿀까요?`))) upd.name = cur.name;
@@ -18240,7 +18251,7 @@ familyStr + `\n` +
             try {
                 await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
                 if (isM) stockAfterActSave(digits, upd.name, arVal('ar-date'), usimNewId);   // 📦 재고에서 고른 단말 → '개통' · 💳 유심 재고 1개 빼기
-                if (isM) { try { gdAfterAct(digits, arVal('ar-date')); } catch (e) { console.warn(e); } }   // 📝 안내서와 묶기 (V202)
+                if (isM) { try { const uo = !!(document.getElementById('ar-tg-usim') || {}).checked || /^유심/.test(arVal('ar-type')); await gdAfterAct(digits, arVal('ar-date'), { usimOnly: uo, model: uo ? '' : arVal('ar-model'), serial: uo ? '' : arVal('ar-serial') }); } catch (e) { console.warn(e); } }   // 📝 안내서와 묶기 (V202 · 3️⃣ 4️⃣ 조건 확인)
                 const fEl = document.getElementById('ar-files');
                 const files = fEl ? [...(fEl.files || [])] : [];
                 closeActReg();
@@ -19713,7 +19724,7 @@ familyStr + `\n` +
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
         const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee']);
         let gdList = [], gdListReady = false, gdUnsub = null, gdFilter = '', gdQuery = '';
-        let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '';
+        let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '', gdArG = null;   // gdArG: [안내서로 채우기]한 안내서 (저장할 때 번호 확인)
         const gdSignCache = new Map(), gdImgCache = new Map();
 
         const gdNum = (v) => Math.max(0, Math.round(Number(String(v ?? '').replace(/[^\d]/g, '')) || 0));
@@ -19784,6 +19795,7 @@ familyStr + `\n` +
             return [...new Set(out)].slice(0, 18);
         }
         function gdStoreDefault() { const m = gdLS('gdStore', {}) || {}; return { name: String(m.name || appSettings.guideStoreName || msgStoreName() || '').trim().slice(0, 40), tel: String(m.tel || appSettings.guideStoreTel || '').trim().slice(0, 30) }; }
+        function gdCarLabel(g) { if (!g || g.carrier !== '알뜰폰') return (g && g.carrier) || ''; const b = String(g.mvnoName || '').trim(); return `알뜰폰${g.mvnoNet ? `(${g.mvnoNet})` : ''}${b ? ` ${b}` : ''}`; }   // 📶 알뜰폰(SK) 세븐모바일
         function gdTitle(g) { return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
         function gdFindCust(phone) { const d = phoneDigits(phone); if (!/^01\d{8,9}$/.test(d)) return null; return customerDB.find(c => c.id === d || phoneDigits(c.phone) === d) || null; }
         function gdCarOf(v) { return /^알뜰/.test(String(v || '')) ? '알뜰폰' : (GD_CARRIERS.includes(v) ? v : ''); }
@@ -19991,6 +20003,7 @@ familyStr + `\n` +
             g.promises = (g.promises || []).filter(p => !p.fromDealer);
             if (d) {
                 if (gdCarOf(d.carrier)) g.carrier = gdCarOf(d.carrier);
+                if (mvnoNetOf(d.carrier)) g.mvnoNet = mvnoNetOf(d.carrier);   // 📶 거래처가 알뜰폰(SK)면 망도
                 d.addons.filter(a => a.code).forEach(a => g.promises.push({ kind: '부가', name: a.name, code: a.code, fromDealer: true }));
                 if (d.ins.code) g.promises.push({ kind: '보험', name: d.ins.name, code: d.ins.code, fromDealer: true });
             }
@@ -20171,7 +20184,7 @@ familyStr + `\n` +
             if (g.store.tel) T(g.store.tel, R, y + 38, 13, 500, '#374151', 'right');
             y += 58; x.fillStyle = '#111827'; x.fillRect(L, y, IW, 2); y += 22;
             // ② 기종 + 통신사 · 개통종류 · 개통일
-            const chips = [g.carrier, g.actType, g.date ? `개통일 ${gdMD(g.date)}` : ''].filter(Boolean), chipW = chips.map(s => tw(s, 13, 700) + 24);
+            const chips = [gdCarLabel(g), g.actType, g.date ? `개통일 ${gdMD(g.date)}` : ''].filter(Boolean), chipW = chips.map(s => tw(s, 13, 700) + 24);
             let cx = R;
             for (let i = chips.length - 1; i >= 0; i--) { cx -= chipW[i]; const dark = chips[i] === g.actType; box(cx, y, chipW[i], 26, dark ? { fill: '#111827', r: 13 } : { stroke: '#9CA3AF', r: 13 }); T(chips[i], cx + chipW[i] / 2, y + 18, 13, 700, dark ? '#FFFFFF' : '#111827', 'center'); cx -= 6; }
             let head = dev ? (g.dev.name || g.dev.code || '단말기') : '유심단독', hs = 23;
@@ -20460,6 +20473,7 @@ familyStr + `\n` +
                 </div>`);
             h += gdSec('개통', `${gdChips('kind', [['dev', '📱 단말 구매'], ['usim', '💳 유심단독']], g.kind)}
                 <div><span class="block text-xs font-bold text-gray-600 mb-1"><span class="text-red-600">*</span> 통신사</span>${gdChips('carrier', GD_CARRIERS.map(v => [v, v]), g.carrier)}</div>
+                ${g.carrier === '알뜰폰' ? `<div class="rounded-xl border border-yellow-200 bg-yellow-50/60 p-2 space-y-2"><div><span class="block text-xs font-bold text-gray-600 mb-1">알뜰폰 망</span>${gdChips('mvnoNet', [['SK', 'SK망'], ['KT', 'KT망'], ['LG', 'LG망']], g.mvnoNet || '')}</div>${gdLbl('알뜰폰 브랜드', gdInp('mvnoName', g.mvnoName || '', { list: 'gdMvnoList', ph: '예) 세븐모바일' }))}<datalist id="gdMvnoList">${mvnoBrandList().map(v => `<option value="${escapeHtml(v)}"></option>`).join('')}</datalist></div>` : ''}
                 <div><span class="block text-xs font-bold text-gray-600 mb-1"><span class="text-red-600">*</span> 개통종류</span>${gdChips('actType', GD_TYPES.map(v => [v, v]), g.actType)}</div>
                 ${gdLbl('거래처', `<select data-gd="dealer" class="${gdCls}"><option value="">- 고르지 않음 -</option>${DL.map(d => `<option value="${escapeHtml(d.name)}" ${stockKey(d.name) === stockKey(g.dealer) ? 'selected' : ''}>${escapeHtml(d.name)}${d.carrier ? ` · ${escapeHtml(d.carrier)}` : ''}</option>`).join('')}<option value="__direct" ${(g.dealer && !dIn) || g.dealerDirect ? 'selected' : ''}>✏️ 직접 입력</option></select>${(g.dealer && !dIn) || g.dealerDirect ? gdInp('dealerText', g.dealer, { cls: 'mt-1.5', ph: '거래처 이름' }) : ''}`)}
                 ${dd ? `<p class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 leading-relaxed">🏢 ${escapeHtml(dd.name)} 조건 · ${escapeHtml(dealerSummary(dd))}</p>` : ''}`);
@@ -20674,7 +20688,7 @@ familyStr + `\n` +
                 ...(g.gift ? [`사은품: ${escapeHtml(g.gift)}`] : [])
             ];
             return `<section class="rounded-2xl border border-gray-200 bg-white overflow-hidden"><h3 class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[16px] font-extrabold text-gray-900">오늘 개통 내용</h3>
-                ${row('휴대폰', dev ? (g.dev.name || g.dev.code || '-') : '유심단독 (단말기 없음)')}${row('통신사 · 개통', `${g.carrier} · ${g.actType}`)}${row('요금제', g.plan.name || '-')}${dev ? row('할부', c.n ? `${c.n}개월 (할부원금 ${arWon(c.loan)}원)` : (c.loan ? `완납 · 오늘 ${arWon(c.loan)}원` : '없음')) : ''}${(() => { const t = [c.icard ? `할부카드${String(g.dev.cardName || '').trim() ? ` ${String(g.dev.cardName).trim()}` : ''} -${arWon(c.icard)}원` : '', c.card ? `요금DC${String(g.plan.cardName || '').trim() ? ` ${String(g.plan.cardName).trim()}` : ''} 매달 -${arWon(c.card)}원` : ''].filter(Boolean).join(' · '); return t ? row('카드 할인', t) : ''; })()}
+                ${row('휴대폰', dev ? (g.dev.name || g.dev.code || '-') : '유심단독 (단말기 없음)')}${row('통신사 · 개통', `${gdCarLabel(g)} · ${g.actType}`)}${row('요금제', g.plan.name || '-')}${dev ? row('할부', c.n ? `${c.n}개월 (할부원금 ${arWon(c.loan)}원)` : (c.loan ? `완납 · 오늘 ${arWon(c.loan)}원` : '없음')) : ''}${(() => { const t = [c.icard ? `할부카드${String(g.dev.cardName || '').trim() ? ` ${String(g.dev.cardName).trim()}` : ''} -${arWon(c.icard)}원` : '', c.card ? `요금DC${String(g.plan.cardName || '').trim() ? ` ${String(g.plan.cardName).trim()}` : ''} 매달 -${arWon(c.card)}원` : ''].filter(Boolean).join(' · '); return t ? row('카드 할인', t) : ''; })()}
                 <div class="px-4 py-3 bg-indigo-50"><div class="flex items-baseline justify-between gap-3"><span class="${fs} font-bold text-indigo-800">매달 내실 금액</span><b class="text-[28px] font-extrabold text-indigo-950">${arWon(c.total)}원</b></div><div class="text-right text-[14px] text-indigo-700">휴대폰 ${arWon(c.month)}원 + 요금 ${arWon(c.planNet)}원</div>${c.addFee ? `<div class="text-right text-[14px] font-bold text-indigo-800 mt-0.5">+ 부가 · 보험 월 ${arWon(c.addFee)}원 (유지 기간 동안)</div>` : ''}</div></section>
                 ${proms.length ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3"><h3 class="text-[16px] font-extrabold text-amber-900 mb-1">매장과 한 약속</h3><ul class="list-disc pl-5 ${fs} leading-relaxed text-amber-950 space-y-0.5">${proms.map(p => `<li>${p}</li>`).join('')}</ul></section>` : ''}`;
         }
@@ -20776,6 +20790,7 @@ familyStr + `\n` +
             if (g.store.tel) ls.push(`문의 ${g.store.tel}`);
             return ls.join('\n');
         }
+        function gdRo(w) { const m = String(w || '').match(/[가-힣](?=[^가-힣]*$)/); if (!m) return '로'; const j = (m[0].charCodeAt(0) - 0xAC00) % 28; return j === 0 || j === 8 ? '로' : '으로'; }   // 문자앱'으로' · 공유'로' · 사진 문자'로'
         function gdOpenUrl(u) { if (typeof window.__gdOpen === 'function') { window.__gdOpen(u); return; } window.location.href = u; }
         function gdFileName(g) { return `구매안내서_${String(g.name || phoneDigits(g.phone).slice(-4) || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date).replace(/-/g, '')}.jpg`; }
         async function gdMarkSent(g, via, card) {
@@ -20813,9 +20828,11 @@ familyStr + `\n` +
                 if (!to) { status('고객 휴대폰 번호가 없어요.', 'red'); return; }
                 let link = '';
                 if (pushRelayReady()) { try { link = await gdUploadImage(g, url); } catch (e) { if (mode === 'auto') throw e; } }
-                if (mode === 'app') {
+                if (mode === 'app') {   // 7️⃣ 문자앱은 여는 것만 · 실제로 보냈는지는 직원이 [보냈어요]를 눌러야 '보냄'으로
                     gdOpenUrl(smsHref(to, withLink(link)));
-                    await gdMarkSent(g, '문자앱', !!card); status(link ? '💬 문자앱을 열었어요 (안내서 링크 포함).' : '💬 문자앱을 열었어요. 중계 서버를 연결하면 안내서 사진 링크도 같이 가요.', 'green');
+                    status(link ? '💬 문자앱을 열었어요 (안내서 링크 포함). 보냈으면 아래 [보냈어요]를 눌러 주세요.' : '💬 문자앱을 열었어요. 보냈으면 아래 [보냈어요]를 눌러 주세요. (중계 서버를 연결하면 안내서 사진 링크도 같이 가요)', 'gray');
+                    const msg = document.getElementById('gdSendMsg'), old = document.getElementById('gdSentOk'); if (old) old.remove();
+                    if (msg) msg.insertAdjacentHTML('afterend', `<button type="button" id="gdSentOk" data-gd-sentok="${card ? '1' : ''}" class="w-full h-11 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-900 text-[14px] font-bold">✅ 문자 보냈어요 (보냄으로 표시)</button>`);
                     return;
                 }
                 status('매장 폰으로 보내는 중…', 'gray');
@@ -20833,7 +20850,7 @@ familyStr + `\n` +
             const g = gd, relay = pushRelayReady(), canDel = gdCanDel(g);   // V232 대표가 정한 규칙
             document.getElementById('gdTitle').textContent = gdStage === 'done' ? '서명 완료' : '구매 안내서';
             document.getElementById('gdDraft').classList.add('hidden');
-            const sentTxt = g.sent ? `📩 ${gdMD(isoDay(g.sent.at))} ${gdHM(g.sent.at)} ${escapeHtml(g.sent.via || '')}로 보냄` : '';
+            const sentTxt = g.sent ? `📩 ${gdMD(isoDay(g.sent.at))} ${gdHM(g.sent.at)} ${escapeHtml(g.sent.via || '')}${gdRo(g.sent.via)} 보냄` : '';
             gdInner.innerHTML = `<section class="rounded-2xl border ${gdStage === 'done' ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} px-4 py-3">
                     <p class="text-[16px] font-extrabold ${gdStage === 'done' ? 'text-emerald-900' : 'text-gray-900'}">${gdStage === 'done' ? '✅ 서명 받았어요 · 저장했어요' : `✍ ${escapeHtml(gdTitle(g))}`}</p>
                     <p class="text-[13px] text-gray-700 mt-0.5 leading-relaxed">${escapeHtml(g.name || '이름 없음')} · ${escapeHtml(formatPhone(phoneDigits(g.phone)))}<br>${g.signed ? `${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명 · ${escapeHtml(g.signed.by || '')}` : ''}${sentTxt ? ` · ${sentTxt}` : ''}<br>${g.act ? `<span class="font-bold text-emerald-800">✅ ${gdMD(g.act.date)} 개통등록 됨</span>` : '<span class="font-bold text-amber-800">⏳ 아직 개통등록 전</span>'}</p></section>
@@ -20862,6 +20879,7 @@ familyStr + `\n` +
         gdInner.addEventListener('click', async (e) => {
             if (gdStage !== 'done' && gdStage !== 'view') return;
             const s = e.target.closest('[data-gd-send]'); if (s) { gdSend(s.dataset.gdSend, s); return; }
+            const ok = e.target.closest('[data-gd-sentok]'); if (ok && gd) { ok.disabled = true; await gdMarkSent(gd, '문자앱', ok.dataset.gdSentok === '1'); gdRender(); return; }   // 7️⃣
             if (e.target.closest('[data-gd-act]')) { const g = gd, c = customerDB.find(x => x.id === g.custId) || gdFindCust(g.phone); gdClose(); setTimeout(() => { openActReg(c || null, 'mobile'); setTimeout(() => gdApplyToAr(g), 50); }, 0); return; }
             if (e.target.closest('[data-gd-copy]')) { gd = gdCopyOf(gd, false); gdDirty = true; gdStage = 'edit'; gdRender(); stockToast('📄 복사했어요 · 고쳐서 새로 서명받아요'); return; }
             if (e.target.closest('[data-gd-copy2]')) { gdCopyOther(gd); return; }
@@ -20881,7 +20899,7 @@ familyStr + `\n` +
 
         /* ---------- 📋 개통등록: [안내서로 채우기] · 저장하면 안내서와 묶기 ---------- */
         function gdArBanner() {
-            gdArId = '';
+            gdArId = ''; gdArG = null;
             if (arMode !== 'mobile' || !arCust) return;
             const p = gdPendingFor(customerDB.find(x => x.id === arCust.id) || arCust);
             const body = document.getElementById('arBody');
@@ -20915,8 +20933,11 @@ familyStr + `\n` +
             if (ss && d) { ss.value = d.id; ss.dispatchEvent(new Event('change', { bubbles: true })); }
             else if (ss && g.dealer) { ss.value = '__direct'; ss.dispatchEvent(new Event('change', { bubbles: true })); set('ar-store', g.dealer); }
             else if (g.dealer) set('ar-store', g.dealer);
-            const car = { SKT: 'SKT', KT: 'KT', 'LG U+': 'LG U+' }[g.carrier];
+            const car = { SKT: 'SKT', KT: 'KT', 'LG U+': 'LG U+' }[g.carrier]
+                || (g.carrier === '알뜰폰' ? (g.mvnoNet ? `알뜰폰(${g.mvnoNet})` : (/^알뜰폰\(/.test(poncleCarrier(g.mvnoName)) ? poncleCarrier(g.mvnoName) : '')) : '');   // 📶 알뜰폰 → 알뜰폰(SK)/(KT)/(LG) · 망을 모르면 브랜드 이름으로
             if (car) set('ar-carrier', car);
+            if (g.carrier === '알뜰폰' && String(g.mvnoName || '').trim()) set('ar-mvno', String(g.mvnoName).trim());
+            try { arSyncVis(); } catch (e) { /* 무시 */ }
             set('ar-plan', g.plan.name); money('ar-planfee', g.plan.fee);
             set('ar-target', g.keep.target); money('ar-targetfee', g.keep.targetFee);
             if (g.keep.code !== undefined) { arSetPlanKeep(g.keep.code || 'NONE'); arPlanSrc = 'user'; }
@@ -20945,20 +20966,41 @@ familyStr + `\n` +
             const extra = [g.gift ? `사은품: ${g.gift}` : '', ...(g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && gdNum(p.fee)).map(p => `${p.kind} ${String(p.name || '').trim() || ''} 월 ${arWon(gdNum(p.fee))}원`), ...(g.promises || []).filter(p => p.kind === '기타' && String(p.name || '').trim()).map(p => `약속: ${p.name}${p.code ? ` (${keepLabel(p.code)})` : ''}`)].filter(Boolean).join(' · ');
             const memo = document.getElementById('ar-memo'); if (memo && extra && !memo.value.includes(extra)) memo.value = [memo.value.trim(), `📝 안내서 · ${extra}`].filter(Boolean).join('\n');
             try { renderArItems(); arSyncVis(); arRecalc(); } catch (e) { console.warn(e); }
-            gdArId = g.id;
+            gdArId = g.id; gdArG = { id: g.id, custId: g.custId || '', phone: phoneDigits(g.phone), name: g.name || '' };
+            const fp = phoneDigits(arVal('ar-phone')), gp = phoneDigits(g.phone), nameDiff = arVal('ar-name') && g.name && arVal('ar-name').replace(/\s/g, '') !== String(g.name).replace(/\s/g, '');
+            const warn = (fp && gp && fp !== gp) || nameDiff ? `<span class="block mt-1 text-xs font-bold text-red-700">⚠ 안내서 고객(${escapeHtml(g.name || '')} ${escapeHtml(formatPhone(gp))})과 이 칸의 ${fp && gp && fp !== gp ? '번호' : '이름'}가 달라요. 맞는지 확인해 주세요.</span>` : '';   // 4️⃣ 번호 · 이름이 다르면 바로 알려줌
             const bn = document.getElementById('arGuideBanner');
-            if (bn) bn.innerHTML = `<span class="flex-1 min-w-0"><b class="block text-[14px] text-teal-900">✅ 안내서로 채웠어요</b><span class="block text-xs text-teal-800">${g.kind === 'usim' ? '유심 일련번호' : '일련번호(바코드)'} · 정산만 넣고 저장하세요. 저장하면 안내서와 묶여요.</span></span>`;
+            if (bn) bn.innerHTML = `<span class="flex-1 min-w-0"><b class="block text-[14px] text-teal-900">✅ 안내서로 채웠어요</b>${warn}<span class="block text-xs text-teal-800">${g.kind === 'usim' ? '유심 일련번호' : '일련번호(바코드)'} · 정산만 넣고 저장하세요. 저장하면 안내서와 묶여요.</span></span>`;
             stockToast('📝 안내서 내용을 채웠어요');
         }
-        function gdAfterAct(custId, date) {
-            let id = gdArId; gdArId = '';
+        // 저장한 개통을 안내서와 묶기 · info = { usimOnly, model, serial } (개통등록 칸 값)
+        //  3️⃣ [채우기]를 안 눌렀으면: 3일 안 · 같은 종류(단말/유심) · 단말이면 기종이나 일련번호가 맞는 안내서가 딱 하나일 때만 자동으로
+        //  4️⃣ [채우기]를 눌렀는데 개통번호가 안내서 번호와 다르면: 묶을지 한 번 물어봄 (아니오 → 안 묶음)
+        async function gdAfterAct(custId, date, info = {}) {
+            let id = gdArId, ix = gdArG; gdArId = ''; gdArG = null;
             const c = customerDB.find(x => x.id === custId);
-            if (!id && c) { const p = gdPendingFor(c).filter(e => Math.abs((Date.parse(e.d) - Date.parse(date)) / 864e5) <= 3); if (p.length === 1) id = p[0].id; }   // [채우기]를 안 눌러도 3일 안에 서명한 안내서가 하나면 묶음
+            if (id && ix && ix.phone && ix.phone !== custId) {
+                if (!(await customConfirm(`[안내서로 채우기]한 안내서는 ${ix.name || '다른 고객'}(${formatPhone(ix.phone)}) 것인데\n개통번호는 ${formatPhone(custId)}예요.\n\n이 개통을 그 안내서와 묶을까요? (그 안내서가 '개통등록 됨'이 돼요)\n[취소] → 안 묶어요`))) { stockToast('안내서와 묶지 않았어요 (번호가 달라요)'); return; }
+            }
+            if (!id && c) {
+                const near = gdPendingFor(c).filter(e => Math.abs((Date.parse(e.d) - Date.parse(date)) / 864e5) <= 3 && (e.k === 'usim') === !!info.usimOnly);
+                const mk = (v) => stockKey(v || ''), am = mk(info.model), as = String(info.serial || '').replace(/\s/g, '').toUpperCase();
+                const hits = [];
+                for (const e of near) {
+                    if (e.k === 'usim') { hits.push(e.id); continue; }
+                    const g = await gdGet(e.id); if (!g || !g.dev) continue;
+                    const gs = String(g.dev.serial || '').replace(/\s/g, '').toUpperCase();
+                    const sameModel = am.length >= 3 && [g.dev.code, g.dev.name].map(mk).some(k => k.length >= 3 && (k === am || k.includes(am) || am.includes(k)));
+                    if ((gs && as && gs === as) || sameModel) hits.push(e.id);
+                }
+                if (hits.length === 1) id = hits[0];
+            }
             if (!id) return;
             const act = { date, at: new Date().toISOString(), by: getStaffName() || '' };
             setDoc(doc(db, 'smart_guides', id), { act }, { merge: true }).catch(e => console.warn(e));
             const hit = gdList.find(x => x.id === id); if (hit) hit.act = act;
-            txCustomerUpdate(custId, (cur) => (Array.isArray(cur.guides) && cur.guides.some(e => e && e.id === id) ? { guides: cur.guides.map(e => e && e.id === id ? { ...e, act: date } : e), __audit: '자동' } : {})).catch(e => console.warn(e));
+            const mark = (cur) => (Array.isArray(cur.guides) && cur.guides.some(e => e && e.id === id) ? { guides: cur.guides.map(e => e && e.id === id ? { ...e, act: date } : e), __audit: '자동' } : {});
+            [...new Set([custId, ix && ix.custId].filter(Boolean))].forEach(cid => txCustomerUpdate(cid, mark).catch(e => console.warn(e)));   // 안내서 기록이 있는 고객카드(안내서 고객)도 같이
         }
 
         /* ---------- 📝 안내서 탭 (고객 · 재고 사이) ---------- */
@@ -24322,7 +24364,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V240';
+        const APP_VER = 'V241';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24330,6 +24372,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V241', d: '2026-11-01', items: [
+                ['📝 안내서 자동 묶기를 더 꼼꼼하게: [안내서로 채우기]를 안 눌렀으면 3일 안 · 같은 종류(단말/유심) · 기종이나 일련번호가 맞는 안내서가 하나일 때만 \'개통등록 됨\' (유심 기변만 했는데 단말 안내서가 묶이던 것 고침)'],
+                ['⚠ 안내서로 채운 뒤 이름 · 번호가 안내서 고객과 다르면 빨간 글씨로 알려주고, 저장할 때 그 안내서와 묶을지 한 번 물어봐요'],
+                ['📶 알뜰폰 브랜드 칸: 통신사를 알뜰폰(SK)/(KT)/(LG)로 고르면 브랜드(세븐모바일 · 헬로모바일 …)를 넣을 수 있어요 · 보고서 · 고객카드에 알뜰폰(SK)[세븐모바일]로 · 안내서도 망(SK/KT/LG) + 브랜드를 넣으면 개통등록에 그대로'],
+                ['💬 안내서 [문자앱]은 문자앱만 열고, [✅ 문자 보냈어요]를 눌러야 \'보냄\'으로 표시 (안 보내고 돌아와도 보냄으로 나오던 것 고침)']] },
             { v: 'V240', d: '2026-11-01', items: [
                 ['🤝 복지할인 고침: 기초생활(생계·의료)은 월정액에서 최대 28,600원 (50%는 따로 나오는 음성·데이터 통화료에만 · V238~V239는 남은 월정액에도 50%를 붙여서 최대 8,250원 많게 나왔어요) · 그 사이 서명한 안내서는 서명한 금액 그대로']] },
             { v: 'V239', d: '2026-11-01', items: [
