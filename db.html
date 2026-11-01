@@ -10056,8 +10056,88 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 profileKV('유선 월요금', profileValue(c.wiredFee)),
                 profileKV('가입/재약정일', profileValue(c.wiredDate)),
                 profileKV('약정 만료(36개월)', endHtml)
-            ].join('');
+            ].join('') + wiredNowHtml(c);
         }
+        /* =====================================================================
+           🏠 V244 지금 바꾸면 (인터넷 · TV) — 고객카드 유선 탭 · 모바일 '🔄 지금 바꾸면'처럼
+           · 위약금 계산기(/telecom-calc/)의 wired-core.js를 그대로 불러서 계산 (상품표 · 산식이 하나 → 계산기를 고치면 여기도)
+           · 통신사: 고른 값 → 유선 거래처의 통신사 → 상품 · 결합 · 거래처 이름 → 모바일 통신사 (추정이면 알려줌)
+           · 상품: 인터넷 · TV · 결합 이름으로 계산기 상품을 추정 (못 찾으면 계산기 기본 상품 · 알려줌) → [계산기에서 자세히]로 바로 고쳐 보기
+           ===================================================================== */
+        const wnCarPick = {};   // 고객별로 이 화면에서 고른 통신사 (저장 안 함)
+        let wnLoad = '';
+        function wnLoadCore() {
+            if (window.WiredCalc || wnLoad) return;
+            wnLoad = 'loading';
+            const sc = document.createElement('script');
+            sc.src = new URL('/telecom-calc/wired-core.js?v=1', location.href).href;
+            sc.onload = () => { wnLoad = 'ok'; if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } };
+            sc.onerror = () => { wnLoad = 'fail'; if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } };
+            document.head.appendChild(sc);
+        }
+        function wnCarOf(c) {
+            if (wnCarPick[c.id]) return { ck: wnCarPick[c.id], how: 'pick' };
+            const map = (t) => { t = String(t || ''); return /LG|U\+|유플/i.test(t) ? 'LG' : (/SK|B\s*tv|브로드밴드/i.test(t) ? 'SK' : (/KT|케이티|올레|olleh|지니/i.test(t) ? 'KT' : '')); };
+            const d = c.wiredOpenStore ? dealerByName(c.wiredOpenStore) : null;
+            const fromDealer = d && map(d.carrier); if (fromDealer) return { ck: fromDealer, how: 'dealer' };
+            const fromText = map([c.wiredOpenStore, c.internetProd, c.tvProd, c.combination].join(' ')); if (fromText) return { ck: fromText, how: 'text' };
+            const fromMobile = map(isMvno(c.carrier) ? '' : c.carrier); if (fromMobile) return { ck: fromMobile, how: 'mobile' };
+            return { ck: 'LG', how: 'none' };
+        }
+        function wnInfo(c) {
+            if (!window.WiredCalc || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) return null;
+            const car = wnCarOf(c), g = WiredCalc.guess(car.ck, { internet: c.internetProd, tv: c.tvProd, combo: c.combination });
+            if (!g) return null;
+            const r = WiredCalc.estimate({ ...g, start: c.wiredDate, end: getTodayStr() });
+            return r ? { car, g, r } : null;
+        }
+        function wnCalcUrl(c, I) {
+            const u = new URL('/telecom-calc/', location.href), q = u.searchParams;
+            q.set('from', 'crm'); if (c.name) q.set('name', String(c.name).slice(0, 20));
+            if (I) { const g = I.g; q.set('carrier', g.carrier); q.set('start', c.wiredDate); q.set('tab', g.tab); q.set('int', g.intId); q.set('wifi', g.wifiId); q.set('tv', g.tvId); q.set('stb', g.stbId); q.set('bundle', g.bundleId); if (g.tvCount === 2) q.set('tv2', '1'); }
+            else { q.set('carrier', wnCarOf(c).ck); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) q.set('start', c.wiredDate); }
+            return u.href;
+        }
+        function wnText(c, I) {
+            const r = I.r, P = r.p, W = (n) => `${arWon(n)}원`;
+            return [`[${msgStoreName()}] ${c.name ? `${c.name}님 ` : ''}인터넷 · TV 약정 안내`, `· ${r.carrierName} · ${gdDot(c.wiredDate)} 가입 · 3년 약정 ${gdDot(r.contractEnd)} 끝`,
+                r.remainM > 0 && r.total > 0 ? `· 지금 해지하면 대략 ${W(r.total)} (인터넷 ${W(P.internet)} · TV ${W(P.tv)}${P.bundle ? ` · 결합 ${W(P.bundle)}` : ''}${P.equip ? ` · 장비 ${W(P.equip)}` : ''})` : '· 약정이 끝나서 위약금 없이 바꿀 수 있어요',
+                '※ 대략값이에요. 정확한 금액은 통신사 조회 기준이에요.'].join('\n');
+        }
+        function wiredNowHtml(c) {
+            if (!window.WiredCalc && wnLoad !== 'fail') { wnLoadCore(); return '<p class="mt-3 text-xs text-gray-500" data-wired-now>🏠 위약금 계산기를 불러오는 중…</p>'; }
+            const car = wnCarOf(c), btns = (I) => `<div class="mt-2 grid grid-cols-2 gap-1.5"><button type="button" data-wn-calc class="h-10 rounded-lg bg-indigo-600 text-white text-[13px] font-bold">🧮 계산기에서 자세히</button><button type="button" data-wn-copy ${I ? '' : 'disabled'} class="h-10 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-[13px] font-bold disabled:opacity-50">📋 안내 문구 복사</button></div>`;
+            const chips = `<span class="flex gap-1">${[['SK', 'SKT'], ['KT', 'KT'], ['LG', 'LG U+']].map(([k, l]) => `<button type="button" data-wn-car="${k}" class="h-7 px-2 rounded-full border text-[11px] font-bold ${car.ck === k ? 'bg-sky-700 border-sky-700 text-white' : 'bg-white border-sky-200 text-sky-800'}">${l}</button>`).join('')}</span>`;
+            const head = (sub) => `<div class="flex items-center justify-between gap-2 mb-1"><p class="text-[14px] font-extrabold text-sky-900">🏠 지금 바꾸면 <span class="text-[12px] font-bold">(인터넷 · TV)</span></p>${chips}</div>${sub ? `<p class="text-[11px] text-sky-700 -mt-0.5 mb-1">${sub}</p>` : ''}`;
+            const box = (inner) => `<div class="mt-3 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-2.5" data-wired-now>${inner}</div>`;
+            if (wnLoad === 'fail') return box(head('') + '<p class="text-[13px] text-gray-700">위약금 계산기를 못 불러왔어요 (인터넷 확인). [계산기에서 자세히]로 열어 보세요.</p>' + btns(null));
+            const I = wnInfo(c);
+            const carHow = { pick: '', dealer: '유선 거래처 기준', text: '상품 이름으로 추정', mobile: '모바일 통신사로 추정 · 다르면 위에서 골라요', none: '통신사를 몰라요 · 위에서 골라요' }[car.how];
+            if (!I) return box(head(carHow) + '<p class="text-[13px] text-gray-700">유선 가입(재약정)일을 넣으면 위약금이 계산돼요. <span class="text-gray-500">[수정] → 결합 · 가족 · 유선</span></p>' + btns(null));
+            const { r, g } = I, P = r.p, amt = (n) => n ? `약 <b>${arWon(n)}원</b>` : '<span class="text-gray-500">없어요</span>';
+            const done = r.remainM <= 0 || r.days >= 1095 || r.total <= 0;
+            const left = getWiredDaysLeft(c.wiredDate);
+            const verdict = done ? '✅ 약정이 끝나서 위약금 없이 바꿀 수 있어요' : (left !== null && left <= WIRED_TARGET_DAYS ? `⏳ 약정 ${r.remainM}개월 남음 · ${gdDot(r.contractEnd)}부터 위약금 없이` : `약정 ${r.remainM}개월 남음 · 지금 해지하면 위약금이 있어요`);
+            const rows = [['약정', `3년 · ${gdDot(r.contractEnd)} 끝 ${done ? '<b class="text-emerald-700">(끝났어요)</b>' : `(<b>${r.remainM}개월</b> 남음)`}`]];
+            if (!done) { rows.push(['인터넷 할인반환금', amt(P.internet)], ['TV 할인반환금', amt(P.tv)]); if (P.bundle) rows.push(['결합할인 반환금', amt(P.bundle)]); if (P.equip) rows.push(['장비(공유기 · 셋톱)', amt(P.equip)]); }
+            const miss = [!g.matched.internet && c.internetProd ? '인터넷' : '', !g.matched.tv && c.tvProd ? 'TV' : '', !g.matched.bundle && c.combination ? '결합' : ''].filter(Boolean);
+            const prod = [g.names.internet, g.names.tv, g.names.bundle].filter(Boolean).map(x => escapeHtml(String(x).replace(/\s*\(.*?\)\s*/g, ' ').trim())).join(' · ');
+            return box(head(`${escapeHtml(r.carrierName)} · ${r.usedM}개월째 사용${carHow ? ` · ${carHow}` : ''}`)
+                + `<p class="text-[13px] font-bold text-gray-900 mb-1">${verdict}</p>`
+                + rows.map(([l, v]) => `<div class="flex items-start justify-between gap-3 py-0.5 text-[13px]"><span class="text-gray-600 flex-shrink-0">${l}</span><span class="text-right text-gray-900 leading-snug">${v}</span></div>`).join('')
+                + (!done ? `<p class="mt-1 pt-1.5 border-t border-sky-100 text-[13px] text-gray-900">지금 바꾸면 대략 <b class="text-[15px]">${arWon(r.total)}원</b></p>` : '')
+                + `<p class="text-[11px] text-gray-500 leading-snug mt-0.5">계산기 상품으로 계산: ${prod}${miss.length ? ` · <b class="text-amber-700">⚠ ${miss.join(' · ')} 이름을 못 찾아 기본 상품으로</b>` : ''} · 위약금${r.ptype} 기준 · 정확한 금액은 통신사 조회</p>`
+                + btns(I));
+        }
+        profileModal.addEventListener('click', async (ev) => {   // 🏠 V244
+            const cb = ev.target.closest('[data-wn-car]'), calc = ev.target.closest('[data-wn-calc]'), cp = ev.target.closest('[data-wn-copy]');
+            if ((!cb && !calc && !cp) || !currentProfileId) return;
+            const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
+            if (cb) { wnCarPick[c.id] = cb.dataset.wnCar; renderProfileCard(); return; }
+            const I = wnInfo(c);
+            if (calc) { window.open(wnCalcUrl(c, I), '_blank', 'noopener'); return; }
+            if (cp && I) { const ok = await copyTextSafe(wnText(c, I)); stockToast(ok ? '📋 안내 문구를 복사했어요 · 문자 · 카톡에 붙여넣기' : '복사가 막혔어요'); }
+        });
 
         // 📅 구글 캘린더 '일정 추가' 화면을 내용이 채워진 채로 열기 (저장만 누르면 됨, 하루 종일 일정)
         function buildCalendarUrl(c, label, date, memo) {
@@ -23301,7 +23381,12 @@ familyStr + `\n` +
                     if (!claimed) continue;
                     L.applied = true;
                     const E = callLogEntry(L, c);
-                    await txCustomerUpdate(c.id, (cur) => callLogPatch(L, c, cur, E));
+                    try { await txCustomerUpdate(c.id, (cur) => callLogPatch(L, c, cur, E)); }
+                    catch (e2) {   // 🛠 V244 고객카드에 못 썼으면 '반영 완료'를 되돌려서 다음에 다시 (예전엔 그 통화가 연락 기록에 영영 안 남았어요)
+                        L.applied = false;
+                        await setDoc(ref, { applied: false, appliedAt: '', appliedBy: '', applyFail: String((e2 && e2.message) || e2).slice(0, 120) }, { merge: true }).catch(() => {});
+                        throw e2;
+                    }
                 } catch (e) { console.warn('통화 기록 반영 실패:', e); }
                 finally { callApplying.delete(L.id); }
             }
@@ -24619,7 +24704,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V243';
+        const APP_VER = 'V244';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24627,6 +24712,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V244', d: '2026-11-01', items: [
+                ['🏠 고객카드 유선 탭에 "지금 바꾸면 (인터넷 · TV)": 위약금 계산기와 같은 식으로 인터넷 · TV · 결합 · 장비 위약금 대략값 · 약정 끝나는 날'],
+                ['🧮 [계산기에서 자세히] → 위약금 계산기가 통신사 · 가입일 · 상품을 채워서 열려요 · 📋 고객에게 보낼 안내 문구 복사'],
+                ['📞 콜매니저 통화가 고객카드 연락 기록에 못 들어갔을 때 다음에 다시 넣어요 (예전엔 빠진 채로 남았어요)']] },
             { v: 'V243', d: '2026-11-01', items: [
                 ['🎨 고객 정보(보기) 화면도 수정 화면과 같은 모양: 위에 고객 요약 칩(상태 · 통신사 · 개통 D+일 · 할인 · 담당 · 광고 · 명함 · 알림) · 회색 탭 · 흰 카드'],
                 ['👤 고객 상세(생일 · 개통점 · 거래처 · 명함 링크 …)는 접어서 시작 · 눌러서 펼쳐요'],
