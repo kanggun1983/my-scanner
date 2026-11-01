@@ -4334,6 +4334,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 try { pinCheckRequired(); renderPinSettings(); } catch (e) { /* 준비 전 */ }   // 🔒 V208
                 try { renderCallAppSettings(); } catch (e) { /* 준비 전 */ }   // 📞 V222
                 try { crmHrefSync(); } catch (e) { /* 준비 전 */ }   // 🔗 V224
+                { const rk = JSON.stringify([appSettings.roles || null, appSettings.staffRole || null]); if (rk !== window.__roleKey) { window.__roleKey = rk; try { applyAdminLocks(); renderRoleBox(); if (dbLoaded) renderDB(); } catch (e) { /* 준비 전 */ } } }   // 🎖 V247 직급 · 권한이 바뀌면 바로
                 migrateCardSendStatus();
                 migrateCardContact();
                 try { unifyProspectStatus(); } catch (e) { console.warn(e); }
@@ -5241,33 +5242,67 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 👑 총관리자만 바꿀 수 있는 매장 공용 설정 (다른 직원 폰에서는 보기만 · 실수로 바꾸는 것 방지)
         let isSuperAdmin = false;
         const ADMIN_LOCK_SECTIONS = ['setAutoTitle', 'setSmsTitle', 'setPrivacyTitle', 'setSettleTitle', 'setPromPushTitle', 'subPromoTitle', 'subSmsGateTitle', 'setMissTitle', 'setCardSmsTitle', 'setDealerTitle'];   // V230 콜매니저 문자 · 명함 문자 · 거래처 칸도
-        const ADMIN_ONLY_GROUPS = ['grpPromoTitle', 'grpSubsidyTitle', 'subPushAllTitle'];   // V230 고객 전체 푸시는 푸시 알림 화면으로 옮겨도 대표만   // V187: 직원 폰엔 아예 숨김 (홍보·지원금표 = 대표 일)
+        const ADMIN_ONLY_GROUPS = ['grpPromoTitle', 'grpSubsidyTitle', 'subPushAllTitle'];
+        const SEC_PERM = { setSmsTitle: 'editAuto', setMissTitle: 'editAuto', setCardSmsTitle: 'editAuto', setPromPushTitle: 'editAuto', subPromoTitle: 'pushAll', setDealerTitle: 'editPolicy', setAutoTitle: 'editPolicy', grpPromoTitle: 'pushAll', subPushAllTitle: 'pushAll', grpSubsidyTitle: 'editPolicy' };   // 🎖 V247 칸 → 권한 (나머지는 대표만)   // V230 고객 전체 푸시는 푸시 알림 화면으로 옮겨도 대표만   // V187: 직원 폰엔 아예 숨김 (홍보·지원금표 = 대표 일)
         const ADMIN_LOCK_ALLOW = new Set(['smsListBtn', 'smsCheckBtn', 'calcOpenReqBtn']);   // 예약 목록 보기 · 연결 확인은 누구나
         // 잠금은 '잠금이 한 것'만 풀어요 — 원래 기능 때문에 꺼둔 칸(예: 자동 약속을 끄면 유지 조건 칸이 흐려짐)은 그대로
+        /* =====================================================================
+           🎖 V247 직급 · 권한 — 👑 대표(총관리자 계정)는 늘 전부 · 직원은 직급마다 대표가 정한 권한
+           · smart_global/settings: roles [{ id, name, perms: { 권한: true/false } }] · staffRole { 이메일: 직급 id }
+           · 직급을 안 정했거나 대표가 아직 안 정한 권한 = 지금(V246까지) 직원과 똑같이 (PERMS의 d)
+           · 화면 권한이에요 (Firebase 보안 규칙은 그대로)
+           ===================================================================== */
+        const PERMS = [
+            { k: 'editOthers', g: '고객', t: '다른 직원 담당 고객 고치기', s: '담당자 잠금 넘기기', d: false },
+            { k: 'deleteCust', g: '고객', t: '고객 지우기', s: '휴지통으로 옮기기', d: true },
+            { k: 'exportAll', g: '고객', t: '엑셀로 전체 고객 받기', s: '꺼지면 내 담당 고객만', d: false },
+            { k: 'seeSettle', g: '돈 · 실적', t: '정산 · 매출 보기', s: "'직원에게 정산 숨김'을 켜도 보여요", d: false },
+            { k: 'editSettle', g: '돈 · 실적', t: '정산 입력 · 고치기', s: '개통 기록 정산', d: false },
+            { k: 'cancelAct', g: '돈 · 실적', t: '개통 취소 · 되살리기', s: '', d: true },
+            { k: 'goalPay', g: '돈 · 실적', t: '목표 · 인센티브 · 급여', s: '정하기 · 보기', d: false },
+            { k: 'pushAll', g: '보내기', t: '홍보 문자 · 고객 전체 푸시', s: '광고', d: false },
+            { k: 'editAuto', g: '매장 설정', t: '자동 안내 켜고 끄기 · 문구', s: '약속일 · 생일 · 명함 링크 · 아침 알림', d: false },
+            { k: 'editPolicy', g: '매장 설정', t: '정책 · 지원금표 · 거래처', s: '', d: false },
+            { k: 'delGuide', g: '매장 설정', t: '남이 만든 안내서 지우기', s: '', d: false }
+        ];
+        const PERM_DEF = Object.fromEntries(PERMS.map(p => [p.k, p.d]));
+        const DEFAULT_ROLES = [{ id: 'r_jj', name: '점장', perms: {} }, { id: 'r_mg', name: '매니저', perms: {} }];
+        function roleList() { return Array.isArray(appSettings.roles) && appSettings.roles.length ? appSettings.roles.filter(r => r && r.id && r.name) : DEFAULT_ROLES; }
+        function roleOfEmail(em) { const id = (appSettings.staffRole || {})[String(em || '').toLowerCase()]; return roleList().find(r => r.id === id) || null; }
+        function myRole() { try { return roleOfEmail(myEmail()); } catch (e) { return null; } }
+        function myRoleName() { return isSuperAdmin ? '👑 대표' : ((myRole() || {}).name || '직원'); }
+        function can(k) {
+            if (isSuperAdmin) return true;
+            const r = myRole();
+            if (r && r.perms && Object.prototype.hasOwnProperty.call(r.perms, k)) return !!r.perms[k];
+            return !!PERM_DEF[k];
+        }
+        function noPerm(what) { customAlert(`${what} 권한이 없어요.\n(👑 대표가 설정 → 직원 · 담당 → 직급 · 권한에서 정해요)`); }
         function setAdminLock(el, lock) {
             if (lock) { if (!el.disabled) { el.disabled = true; el.dataset.adminLocked = '1'; } }
             else if (el.dataset.adminLocked) { el.disabled = false; delete el.dataset.adminLocked; }
         }
         function applyAdminLocks() {
             { const pb = document.getElementById('openPushSheetBtn'); if (pb) {   // V177: 고객 전체 푸시는 👑 대표만 (직원은 고객카드에서 한 명에게)
-                pb.innerHTML = isSuperAdmin ? '<i class="fa-solid fa-bullhorn"></i>푸시 알림 쓰기' : '<i class="fa-solid fa-lock"></i>전체 푸시는 👑 대표만 · 한 명은 고객카드에서';
-                [['bg-indigo-600', true], ['hover:bg-indigo-700', true], ['text-white', true], ['bg-gray-100', false], ['text-gray-600', false]].forEach(([c, forAdmin]) => pb.classList.toggle(c, forAdmin ? isSuperAdmin : !isSuperAdmin)); } }
-            { const xb = document.getElementById('exportExcelBtn'); if (xb) { xb.innerHTML = `<i class="fa-solid fa-file-excel"></i> ${isSuperAdmin ? '엑셀출력' : '내 고객 엑셀'}`; xb.title = isSuperAdmin ? '검색·필터된 고객을 엑셀로' : '내가 담당자인 고객만 엑셀로 출력돼요 (전체는 총관리자만)'; } }
+                pb.innerHTML = can('pushAll') ? '<i class="fa-solid fa-bullhorn"></i>푸시 알림 쓰기' : '<i class="fa-solid fa-lock"></i>전체 푸시는 👑 대표만 · 한 명은 고객카드에서';
+                [['bg-indigo-600', true], ['hover:bg-indigo-700', true], ['text-white', true], ['bg-gray-100', false], ['text-gray-600', false]].forEach(([c, forAdmin]) => pb.classList.toggle(c, forAdmin ? can('pushAll') : !can('pushAll'))); } }
+            { const xb = document.getElementById('exportExcelBtn'); if (xb) { xb.innerHTML = `<i class="fa-solid fa-file-excel"></i> ${can('exportAll') ? '엑셀출력' : '내 고객 엑셀'}`; xb.title = isSuperAdmin ? '검색·필터된 고객을 엑셀로' : '내가 담당자인 고객만 엑셀로 출력돼요 (전체는 총관리자만)'; } }
             try { renderDealers(); } catch (e) { /* 준비 전 */ }   // V188 거래처 칸 (총관리자가 정해진 뒤 다시)
             ADMIN_LOCK_SECTIONS.forEach(tid => {
                 const sec = document.querySelector(`section[aria-labelledby="${tid}"]`);
                 if (!sec) return;
-                sec.querySelectorAll('input, select, textarea, button').forEach(el => { if (!ADMIN_LOCK_ALLOW.has(el.id) && !el.hasAttribute('aria-controls')) setAdminLock(el, !isSuperAdmin); });   // 제목(펼치기) 버튼은 잠그지 않음 → 직원도 내용은 볼 수 있게
+                const okS = SEC_PERM[tid] ? can(SEC_PERM[tid]) : isSuperAdmin;   // 🎖 V247 칸마다 권한
+                sec.querySelectorAll('input, select, textarea, button').forEach(el => { if (!ADMIN_LOCK_ALLOW.has(el.id) && !el.hasAttribute('aria-controls')) setAdminLock(el, !okS); });   // 제목(펼치기) 버튼은 잠그지 않음 → 직원도 내용은 볼 수 있게
                 let note = sec.querySelector('.admin-lock-note');
-                if (!isSuperAdmin && !note) {
+                if (!okS && !note) {
                     note = document.createElement('p');
                     note.className = 'admin-lock-note text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2';
                     note.textContent = '🔒 매장 공용 설정이라 총관리자만 바꿀 수 있어요. (보기는 가능)';
                     const body = sec.querySelector('.kc-acc-body'); if (body) body.insertBefore(note, body.firstChild); else { const h = sec.querySelector('h3'); if (h) h.insertAdjacentElement('afterend', note); }
                 }
-                if (isSuperAdmin && note) note.remove();
+                if (okS && note) note.remove();
             });
-            ADMIN_ONLY_GROUPS.forEach(gid => { const g = document.querySelector(`section[aria-labelledby="${gid}"]`); if (g) g.classList.toggle('hidden', !isSuperAdmin); });
+            ADMIN_ONLY_GROUPS.forEach(gid => { const g = document.querySelector(`section[aria-labelledby="${gid}"]`); if (g) g.classList.toggle('hidden', !(SEC_PERM[gid] ? can(SEC_PERM[gid]) : isSuperAdmin)); });
             { const hn = document.getElementById('setStaffHideNote'); if (hn) hn.classList.toggle('hidden', isSuperAdmin); }
             try { syncReassignBtns(); } catch (e) { /* 준비 전 */ }
             try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
@@ -5277,7 +5312,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             ['settingsStoreName', 'pushRelayUrl'].forEach(id => { const el = document.getElementById(id); if (el) { setAdminLock(el, !isSuperAdmin); el.title = isSuperAdmin ? '' : '총관리자만 바꿀 수 있어요'; } });
             const badge = document.getElementById('settingsRoleBadge');
             if (badge) {
-                badge.textContent = isSuperAdmin ? '👑 총관리자' : '직원';
+                badge.textContent = isSuperAdmin ? '👑 총관리자' : myRoleName();   // 🎖 V247 내 직급
                 badge.className = `flex-shrink-0 text-xs font-bold rounded-full px-2 py-0.5 ${isSuperAdmin ? 'bg-amber-100 text-amber-900' : 'bg-gray-100 text-gray-700'}`;
             }
         }
@@ -5358,9 +5393,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 return ok;
             }
             if (kind === 'sale') return customConfirm(`🔒 ${o} 담당 고객이에요.\n${what}${josaEunNeun(what)} 기록되지만, 담당자는 ${o}님 그대로예요.\n${o}님과 얘기가 됐나요?`);
-            if (isSuperAdmin) {
+            if (can('editOthers')) {   // 🎖 V247 대표 + '다른 직원 담당 고객 고치기' 직급
                 if (lockAdminOk.has(c.id)) return true;
-                const ok = await customConfirm(`🔒 ${o} 담당 고객이에요.\n👑 총관리자라서 잠금을 넘기고 ${what}할 수 있어요.\n\n${what}할까요?`);
+                const ok = await customConfirm(`🔒 ${o} 담당 고객이에요.\n${isSuperAdmin ? '👑 총관리자라서' : `${myRoleName()} 권한으로`} 잠금을 넘기고 ${what}할 수 있어요.\n\n${what}할까요?`);
                 if (ok) lockAdminOk.add(c.id);
                 return ok;
             }
@@ -5881,6 +5916,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 🗑️ 삭제는 휴지통으로 (30일 안에는 설정 → 휴지통에서 복구 가능)
         window.deleteCustomer = async function(docId) {
+            if (!can('deleteCust')) return noPerm('고객 지우기');   // 🎖 V247
             { const lc = customerDB.find(x => x.id === docId); if (lc && !(await lockGate(lc, '삭제'))) return; }
             if (!(await customConfirm("이 고객을 휴지통으로 옮길까요?\n30일 안에는 [설정 → 휴지통]에서 되살릴 수 있어요."))) return;
             try {
@@ -5970,10 +6006,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         document.getElementById('exportExcelBtn').addEventListener('click', async () => {
             let exportList = [];
             const me = getStaffName();
-            if (!isSuperAdmin && !me) return customAlert('엑셀은 내 담당 고객만 출력돼요.\n설정 → 내 정보 → 직원 이름을 먼저 넣어주세요.');
+            const allX = can('exportAll');   // 🎖 V247
+            if (!allX && !me) return customAlert('엑셀은 내 담당 고객만 출력돼요.\n설정 → 내 정보 → 직원 이름을 먼저 넣어주세요.');
 
             if (selectedIds.size === 0) {
-                if (isSuperAdmin) {
+                if (allX) {
                     const confirmAll = await customConfirm(`선택된 고객이 없습니다.\n현재 검색/필터링된 전체 고객(${globalFilteredDB.length}명)을 출력하시겠습니까?`);
                     if (!confirmAll) return;
                     exportList = globalFilteredDB;
@@ -5993,7 +6030,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
             }
 
-            if (!isSuperAdmin) {   // 🔒 체크해서 고른 것 중 다른 직원 고객은 빼기
+            if (!allX) {   // 🔒 체크해서 고른 것 중 다른 직원 고객은 빼기
                 const before = exportList.length;
                 exportList = exportList.filter(exportAllowed);
                 const cut = before - exportList.length;
@@ -6728,7 +6765,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (e.target.closest('[data-goal-rec]')) { sh.remove(); openRecSheet(); return; }
                     if (e.target.closest('[data-goal-pay]')) { sh.remove(); openPaySheet(goalViewYm); return; }   // 💵 V233
                     if (e.target.closest('[data-goal-save]')) {
-                        if (!isSuperAdmin) return customAlert('목표는 👑 대표만 정할 수 있어요.');
+                        if (!can('goalPay')) return customAlert('목표는 👑 대표(또는 권한 있는 직급)만 정할 수 있어요.');
                         const staff = {}; sh.querySelectorAll('[data-goal-staff]').forEach(i => { const v = Math.max(0, Math.round(Number(i.value) || 0)); if (v) staff[i.dataset.goalStaff] = v; });
                         const total = Math.max(0, Math.round(Number(sh.querySelector('#goalTotalIn').value) || 0));
                         const man = (el) => Math.max(0, Math.round((Number(String(el ? el.value : '').replace(/[^0-9.]/g, '')) || 0) * 10000));   // 만원 → 원
@@ -6745,7 +6782,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 document.body.appendChild(sh);
             }
             const ym = goalViewYm, isNow = ym === goalYm();
-            const G = goalOf(ym), A = goalActuals(ym), m = Number(ym.slice(5)), lock = !isSuperAdmin;
+            const G = goalOf(ym), A = goalActuals(ym), m = Number(ym.slice(5)), lock = !can('goalPay');
             const names = [...new Set([...Object.values(staffByEmail()).map(n => managerKey(n)), ...Object.keys(G.staff), ...Object.keys(A.by)].map(n => String(n || '').trim()).filter(n => n && n !== '담당자미상'))];
             const uniq = []; names.forEach(n => { if (!uniq.some(u => sameStaff(u, n))) uniq.push(n); });
             const bar = (a, g) => { const p = g ? Math.round(a / g * 100) : 0; return `<span class="block h-2 rounded-full bg-gray-100 overflow-hidden"><span class="block h-full rounded-full ${p >= 100 ? 'bg-green-600' : 'bg-rose-500'}" style="width:${Math.min(100, p)}%"></span></span>`; };
@@ -6766,7 +6803,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             };
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
                 <div class="flex items-start justify-between gap-2"><div class="min-w-0"><div class="flex items-center gap-1"><button type="button" data-goal-month="-1" aria-label="지난달" class="w-9 h-9 -ml-2 rounded-lg text-gray-600 hover:bg-gray-100">‹</button><p class="text-[17px] font-bold text-gray-900">🎯 ${ym.slice(0, 4) !== goalYm().slice(0, 4) ? ym.slice(2, 4) + '년 ' : ''}${m}월 개통 · 매출 목표</p><button type="button" data-goal-month="1" aria-label="다음 달" ${isNow ? 'disabled' : ''} class="w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 disabled:opacity-30">›</button></div><p class="text-xs text-gray-600">개통 기록 기준 (같은 분이라도 개통일이 다르면 따로)${money ? '<br>총매출 = 판매마진 + 중고폰 · 실마진 = 부가세 뺀 마진<br>📊 건당 = 정산 넣은 개통 1건 평균' : ''}${isNow ? '' : ' · <b>지난달 기록</b>'}</p></div><button type="button" data-goal-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
-                ${money && SS.missing ? `<button type="button" ${isSuperAdmin ? 'data-goal-settle' : 'disabled'} class="w-full text-left rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-bold text-amber-900">⚠ 정산 미입력 ${SS.missing}건은 매출에 아직 안 들어갔어요${isSuperAdmin ? ' → 눌러서 입력' : ''}</button>` : ''}
+                ${money && SS.missing ? `<button type="button" ${can('editSettle') ? 'data-goal-settle' : 'disabled'} class="w-full text-left rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] font-bold text-amber-900">⚠ 정산 미입력 ${SS.missing}건은 매출에 아직 안 들어갔어요${isSuperAdmin ? ' → 눌러서 입력' : ''}</button>` : ''}
                 <div class="rounded-xl bg-gray-50 p-3 space-y-1.5"><p class="text-[15px] font-bold text-gray-900">🏪 매장 전체</p>
                     <div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-gray-500">📱 개통</span><span class="flex-1 min-w-0 text-sm text-gray-800 tabular-nums">${A.total}${G.total ? ` / ${G.total}건 · ${Math.round(A.total / G.total * 100)}%` : '건'}</span>${inp('id="goalTotalIn"', G.total, '건')}</div>${G.total ? bar(A.total, G.total) : ''}
                     ${perfLine(perfSum(PF))}
@@ -6930,7 +6967,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function incOf(p, ms) { const r = incRules(); return r.act * p.act + r.addon * p.addon + r.ins * p.ins + r.card * p.card + Math.round(((ms && ms.real) || 0) * r.pct / 100 / 10) * 10; }
         function incLine(v, label) { return `<div class="flex items-center gap-2"><span class="w-16 flex-shrink-0 text-xs font-bold text-rose-700">🎁 인센</span><span class="flex-1 min-w-0 text-sm font-bold text-rose-800 tabular-nums" data-inc>${arWon(v)}원${label ? ` <span class="text-[11px] font-medium text-gray-500">(${label})</span>` : ''}</span></div>`; }
         function openIncSheet() {
-            if (!isSuperAdmin) return customAlert('인센티브 기준은 👑 대표가 정해요.');
+            if (!can('goalPay')) return customAlert('인센티브 기준은 👑 대표(또는 권한 있는 직급)가 정해요.');
             const old = document.getElementById('incSheet'); if (old) old.remove();
             const r = incRules(), sh = document.createElement('div'); sh.id = 'incSheet';
             sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
@@ -7118,7 +7155,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // ── 💵 급여명세서 (그 달 · 직원 한 명) ──
         async function openPaySheet(ym) {
-            if (!isSuperAdmin) return customAlert('급여 계산은 👑 대표만 볼 수 있어요.');
+            if (!can('goalPay')) return customAlert('급여 계산은 👑 대표(또는 권한 있는 직급)만 볼 수 있어요.');
             payView.ym = ym || payView.ym || goalYm();
             const sh = paySheetEl('paySheet', 'z-[70]', payClick);
             sh.innerHTML = `<div class="${PAY_BOX}">${payHead('💵 급여명세서', 'data-pay-close')}<p class="p-8 text-center text-sm text-gray-600">불러오는 중…</p></div>`;
@@ -7751,6 +7788,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         document.getElementById('settleRow').addEventListener('click', openSettleSheet);
         function openActSettle(cid, aid, fromList) {
             if (!canSeeSettle()) return customAlert('정산정보는 👑 대표 폰에서만 넣을 수 있어요.');
+            if (!can('editSettle')) return noPerm('정산 입력');   // 🎖 V247
             const c = customerDB.find(x => x.id === cid); if (!c) return;
             const a = actsOf(c).find(x => x.id === aid); if (!a) return customAlert('그 개통 기록을 찾지 못했어요.');
             const W = a.kind === '유선', S = a.settle || {};
@@ -9218,7 +9256,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         document.getElementById('mnpFeeIn').addEventListener('input', (e) => { const n = String(e.target.value).replace(/[^\d]/g, ''); e.target.value = n ? Number(n).toLocaleString('ko-KR') : ''; });
         document.getElementById('mnpFeeIn').addEventListener('change', async (e) => {
-            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            if (!can('editPolicy')) return customAlert('총관리자만 바꿀 수 있어요.');
             const n = Math.min(100000, Number(String(e.target.value).replace(/[^\d]/g, '')) || 0);
             try { await saveDoc(doc(db, 'smart_global', 'settings'), { mnpFee: n }, { merge: true }); appSettings = { ...appSettings, mnpFee: n }; e.target.value = arWon(n); const saved = document.getElementById('autoPromSaved'); saved.classList.remove('hidden'); clearTimeout(autoSavedTimer); autoSavedTimer = setTimeout(() => saved.classList.add('hidden'), 2000); }
             catch (err) { customAlert(koreanError(err, '저장')); }
@@ -9237,7 +9275,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (now) go(); else dealerSaveT = setTimeout(go, 500);
         }
         document.getElementById('dealerAddBtn').addEventListener('click', () => {
-            if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
+            if (!can('editPolicy')) return customAlert('총관리자만 바꿀 수 있어요.');
             const id = 'd' + Date.now().toString(36);
             saveDealers([...dealerList(), { id, name: '', carrier: '', plan: '', planPub: '', planSel: '', planDist: '', addons: [{ name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }, { name: '', code: '', amount: 0 }], ins: { name: '', code: '', amount: 0 }, grade: 0, distAdd: 0, card: 0, cardDev: 0 }], true);
             dealerOpenId = id; renderDealers();
@@ -9247,7 +9285,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const op = e.target.closest('[data-dl-open]'); if (op) { dealerOpenId = op.dataset.dlOpen; renderDealers(); return; }
             const sg = e.target.closest('[data-dl-sign]');
             if (sg) {   // 💰 V211 추가(+) ↔ 차감(−)
-                if (!isSuperAdmin) return;
+                if (!can('editPolicy')) return;
                 const inp = sg.closest('[data-dl-card]').querySelector(`input[data-dl="${sg.dataset.dlSign}"]`); if (!inp) return;
                 inp.dataset.neg = inp.dataset.neg ? '' : '1';
                 { const k2 = `${sg.closest('[data-dl-card]').dataset.dlCard}|${sg.dataset.dlSign}`; if (inp.dataset.neg) dlNegPending.add(k2); else dlNegPending.delete(k2); }
@@ -9760,6 +9798,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (x) {
                 const aid = x.dataset.aid;
                 if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
+                if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
                 if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
                 if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
                 return;
@@ -11473,7 +11512,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!icons.length) { box.innerHTML = '<p class="text-xs text-gray-500">푸시 창에서 아이콘을 올리면 여기서 고를 수 있어요. (지금은 기본 프로필 사진)</p>'; return; }
             const tile = (inner, val, on) => `<button type="button" data-auto-icon="${escapeHtml(val)}" aria-pressed="${on}" class="flex-shrink-0 w-12 h-12 rounded-full border-2 ${on ? 'border-indigo-600 ring-2 ring-indigo-200' : 'border-gray-200'} bg-white overflow-hidden flex items-center justify-center">${inner}</button>`;
             box.innerHTML = tile('<span class="text-[10px] font-bold text-gray-600">기본</span>', '', !cur) + icons.map(u => tile(`<img src="${escapeHtml(u)}" alt="아이콘" class="w-full h-full object-cover">`, u, cur === u)).join('');
-            if (!isSuperAdmin) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+            if (!can('editAuto')) box.querySelectorAll('button').forEach(b => { b.disabled = true; });
         }
         document.getElementById('autoPushIconStrip').addEventListener('click', async (e) => {
             const b = e.target && e.target.closest ? e.target.closest('[data-auto-icon]') : null;
@@ -12213,7 +12252,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 📇 문구마다 '문자에 명함 링크 붙이기' (V179 · 👑 총관리자) → 이미 예약된 자동 문자도 다음 맞추기 때 새 내용으로
         document.querySelectorAll('[data-sms-card]').forEach(el => el.addEventListener('change', async () => {
             const k = el.dataset.smsCard;
-            if (!isSuperAdmin) { el.checked = smsCardOn(k); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editAuto')) { el.checked = smsCardOn(k); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const m = { ...((appSettings.smsCardLink && typeof appSettings.smsCardLink === 'object') ? appSettings.smsCardLink : {}), [k]: el.checked };
             try {
                 await saveDoc(doc(db, 'smart_global', 'settings'), { smsCardLink: m }, { merge: true });
@@ -12226,7 +12265,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         [['smsMissAdMark', v => v !== false], ['smsMissAdToggle', v => v === true]].forEach(([id, cur]) => {
             const el = document.getElementById(id); if (!el) return;
             el.addEventListener('change', async () => {
-                if (!isSuperAdmin) { el.checked = cur(smsSetting(id)); return customAlert('총관리자만 바꿀 수 있어요.'); }
+                if (!can('editAuto')) { el.checked = cur(smsSetting(id)); return customAlert('총관리자만 바꿀 수 있어요.'); }
                 const v = el.checked;
                 try {
                     await saveDoc(doc(db, 'smart_global', 'settings'), { [id]: v }, { merge: true });
@@ -12241,7 +12280,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function setMmsStatus(text, tone) { const el = document.getElementById('smsMmsStatus'); if (!el) return; if (!text) { el.classList.add('hidden'); return; } el.textContent = text; el.className = `text-xs font-medium ${tone === 'red' ? 'text-red-700' : (tone === 'green' ? 'text-green-700' : 'text-gray-600')}`; }
         document.getElementById('smsMmsOn').addEventListener('change', async (e) => {
             const el = e.target;
-            if (!isSuperAdmin) { el.checked = appSettings.smsMmsOn === true; return; }
+            if (!can('editAuto')) { el.checked = appSettings.smsMmsOn === true; return; }
             if (el.checked) {
                 if (!pushRelayReady()) { el.checked = false; return customAlert("먼저 설정 → 🔌 연결 → 명함 푸시 · 중계 서버를 연결해주세요."); }
                 setMmsStatus('중계 서버 확인 중…', 'gray');
@@ -13466,7 +13505,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 } finally { btn1.disabled = false; }
                 return;
             }
-            if (!isSuperAdmin) return setPushStatus('고객 전체에게 보내는 푸시는 👑 대표만 보낼 수 있어요.', 'red');   // V177: 직원은 고객카드에서 한 명에게만
+            if (!can('pushAll')) return setPushStatus('고객 전체에게 보내는 푸시는 👑 대표(또는 권한 있는 직급)만 보낼 수 있어요.', 'red');   // V177: 직원은 고객카드에서 한 명에게만
             if (ad && isAdNightTime()) {
                 sendAfter = nextMorningSendAfter();
                 if (!(await customConfirm(`지금은 밤 9시~아침 8시라 광고성 알림을 바로 보낼 수 없어요.\n${sendAfter.label}에 자동으로 보내지게 예약할까요?`))) return;
@@ -13639,7 +13678,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         let pushTarget = null;   // 한 명에게만 보낼 때: { id, name, cardId }
         function openPushSheet(target = null) {
             pushTarget = target && target.cardId ? target : null;
-            if (!pushTarget && !isSuperAdmin) { customAlert('📣 고객 전체에게 보내는 푸시(광고 포함)는 👑 대표만 보낼 수 있어요.\n한 명에게 보내려면 고객카드의 [⋯] → 🔔 푸시를 눌러주세요.'); return; }   // V177
+            if (!pushTarget && !can('pushAll')) { customAlert('📣 고객 전체에게 보내는 푸시(광고 포함)는 👑 대표만 보낼 수 있어요.\n한 명에게 보내려면 고객카드의 [⋯] → 🔔 푸시를 눌러주세요.'); return; }   // V177
             document.getElementById('pushSheetSub').textContent = pushTarget ? `${pushTarget.name}님에게만 보내요 (명함 알림)` : '명함에서 알림받기를 누른 고객 모두에게 보내요';
             document.getElementById('pushNightWarn').classList.toggle('hidden', !isAdNightTime() || !!pushTarget);
             renderPushSendMode();
@@ -16824,19 +16863,19 @@ familyStr + `\n` +
         // 🙋 고객 명함 추가 기능 저장 (V177 · 총관리자)
         function restockModels(d) { const r = (d || calcData || {}).restock; return r && Array.isArray(r.models) ? r.models.map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 12) : []; }
         [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', async e => {
-            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next[k] = e.target.checked;
             if (!(await calcSave(next, true))) { e.target.checked = !e.target.checked; return; }
             if (k !== 'visitBookOn') { calcData = next; setTimeout(() => syncCardWho(true), 300); }   // 명함 확인 칸(card_who)에 넣는 값이 바뀜 → 다시 맞춤
         }));
         document.getElementById('calcRefReward').addEventListener('change', async e => {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next.refReward = e.target.value.trim().slice(0, 60);
             if (!(await calcSave(next, true))) renderCalcSettings();
         });
         // 🎁 소개 사은품 단계 저장 (V186 · 총관리자) — 칸을 고치면 바로 · 같은 인원은 하나만 · 인원 순
         async function saveRefTiers(basis) {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const box = document.getElementById('calcRefTiers'), rows = [];
             for (let i = 0; i < 5; i++) rows.push({ n: parseInt(box.querySelector(`[data-rt-n="${i}"]`).value, 10), g: box.querySelector(`[data-rt-g="${i}"]`).value });
             const next = calcNormalize(calcData); next.refTiers = refTiers({ refTiers: rows }); next.refBasis = basis || refBasis();
@@ -16847,7 +16886,7 @@ familyStr + `\n` +
         document.getElementById('calcRefTiers').addEventListener('focusout', () => setTimeout(() => { if (!document.getElementById('calcRefTiers').contains(document.activeElement)) renderCalcSettings(); }, 0));   // 칸을 다 고치고 나가면 인원 순으로 다시
         document.querySelectorAll('[data-rt-basis]').forEach(b => b.addEventListener('click', () => saveRefTiers(b.dataset.rtBasis)));
         document.getElementById('calcReviewUrl').addEventListener('change', async e => {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const v = e.target.value.trim();
             if (v && !/^https:\/\/[^\s"'<>]+$/.test(v)) { customAlert('https:// 로 시작하는 리뷰 주소를 넣어주세요.'); renderCalcSettings(); return; }
             const next = calcNormalize(calcData); next.reviewUrl = normReviewUrl(v).slice(0, 300);
@@ -16855,7 +16894,7 @@ familyStr + `\n` +
             else { e.target.value = next.reviewUrl; calcData = next; try { renderSmsSettings(); renderSetSums(); } catch (err) { /* 무시 */ } if (pushRelayReady()) syncAutoSms({ force: true }); }   // 개통 안부 문자의 {리뷰}도 바로 (이미 예약된 것까지)
         });
         document.getElementById('calcRestock').addEventListener('change', async e => {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const models = [...new Set(e.target.value.split('\n').map(x => x.trim().slice(0, 30)).filter(Boolean))].slice(0, 12);
             const next = calcNormalize(calcData); next.restock = { on: models.length > 0, models };
             if (!(await calcSave(next, true))) renderCalcSettings();
@@ -16863,7 +16902,7 @@ familyStr + `\n` +
         document.getElementById('calcRestockBtn').addEventListener('click', () => openCalcSheet('restock'));
         // ⏰ 연락 약속 시간 · 💬 카톡 상담 주소 (총관리자 · 명함과 강CRM이 같이 써요)
         ['calcReplyMin', 'calcReplyOpen', 'calcReplyClose', 'calcReplyEsc'].forEach(id => document.getElementById(id).addEventListener('change', async e => {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData), R = calcReply();
             const val = id === 'calcReplyEsc' ? e.target.checked : Number(e.target.value);
             const key = { calcReplyMin: 'min', calcReplyOpen: 'open', calcReplyClose: 'close', calcReplyEsc: 'esc' }[id];
@@ -16872,7 +16911,7 @@ familyStr + `\n` +
             if (!(await calcSave(next, true))) renderCalcSettings();
         }));
         document.getElementById('calcKakao').addEventListener('change', async e => {
-            if (!isSuperAdmin) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const v = e.target.value.trim();
             if (v && !/^https:\/\/(pf\.kakao\.com|open\.kakao\.com|qr\.kakao\.com|talk\.kakao\.com)\//.test(v)) { customAlert('카카오톡 채널(pf.kakao.com/…) 또는 오픈채팅(open.kakao.com/…) 주소를 넣어주세요.'); renderCalcSettings(); return; }
             const next = calcNormalize(calcData); next.kakao = v;
@@ -16880,7 +16919,7 @@ familyStr + `\n` +
         });
         // 💬 명함 견적 화면의 '카톡 문의' 버튼 켜고 끄기 (V168 · 총관리자)
         document.getElementById('calcKakaoOn').addEventListener('change', async e => {
-            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next.kakaoOn = e.target.checked;
             if (!(await calcSave(next, true))) e.target.checked = !e.target.checked;
         });
@@ -16895,7 +16934,7 @@ familyStr + `\n` +
         });
         // 명함 '월 납부액 직접 계산해 보기 · 알뜰유심 추천' 켜고 끄기 (총관리자)
         document.getElementById('calcCustomerCalc').addEventListener('change', async e => {
-            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next.customerCalc = e.target.checked;
             if (!(await calcSave(next, true))) e.target.checked = !e.target.checked;
         });
@@ -16908,7 +16947,7 @@ familyStr + `\n` +
         });
         // 👀 관심 고객(계산만 해봄 · 견적 보다 나감)도 직원 폰 푸시 — 총관리자만
         document.getElementById('calcAlertInterest').addEventListener('change', async e => {
-            if (!isSuperAdmin) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData);
             next.alert = { ...(next.alert || {}), interest: e.target.checked, crm: (next.alert && next.alert.crm) || (location.origin + location.pathname) };
             const ok = await calcSave(next, true);
@@ -17730,7 +17769,7 @@ familyStr + `\n` +
            · 고객카드에 개통 정보 + 할부원금 + 정산정보 + 자동 약속을 한 번에 저장
            · 정산정보: 기본은 모두 보임 / 설정에서 '직원에게 숨기기'를 켜면 총관리자만
            ===================================================================== */
-        function canSeeSettle() { return isSuperAdmin || appSettings.hideSettleFromStaff !== true; }
+        function canSeeSettle() { return isSuperAdmin || appSettings.hideSettleFromStaff !== true || can('seeSettle'); }   // 🎖 V247
         const AR_CARRIERS = ['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'];
         // 📶 알뜰폰 브랜드 — 통신사 칸은 그대로 '알뜰폰(SK)' (통계 · 정책이 이 값을 씀) · 브랜드는 mvnoBrand 칸에 따로 · 보여줄 때만 '알뜰폰(SK)[세븐모바일]'
         const MVNO_BRANDS = ['세븐모바일', 'SK스노우맨', '프리티', '아이즈모바일', 'KT M모바일', 'KT스카이라이프', '에넥스텔레콤', '티플러스', 'U+유모바일', 'LG헬로모바일', '인스모바일', '이야기모바일', '토스모바일', 'KB리브엠'];
@@ -21406,7 +21445,7 @@ familyStr + `\n` +
         function gdDelMode() { return appSettings.guideDelMode === 'admin' ? 'admin' : 'own'; }
         function gdCanDel(g) {
             if (!g) return false;
-            if (isSuperAdmin) return true;
+            if (isSuperAdmin || can('delGuide')) return true;   // 🎖 V247
             if (gdDelMode() === 'admin') return false;
             const by = (g.signed && g.signed.by) || g.createdBy || '';
             return !!by && by === (getStaffName() || '') && !g.act;
@@ -22217,9 +22256,10 @@ familyStr + `\n` +
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
-                        <span class="ml-auto flex gap-1">${money && isSuperAdmin && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
+                        <span class="ml-auto flex gap-1">${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
                 </div>`; }).join('')}</div>`;
             }
+            if (!can('cancelAct')) hList = hList.replace(/<button type="button" data-paction="act(?:cancel|restore)"[^>]*>[\s\S]*?<\/button>/g, '');   // 🎖 V247 권한 없으면 버튼 숨김
             h += opt.tab ? hList + hMoney + hRows : hRows + hMoney + hList;
             if (!opt.tab) try { h += gdProfileHtml(c); } catch (e) { /* 준비 전 */ }   // 📝 V202
             if (opt.tab) return h;   // 📎 서류 · 📞 통화는 보기 화면(고객카드)에 그대로
@@ -22233,6 +22273,7 @@ familyStr + `\n` +
             if (!x || !currentProfileId) return;
             const cid = currentProfileId, aid = x.dataset.aid, c = customerDB.find(y => y.id === cid);
             if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
+            if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
             if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
             if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
         });
@@ -23918,7 +23959,7 @@ familyStr + `\n` +
             const chk = document.getElementById('promPushChk'), tb = document.getElementById('promPushTest');
             if (!chk || !tb) return;
             chk.addEventListener('change', async () => {
-                if (!isSuperAdmin) { chk.checked = appSettings.promPushOn === true; return; }
+                if (!can('editAuto')) { chk.checked = appSettings.promPushOn === true; return; }
                 const patch = { promPushOn: chk.checked, promPushCrmUrl: location.origin + location.pathname };
                 try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); }
                 catch (e) { chk.checked = !chk.checked; customAlert(koreanError(e, '저장')); }
@@ -23943,7 +23984,7 @@ familyStr + `\n` +
             // 🌙 하루 마감 요약 (V177 · 알림 서버 v3.8)
             const ds = document.getElementById('daySumChk'), dt = document.getElementById('daySumTime'), dtb = document.getElementById('daySumTest');
             const saveDaySum = async (patch, undo) => {
-                if (!isSuperAdmin) { undo(); return; }
+                if (!can('editAuto')) { undo(); return; }
                 patch.promPushCrmUrl = location.origin + location.pathname;
                 try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); }
                 catch (e) { undo(); customAlert(koreanError(e, '저장')); }
@@ -24665,6 +24706,88 @@ familyStr + `\n` +
             }, err => { console.warn('직원 계정 목록 불러오기 실패', err); renderStaffAccounts(); });
         }
         function staffCustomerCount(name) { return name ? customerDB.filter(c => !c.deletedAt && sameStaff(ownerOf(c), name)).length : 0; }
+        /* 🎖 V247 직원 줄의 직급 · 직급 · 권한 표 (👑 대표만 고침) */
+        function roleLineHtml(em, fixed, locked) {
+            if (fixed || SUPER_ADMIN_EMAILS.includes(String(em || '').toLowerCase())) return '<p class="text-xs font-bold text-amber-800">🎖 직급: 👑 대표 (늘 전부)</p>';
+            const cur = (appSettings.staffRole || {})[String(em).toLowerCase()] || '', r = roleList().find(x => x.id === cur);
+            if (locked) return `<p class="text-xs font-bold text-gray-700">🎖 직급: ${escapeHtml(r ? r.name : '직원 (기본)')}</p>`;
+            return `<label class="flex items-center gap-2 text-xs font-bold text-gray-700">🎖 직급<select data-sa-role="${escapeHtml(em)}" class="h-9 px-2 border border-gray-300 rounded-lg bg-white text-[14px] font-bold text-gray-900"><option value="">직원 (기본)</option>${roleList().map(x => `<option value="${escapeHtml(x.id)}" ${x.id === cur ? 'selected' : ''}>${escapeHtml(x.name)}</option>`).join('')}</select></label>`;
+        }
+        function renderRoleBox() {
+            const box = document.getElementById('roleBox'); if (!box) return;
+            if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#roleBox') && document.activeElement.matches('input[type=text]')) return;   // 이름 고치는 중
+            const roles = roleList(), val = (r, k) => (r.perms && Object.prototype.hasOwnProperty.call(r.perms, k)) ? !!r.perms[k] : !!PERM_DEF[k];
+            const tg = (on, attr, dis) => `<button type="button" ${attr} ${dis ? 'disabled' : ''} role="switch" aria-checked="${on}" class="relative w-10 h-6 rounded-full transition disabled:opacity-60 ${on ? 'bg-indigo-600' : 'bg-gray-300'}"><span class="absolute top-0.5 ${on ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow"></span></button>`;
+            if (!isSuperAdmin) {
+                const mine = PERMS.filter(p => can(p.k)).map(p => p.t);
+                box.innerHTML = `<p class="text-[14px] font-bold text-gray-900">내 직급: ${escapeHtml(myRoleName())}</p><p class="text-xs text-gray-600 leading-relaxed mt-1">할 수 있는 것: ${mine.length ? escapeHtml(mine.join(' · ')) : '기본 기능'}</p><p class="text-xs text-gray-500 mt-1">직급 · 권한은 👑 대표가 정해요.</p>`;
+                return;
+            }
+            // 폰 화면용: 직급 칩을 고르고 → 아래에 권한 한 줄씩 (오른쪽 스위치)
+            if (window.__roleSel !== '' && !roles.some(r => r.id === window.__roleSel)) window.__roleSel = roles.length ? roles[0].id : '';
+            const sel = roles.find(r => r.id === window.__roleSel) || null;
+            const cnt = (id) => Object.values(appSettings.staffRole || {}).filter(v => v === id).length;
+            const chip = (id, label, n) => { const on = (sel ? sel.id : '') === id; return `<button type="button" data-rsel="${escapeHtml(id)}" class="flex-shrink-0 h-10 px-3 rounded-full border text-[14px] font-bold ${on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-800'}">${escapeHtml(label)}${n !== null ? ` <span class="text-[11px] font-normal ${on ? 'text-indigo-100' : 'text-gray-500'}">${n}명</span>` : ''}</button>`; };
+            let lastG = '';
+            const rows = PERMS.map(p => {
+                const g = p.g !== lastG ? `<p class="pt-3 pb-1 text-[12px] font-extrabold text-gray-500">${escapeHtml(p.g)}</p>` : ''; lastG = p.g;
+                const on = sel ? val(sel, p.k) : !!p.d;
+                return g + `<div class="flex items-center gap-3 py-2 border-t border-gray-100"><div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-gray-900">${escapeHtml(p.t)}</p>${p.s ? `<p class="text-[12px] text-gray-500">${escapeHtml(p.s)}</p>` : ''}</div><div class="flex-shrink-0">${tg(on, sel ? `data-rp="${escapeHtml(sel.id)}|${p.k}" aria-label="${escapeHtml(p.t)}"` : `aria-label="${escapeHtml(p.t)}"`, !sel)}</div></div>`;
+            }).join('');
+            const head = sel
+                ? `<div class="flex items-center gap-2 pt-2"><span class="text-xs font-bold text-gray-600 flex-shrink-0">이름</span><input type="text" data-rn="${escapeHtml(sel.id)}" value="${escapeHtml(sel.name)}" maxlength="8" aria-label="직급 이름" class="flex-1 min-w-0 h-10 px-3 border border-gray-300 rounded-xl text-[15px] font-bold text-gray-900 bg-white"><button type="button" data-rdel="${escapeHtml(sel.id)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">직급 지우기</button></div>`
+                : `<p class="pt-2 text-[12px] text-gray-600">직원 (기본) = 직급을 안 정한 직원이에요. 지금까지와 같아서 바꿀 수 없어요 (보기만).</p>`;
+            box.innerHTML = `<p class="text-[13px] text-gray-700 leading-relaxed">직급을 고르고 할 수 있는 걸 켜고 꺼요. <b>👑 대표</b>는 늘 전부. 직원마다 직급은 위 직원 목록에서 골라요.</p>
+                <div class="flex gap-2 overflow-x-auto py-2 -mx-1 px-1">${chip('', '직원 (기본)', null)}${roles.map(r => chip(r.id, r.name, cnt(r.id))).join('')}</div>
+                ${head}<div>${rows}</div>
+                <div class="flex gap-2 pt-3 border-t border-gray-200 mt-2"><input type="text" id="roleNewName" maxlength="8" placeholder="새 직급 이름 (예: 팀장)" class="flex-1 min-w-0 h-11 px-3 border border-gray-300 rounded-xl text-[15px] bg-white"><button type="button" data-radd class="flex-shrink-0 h-11 px-4 rounded-xl bg-indigo-600 text-white text-sm font-bold">＋ 직급 추가</button></div>
+                <p class="text-[11px] text-gray-500 leading-relaxed">새 직급은 '직원 (기본)'과 같은 권한으로 시작해요 · 화면에서 막는 권한이에요 (Firebase 보안 규칙은 그대로)</p>`;
+        }
+        document.addEventListener('click', (e) => { const c = e.target.closest('[data-rsel]'); if (!c) return; window.__roleSel = c.dataset.rsel; renderRoleBox(); });
+        async function saveRoles(roles, staffRole) {
+            if (!isSuperAdmin) return customAlert('직급 · 권한은 👑 대표만 정할 수 있어요.');
+            const patch = {}; if (roles) patch.roles = roles; if (staffRole) patch.staffRole = staffRole;
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderRoleBox(); try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ } stockToast('🎖 저장했어요'); }
+            catch (e) { customAlert(koreanError(e, '저장')); }
+        }
+        document.addEventListener('click', async (e) => {
+            const rp = e.target.closest('[data-rp]'), rd = e.target.closest('[data-rdel]'), ra = e.target.closest('[data-radd]');
+            if (!rp && !rd && !ra) return;
+            if (!isSuperAdmin) return;
+            const roles = roleList().map(r => ({ ...r, perms: { ...(r.perms || {}) } }));
+            if (rp) {
+                const [rid, k] = rp.dataset.rp.split('|'), r = roles.find(x => x.id === rid); if (!r) return;
+                const cur = Object.prototype.hasOwnProperty.call(r.perms, k) ? !!r.perms[k] : !!PERM_DEF[k];
+                r.perms[k] = !cur; return saveRoles(roles);
+            }
+            if (rd) {
+                const r = roles.find(x => x.id === rd.dataset.rdel); if (!r) return;
+                const n = Object.values(appSettings.staffRole || {}).filter(v => v === r.id).length;
+                if (!(await customConfirm(`'${r.name}' 직급을 지울까요?${n ? `\n이 직급 직원 ${n}명은 '직원 (기본)'이 돼요.` : ''}`))) return;
+                const sr = { ...(appSettings.staffRole || {}) }; Object.keys(sr).forEach(em => { if (sr[em] === r.id) sr[em] = ''; });
+                return saveRoles(roles.filter(x => x.id !== r.id), sr);
+            }
+            if (ra) {
+                const inp = document.getElementById('roleNewName'), nm = String((inp && inp.value) || '').trim().slice(0, 8);
+                if (!nm) { if (inp) inp.focus(); return customAlert('새 직급 이름을 넣어 주세요.'); }
+                if (roles.some(x => x.name === nm)) return customAlert('같은 이름의 직급이 있어요.');
+                const nid = 'r_' + Date.now().toString(36); roles.push({ id: nid, name: nm, perms: {} }); window.__roleSel = nid;
+                if (inp) inp.value = '';
+                return saveRoles(roles);
+            }
+        });
+        document.addEventListener('change', (e) => {
+            const rn = e.target.closest && e.target.closest('[data-rn]'), sr = e.target.closest && e.target.closest('[data-sa-role]');
+            if (rn && isSuperAdmin) {
+                const nm = String(rn.value || '').trim().slice(0, 8); if (!nm) { renderRoleBox(); return; }
+                const roles = roleList().map(r => r.id === rn.dataset.rn ? { ...r, name: nm } : { ...r });
+                saveRoles(roles);
+            }
+            if (sr && isSuperAdmin) {
+                const em = String(sr.dataset.saRole).toLowerCase();
+                saveRoles(Array.isArray(appSettings.roles) && appSettings.roles.length ? null : roleList(), { ...(appSettings.staffRole || {}), [em]: sr.value });
+            }
+        });
         function renderStaffAccounts() {
             const box = document.getElementById('staffAcctBox');
             if (!box) return;
@@ -24678,6 +24801,7 @@ familyStr + `\n` +
                 return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
                     <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
                     <p class="text-xs text-gray-600">${fixed ? '총관리자 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                    ${roleLineHtml(em, fixed, locked)}
                     ${saExtraHtml(em, locked)}
                     ${locked ? '' : accessLineHtml(em)}
                     ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
@@ -24751,7 +24875,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V245';
+        const APP_VER = 'V247';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24759,6 +24883,14 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V247', d: '2026-11-01', items: [
+                ['🎖 직급 · 권한: 설정 → 직원 · 담당에서 직원마다 직급(점장 · 매니저 · 직접 추가)을 고르고, 👑 대표가 직급마다 할 수 있는 걸 켜고 꺼요'],
+                ['🔑 권한 11가지: 다른 직원 고객 고치기 · 고객 지우기 · 엑셀 전체 · 정산 보기 · 정산 입력 · 개통 취소 · 목표 · 급여 · 홍보 · 전체 푸시 · 자동 안내 · 정책 · 거래처 · 안내서 지우기'],
+                ['👌 직급을 안 정한 직원 · 새 직급은 지금까지와 똑같이 시작해요 · 권한이 없는 칸은 안 보이거나 잠겨요']] },
+            { v: 'V246', d: '2026-11-01', items: [
+                ['🧭 설정 정리: 문자 · 알림 5칸(푸시 · 자동 문자 · 명함 문자 · 콜매니저 문자 · 홍보)을 "📨 자동 안내"와 "📣 홍보 · 전체 푸시" 2칸으로'],
+                ['📨 자동 안내 맨 위에 상황별 한 줄: 약속일 · 생일 · 방문 전날 · 개통 안부 · 내 폰 정보 · 부재 재연락 — 켜기 · 📇 명함 링크 · ✏️ 문구로 바로'],
+                ['🗂 설정 첫 화면을 자주 쓰는 것 · 매장 · 내 폰 · 관리로 · 아침 약속 알림 · 마감 요약은 매장 운영으로 · 맨 위 🔍 설정 찾기도 그대로']] },
             { v: 'V245', d: '2026-11-01', items: [
                 ['📞 콜매니저에서 통화 결과를 기록하면 강CRM은 다시 안 물어봐요 (예전엔 둘 다 물어볼 때가 있었어요) · 한 번 확인되면 그 폰은 콜매니저 폰으로 기억'],
                 ['🔕 고객 화면 위 칸에 "명함 알림 꺼짐": 명함은 설치했는데 알림을 안 받는 고객 수 · 누르면 명단 (알림을 끈 분 · 명함을 지운 분 같이) · 목록에도 🔕 표시'],
@@ -25340,20 +25472,18 @@ familyStr + `\n` +
            · 안드로이드 뒤로가기 · [‹ 설정] = 첫 화면 · 다른 탭으로 가면 첫 화면으로
            ===================================================================== */
         const SET_PAGES = [
-            { id: 'me', grp: '기본', title: '내 정보 · 계정', icon: 'fa-user', tone: 'indigo' },
-            { id: 'card', grp: '기본', title: '고객 명함', icon: 'fa-id-card', tone: 'indigo' },
-            { id: 'store', grp: '기본', title: '매장 운영', icon: 'fa-store', tone: 'indigo' },
-            { id: 'push', grp: '문자 · 알림', title: '푸시 알림', icon: 'fa-bell', tone: 'pink', msg: true },
-            { id: 'auto', grp: '문자 · 알림', title: '자동 문자', icon: 'fa-comment-sms', tone: 'pink', msg: true },
-            { id: 'cardsms', grp: '문자 · 알림', title: '명함 문자', icon: 'fa-link', tone: 'pink', msg: true },
-            { id: 'miss', grp: '문자 · 알림', title: '콜매니저 문자', icon: 'fa-phone', tone: 'pink', msg: true },
-            { id: 'promo', grp: '문자 · 알림', title: '홍보 문자', icon: 'fa-bullhorn', tone: 'pink', msg: true },
-            { id: 'policy', grp: '정책 · 거래처', title: '정책 · 지원금', icon: 'fa-file-invoice-dollar', tone: 'amber' },
-            { id: 'dealer', grp: '정책 · 거래처', title: '거래처', icon: 'fa-building', tone: 'amber' },
-            { id: 'staff', grp: '정책 · 거래처', title: '직원 · 담당', icon: 'fa-users', tone: 'amber' },
-            { id: 'conn', grp: '관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
-            { id: 'data', grp: '관리', title: '데이터', icon: 'fa-database', tone: 'cyan' },
-            { id: 'app', grp: '관리', title: '앱 정보', icon: 'fa-circle-info', tone: 'cyan' }
+            // 🧭 V246 문자 · 알림 5칸(푸시 · 자동 문자 · 명함 문자 · 콜매니저 문자 · 홍보)을 '자동 안내' + '홍보 · 전체 푸시' 2칸으로 · 자주 쓰는 것 먼저
+            { id: 'auto', grp: '자주 쓰는 것', title: '자동 안내', icon: 'fa-comment-sms', tone: 'pink', msg: true },
+            { id: 'promo', grp: '자주 쓰는 것', title: '홍보 · 전체 푸시', icon: 'fa-bullhorn', tone: 'pink', msg: true },
+            { id: 'staff', grp: '자주 쓰는 것', title: '직원 · 담당', icon: 'fa-users', tone: 'pink' },
+            { id: 'store', grp: '매장', title: '매장 운영', icon: 'fa-store', tone: 'indigo' },
+            { id: 'policy', grp: '매장', title: '정책 · 지원금', icon: 'fa-file-invoice-dollar', tone: 'indigo' },
+            { id: 'dealer', grp: '매장', title: '거래처', icon: 'fa-building', tone: 'indigo' },
+            { id: 'card', grp: '매장', title: '고객 명함', icon: 'fa-id-card', tone: 'indigo' },
+            { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
+            { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
+            { id: 'data', grp: '내 폰 · 관리', title: '데이터', icon: 'fa-database', tone: 'cyan' },
+            { id: 'app', grp: '내 폰 · 관리', title: '앱 정보', icon: 'fa-circle-info', tone: 'cyan' }
         ];
         const SET_TONE = { indigo: ['bg-indigo-50', 'text-indigo-700'], pink: ['bg-pink-50', 'text-pink-700'], amber: ['bg-amber-50', 'text-amber-700'], cyan: ['bg-cyan-50', 'text-cyan-700'] };
         let setPageEls = null, setPageOpen = '', setPagePushed = false;
@@ -25365,12 +25495,12 @@ familyStr + `\n` +
             T(() => { const n = getStaffName(); st('me', n || '직원 이름 없음', n ? '' : 'warn'); });
             T(() => { const d = calcData || {}, n = [d.visitBookOn !== false, d.myPhoneOn !== false, d.refOn !== false].filter(Boolean).length; st('card', !reviewUrl() ? '리뷰 주소 없음' : (n ? `기능 ${n}개 켜짐` : '추가 기능 꺼짐'), !reviewUrl() ? 'warn' : (n ? 'ok' : '')); });
             T(() => st('store', ownerLockOn() ? '담당자 잠금 켜짐' : '담당자 잠금 꺼짐', ownerLockOn() ? 'ok' : ''));
-            T(() => st('push', autoPushOn() ? '자동 푸시 켜짐' : '자동 푸시 꺼짐', autoPushOn() ? 'ok' : ''));
-            T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn'].filter(k => smsSetting(k)).length; st('auto', n ? `${n}개 켜짐` : '모두 꺼짐', n ? 'ok' : ''); });
-            T(() => { const n = ['prom', 'bday', 'visit', 'act', 'miss', 'promo'].filter(k => smsCardOn(k)).length; st('cardsms', n ? `링크 ${n}곳 붙임` : '링크 안 붙임', n ? 'ok' : ''); });
-            T(() => st('miss', smsSetting('smsAutoMissOn') ? '부재 연락 켜짐' : '꺼짐', smsSetting('smsAutoMissOn') ? 'ok' : ''));
-            T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '꺼짐', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
-            st('policy', '지원금표 · 약속 규칙', ''); st('dealer', '유지 조건 · 정책 금액', ''); st('staff', '계정 · 담당 넘기기', '');
+            T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn'].filter(k => smsSetting(k)).length, ch = [autoSmsOn() ? '문자' : '', autoPushOn() ? '푸시' : ''].filter(Boolean).join('·'); st('auto', n ? `${n}개 켜짐${ch ? ' · ' + ch : ''}` : '모두 꺼짐', n ? 'ok' : ''); });
+            T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '홍보 꺼짐 · 전체 푸시', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
+            T(() => { try { renderAutoRows(); } catch (e) { /* 준비 전 */ } });
+            st('policy', '지원금표 · 약속 규칙', ''); st('dealer', '유지 조건 · 정책 금액', '');
+            T(() => st('staff', isSuperAdmin ? `직급 ${roleList().length}개 · 계정 · 담당` : `내 직급: ${myRoleName()}`, ''));
+            T(() => renderRoleBox());
             const warns = [];
             T(() => { if (!pushRelayReady()) warns.push('중계 서버 연결이 필요해요'); });
             T(() => { if (!(calcData && calcData.alert && calcData.alert.url)) warns.push('상담 알림 서버가 없어요'); });
@@ -25389,6 +25519,37 @@ familyStr + `\n` +
             });
             document.querySelectorAll('#setHome [data-set-grp]').forEach(g => g.classList.toggle('hidden', !g.querySelector('[data-set-tile]:not(.hidden)')));
         }
+        const AUTO_ROWS = [   // 📨 V246 [켜기 칸, 상황, 언제, 명함 링크 칸(data-sms-card), 문구 칸]
+            ['smsAutoPromOn', '📅 약속일 안내', '요금제 변경 · 부가 · 보험 해지 약속일 아침', 'prom', 'smsTplProm'],
+            ['smsAutoBdayOn', '🎂 생일 축하', '생일 아침 · 쿠폰 사진', 'bday', 'smsTplBday'],
+            ['smsAutoVisitOn', '🤝 방문 약속 전날', '전날 정한 시각', 'visit', 'smsTplVisit'],
+            ['smsAutoActOn', '📱 개통 뒤 안부', '개통하고 정한 날 뒤', 'act', 'smsTplAct'],
+            ['smsAutoPhoneOn', '🔄 내 폰 정보 (기변 시기)', '정한 개월 쓴 고객', '', 'smsTplPhone'],
+            ['smsAutoMissOn', '📵 부재 고객 재연락', '콜매니저 · 못 받은 전화', 'miss', 'smsTplMiss']
+        ];
+        function renderAutoRows() {
+            const box = document.getElementById('autoRowsBox'), head = document.getElementById('autoRowsHead'); if (!box || !head) return;
+            const el = (id) => document.getElementById(id);
+            const chip = (on, label, attr, dis) => `<button type="button" ${attr} ${dis ? 'disabled' : ''} aria-pressed="${on}" class="h-8 px-2.5 rounded-lg border text-[12px] font-bold disabled:opacity-50 ${on ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-600'}">${label}</button>`;
+            const pu = el('autoChPush'), sm = el('autoChSms');
+            head.innerHTML = `<span class="text-[12px] font-bold text-gray-600 mr-1">보내는 방법</span>${chip(!!(sm && sm.checked), '💬 문자', 'data-ar-mirror="autoChSms"', !sm || sm.disabled)}${chip(!!(pu && pu.checked), '🔔 푸시 (명함 고객)', 'data-ar-mirror="autoChPush"', !pu || pu.disabled)}<span class="ml-auto text-[11px] font-bold ${pushRelayReady() ? 'text-emerald-700' : 'text-red-700'}">${pushRelayReady() ? '✅ 매장 폰 · 중계 서버 연결됨' : '⚠ 중계 서버 연결 필요'}</span>`;
+            box.innerHTML = AUTO_ROWS.map(([onId, title, when, card, tpl]) => {
+                const on = el(onId), cd = card ? document.querySelector(`input[data-sms-card="${card}"]`) : null;
+                const t = String(smsSetting(tpl) || (typeof SMS_AUTO_DEFAULTS !== 'undefined' ? SMS_AUTO_DEFAULTS[tpl] : '') || '').replace(/\s+/g, ' ').trim();
+                return `<div class="px-4 py-3"><div class="flex items-center gap-2"><span class="flex-1 min-w-0"><b class="block text-[15px] text-gray-900">${title}</b><span class="block text-xs text-gray-500">${when}</span></span>
+                    <button type="button" data-ar-mirror="${onId}" ${!on || on.disabled ? 'disabled' : ''} role="switch" aria-checked="${!!(on && on.checked)}" aria-label="${title} 켜기" class="relative w-12 h-7 rounded-full flex-shrink-0 transition disabled:opacity-50 ${on && on.checked ? 'bg-indigo-600' : 'bg-gray-300'}"><span class="absolute top-0.5 ${on && on.checked ? 'left-[22px]' : 'left-0.5'} w-6 h-6 rounded-full bg-white shadow transition-all"></span></button></div>
+                    ${t ? `<p class="mt-1.5 text-[12px] text-gray-600 bg-gray-50 border border-dashed border-gray-200 rounded-lg px-2.5 py-1.5"><span class="line-clamp-2">${escapeHtml(t.slice(0, 120))}</span></p>` : ''}
+                    <div class="mt-1.5 flex flex-wrap gap-1.5">${cd ? chip(cd.checked, '📇 명함 링크', `data-ar-mirror-card="${card}"`, cd.disabled) : ''}<button type="button" data-set-jump="${tpl}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-700">✏️ 문구 · 시간 고치기</button></div></div>`;
+            }).join('');
+        }
+        document.addEventListener('click', (e) => {   // 📨 V246 요약 줄 → 원래 칸을 눌러서 켜고 끔 (원래 저장 · 확인 그대로)
+            const m = e.target.closest('[data-ar-mirror], [data-ar-mirror-card]'); if (!m || m.disabled) return;
+            const src = m.dataset.arMirror ? document.getElementById(m.dataset.arMirror) : document.querySelector(`input[data-sms-card="${m.dataset.arMirrorCard}"]`);
+            if (!src || src.disabled) return;
+            src.click();
+            setTimeout(() => { try { renderAutoRows(); } catch (err) { /* 무시 */ } }, 50);
+        });
+        document.addEventListener('change', (e) => { if (e.target && e.target.closest && e.target.closest('#settingsView')) setTimeout(() => { try { renderAutoRows(); } catch (err) { /* 무시 */ } }, 60); });
         (() => {
             const view = document.getElementById('settingsView');
             if (!view || document.getElementById('setHome')) return;
@@ -25422,7 +25583,7 @@ familyStr + `\n` +
                 const lab = inp.closest('label'); if (!lab) return;
                 const info = CARD_KINDS[inp.dataset.smsCard] || [inp.dataset.smsCard, ''];
                 const go = document.createElement('button');
-                go.type = 'button'; go.dataset.setGo = 'cardsms';
+                go.type = 'button'; go.dataset.setJump = 'setCardSmsTitle';   // V246 명함 링크는 같은 '자동 안내' 화면 아래에
                 go.className = 'h-9 px-3 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700 flex items-center gap-1';
                 go.innerHTML = '📇 명함 링크 붙이기 <i class="fa-solid fa-chevron-right text-[10px]" aria-hidden="true"></i>';
                 lab.replaceWith(go);
@@ -25447,6 +25608,11 @@ familyStr + `\n` +
               if (fee && card) { const p2 = card.querySelectorAll(':scope > p')[1]; if (p2) p2.insertAdjacentElement('afterend', fee); else card.prepend(fee); }
               if (db0) dealerSec.appendChild(db0); }
 
+            /* 📨 V246 자동 안내 맨 위: 상황별 한 줄 (켜기 · 📇 명함 링크 · ✏️ 문구로 가기) — 아래 원래 칸을 그대로 켜고 끔 (저장도 원래대로) */
+            function autoRowsSec() {
+                return mk(`<section class="space-y-2" aria-labelledby="setAutoRowsTitle"><h3 id="setAutoRowsTitle" class="text-[13px] font-bold text-gray-600 pl-1">📨 고객에게 자동으로 가는 안내 <span class="font-normal">(상황별로 한눈에 · 아래에서 자세히)</span></h3>
+                    <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden"><div id="autoRowsHead" class="px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center gap-1.5"></div><div id="autoRowsBox" class="divide-y divide-gray-100"></div></div></section>`);
+            }
             // 🔔 푸시 알림: 고객 자동 푸시는 자동 문자 › 보내는 방법에서 (바로 가기)
             const pushInfo = mk(`<div data-set-info="1" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"><p class="text-[15px] font-bold text-gray-900">🔔 고객에게 가는 자동 푸시</p><p class="text-xs text-gray-600 leading-relaxed">약속일 · 생일 · 방문 전날 · 개통 안부 · 내 폰 정보 푸시 켜고 끄기 · 아이콘은 자동 문자 › 보내는 방법에서 해요.</p><button type="button" data-set-go="auto" class="h-10 px-3 rounded-xl border border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-700">자동 문자로 가기 ›</button></div>`);
 
@@ -25456,15 +25622,13 @@ familyStr + `\n` +
             const storeGrp = secOf('grpStoreTitle');
             put('me', secOf('grpMeTitle')); hideH('grpMeTitle');
             put('card', secOf('grpCardTitle')); hideH('grpCardTitle');
-            put('store', secOf('setSettleTitle'));
-            put('push', pushInfo, secOf('subPushAllTitle'), secOf('setPromPushTitle'));
-            put('auto', secOf('grpAutoTitle')); hideH('grpAutoTitle');
-            put('cardsms', cardSec);
-            put('miss', missSec);
-            put('promo', secOf('grpPromoTitle')); hideH('grpPromoTitle');
+            put('store', secOf('setSettleTitle'), secOf('setPromPushTitle'));   // V246 아침 약속 알림 · 마감 요약(직원 폰)은 매장 운영으로
+            put('auto', autoRowsSec(), secOf('grpAutoTitle'), cardSec, missSec); hideH('grpAutoTitle');   // V246 문자 · 푸시 · 명함 링크 · 부재 연락을 한 화면에
+            put('promo', secOf('grpPromoTitle'), secOf('subPushAllTitle')); hideH('grpPromoTitle');
             put('policy', secOf('grpSubsidyTitle'), secOf('setAutoTitle')); hideH('grpSubsidyTitle');
             put('dealer', dealerSec);
-            put('staff', secOf('setStaffTitle'));
+            const roleSec = mk(`<section class="space-y-2" aria-labelledby="setRoleTitle"><h3 id="setRoleTitle" class="text-[13px] font-bold text-gray-600 pl-1">🎖 직급 · 권한 <span class="font-normal">(점장 · 매니저 · 직급 추가 · 할 수 있는 것)</span></h3><div id="roleBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"></div></section>`);
+            put('staff', secOf('setStaffTitle'), roleSec);   // 🎖 V247
             put('conn', secOf('grpConnTitle')); hideH('grpConnTitle');
             put('data', secOf('setPrivacyTitle'), secOf('setBackupTitle'), secOf('setTrashTitle'));   // 🗄️ V237 백업
             put('app', secOf('setAppTitle'));
