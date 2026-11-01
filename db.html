@@ -9567,8 +9567,112 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             st.textContent = `#detailModal .dm-sec > summary::-webkit-details-marker { display: none; } #detailModal .dm-sec[open] .dm-sum { visibility: hidden; } #detailModal .dm-sec[open] .dm-arw { transform: rotate(180deg); }
                 #detailModal .dm-chg { background-color: #fef9c3 !important; border-color: #eab308 !important; } #detailModal [data-dm-tab][aria-pressed="true"] { background: #fff; color: #111827; box-shadow: 0 1px 2px rgba(0,0,0,.08); }`;
             document.head.appendChild(st);
-            const sb = document.getElementById('saveDetailBtn'); if (sb) sb.insertAdjacentHTML('beforeend', '<span id="dmSaveN" class="text-[11px] font-bold opacity-90"></span>');
         })();
+        /* 🎨 V242 시안 모양 — 머리(사진 · 요약 칩 · 전화/문자/명함 · 탭) · 흰 칸 + 테두리 · 통신사 버튼 · 바닥 [⋯] [취소] [저장] */
+        (function dmSkin() {
+            const box = detailModal.firstElementChild, title = box.children[0], sc = box.querySelector('.overflow-y-auto.flex-1'), foot = box.lastElementChild;
+            const headBlock = document.getElementById('modalName').closest('.bg-indigo-50');
+            const head = document.createElement('header');
+            head.id = 'dmHead';
+            head.className = 'flex-shrink-0 bg-white border-b border-gray-200 px-3.5 pt-3 pb-2.5';
+            head.innerHTML = `<div class="flex items-center gap-2.5"><div id="dmAvatar" class="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 font-extrabold text-lg flex items-center justify-center flex-shrink-0"></div><div id="dmWho" class="flex-1 min-w-0"></div><button type="button" id="dmClose" class="w-10 h-10 rounded-xl text-gray-500 text-2xl flex-shrink-0" aria-label="닫기">✕</button></div>
+                <div id="dmChips" class="flex flex-wrap gap-1.5 mt-2"></div>
+                <div id="dmQuick" class="grid grid-cols-3 gap-1.5 mt-2.5"></div>`;
+            box.insertBefore(head, sc);
+            // 이름 · 번호 (✏️ 고치기 그대로) → 머리로
+            const who = head.querySelector('#dmWho');
+            const h2 = document.getElementById('modalName').closest('h2'), phRow = document.getElementById('modalPhone').parentElement, prev = document.getElementById('modalPrevPhones');
+            h2.className = 'text-[19px] font-extrabold text-gray-900 flex items-center gap-1.5 leading-tight'; document.getElementById('modalName').classList.add('min-w-0');
+            phRow.className = 'flex items-center gap-1.5'; document.getElementById('modalPhone').classList.replace('text-lg', 'text-[15px]'); document.getElementById('modalPhone').classList.replace('text-indigo-600', 'text-gray-600');
+            who.append(h2, phRow, prev);
+            document.getElementById('modalName').classList.remove('w-full', 'max-w-[150px]'); document.getElementById('modalPhone').classList.remove('w-full', 'max-w-[180px]');
+            const age = document.createElement('span'); age.id = 'dmAge'; age.className = 'text-[13px] font-bold text-gray-500 whitespace-nowrap'; h2.appendChild(age);
+            // 전화 · 문자 · 명함
+            const q = head.querySelector('#dmQuick'), btnCls = 'h-10 rounded-xl text-[14px] font-bold flex items-center justify-center gap-1.5';
+            const call = document.getElementById('modalCallBtn'), legal = document.getElementById('modalLegalCallBtn'), sms = document.getElementById('modalSmsBtn');
+            call.className = `${btnCls} bg-green-600 text-white`; call.innerHTML = '<i class="fa-solid fa-phone"></i>전화';
+            legal.className = `hidden ${btnCls} bg-orange-500 text-white`;
+            sms.className = `${btnCls} border border-gray-300 bg-white text-gray-800`; sms.innerHTML = '<i class="fa-solid fa-comment-sms text-blue-600"></i>문자';
+            q.append(call, sms, legal);
+            q.insertAdjacentHTML('beforeend', `<button type="button" id="dmCardBtn" class="${btnCls} border border-gray-300 bg-white text-gray-800"><i class="fa-solid fa-address-card text-pink-600"></i>명함</button>`);
+            // 탭도 머리로
+            const tabs = document.getElementById('dmTabs'); tabs.className = 'mt-2.5'; head.appendChild(tabs);
+            headBlock.remove(); title.classList.add('hidden');
+            head.querySelector('#dmClose').onclick = () => document.getElementById('closeDetailModal').click();
+            head.querySelector('#dmCardBtn').onclick = () => { const c = customerDB.find(x => x.id === currentDetailId); if (c) sendBizCard(c); };
+            sc.classList.add('bg-gray-100');
+            // 📶 통신사 버튼 (선택 칸은 숨겨두고 값만 바꿈 → 저장 · 비교 그대로)
+            const sel = document.getElementById('modalCarrier'), carW = sel.parentElement;
+            carW.classList.add('col-span-2'); sel.classList.add('hidden');
+            const chipBtn = (attr, v, l) => `<button type="button" ${attr}="${v}" class="dm-chip min-h-[42px] rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-700">${l}</button>`;
+            sel.insertAdjacentHTML('afterend', `<div class="grid grid-cols-4 gap-1.5">${[['SKT', 'SKT'], ['KT', 'KT'], ['LG U+', 'LG U+'], ['MVNO', '알뜰폰']].map(([v, l]) => chipBtn('data-dm-car', v, l)).join('')}</div>`);
+            const mb = document.getElementById('modalMvnoBox');
+            mb.className = 'hidden mt-2 rounded-xl border border-yellow-200 bg-yellow-50/70 p-2.5 space-y-2';
+            mb.insertAdjacentHTML('afterbegin', `<div><span class="block text-xs font-bold text-gray-600 mb-1">알뜰폰 망</span><div class="grid grid-cols-3 gap-1.5">${[['SK', 'SK망'], ['KT', 'KT망'], ['LG', 'LG망']].map(([v, l]) => chipBtn('data-dm-net', v, l)).join('')}</div></div>`);
+            // 회선 묶음 순서: 통신사 / 개통일 · 할인 / 요금제 · 월요금 / 바꿀 요금제 / 사용량
+            const inn = carW.parentElement; ['modalActivation', 'modalDiscount', 'modalUsage', 'modalPlan', 'modalFee', 'modalTargetPlan'].forEach(id => { let el = document.getElementById(id); while (el && el.parentElement !== inn) el = el.parentElement; if (el) { inn.appendChild(el); if (id === 'modalActivation') el.classList.add('col-span-2'); } });
+            // 바닥: [⋯ 삭제 · 출력] [취소] [저장 / 바뀐 칸]
+            const del = document.getElementById('modalDeleteBtn'), prn = document.getElementById('printDetailBtn'), save = document.getElementById('saveDetailBtn');
+            const row = save.parentElement; row.className = 'grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1.6fr)] gap-2 relative';
+            del.classList.add('hidden'); prn.classList.add('hidden');
+            row.insertAdjacentHTML('afterbegin', `<button type="button" id="dmMore" aria-label="삭제 · 출력" class="h-12 rounded-xl border border-gray-300 bg-white text-gray-600 text-xl font-bold">⋯</button><div id="dmMoreMenu" class="hidden absolute left-0 bottom-14 z-20 w-44 rounded-2xl border border-gray-200 bg-white shadow-xl p-1.5"><button type="button" data-dm-more="print" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-gray-800 hover:bg-gray-50"><i class="fa-solid fa-print w-5"></i> 고객카드 출력</button><button type="button" data-dm-more="del" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash w-5"></i> 고객 삭제</button></div>`);
+            save.className = 'h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm flex flex-col items-center justify-center leading-tight';
+            save.innerHTML = '<span class="text-[16px]"><i class="fa-solid fa-check"></i> 저장</span><span id="dmSaveN" class="text-[11px] font-bold opacity-90">바뀐 칸 없음</span>';
+            const menu = document.getElementById('dmMoreMenu');
+            document.getElementById('dmMore').onclick = (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); };
+            menu.addEventListener('click', (e) => { const b = e.target.closest('[data-dm-more]'); if (!b) return; menu.classList.add('hidden'); (b.dataset.dmMore === 'del' ? del : prn).click(); });
+            detailModal.addEventListener('click', (e) => { if (!e.target.closest('#dmMore, #dmMoreMenu')) menu.classList.add('hidden'); });
+            // 통신사 버튼 누르기
+            detailModal.addEventListener('click', (e) => {
+                const cb = e.target.closest('[data-dm-car]'), nb = e.target.closest('[data-dm-net]'); if (!cb && !nb) return;
+                const cur = sel.value; let nv = cur;
+                if (cb) nv = cb.dataset.dmCar === 'MVNO' ? (isMvno(cur) ? cur : '알뜰폰') : cb.dataset.dmCar;
+                if (nb) nv = `알뜰폰(${nb.dataset.dmNet})`;
+                if (nv !== cur) { sel.value = nv; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+                dmCarSync();
+            });
+            const st = document.createElement('style');
+            st.textContent = `
+                #detailModal #dmTabs [data-dm-tab] { height: 36px; font-size: 13px; }
+                #dmPaneInfo .dm-in > div, #dmPaneInfo .dm-in > label { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+                #dmPaneInfo .dm-in > div > span:first-child, #dmPaneInfo .dm-in > div > label:first-child, #dmPaneInfo .dm-in > div > p:first-child { font-size: 12px !important; font-weight: 700 !important; color: #4b5563 !important; margin-bottom: 4px; }
+                #dmPaneInfo .modal-input { height: 44px; padding: 0 12px; border: 1px solid #d1d5db !important; border-radius: 12px; background: #fff; font-size: 15px !important; color: #111827; width: 100%; }
+                #dmPaneInfo textarea { font-size: 15px !important; border-radius: 12px !important; border: 1px solid #d1d5db !important; padding: 10px 12px !important; background: #fff !important; }
+                #dmPaneInfo select { height: 44px; border: 1px solid #d1d5db; border-radius: 12px; background: #fff; padding: 0 10px; font-size: 15px; }
+                #dmPaneInfo input[type="date"] { height: 44px; min-width: 0; }
+                #dmPaneInfo .kc-dw { min-width: 0; max-width: 100%; }
+                #dmPaneInfo .flex > .kc-dw.w-28 { width: 9.5rem !important; flex-shrink: 0; } #dmPaneInfo .flex > .kc-dw.w-32 { width: 10.5rem !important; flex-shrink: 0; }   /* 약속 날짜 · 유선 가입일: 메모 칸이 밀려나지 않게 */
+                #dmPaneInfo .flex > input.flex-1 { min-width: 0; height: 44px; font-size: 14px; }
+                #dmPaneInfo .dm-chip[aria-pressed="true"] { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+                #dmPaneInfo .dm-sec { border-radius: 16px; }
+                #detailModal .dm-chg, #dmPaneInfo .modal-input.dm-chg, #dmPaneInfo textarea.dm-chg { background-color: #fef9c3 !important; border-color: #eab308 !important; }`;
+            document.head.appendChild(st);
+        })();
+        function dmCarSync() {
+            const v = (document.getElementById('modalCarrier') || {}).value || '', net = mvnoNetOf(v);
+            detailModal.querySelectorAll('[data-dm-car]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dmCar === 'MVNO' ? isMvno(v) : b.dataset.dmCar === v)));
+            detailModal.querySelectorAll('[data-dm-net]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dmNet === net)));
+            dmMvnoSync(); dmSums(); dmHeadChips();
+        }
+        function dmHeadChips() {
+            const c = customerDB.find(x => x.id === currentDetailId); if (!c) return;
+            const val = (id) => String((document.getElementById(id) || {}).value || '').trim();
+            const nm = val('modalName') || c.name || '?';
+            document.getElementById('dmAvatar').textContent = nm.charAt(0);
+            { const ni = document.getElementById('modalName'), pi = document.getElementById('modalPhone'); ni.style.width = `${Math.min(9, Math.max(2, String(ni.value || '').length + 0.6))}em`; pi.style.width = `${Math.max(6, String(pi.value || '').length * 0.62 + 0.8)}em`; }   // 이름 · 번호 길이만큼 (✏️가 바로 옆에)
+            const bd = parseBirth(val('modalDob') || c.dob); document.getElementById('dmAge').textContent = bd && bd.age !== null ? `${bd.age}세` : '';
+            const chip = (t, cls) => t ? `<span class="text-[12px] font-bold rounded-full border px-2 py-0.5 whitespace-nowrap ${cls}">${escapeHtml(t)}</span>` : '';
+            const ss = val('modalSalesStatus'), car = val('modalCarrier'), ad = val('modalActivation'), dd = ad ? getDdayAndMonths(ad).days : null, dc = val('modalDiscount'), mg = val('modalManager');
+            const ssT = { 판매성공: '판매성공', 가망고객: '진행중', 방문약속: '방문약속', 고객거부: '고객거부' }[ss] || '';
+            document.getElementById('dmChips').innerHTML = [
+                chip(ssT, ss === '판매성공' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : (ss === '고객거부' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700')),
+                chip(car && car !== '미정' ? carrierLabel(car, val('modalMvno')) : '', isMvno(car) ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-700'),
+                chip(dd !== null && dd >= 0 ? `개통 D+${dd}` : '', 'bg-red-50 border-red-200 text-red-700'),
+                chip(dc && dc !== '미정' ? dtLabel(dc).replace(/\(.*\)/, '').trim() : '', 'bg-white border-gray-300 text-gray-600'),
+                chip(mg ? `담당 ${mg}` : '', 'bg-indigo-50 border-indigo-200 text-indigo-800'),
+                chip(document.getElementById('modalMarketingDeny').checked ? '광고 거부' : '광고 동의', document.getElementById('modalMarketingDeny').checked ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600')
+            ].join('');
+        }
         function dmMvnoSync() {
             const box = document.getElementById('modalMvnoBox'); if (!box) return;
             const car = (document.getElementById('modalCarrier') || {}).value || '', on = isMvno(car);
@@ -9577,12 +9681,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (pv) pv.textContent = on && b ? `고객카드 · 보고서엔 ${carrierLabel(car, b)}로 보여요` : '';
         }
         function dmSums() { dmSecs.forEach(s => { const el = s.el.querySelector('.dm-sum'); if (el) try { el.textContent = s.sum() || ''; } catch (e) { /* 무시 */ } }); }
-        function dmFields() { return [...document.querySelectorAll('#dmPaneInfo input, #dmPaneInfo select, #dmPaneInfo textarea')].filter(el => el.id && !el.readOnly); }
+        function dmFields() { return [...document.querySelectorAll('#dmPaneInfo input, #dmPaneInfo select, #dmPaneInfo textarea, #modalName, #modalPhone')].filter(el => el.id && (!el.readOnly || el.id === 'modalName' || el.id === 'modalPhone')); }
         const dmVal = (el) => el.type === 'checkbox' ? (el.checked ? '1' : '') : String(el.value ?? '');
         function dmMarkAll() {
             let n = 0;
             dmFields().forEach(el => { const ch = dmSnap.has(el.id) && dmSnap.get(el.id) !== dmVal(el); el.classList.toggle('dm-chg', ch); if (ch) n++; });
-            const s = document.getElementById('dmSaveN'); if (s) s.textContent = n ? `· ${n}칸` : '';
+            const s = document.getElementById('dmSaveN'); if (s) s.textContent = n ? `바뀐 칸 ${n}개` : '바뀐 칸 없음';
         }
         function dmSetTab(t) {
             dmTab = t;
@@ -9619,14 +9723,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 await orig(id);
                 if (currentDetailId !== id || detailModal.style.display !== 'flex') return;
                 dmSecs.forEach(s => { s.el.open = !!s.el.dataset.open; });
-                dmMvnoSync(); dmSums();
+                dmCarSync();
                 dmSnap = new Map(dmFields().map(el => [el.id, dmVal(el)])); dmMarkAll();
                 dmSetTab('info');
                 const sc = detailModal.querySelector('.overflow-y-auto.flex-1'); if (sc) sc.scrollTop = 0;
             };
         }
-        detailModal.addEventListener('input', (e) => { if (e.target.closest('#dmPaneInfo')) { if (e.target.id === 'modalMvno') dmMvnoSync(); dmMarkAll(); } });
-        detailModal.addEventListener('change', (e) => { if (e.target.closest('#dmPaneInfo')) { if (e.target.id === 'modalCarrier') dmMvnoSync(); dmMarkAll(); dmSums(); } });
+        detailModal.addEventListener('input', (e) => { if (e.target.closest('#dmPaneInfo, #dmHead')) { if (e.target.id === 'modalMvno') { dmMvnoSync(); dmHeadChips(); } dmMarkAll(); } });
+        detailModal.addEventListener('change', (e) => { if (e.target.closest('#dmPaneInfo')) { if (e.target.id === 'modalCarrier') dmCarSync(); dmMarkAll(); dmSums(); dmHeadChips(); } });
         detailModal.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('dm-sec') && !e.target.open) dmSums(); }, true);
         detailModal.addEventListener('click', async (ev) => {
             const t = ev.target.closest('[data-dm-tab]'); if (t) { dmSetTab(t.dataset.dmTab); return; }
@@ -24515,7 +24619,8 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V242', d: '2026-11-01', items: [
-                ['🗂 고객 상세 카드(수정 화면)를 탭 3개로: ✏️ 정보 · 📜 개통 기록 · 📝 안내서'],
+                ['🗂 고객 상세 카드(수정 화면)를 탭 3개로: ✏️ 정보 · 📜 개통 기록 · 📝 안내서 · 위에 고객 요약 칩(상태 · 통신사 · D+일 · 담당) · [전화] [문자] [명함]'],
+                ['📶 통신사는 버튼으로 (SKT · KT · LG U+ · 알뜰폰 → 망 SK/KT/LG + 브랜드) · 삭제 · 출력은 [⋯] 안으로'],
                 ['✏️ 정보 탭은 접고 펴는 묶음 6개 (📱 지금 쓰는 회선 · 💳 단말기 · 할부 · 🤝 약속 · 👨‍👩‍👧 결합 · 가족 · 유선 · 📝 메모 · 🗂 영업 상태 · 고객 관리) · 접어도 제목 옆에 요약'],
                 ['🟨 고친 칸은 노란색 · [저장] 버튼에 바뀐 칸 수 (저장은 예전처럼 바꾼 칸만)'],
                 ['📶 수정 화면에도 알뜰폰 브랜드 칸 (통신사가 알뜰폰일 때만)'],
