@@ -3455,7 +3455,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const v = String(data[k] || '');
                 if (!v) { out[`prom${m[1]}By`] = ''; return; }
                 const reopened = data[`prom${m[1]}Chk`] === false && cur[`prom${m[1]}Chk`] === true;
-                if (v !== String(cur[k] || '') || reopened) out[`prom${m[1]}By`] = me;   // 날짜가 그대로면 예전에 잡은 사람 그대로
+                if (v !== String(cur[k] || '') || reopened) { out[`prom${m[1]}By`] = me; if (!(`prom${m[1]}Auto` in data) && cur[`prom${m[1]}Auto`]) out[`prom${m[1]}Auto`] = false; }   // 날짜가 그대로면 예전에 잡은 사람 그대로 · 직원이 고치면 '자동' 표시 뗌
             });
             if ('updatedAt' in data && !('updatedBy' in data) && me) out.updatedBy = me;
             // 📅 영업상태가 바뀐 날 (가망·방문약속 31일 자동 풀기 기준)
@@ -4037,6 +4037,17 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 🏬 방문 약속에 안 오면 다음 날 '재연락' 약속 자동 (V177) — 지난 3일 안 약속만 · 한 약속에 한 번 · 어느 폰이든 (중복은 막음)
         let noShowAt = 0;
         const noShowBusy = new Set();
+        // 🤖 V255 자동으로 잡는 재연락 약속: 등록자 = 마지막으로 연락한 직원 → 담당자 (자동 작업을 돌린 폰 주인이 아니라) · promCallAuto 표시
+        function autoPromBy(cur) { return managerKey((cur && cur.contactManager) || '') || ownerOf(cur || {}) || managerKey((cur && cur.manager) || '') || ''; }
+        const AUTO_PROM_RE = /^(📵 부재 재연락|🏬 .*\(자동\)|📇 명함: )/;
+        let autoPromFixed = false;
+        function fixAutoPromBy() {   // 예전에 잘못 남은 등록자 한 번 바로잡기 (👑 대표 폰 · 한 번)
+            if (autoPromFixed || !isSuperAdmin || !db || !dbLoaded) return; autoPromFixed = true;
+            try { if (localStorage.getItem('fixAutoProm255') === '1') return; } catch (e) { /* 무시 */ }
+            const list = customerDB.filter(c => !c.deletedAt && !c.promCallChk && !c.promCallAuto && AUTO_PROM_RE.test(String(c.promCallMemo || '')) && String(c.promCallDate || '').length >= 10);
+            Promise.allSettled(list.slice(0, 200).map(c => saveDoc(doc(db, 'smart_customers', c.id), { promCallBy: autoPromBy(c), promCallAuto: true }, { merge: true })))
+                .then(() => { try { localStorage.setItem('fixAutoProm255', '1'); } catch (e) { /* 무시 */ } });
+        }
         function autoNoShowRecontact() {
             if (!db || !dbLoaded || !settingsLoaded || smsSetting('smsVisitNoShow') === false) return;
             if (Date.now() - noShowAt < 10 * 60 * 1000) return;
@@ -4050,7 +4061,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (cur.promVisitChk || cur.promVisitNoShowFor === vd || String(cur.promVisitDate || '').slice(0, 10) !== vd) return { promVisitNoShowFor: cur.promVisitNoShowFor || '' };
                         const out = { promVisitNoShowFor: vd, updatedAt: new Date().toISOString() };
                         const call = String(cur.promCallDate || '');
-                        if (!(call.length >= 10 && !cur.promCallChk)) { out.promCallDate = today; out.promCallChk = false; out.promCallMemo = `🏬 ${md} 방문 약속에 안 오심 · 다시 연락 (자동)`; out.promCallBy = '자동'; }
+                        if (!(call.length >= 10 && !cur.promCallChk)) { out.promCallDate = today; out.promCallChk = false; out.promCallMemo = `🏬 ${md} 방문 약속에 안 오심 · 다시 연락 (자동)`; out.promCallBy = autoPromBy(cur); out.promCallAuto = true; out.promCallBy = '자동'; }
                         const now = new Date(), two = (n) => String(n).padStart(2, '0');
                         out.contactHistory = appendLine(cur.contactHistory, `[${now.getFullYear()}.${two(now.getMonth() + 1)}.${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}] 🏬 ${md} 방문 약속 안 오심${out.promCallDate ? ' → 오늘 재연락 약속 (자동)' : ''}`);
                         return out;
@@ -4249,7 +4260,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 migrateCardSendStatus();
                 migrateCardContact();
                 try { unifyProspectStatus(); } catch (e) { console.warn(e); }
-                try { autoNoShowRecontact(); } catch (e) { console.warn(e); }
+                try { autoNoShowRecontact(); fixAutoPromBy(); } catch (e) { console.warn(e); }
                 try { syncDocCounts(); } catch (e) { /* 준비 전 */ }
                 dbLoadError = null;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
@@ -4289,7 +4300,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 migrateCardSendStatus();
                 migrateCardContact();
                 try { unifyProspectStatus(); } catch (e) { console.warn(e); }
-                try { autoNoShowRecontact(); } catch (e) { console.warn(e); }
+                try { autoNoShowRecontact(); fixAutoPromBy(); } catch (e) { console.warn(e); }
                 if (typeof appSettings.pushRelayUrl === 'string') { try { localStorage.setItem('pushRelayUrl', appSettings.pushRelayUrl); } catch (e) { /* 무시 */ } }
                 // 예전: 여기서 자동 약속 칸만 다시 그려서, 설정 탭에서 새로고침하면 중계 서버 주소 칸이 빈 채로 남았음
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderSettings();
@@ -8537,10 +8548,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const diff = daysFromToday(date);
                 if (diff === null) return;
                 const memo = (c[key + 'Memo'] || '').trim();
-                const by = String(c[key + 'By'] || '').trim();
-                if (diff < 0) tasks.push({ rank: 0, order: diff, tone: 'red', badge: `지연 ${-diff}일`, title: label, sub: memo, by });
-                else if (diff === 0) tasks.push({ rank: 1, order: 0, tone: 'orange', badge: '오늘', title: label, sub: memo, by });
-                else tasks.push({ rank: diff <= PROMISE_DAYS_AHEAD ? 4.5 : 6, order: diff, tone: 'indigo', badge: `D-${diff}`, title: label, sub: memo || `${formatShortDate(date)} 약속`, by });   // 7일 안 약속은 기변 타겟보다 먼저
+                const by = String(c[key + 'By'] || '').trim(), auto = !!c[key + 'Auto'];
+                if (diff < 0) tasks.push({ rank: 0, order: diff, tone: 'red', badge: `지연 ${-diff}일`, title: label, sub: memo, by, auto });
+                else if (diff === 0) tasks.push({ rank: 1, order: 0, tone: 'orange', badge: '오늘', title: label, sub: memo, by, auto });
+                else tasks.push({ rank: diff <= PROMISE_DAYS_AHEAD ? 4.5 : 6, order: diff, tone: 'indigo', badge: `D-${diff}`, title: label, sub: memo || `${formatShortDate(date)} 약속`, by, auto });   // 7일 안 약속은 기변 타겟보다 먼저
             });
             if (c.salesStatus !== '고객거부') {
                 const bLeft = getDaysUntilBirthday(c.dob);
@@ -8656,7 +8667,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             // 🔒 담당자 잠금 · ⚠️ 다른 직원이 잡은 약속 (두 사람이 같은 고객에게 겹치지 않게)
             const meKey = managerKey(getStaffName());
             const lockedForMe = isLockedFor(c), ownerName = ownerOf(c);
-            const otherBy = [...new Set(tasks.filter(t => t.by && !sameStaff(t.by, meKey)).map(t => managerKey(t.by)))];
+            const otherBy = [...new Set(tasks.filter(t => t.by && !t.auto && !sameStaff(t.by, meKey)).map(t => managerKey(t.by)))];   // 🤖 자동 약속은 경고 안 함
             const guardHtml = (lockedForMe || otherBy.length) ? `<div class="flex flex-wrap gap-1.5">${lockedForMe ? `<span class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-1.5 py-0.5"><i class="fa-solid fa-lock"></i> ${escapeHtml(ownerName)} 담당 · 보기·연락만</span>` : ''}${otherBy.length ? `<span class="text-xs font-bold text-orange-800 bg-orange-50 border border-orange-300 rounded-md px-1.5 py-0.5">⚠️ ${escapeHtml(otherBy.join('·'))}님이 잡은 약속 ${tasks.filter(t => t.by && !sameStaff(t.by, meKey)).length}건</span>` : ''}</div>` : '';
             const factsHtml = facts.map(f => `<span class="${chipCls} ${refused ? 'bg-gray-100 border-transparent text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-700'}">${escapeHtml(f)}</span>`).join('')
                 + (warn ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold">${escapeHtml(warn)}</span>` : '')
@@ -8670,7 +8681,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <span class="flex-1 min-w-0 flex flex-col">
                         <span class="text-sm font-bold ${tone.title} truncate">${escapeHtml(top.title)}</span>
                         ${top.sub ? `<span class="text-[13px] ${tone.sub} truncate">${escapeHtml(top.sub)}</span>` : ''}
-                        ${top.by ? `<span class="text-[12px] font-bold ${!sameStaff(top.by, meKey) ? 'text-orange-700' : tone.sub} truncate">${!sameStaff(top.by, meKey) ? '⚠️ ' : ''}${escapeHtml(managerKey(top.by))} 등록</span>` : ''}
+                        ${top.by ? `<span class="text-[12px] font-bold ${!top.auto && !sameStaff(top.by, meKey) ? 'text-orange-700' : tone.sub} truncate">${!top.auto && !sameStaff(top.by, meKey) ? '⚠️ ' : ''}${escapeHtml(managerKey(top.by))} ${top.auto ? '· 🤖 자동' : '등록'}</span>` : ''}
                     </span>
                     ${tasks.length > 1 ? `<span class="flex-shrink-0 text-xs font-medium ${tone.sub}">외 ${tasks.length - 1}건</span>` : ''}
                 </div>`;
@@ -10320,7 +10331,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 date: c[`prom${p.key}Date`] || '',
                 memo: c[`prom${p.key}Memo`] || '',
                 done: !!c[`prom${p.key}Chk`],
-                by: String(c[`prom${p.key}By`] || '').trim()
+                by: String(c[`prom${p.key}By`] || '').trim(), auto: !!c[`prom${p.key}Auto`]
             })).filter(x => x.date || x.memo);
             if (items.length === 0) return profileEmpty('fa-calendar-check', '등록된 약속이 없어요.\n[수정]에서 요금제 변경·부가 해지 등 약속을 추가하세요.');
 
@@ -10341,7 +10352,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <div class="flex items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}</div>
                     <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
-                    ${p.by ? `<p class="text-xs font-bold mt-0.5 ${!sameStaff(p.by, getStaffName()) ? 'text-orange-700' : 'text-gray-500'}">${!sameStaff(p.by, getStaffName()) ? '⚠️ ' : ''}${escapeHtml(managerKey(p.by))} 등록</p>` : ''}
+                    ${p.by ? `<p class="text-xs font-bold mt-0.5 ${!p.auto && !sameStaff(p.by, getStaffName()) ? 'text-orange-700' : 'text-gray-500'}">${!p.auto && !sameStaff(p.by, getStaffName()) ? '⚠️ ' : ''}${escapeHtml(managerKey(p.by))} ${p.auto ? '· 🤖 자동' : '등록'}</p>` : ''}
                     ${canCal ? `<button type="button" data-cal-key="${p.key}" class="mt-2 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</button>` : ''}
                 </div>`;
             }).join('');
@@ -14499,7 +14510,7 @@ ${AI_TONES[aiSmsTone]}
             // ⚠️ 다른 직원이 잡은 약속을 바꾸는 경우
             const meK = managerKey(getStaffName());
             const othersProm = changed.map(k => /^prom([A-Za-z0-9]+)(Date|Memo|Chk)$/.exec(k)).filter(Boolean).map(m => m[1]).filter((k, i, arr) => arr.indexOf(k) === i)
-                .filter(k => { const by = managerKey(openRaw[`prom${k}By`] || ''); return by && !sameStaff(by, meK) && String(openRaw[`prom${k}Date`] || '').length >= 10 && !openRaw[`prom${k}Chk`]; });
+                .filter(k => { const by = managerKey(openRaw[`prom${k}By`] || ''); return by && !openRaw[`prom${k}Auto`] && !sameStaff(by, meK) && String(openRaw[`prom${k}Date`] || '').length >= 10 && !openRaw[`prom${k}Chk`]; });
             if (othersProm.length) {
                 const lines = othersProm.map(k => `· ${(PROMISE_DEFS.find(t => t.key === k) || { label: k }).label} (${managerKey(openRaw[`prom${k}By`])}님 · ${String(openRaw[`prom${k}Date`]).slice(5).replace('-', '/')})`).join('\n');
                 if (!(await customConfirm(`⚠️ 다른 직원이 잡은 약속을 바꿔요.\n${lines}\n\n바꾼 내용으로 저장할까요?`))) return;
@@ -16075,7 +16086,7 @@ familyStr + `\n` +
                         const base = { missReplyAt: new Date().toISOString(), missReply: R.kind, updatedAt: new Date().toISOString(), __audit: '명함 응답 (부재 재연락)' };
                         if (R.kind === 'call') return { ...base, contactHistory: appendLine(cur.contactHistory, `${ts} 📇 명함 [지금 바로 통화하기] 누름${why} · 부재 재연락`) };
                         if (R.kind === 'optout') return { ...base, marketingDeny: true, missOptOut: true, contactHistory: appendLine(cur.contactHistory, `${ts} 🙅 명함 '연락 원치 않아요'${why} → 광고 · 자동 연락 제외`) };
-                        return { ...base, promCallDate: R.date, promCallMemo: `📇 명함: ${R.slot}에 연락 원함${why}`, promCallChk: false, contactHistory: appendLine(cur.contactHistory, `${ts} 📇 명함 '${R.slot}에 연락 주세요'${why} · 부재 재연락`) };
+                        return { ...base, promCallDate: R.date, promCallMemo: `📇 명함: ${R.slot}에 연락 원함${why}`, promCallChk: false, promCallBy: autoPromBy(cur), promCallAuto: true, contactHistory: appendLine(cur.contactHistory, `${ts} 📇 명함 '${R.slot}에 연락 주세요'${why} · 부재 재연락`) };
                     });
                     try { stockToast(`📇 ${c.name || '고객'} · ${R.kind === 'call' ? '지금 통화 누름' : (R.kind === 'optout' ? '연락 원치 않음' : R.slot + ' 연락 원함')}`); } catch (e) { /* 무시 */ }
                 } catch (e) { console.warn('명함 응답(부재 재연락) 반영 실패', e); missBusy.delete(r.id); }
@@ -16098,7 +16109,7 @@ familyStr + `\n` +
                 txCustomerUpdate(c.id, (cur) => {
                     if (cur.missRecallAt || cur.missReplyAt || !Number(cur.missReAt)) return {};
                     const open = cur.promCallDate && !cur.promCallChk;
-                    return { missRecallAt: new Date().toISOString(), ...(open ? {} : { promCallDate: getTodayStr(), promCallMemo: `📵 부재 재연락 · 명함 문자 안 누름${cur.missReason ? ' (' + String(cur.missReason).replace(/드리려고$/, '') + ')' : ''} → 재통화`, promCallChk: false }) };
+                    return { missRecallAt: new Date().toISOString(), ...(open ? {} : { promCallBy: autoPromBy(cur), promCallAuto: true, promCallDate: getTodayStr(), promCallMemo: `📵 부재 재연락 · 명함 문자 안 누름${cur.missReason ? ' (' + String(cur.missReason).replace(/드리려고$/, '') + ')' : ''} → 재통화`, promCallChk: false }) };
                 }).catch(e => console.warn('재통화 알림 실패', e));
             });
         }
@@ -25162,7 +25173,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V254';
+        const APP_VER = 'V255';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25170,6 +25181,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V255', d: '2026-11-01', items: [
+                ['🤖 자동으로 잡히는 재연락(부재 재연락 · 방문 안 오심 · 명함 연락 원함)은 마지막으로 연락한 직원 이름으로 · "🤖 자동" 표시 · 다른 직원 약속 ⚠ 경고 안 뜸 (예전엔 강CRM을 먼저 연 폰 주인 이름이 남았어요)']] },
             { v: 'V254', d: '2026-11-01', items: [
                 ['🕘 자동 문자 · 푸시 예약 시각을 한국 시간으로 고정 · 기기 시간대가 한국이 아니면 한 번 알려줘요 · 업데이트 소식 날짜 바로잡음']] },
             { v: 'V253', d: '2026-11-01', items: [
