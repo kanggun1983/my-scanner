@@ -10373,6 +10373,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <p class="text-[13px] text-gray-700 whitespace-pre-wrap">${escapeHtml(c.repFamily)}</p>
                 </div>`;
             }
+            if (members.length) html += `<button type="button" data-fam-calc class="mt-3 w-full h-12 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 font-bold text-[15px] flex items-center justify-center gap-2"><i class="fa-solid fa-calculator"></i> 가족 통신비 같이 계산하기</button>`;   // V251
             html += famRegHtml(c);
             html += `<button type="button" data-family-action="add" class="mt-3 w-full h-12 rounded-xl border-2 border-dashed border-indigo-300 text-indigo-700 font-bold text-[15px] flex items-center justify-center gap-2"><i class="fa-solid fa-user-plus"></i>가족 추가</button>`;
             return html;
@@ -10432,6 +10433,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             } catch (e) { console.error(e); customAlert(koreanError(e, '가족 등록')); }
         }
         document.addEventListener('click', (e) => {
+            const fc = e.target.closest('[data-fam-calc]');
+            if (fc && currentProfileId) { const c = customerDB.find(x => x.id === currentProfileId); if (!c) return; const q = { who: msgName(c), now: calcNowOf(c), car: calcCarOf(c) || '', ...calcFamQ(c) }; openPhoneCalc('calc', { ctx: { rid: '', custId: c.id, name: c.name || '', phone: String(c.phone || '').replace(/\D/g, '') }, q }); return; }
             const b = e.target.closest('[data-fam-reg]'); if (!b || !currentProfileId) return;
             const a = b.dataset.famReg;
             if (a === 'open' || a === 'cancel') { famRegOpen = a === 'open'; renderProfileCard(); if (famRegOpen) setTimeout(() => { const i = document.getElementById('famName'); if (i) i.focus(); }, 50); return; }
@@ -25120,7 +25123,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V250';
+        const APP_VER = 'V251';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25128,6 +25131,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V251', d: '2026-11-02', items: [
+                ['🧮 폰값계산(명함 · 상담용)에 "할인 더 받기": 가족 결합 · 집 인터넷 · 복지 할인(기초연금 · 장애인 등)을 고르면 월 납부에 반영 (예상 금액)'],
+                ['📱 "지금 폰 그대로 쓰면?": 지금 요금제와 새 폰 2년 총액을 나란히 · 차이가 폰 값인지 요금인지까지'],
+                ['👨‍👩‍👧 "우리 가족 통신비 한 번에": 가족 요금제를 넣고 그대로 / 같이 옮기기 → 가족 월 합계 · 2년 총액 비교 · 고객카드 가족 탭 [가족 통신비 같이 계산하기]로 가족이 자동으로 채워져요']] },
             { v: 'V250', d: '2026-11-02', items: [
                 ['📇 고객 화면 맨 위 "어제부터 명함 본 고객": 명함을 열었거나 견적 확인 · 계산해 본 고객 · 이름 · 번호 · 나이 · 기종 · 약정 그대로 · 📞 바로 전화 · 오늘 연락하면 흐리게 (직원은 내 담당만)'],
                 ['👨‍👩‍👧 고객카드 → 가족 탭 [새 가족 등록 · 명함 보내기]: 강CRM 등록(가망 · 같은 담당) + 가족 연결 + 그 가족 개인 명함 문자를 한 번에 · 관계(아들 · 딸…) 표시'],
@@ -26162,12 +26169,27 @@ familyStr + `\n` +
             const tr = get('기기 보상'), trPhone = (/\(지금 폰:\s*([^)]+)\)/.exec(tr) || [])[1] || '';
             return { model, cap, now, car: /^추천/.test(car) ? '' : car, ins: get('할부'), disc: get('할인 방식'), trade: /원해요/.test(tr), tradePhone: trPhone.trim() };
         }
+        /* 👨‍👩‍👧 V251 계산기에 고객 · 가족 채우기 — 지금 요금제(planFee · 할인) + 가족 탭에 묶인 가족 (명함 V4.9 '우리 가족 통신비') */
+        function calcCarOf(c) { const v = String((c && c.carrier) || ''); return /알뜰/.test(v) ? '' : (/LG|U\+|유플/i.test(v) ? 'LG U+' : (/SK/i.test(v) ? 'SKT' : (/KT/i.test(v) ? 'KT' : ''))); }
+        function calcFeeOf(c) { const n = Number(c && c.planFee); if (n > 0) return n; const m = String((c && c.fee) || '').replace(/[^0-9]/g, ''); return m ? Number(m) : 0; }
+        function calcSunOf(c) { const d = String((c && c.discountType) || ''); return /선택약정/.test(d) ? 'yes' : (/공시|해당없음|만료/.test(d) ? 'no' : 'unk'); }
+        const calcNowOf = (c) => calcCarOf(c) || (/알뜰/.test(String((c && c.carrier) || '')) ? '알뜰폰' : '');
+        function calcFamQ(c) {
+            if (!c) return {};
+            const relOf = (m) => { const r = m.familyRel && m.famOf === c.id ? m.familyRel : (c.famOf === m.id && c.familyRel ? FAM_INV[c.familyRel] : (m.familyRel || '')); return /아들|딸|자녀|손자녀/.test(r) ? '자녀' : (/부모|조부모|시부모/.test(r) ? '부모' : (/배우자/.test(r) ? '배우자' : (/형제/.test(r) ? '형제자매' : '기타'))); };
+            const fam = getFamilyMembers(c).filter(m => calcCarOf(m)).slice(0, 4).map(m => ({ rel: relOf(m), car: calcCarOf(m), plan: String(m.plan || '').slice(0, 30), fee: calcFeeOf(m), sun: calcSunOf(m) === 'no' ? 'no' : 'yes' }));
+            const q = {}; const f = calcFeeOf(c);
+            if (f > 0) { q.nowFee = f; q.nowPlan = String(c.plan || '').slice(0, 30); q.nowSun = calcSunOf(c); }
+            if (fam.length) q.fam = fam;
+            return q;
+        }
         function openQuoteFromRequest(r) {
             const c = calcFindCustomer(r);
             const phone = String((c && c.phone) || r.phone || '').replace(/\D/g, '');
             const name = c ? (c.name || '') : (r.name || '');
             const q = calcParseQuote(r);
             q.who = msgName(c ? c : name);
+            if (c) { Object.assign(q, calcFamQ(c)); if (!q.now && calcNowOf(c)) q.now = calcNowOf(c); }   // 👨‍👩‍👧 V251
             openPhoneCalc('calc', { ctx: { rid: r.id, custId: c ? c.id : '', name: name || '새 고객', phone }, q });
         }
         const qsEl = document.createElement('div');
