@@ -740,6 +740,10 @@
                             <span class="text-sm font-bold text-gray-900 leading-snug">📱 고객 명함에 '내 폰 정보' 보이기<br><span class="text-xs font-medium text-gray-600">개인 링크로 본인 확인한 폰에서만: 기종 · 개통 달 · 할부·약정 끝나는 달 · 추천 기변 시기 (이름·번호는 안 나가요) · <b>V185</b>: 개통하고 정한 개월(자동 문자 설정 '📱 내 폰 정보 알림' · 기본 18개월)부터 명함에 '📱 내 폰' 한 줄로 보여요 (그 전엔 숨김)</span></span>
                             <input type="checkbox" id="calcMyPhoneOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                         </label>
+                        <label for="calcNowCmpOn" class="flex items-center justify-between gap-3 cursor-pointer">
+                            <span class="text-sm font-bold text-gray-900 leading-snug">📱 고객 명함에도 '지금 그대로' 비교 보이기 <span class="text-xs font-bold text-indigo-700">(V252)</span><br><span class="text-xs font-medium text-gray-600">끄면 고객은 '새 요금제가 지금보다 월 ○원 줄어요'처럼 요금 차이만 봐요 · 강CRM 상담용 계산기는 늘 지금 그대로 · 새 폰 · 지금 폰+알뜰 세 가지를 다 보여줘요</span></span>
+                            <input type="checkbox" id="calcNowCmpOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                        </label>
                         <label for="calcBigOn" class="flex items-center justify-between gap-3 cursor-pointer">
                             <span class="text-sm font-bold text-gray-900 leading-snug">👵 60세 이상은 큰 글씨 명함 <span class="text-xs font-bold text-indigo-700">(V250)</span><br><span class="text-xs font-medium text-gray-600">개인 링크로 열면 사진 · 이름 + 큰 버튼 4개(전화 · 문자 · 오시는 길 · 저장)만 · 아래 '작은 글씨로 전체 명함 보기'로 지금 명함 · 나이는 생년월일(없으면 주민번호 앞자리)로</span></span>
                             <input type="checkbox" id="calcBigOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
@@ -17014,6 +17018,7 @@ familyStr + `\n` +
               const ko = document.getElementById('calcKakaoOn'); ko.checked = d.kakaoOn !== false; ko.disabled = locked; }
             { // 🙋 고객 명함 추가 기능 (V177)
               [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn'], ['calcBigOn', 'bigOn']].forEach(([id, k]) => { const el = document.getElementById(id); el.checked = d[k] !== false; el.disabled = locked; });
+              { const el = document.getElementById('calcNowCmpOn'); el.checked = d.showNowCmp === true; el.disabled = locked; }   // V252 처음엔 꺼짐
               const rw = document.getElementById('calcRefReward'); if (document.activeElement !== rw) rw.value = d.refReward || ''; rw.disabled = locked;
               { const T = refTiers(d), box = document.getElementById('calcRefTiers');   // 🎁 소개 사은품 단계 (V186)
                 if (!box.contains(document.activeElement)) for (let i = 0; i < 5; i++) { const n = box.querySelector(`[data-rt-n="${i}"]`), g = box.querySelector(`[data-rt-g="${i}"]`); n.value = T[i] ? String(T[i].n) : ''; g.value = T[i] ? T[i].g : ''; }
@@ -17031,6 +17036,12 @@ familyStr + `\n` +
             if (!(await calcSave(next, true))) { e.target.checked = !e.target.checked; return; }
             if (k !== 'visitBookOn') { calcData = next; setTimeout(() => syncCardWho(true), 300); }   // 명함 확인 칸(card_who)에 넣는 값이 바뀜 → 다시 맞춤
         }));
+        document.getElementById('calcNowCmpOn').addEventListener('change', async e => {   // 📱 V252
+            if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
+            const next = calcNormalize(calcData); next.showNowCmp = e.target.checked;
+            if (!(await calcSave(next, true))) { e.target.checked = !e.target.checked; return; }
+            calcData = next;
+        });
         document.getElementById('calcRefReward').addEventListener('change', async e => {
             if (!can('editPolicy')) { renderCalcSettings(); return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next.refReward = e.target.value.trim().slice(0, 60);
@@ -25124,7 +25135,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V251';
+        const APP_VER = 'V252';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25132,6 +25143,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V252', d: '2026-11-02', items: [
+                ['📱 상담용 폰값계산 "지금 조건과 비교": 지금 그대로(선약 · 결합 · 복지 · 남은 할부) · 새 폰 · 지금 폰+알뜰유심(같은 망 · 데이터 비슷한 것 · 복지할인 불가 · 남는 가족이 잃는 결합 포함)을 나란히'],
+                ['⭐ 지금 폰을 2년 넘게 썼으면 가운데 "새 폰"에 추천 · 고객카드 개통일로 자동'],
+                ['🙋 고객 명함은 "새 요금제가 지금보다 월 ○원 줄어요"처럼 요금 차이만 · 설정 → 📇 고객 명함에서 "지금 그대로" 비교를 켤 수 있어요', 'a']] },
             { v: 'V251', d: '2026-11-02', items: [
                 ['🧮 폰값계산(명함 · 상담용)에 "할인 더 받기": 가족 결합 · 집 인터넷 · 복지 할인(기초연금 · 장애인 등)을 고르면 월 납부에 반영 (예상 금액)'],
                 ['📱 "지금 폰 그대로 쓰면?": 지금 요금제와 새 폰 2년 총액을 나란히 · 차이가 폰 값인지 요금인지까지'],
@@ -26181,6 +26196,7 @@ familyStr + `\n` +
             const fam = getFamilyMembers(c).filter(m => calcCarOf(m)).slice(0, 4).map(m => ({ rel: relOf(m), car: calcCarOf(m), plan: String(m.plan || '').slice(0, 30), fee: calcFeeOf(m), sun: calcSunOf(m) === 'no' ? 'no' : 'yes' }));
             const q = {}; const f = calcFeeOf(c);
             if (f > 0) { q.nowFee = f; q.nowPlan = String(c.plan || '').slice(0, 30); q.nowSun = calcSunOf(c); }
+            { const ad = String(c.activationDate || ''); if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) { const mo = getDdayAndMonths(ad).months; q.devAge = mo >= 24 ? 'gt2' : (mo >= 12 ? '1to2' : 'lt1'); } }   // 📱 V252 지금 폰 쓴 기간
             if (fam.length) q.fam = fam;
             return q;
         }
