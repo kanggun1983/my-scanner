@@ -2471,12 +2471,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
     <!-- 👤 고객 프로필 카드 (목록에서 고객 이름을 누르면 열림 · 보기 전용 · 내용은 JS에서 채움) -->
     <div id="profileModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-end sm:items-center justify-center z-50 sm:p-4">
         <div class="sheet-in bg-white w-full sm:max-w-md max-h-[92vh] rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-            <div class="relative flex items-center justify-center px-4 pt-4 pb-3 border-b border-[#f6e1d9] flex-shrink-0">
+            <div class="hidden relative flex items-center justify-center px-4 pt-4 pb-3 border-b border-[#f6e1d9] flex-shrink-0">
                 <div class="absolute top-1.5 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-gray-200 sm:hidden"></div>
                 <h3 class="text-base font-bold text-gray-900">고객 정보</h3>
                 <button type="button" id="closeProfileModal" class="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 text-2xl leading-none" aria-label="닫기">&times;</button>
             </div>
-            <div id="profileBody" class="overflow-y-auto flex-1"></div>
+            <div id="profileBody" class="overflow-y-auto flex-1 bg-gray-100"></div>
             <div id="profileActions" class="flex-shrink-0 p-3 border-t border-gray-100 bg-white grid grid-cols-3 gap-2"></div>
         </div>
     </div>
@@ -3941,7 +3941,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 👤 고객 프로필 카드 상태
         let currentProfileId = null;
         let currentProfileTab = 'mobile';
-        let profileDetailOpen = true;
+        let profileDetailOpen = false;   // V243: 위 요약 칩이 있어서 고객 상세는 접어서 시작
         let profileHistoryPushed = false;
 
         // 🔒 Firebase 초기화 및 로그인 관리
@@ -9577,7 +9577,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             head.className = 'flex-shrink-0 bg-white border-b border-gray-200 px-3.5 pt-3 pb-2.5';
             head.innerHTML = `<div class="flex items-center gap-2.5"><div id="dmAvatar" class="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 font-extrabold text-lg flex items-center justify-center flex-shrink-0"></div><div id="dmWho" class="flex-1 min-w-0"></div><button type="button" id="dmClose" class="w-10 h-10 rounded-xl text-gray-500 text-2xl flex-shrink-0" aria-label="닫기">✕</button></div>
                 <div id="dmChips" class="flex flex-wrap gap-1.5 mt-2"></div>
-                <div id="dmQuick" class="grid grid-cols-3 gap-1.5 mt-2.5"></div>`;
+                <div id="dmQuick" class="hidden"></div>`;   // V243: 수정 화면엔 전화 · 문자 · 명함 버튼 없음 (보기 화면에 있어요)
             box.insertBefore(head, sc);
             // 이름 · 번호 (✏️ 고치기 그대로) → 머리로
             const who = head.querySelector('#dmWho');
@@ -9914,13 +9914,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const famCount = getFamilyMembers(c).length;
             const tabCount = { promise: getOpenPromiseDates(c).length, contact: parseContactHistory(c.contactHistory).length, family: famCount ? famCount + 1 : 0 };
             const tabsHtml = `
-                <div class="grid grid-cols-5 rounded-xl border border-[#e3a592] overflow-hidden">
-                    ${PROFILE_TABS.map((t, i) => {
+                <div class="grid grid-cols-5 gap-1 p-1 rounded-xl bg-gray-200/70">
+                    ${PROFILE_TABS.map((t) => {
                         const active = t.key === currentProfileTab;
                         const cnt = tabCount[t.key];
-                        return `<button type="button" data-ptab="${t.key}" class="py-2.5 text-[13px] font-bold transition ${i > 0 ? 'border-l border-[#efc8bb]' : ''} ${active ? 'bg-[#df9b85] text-white' : 'bg-white text-gray-700 hover:bg-[#fdf1ec]'}">${t.label}${cnt ? `<span class="ml-0.5 text-[10px] ${active ? 'text-white/80' : 'text-[#e0826a]'}">${cnt}</span>` : ''}</button>`;
+                        return `<button type="button" data-ptab="${t.key}" class="h-9 rounded-lg text-[13px] font-bold transition ${active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600'}">${t.label}${cnt ? `<span class="ml-0.5 text-[11px] ${active ? 'text-indigo-600' : 'text-gray-500'}">${cnt}</span>` : ''}</button>`;
                     }).join('')}
-                </div>`;
+                </div>`;   // 🎨 V243 수정 화면과 같은 회색 탭
 
             let tabContent;
             if (currentProfileTab === 'wired') tabContent = buildProfileWiredTab(c);
@@ -9929,43 +9929,55 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else if (currentProfileTab === 'family') tabContent = buildProfileFamilyTab(c);
             else tabContent = buildProfileMobileTab(c);
 
+            const chipP = (t, cls) => t ? `<span class="text-[12px] font-bold rounded-full border px-2 py-0.5 whitespace-nowrap ${cls}">${t}</span>` : '';   // 🎨 V243 수정 화면과 같은 요약 칩
+            const ssT = { 판매성공: '판매성공', 가망고객: '진행중', '가망고객(문자발송)': '진행중', '가망고객(OB콜)': '진행중', 방문약속: '방문약속', 고객거부: '고객거부' }[c.salesStatus] || '';
+            const chipsHtml = [
+                chipP(ssT, c.salesStatus === '판매성공' ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : (c.salesStatus === '고객거부' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700')),
+                chipP(c.carrier && c.carrier !== '미정' ? e(carrierLabel(c.carrier, c.mvnoBrand)) : '', isMvno(c.carrier) ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-700'),
+                chipP(hasAct ? `개통 D+${act.days}${act.months ? ` · ${act.months}개월` : ''}` : '', 'bg-red-50 border-red-200 text-red-700'),
+                chipP(discountBase ? e(discountBase + (discountTerm ? ` ${discountTerm}` : '')) : '', 'bg-white border-gray-300 text-gray-600'),
+                chipP(c.manager ? `담당 ${e(c.manager)}` : '', 'bg-indigo-50 border-indigo-200 text-indigo-800'),
+                chipP(c.marketingDeny ? '광고 거부' : '광고 동의', c.marketingDeny ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'),
+                c.bizCardInstalled === true ? chipP('<i class="fa-solid fa-address-card"></i> 명함', 'bg-pink-50 border-pink-200 text-pink-700') : '',
+                c.pushSubscribed === true ? chipP('<i class="fa-solid fa-bell"></i> 알림', 'bg-indigo-50 border-indigo-200 text-indigo-700') : ''
+            ].join('');
+            const ageTxt = birth && birth.age !== null ? `${birth.age}세` : '';
             return `
-                <div class="bg-gradient-to-b from-[#f7d9ce] via-[#fcefea] to-white px-5 pt-5 pb-4">
-                    <div class="flex gap-4">
-                        <div class="w-[4.5rem] h-[4.5rem] flex-shrink-0 rounded-2xl bg-white/80 border border-white shadow-sm flex items-center justify-center text-3xl font-extrabold text-[#df8a72]">${e(name.charAt(0))}</div>
+                <div class="bg-white px-4 pt-3.5 pb-3 border-b border-gray-200">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 font-extrabold text-lg flex items-center justify-center flex-shrink-0">${e(name.charAt(0))}</div>
                         <div class="min-w-0 flex-1">
-                            <div class="flex items-center gap-1.5 flex-wrap">
-                                <h2 class="text-xl font-extrabold text-gray-900 break-all">${e(name)}</h2>
-                                ${genderIcon}
-                                ${c.marketingDeny ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white whitespace-nowrap">마케팅거부</span>' : ''}
-                                ${c.bizCardInstalled === true ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-pink-500 text-white whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>' : ''}
-                                ${c.pushSubscribed === true ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500 text-white whitespace-nowrap"><i class="fa-solid fa-bell"></i> 알림</span>' : ''}
-                            </div>
-                            <p class="text-[15px] font-semibold text-gray-800 mt-0.5 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
-                            ${ownerOf(c) && ownerLockOn() ? `<div class="mt-1 flex items-center gap-1.5 flex-wrap">
+                            <div class="flex items-center gap-1.5 flex-wrap"><h2 class="text-[19px] font-extrabold text-gray-900 break-all leading-tight">${e(name)}</h2>${ageTxt ? `<span class="text-[13px] font-bold text-gray-500">${ageTxt}</span>` : ''}${genderIcon}</div>
+                            <p class="text-[15px] font-semibold text-gray-600 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
+                        </div>
+                        <button type="button" data-pclose class="w-10 h-10 rounded-xl text-gray-500 text-2xl flex-shrink-0" aria-label="닫기">✕</button>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5 mt-2">${chipsHtml}</div>
+                    ${ownerOf(c) && ownerLockOn() ? `<div class="mt-2 flex items-center gap-1.5 flex-wrap">
                                 <span class="text-[12px] font-bold rounded-full px-2.5 py-1 ${c.lockOff ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : (isLockedFor(c) ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-white/80 text-gray-700 border border-gray-200')}">${c.lockOff ? `🔓 함께 관리 · ${e(ownerOf(c))} 담당` : (isLockedFor(c) ? `🔒 ${e(ownerOf(c))} 담당 · 보기·연락만 돼요` : `🔒 내 담당 · 다른 직원은 못 고쳐요`)}</span>
                                 ${(isMine(c) || isSuperAdmin) ? `<button type="button" data-paction="lockoff" class="h-8 px-2.5 rounded-full bg-white/80 border border-gray-300 text-xs font-bold text-gray-700">${c.lockOff ? '다시 잠그기' : '함께 관리 켜기'}</button>` : ''}
                             </div>` : ''}
-                            <div class="mt-1 flex items-center gap-2 flex-wrap">
-                                <button type="button" id="profileToggleDetail" class="h-8 text-xs font-bold text-gray-600 flex items-center gap-1">상세보기 <i class="fa-solid ${profileDetailOpen ? 'fa-caret-up' : 'fa-caret-down'} text-[#e0957f]"></i></button>
+                    <div class="mt-2 flex items-center gap-1.5 flex-wrap">
                                 ${c.bizCardInstalled === true
                                     ? `<button type="button" data-paction="bizcard" aria-pressed="true" class="h-8 px-2.5 rounded-full bg-pink-50 border border-pink-200 text-xs font-bold text-pink-700 flex items-center gap-1"><i class="fa-solid fa-address-card"></i>명함 설치함${c.bizCardInstalledAt ? ` · ${e(formatShortDate(c.bizCardInstalledAt))}` : ''}</button>`
                                     : `<button type="button" data-paction="bizcard" aria-pressed="false" class="h-8 px-2.5 rounded-full bg-white/80 border border-dashed border-pink-300 text-xs font-bold text-pink-600 flex items-center gap-1"><i class="fa-solid fa-plus"></i>명함 설치 표시</button>`}
                                 ${c.phone ? `<button type="button" data-paction="sendcard" class="h-8 px-2.5 rounded-full bg-white/80 border border-pink-200 text-xs font-bold text-pink-700 flex items-center gap-1"><i class="fa-solid fa-paper-plane"></i>명함 보내기</button>` : ''}
                                 ${c.pushSubscribed === true && c.cardId ? `<button type="button" data-paction="pushone" class="h-8 px-2.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 flex items-center gap-1"><i class="fa-solid fa-bell"></i>푸시 보내기</button>` : ''}
-                            </div>
-                            <div class="${profileDetailOpen ? '' : 'hidden'} mt-2">${detailRows}</div>
-                        </div>
                     </div>
                 </div>
-                ${statCells}
+                <div class="px-3 pt-3">
+                    <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+                        <button type="button" id="profileToggleDetail" class="w-full flex items-center gap-2 px-3 min-h-[46px] bg-gray-50 text-left"><span class="text-[15px] font-extrabold text-gray-900 flex-shrink-0">👤 고객 상세</span><span class="flex-1 min-w-0 truncate text-right text-[12px] text-gray-500">${profileDetailOpen ? '' : e([birth ? `${birth.y}.${birth.m}.${birth.d}` : '', custShop(c), custDealer(c)].filter(Boolean).join(' · '))}</span><i class="fa-solid fa-chevron-down text-gray-400 text-xs ${profileDetailOpen ? 'rotate-180' : ''}"></i></button>
+                        <div class="${profileDetailOpen ? '' : 'hidden'} px-3.5 py-2 border-t border-gray-200">${detailRows}</div>
+                    </div>
+                </div>
                 ${isRecentActivation(c) ? (() => {
                     const r = actCheckSummary(c);
                     const icon = { ok: '✅', miss: '❌', check: '⚠️', tip: '💡' };
                     const color = { ok: 'text-gray-700', miss: 'text-red-800 font-bold', check: 'text-amber-900 font-bold', tip: 'text-gray-600' };
                     const rows = [...r.items].sort((a, b) => ['miss', 'check', 'tip', 'ok'].indexOf(a.status) - ['miss', 'check', 'tip', 'ok'].indexOf(b.status))
                         .map(i => `<li class="flex items-start gap-2 py-1 text-[13px] ${color[i.status]}"><span class="flex-shrink-0">${icon[i.status]}</span><span class="min-w-0">${escapeHtml(i.label)}${i.hint ? `<span class="block text-xs font-normal text-gray-500">${escapeHtml(i.hint)}</span>` : ''}</span></li>`).join('');
-                    return `<div class="mx-5 mt-4 rounded-2xl border ${r.problems ? 'border-red-200 bg-red-50/40' : 'border-green-200 bg-green-50/60'} p-3.5">
+                    return `<div class="mx-3 mt-3 rounded-2xl border ${r.problems ? 'border-red-200 bg-red-50/40' : 'border-green-200 bg-green-50/60'} p-3.5">
                         <div class="flex items-center justify-between gap-2 mb-1">
                             <h4 class="text-[14px] font-bold ${r.problems ? 'text-red-800' : 'text-green-800'}">🔍 개통 점검 ${r.problems ? `· 빠짐 ${r.miss.length} · 확인 ${r.check.length}` : '· 모두 확인 ✅'}</h4>
                             ${r.problems ? `<button type="button" data-paction="edit" class="flex-shrink-0 h-9 px-3 rounded-lg bg-gray-900 text-white text-xs font-bold">수정해서 채우기</button>` : ''}
@@ -9974,11 +9986,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     </div>`;
                 })() : ''}
                 ${buildRefBox(c)}
-                <div class="px-5 pt-4">
-                    <h4 class="text-[15px] font-bold text-gray-900 mb-2.5">상세 정보</h4>
-                    ${tabsHtml}
-                </div>
-                <div class="px-5 pt-1 pb-5">${tabContent}</div>`;
+                <div class="px-3 pt-3">${tabsHtml}</div>
+                <div class="px-3 pt-2 pb-4"><div class="bg-white border border-gray-200 rounded-2xl px-3.5 py-1.5">${tabContent}</div></div>`;
         }
 
         function profileKV(label, valueHtml) {
@@ -10415,18 +10424,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
 
         function buildProfileActionsHtml(c) {
-            const btn = (action, cls, icon, label) => `<button type="button" data-paction="${action}" class="py-3 rounded-xl ${cls} text-white font-bold text-sm flex items-center justify-center gap-1.5 active:scale-95 transition shadow-sm"><i class="fa-solid ${icon}"></i> ${label}</button>`;
-            return [
-                btn('tel', 'bg-green-500 hover:bg-green-600', 'fa-phone', '전화'),
-                btn('sms', 'bg-blue-500 hover:bg-blue-600', 'fa-envelope', '문자'),
-                c.legalPhone ? btn('legal', 'bg-orange-500 hover:bg-orange-600', 'fa-phone', '법대') : '',
-                btn('edit', 'bg-gray-800 hover:bg-gray-900', 'fa-pen', '수정')
+            const btn = (action, cls, icon, label) => `<button type="button" data-paction="${action}" class="h-12 rounded-xl ${cls} font-bold text-[15px] flex items-center justify-center gap-1.5 active:scale-95 transition"><i class="fa-solid ${icon}"></i> ${label}</button>`;
+            return [   // 🎨 V243 수정 화면과 같은 버튼 모양
+                btn('tel', 'bg-green-600 text-white', 'fa-phone', '전화'),
+                btn('sms', 'border border-gray-300 bg-white text-gray-800', 'fa-comment-sms text-blue-600', '문자'),
+                c.legalPhone ? btn('legal', 'bg-orange-500 text-white', 'fa-phone', '법대') : '',
+                btn('edit', 'bg-indigo-600 text-white', 'fa-pen', '수정')
             ].join('');
         }
 
         // 카드 안의 모든 클릭을 한 곳에서 처리 (카드 내용이 다시 그려져도 동작 유지)
         profileModal.addEventListener('click', (ev) => {
-            if (ev.target === profileModal || ev.target.closest('#closeProfileModal')) { closeProfileCard(); return; }
+            if (ev.target === profileModal || ev.target.closest('#closeProfileModal, [data-pclose]')) { closeProfileCard(); return; }
             const tabBtn = ev.target.closest('[data-ptab]');
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
@@ -10497,7 +10506,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 return `<li class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-t-0"><span class="flex-1 min-w-0 text-[13px] text-gray-800 truncate">${rc ? `<button type="button" data-ref-open="${e(rc.id)}" class="font-bold underline underline-offset-2">${e(rc.name || x.who || '지인')}</button>` : `<b>${e(x.who || '지인')}</b>`} · ${e(md(x.at))} · ${e(x.what || '')}</span>`
                     + `<button type="button" data-paction="refok" data-rid="${e(x.rid || '')}" data-ok="${ok ? '0' : '1'}" class="h-8 px-2 rounded-lg text-[12px] font-bold flex-shrink-0 ${ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-white text-gray-600 border border-gray-300'}">${ok ? `✅ 개통${auto ? '' : ' (직접)'}` : '개통 ✓ 표시'}</button></li>`;
             }).join('');
-            return `<div class="mx-5 mt-4 rounded-2xl border ${due ? 'border-emerald-300 bg-emerald-50/60' : 'border-gray-200 bg-white'} p-3.5">
+            return `<div class="mx-3 mt-3 rounded-2xl border ${due ? 'border-emerald-300 bg-emerald-50/60' : 'border-gray-200 bg-white'} p-3.5">
                 <div class="flex items-center justify-between gap-2"><h4 class="text-[14px] font-bold text-gray-900">🤝 소개 ${S.all}명 <span class="text-emerald-700">· 개통 ${S.act}명</span></h4>${due ? `<span class="text-[11px] font-bold text-white bg-emerald-600 rounded-md px-1.5 py-0.5">🎁 챙길 사은품 ${due}</span>` : ''}</div>
                 ${T.length ? `<p class="text-[11px] text-gray-500 mt-0.5">사은품은 ${refBasis() === 'all' ? '소개(견적요청) 수' : '개통한 지인 수'}로 세요</p><ul class="mt-1">${tiers}</ul>` : ''}
                 <details class="mt-1.5" ${T.length ? '' : 'open'}><summary class="text-xs font-bold text-gray-600 cursor-pointer py-1">소개한 지인 ${S.all}명 보기</summary><ul>${rows}</ul><p class="text-[11px] text-gray-500 mt-1">개통은 소개받은 분 번호로 등록된 고객의 개통일로 자동 확인해요. 다른 번호로 개통했으면 [개통 ✓ 표시]를 눌러요.</p></details>
@@ -24610,7 +24619,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V242';
+        const APP_VER = 'V243';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24618,6 +24627,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V243', d: '2026-11-01', items: [
+                ['🎨 고객 정보(보기) 화면도 수정 화면과 같은 모양: 위에 고객 요약 칩(상태 · 통신사 · 개통 D+일 · 할인 · 담당 · 광고 · 명함 · 알림) · 회색 탭 · 흰 카드'],
+                ['👤 고객 상세(생일 · 개통점 · 거래처 · 명함 링크 …)는 접어서 시작 · 눌러서 펼쳐요'],
+                ['✏️ 수정 화면에선 [전화] [문자] [명함] 버튼을 뺐어요 (보기 화면에 있어요)']] },
             { v: 'V242', d: '2026-11-01', items: [
                 ['🗂 고객 상세 카드(수정 화면)를 탭 3개로: ✏️ 정보 · 📜 개통 기록 · 📝 안내서 · 위에 고객 요약 칩(상태 · 통신사 · D+일 · 담당) · [전화] [문자] [명함]'],
                 ['📶 통신사는 버튼으로 (SKT · KT · LG U+ · 알뜰폰 → 망 SK/KT/LG + 브랜드) · 삭제 · 출력은 [⋯] 안으로'],
