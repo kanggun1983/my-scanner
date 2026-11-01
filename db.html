@@ -19696,7 +19696,15 @@ familyStr + `\n` +
         const GD_TYPES = ['신규', '번호이동', '기기변경'];
         const GD_INST = [24, 36, 30, 48, 12, 0];
         const GD_USIM_PAY = ['선납', '첫 달 청구', '면제', '기존 유심'];
-        const GD_WELFARE = [['', '없음'], ['basic', '기초생활 (생계·의료)'], ['pension', '기초연금'], ['disabled', '장애인'], ['merit', '국가유공자'], ['near', '차상위'], ['etc', '기타 복지']];
+        const GD_WELFARE = [['', '없음'], ['basic', '기초생활 (생계·의료급여)'], ['near', '주거·교육급여 · 차상위'], ['pension', '기초연금 (만 65세↑)'], ['disabled', '장애인'], ['merit', '국가유공자'], ['etc', '기타 복지']];
+        // 🤝 V238 복지할인 공식 기준 (과기정통부 요금감면 · 통신 3사 같음 · 금액은 부가세 포함 · 선택약정 할인 뒤 월정액에)
+        const GD_WEL_RULE = {
+            basic: '월정액 28,600원까지 면제 + 나머지 50% (45,100원까지) · 최대 36,850원',
+            near: '월정액 12,100원까지 면제 + 나머지 35% (45,100원까지) · 최대 23,650원',
+            pension: '월정액의 50% · 최대 12,100원',
+            disabled: '월정액의 35% (한도 없음)',
+            merit: '월정액의 35% (한도 없음 · 상이등급 이상)'
+        };
         const GD_RATE = 0.059;
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
         const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee']);
@@ -19878,12 +19886,14 @@ familyStr + `\n` +
             return [top, ...[p.x, p.sh, ...(p.b || [])].filter(Boolean), ...planInfoAges(car, p).map(([a, t]) => `${a}: ${t}`), p.o ? `기본 제공량을 넘으면 ${p.o}` : ''].filter(Boolean);
         }
         // 서명할 때 그때 혜택 그대로 남김 (나중에 대표가 고쳐도 서명한 안내서는 그대로)
+        //  · V238: Firestore는 '배열 안의 배열'을 못 저장해요 → 연령 혜택은 [{a: 이름, t: 내용}]으로 (V236~V237은 이것 때문에 서명 저장이 막혔음)
         function gdPiSnap(g) {
+            const snap = (p) => { if (!p) return null; const { age, ...rest } = p; return { ...rest, ages: planInfoAges(g.carrier, p).map(([a, t]) => ({ a: String(a || ''), t: String(t || '') })) }; };
             const cur = planInfoFind(g.carrier, g.plan && g.plan.name), kp = g.keep && g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null;
-            return { cur: cur ? { ...cur, ages: planInfoAges(g.carrier, cur) } : null, keep: kp ? { ...kp, ages: planInfoAges(g.carrier, kp) } : null };
+            return { cur: snap(cur), keep: snap(kp) };
         }
         function gdPiOf(g, which) {
-            if (g.st !== 'draft' && g.pi && typeof g.pi === 'object') { const s = g.pi[which]; return s ? { ...s, age: s.ages || s.age || [], k: 'snap' } : null; }
+            if (g.st !== 'draft' && g.pi && typeof g.pi === 'object') { const s = g.pi[which]; return s ? { ...s, age: (s.ages || s.age || []).map(x => Array.isArray(x) ? x : [x && x.a, x && x.t]), k: 'snap' } : null; }
             const p = planInfoFind(g.carrier, which === 'keep' ? g.keep && g.keep.target : g.plan && g.plan.name);
             return p;
         }
@@ -19989,7 +19999,7 @@ familyStr + `\n` +
                 carrier: gdCarOf(mem.carrier), actType: '', dealer: '',
                 dev: { name: '', code: '', color: '', serial: '', price: 0, pub: 0, sw: 0, extra: 0, used: 0, cardName: '', card: 0, etcName: '', etc: 0, prepay: 0, inst: GD_INST.includes(mem.inst) ? mem.inst : 24 },
                 sup: '선약', term: 24,
-                plan: { name: '', fee: 0, welType: '', wel: 0, welAuto: true, combName: '', comb: 0, cardName: '', card: 0 },
+                plan: { name: '', fee: 0, welType: '', wel: 0, welAuto: true, welV: 2, combName: '', comb: 0, cardName: '', card: 0 },
                 keep: { code: '', target: '', targetFee: 0 },
                 usim: { fee: Number.isFinite(mem.usimFee) ? mem.usimFee : 7700, pay: usim ? '첫 달 청구' : (GD_USIM_PAY.includes(mem.usimPay) ? mem.usimPay : '선납') },
                 promises: [], gift: '', createdAt: '', createdBy: getStaffName() || '' };
@@ -19997,8 +20007,18 @@ familyStr + `\n` +
             if (md && (!g.carrier || !gdCarOf(md.carrier) || gdCarOf(md.carrier) === g.carrier)) gdApplyDealer(g, md.name); else g.keep.code = gdKeepDefault(g);
             return g;
         }
-        function gdWelAuto(type, after) { if (type === 'basic') return Math.min(after, 28600); if (type === 'pension') return Math.min(Math.round(after * 0.5), 12100); return null; }
-        function gdWelAutoOn(g) { return !!g.plan.welType && g.plan.welAuto !== false && gdWelAuto(g.plan.welType, 1) !== null; }
+        function gdWelAuto(type, after, legacy) {
+            const b = Math.max(0, Math.round(Number(after) || 0));
+            if (legacy) { if (type === 'basic') return Math.min(b, 28600); if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100); return null; }   // V237까지 서명한 안내서는 그때 계산 그대로
+            if (type === 'basic') return Math.min(b, 28600) + Math.round(Math.max(0, Math.min(b, 45100) - 28600) * 0.5);
+            if (type === 'near') return Math.min(b, 12100) + Math.round(Math.max(0, Math.min(b, 45100) - 12100) * 0.35);
+            if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100);
+            if (type === 'disabled' || type === 'merit') return Math.round(b * 0.35);
+            return null;
+        }
+        // 예전(V237까지) 서명 · 보낸 안내서는 예전 계산 그대로 (서명한 금액이 바뀌면 안 돼요)
+        const gdWelOld = (g) => !!g && !!g.st && g.st !== 'draft' && !(g.plan && g.plan.welV >= 2);
+        function gdWelAutoOn(g) { return !!g.plan.welType && g.plan.welAuto !== false && gdWelAuto(g.plan.welType, 1, gdWelOld(g)) !== null; }
         function gdWelLabel(g) { const w = GD_WELFARE.find(([v]) => v === g.plan.welType); return w ? w[1] : ''; }
         function gdCalc(g) {
             const d = g.dev || {}, p = g.plan || {}, dev = g.kind !== 'usim';
@@ -20009,7 +20029,7 @@ familyStr + `\n` +
             const exact = loan > 0 && n > 0 ? loan * r / (1 - Math.pow(1 + r, -n)) : 0;
             const month = Math.floor(exact / 10) * 10, fee = exact ? Math.round((exact * n - loan) / 10) * 10 : 0;
             const pfee = gdNum(p.fee), sel = g.sup === '선약' ? Math.round(pfee * 0.25) : 0, after = Math.max(0, pfee - sel);
-            const wa = gdWelAutoOn(g) ? gdWelAuto(p.welType, after) : (p.welType ? gdNum(p.wel) : 0);
+            const wa = gdWelAutoOn(g) ? gdWelAuto(p.welType, after, gdWelOld(g)) : (p.welType ? gdNum(p.wel) : 0);
             const wel = Math.min(after, wa), comb = gdNum(p.comb), card = gdNum(p.card);
             const planRaw = after - wel - comb - card, planNet = Math.max(0, planRaw);
             const addFee = (g.promises || []).filter(x => x && (x.kind === '부가' || x.kind === '보험')).reduce((t, x) => t + gdNum(x.fee), 0);   // 부가·보험 월 금액 (유지 기간 동안 · 별도)
@@ -20354,6 +20374,7 @@ familyStr + `\n` +
         function gdCopyOf(g0, other) {
             const n = gdClone(g0);
             ['signed', 'sent', 'act', 'imgUrl', 'notes', 'notesV', 'calc', 'title', 'pi'].forEach(k => delete n[k]);
+            if (n.plan) n.plan.welV = 2;   // 🤝 V238 복사본은 새 복지할인 계산
             Object.assign(n, { id: gdNewId(), st: 'draft', date: getTodayStr(), createdAt: '', createdBy: getStaffName() || '', updatedAt: '' });
             if (other) { Object.assign(n, { custId: '', name: '', phone: '', gift: '' }); if (n.dev) { n.dev.serial = ''; n.dev.used = 0; } }
             return n;
@@ -20460,6 +20481,7 @@ familyStr + `\n` +
                 <div class="grid grid-cols-2 gap-2">
                     ${gdLbl('복지할인', `<select data-gd="plan.welType" class="${gdCls}">${GD_WELFARE.map(([v, l]) => `<option value="${v}" ${g.plan.welType === v ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('')}</select>`)}
                     ${g.plan.welType ? gdLbl(`복지할인 금액 <span id="gdWelTag" class="font-normal text-indigo-700">${gdWelAutoOn(g) ? '· 자동 (고쳐도 돼요)' : ''}</span>`, gdInp('plan.wel', gdWelAutoOn(g) ? c.wel : g.plan.wel, { money: true, id: 'gdWel' })) : '<div></div>'}
+                    ${g.plan.welType && GD_WEL_RULE[g.plan.welType] && !gdWelOld(g) ? `<p class="col-span-2 -mt-1 text-[11px] text-gray-600 leading-snug" data-gd-welrule>🤝 ${escapeHtml(GD_WEL_RULE[g.plan.welType])}${g.sup === '선약' ? ' · 선택약정 25% 할인 뒤 금액에' : ''}</p>` : ''}
                     ${gdLbl('결합할인 이름', gdInp('plan.combName', g.plan.combName, { ph: '예) 가족결합 · 인터넷결합' }))}${gdLbl('결합할인', gdInp('plan.comb', g.plan.comb, { money: true }))}
                     ${gdLbl('요금DC카드 이름', gdInp('plan.cardName', g.plan.cardName, { ph: '예) LG U+ 신한카드' }))}${gdLbl('요금DC카드 할인 (매달)', gdInp('plan.card', g.plan.card, { money: true }))}
                 </div>
@@ -20553,7 +20575,7 @@ familyStr + `\n` +
                 if (v === '__CUSTOM__') { v = askKeepDays() || gd.keep.code || ''; el.innerHTML = gdKeepOpts(v); el.value = v; }
                 gd.keep.code = v; gd.keepTouched = true; gdRecalcView(); return;
             }
-            if (path === 'plan.welType') { gd.plan.welType = el.value; gd.plan.welAuto = true; gd.plan.wel = 0; gdRender(); return; }
+            if (path === 'plan.welType') { gd.plan.welType = el.value; gd.plan.welAuto = true; gd.plan.wel = 0; gd.plan.welV = 2; gdRender(); return; }
             gdSetPath(path, path === 'dev.inst' ? Number(el.value) || 0 : el.value);
             gdRecalcView();
         });
@@ -20711,7 +20733,7 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
-                g.notes = gdNotesFor(g); g.notesV = 2; g.pi = gdPiSnap(g);   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
+                g.notes = gdNotesFor(g); g.notesV = 2; g.pi = gdPiSnap(g); if (g.plan) g.plan.welV = 2;   // 🤝 V238 새 복지할인 계산으로 서명   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -20719,7 +20741,11 @@ familyStr + `\n` +
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서 서명 · ${gdTitle(g)} (담당: ${me || '-'})`;
                 txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), contactHistory: appendLine(cur.contactHistory, line), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
                 gdDirty = false; gdStage = 'done'; gdRender();
-            } catch (err) { customAlert(koreanError(err, '저장')); btn.disabled = false; btn.textContent = '서명 완료'; }
+            } catch (err) {
+                if (g.st === 'signed' && !gdList.some(x => x.id === g.id && x.st !== 'draft')) { g.st = 'draft'; delete g.signed; delete g.pi; }   // V238 저장 못 했으면 서명 전으로
+                console.error('안내서 서명 저장 실패', err);
+                customAlert(koreanError(err, '저장')); btn.disabled = false; btn.textContent = '서명 완료';
+            }
         }
 
         /* ---------- ✅ 서명한 안내서: 보내기 · 개통등록 · 복사 · 지우기 ---------- */
@@ -21253,7 +21279,7 @@ familyStr + `\n` +
                     const g = cmpGuideOf(cm, r.dv, mode), c = gdCalc(g), devTotal = c.n ? c.month * c.n : c.loan;
                     const tf = gdNum(cm.keep.targetFee), hasT = tf > 0, kp = endOf(g.keep.code);
                     const sel2 = mode === '선약' ? Math.round(tf * 0.25) : 0, after2 = Math.max(0, tf - sel2);
-                    const wel2 = !g.plan.welType ? 0 : Math.min(after2, gdWelAutoOn(g) ? gdWelAuto(g.plan.welType, after2) : gdNum(g.plan.wel));   // 🤝 바꾼 요금제에도 복지할인
+                    const wel2 = !g.plan.welType ? 0 : Math.min(after2, gdWelAutoOn(g) ? gdWelAuto(g.plan.welType, after2, gdWelOld(g)) : gdNum(g.plan.wel));   // 🤝 바꾼 요금제에도 복지할인
                     const planNet2 = hasT ? Math.max(0, after2 - wel2 - c.comb - c.card) : c.planNet;
                     const adds = g.promises.filter(p => gdNum(p.fee)).map(p => ({ ...p, end: endOf(p.code) }));
                     const first = c.month + c.planNet + c.addFee;
@@ -24286,7 +24312,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V237';
+        const APP_VER = 'V238';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24294,6 +24320,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V238', d: '2026-11-01', items: [
+                ['🐞 안내서 [서명 완료]가 ‘저장할 내용에 비어 있는 칸이 섞여 있어서 저장하지 못했어요’로 막히던 것 고침 (V236 요금제 혜택 중 연령 혜택 칸 때문 · 막혔던 안내서는 다시 [서명 완료]를 누르면 저장돼요)'],
+                ['🤝 복지할인을 공식 기준으로: 생계·의료급여 28,600원까지 면제 + 나머지 50% (최대 36,850원) · 주거·교육급여·차상위 12,100원 + 나머지 35% (최대 23,650원) · 기초연금 50% (최대 12,100원) · 장애인·국가유공자 35% · 모두 선택약정 할인 뒤 금액에 · 자동으로 (금액을 고쳐 넣어도 돼요)'],
+                ['📄 예전에 서명한 안내서는 그때 계산 그대로 보여요']] },
             { v: 'V237', d: '2026-10-27', items: [
                 ['🗄️ 데이터 백업: 하루 한 번 자동으로 고객 · 설정 · 계산기 · 급여 · 안내서 · 직원 계정 백업 (최근 14개) · 설정 → 🗄️ 데이터 백업에서 [지금 백업] · [📥 파일로 받기] · ♻️ 지워진 것만 / ⏪ 그 날짜로 전부 되살리기', 'a'],
                 ['👤 설정 → 직원 계정: 직원마다 이름 · 전화번호 적기 · 🔔 알림 받는 폰 보기 · [해제]', 'a'],
