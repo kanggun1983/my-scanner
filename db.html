@@ -3383,16 +3383,16 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         let staffAccounts = null;   // { emails:[], info:{email:{addedAt, addedBy, memo}} }
         // 👤 이 계정이 들어올 수 있는지: 총관리자는 항상 · 직원은 강CRM 설정의 직원 계정 목록 (목록이 아직 없으면 예전 고정 목록)
         async function checkStaffAccess(emailLc) {
-            if (SUPER_ADMIN_EMAILS.includes(emailLc) || STORE_PHONE_EMAILS.includes(emailLc)) return { ok: true };
+            if (SUPER_ADMIN_EMAILS.includes(emailLc)) return { ok: true };
             try {
                 const snap = await getDoc(doc(db, 'staff_accounts', 'list'));
                 const remember = (ok) => { try { if (ok) localStorage.setItem('kcrmAccessOk', emailLc); else if (localStorage.getItem('kcrmAccessOk') === emailLc) localStorage.removeItem('kcrmAccessOk'); } catch (e) { /* 무시 */ } return { ok }; };
                 if (snap.exists()) {
                     const d = snap.data() || {};
-                    staffAccounts = { emails: Array.isArray(d.emails) ? d.emails : [], info: d.info || {} };
-                    return remember(staffAccounts.emails.map(e => String(e).toLowerCase()).includes(emailLc));
+                    staffAccounts = { emails: Array.isArray(d.emails) ? d.emails : [], info: d.info || {}, storeMoved: !!d.storeMoved };
+                    return remember(staffAccounts.emails.map(e => String(e).toLowerCase()).includes(emailLc) || storeWaiting(emailLc));
                 }
-                return remember(ALLOWED_EMAILS.includes(emailLc));
+                return remember(ALLOWED_EMAILS.includes(emailLc) || STORE_PHONE_EMAILS.includes(emailLc));
             } catch (e) {
                 if (/permission/i.test(String((e && e.code) || e))) return { ok: false };
                 // 인터넷이 잠깐 끊겼을 때: 예전 목록이거나, 이 폰에서 전에 들어온 적 있는 계정이면 그대로 (새로 추가한 직원이 지하철에서 앱을 열어도 튕기지 않게)
@@ -3401,7 +3401,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
         }
         const SUPER_ADMIN_EMAILS = ['a44443353@gmail.com'];   // 👑 대표(총관리자) — 한 명뿐 · 매장 공용 설정을 바꿀 수 있음
-        const STORE_PHONE_EMAILS = ['phoneplace0070@gmail.com'];   // 🏪 V248 매장폰 — 늘 들어올 수 있지만 권한은 대표가 정한 직급대로
+        const STORE_PHONE_EMAILS = ['phoneplace0070@gmail.com'];   // 🏪 V248 예전 총관리자였던 매장폰 — 직원 계정 목록에 한 번만 옮기고(storeMoved) 그 뒤엔 보통 직원처럼 (지우기 가능)
+        const storeWaiting = (em) => STORE_PHONE_EMAILS.includes(em) && !(staffAccounts && staffAccounts.storeMoved);   // 아직 안 옮겼으면 튕기지 않게
 
         let db, auth, customerDB = [], currentFilter = 'all';
         let geminiApiKey = localStorage.getItem('geminiApiKey') || '';
@@ -24696,17 +24697,18 @@ familyStr + `\n` +
             if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
             staffAcctUnsub = onSnapshot(doc(db, 'staff_accounts', 'list'), snap => {
                 const d = snap.exists() ? (snap.data() || {}) : null;
-                staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {} } : null;
+                staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {}, storeMoved: !!d.storeMoved } : null;
                 const me = myEmail().toLowerCase();
-                if (staffAccounts && me && !SUPER_ADMIN_EMAILS.includes(me) && !STORE_PHONE_EMAILS.includes(me) && !staffAccounts.emails.includes(me)) {   // 이 계정이 목록에서 빠졌으면 바로 로그아웃
+                if (staffAccounts && me && !SUPER_ADMIN_EMAILS.includes(me) && !storeWaiting(me) && !staffAccounts.emails.includes(me)) {   // 이 계정이 목록에서 빠졌으면 바로 로그아웃
                     customAlert('총관리자가 이 계정의 강CRM 사용을 멈췄어요. 로그아웃할게요.');
                     try { signOut(auth); } catch (e) { /* 무시 */ }
                     return;
                 }
-                if (staffAccounts && isSuperAdmin && STORE_PHONE_EMAILS.some(e => !staffAccounts.emails.includes(e))) {   // 🏪 V248 매장폰을 직원 계정 목록에도 (악세정산 · 보안 규칙도 같은 목록을 봐요)
+                if (staffAccounts && isSuperAdmin && !staffAccounts.storeMoved) {   // 🏪 V248 매장폰을 직원 계정 목록으로 한 번만 옮겨요 (그 뒤 지우면 그대로 지워진 채)
                     const add = STORE_PHONE_EMAILS.filter(e => !staffAccounts.emails.includes(e)), info = { ...staffAccounts.info };
                     add.forEach(e => { info[e] = { ...(info[e] || {}), addedAt: (info[e] && info[e].addedAt) || getTodayStr(), addedBy: '매장폰 (자동)' }; });
-                    saveDoc(doc(db, 'staff_accounts', 'list'), { emails: [...staffAccounts.emails, ...add], info, updatedAt: new Date().toISOString(), by: getStaffName() || '' }, { merge: true }).catch(e => console.warn('매장폰 계정 넣기 실패', e));
+                    staffAccounts.storeMoved = true; staffAccounts.emails = [...staffAccounts.emails, ...add]; staffAccounts.info = info;
+                    saveDoc(doc(db, 'staff_accounts', 'list'), { emails: staffAccounts.emails, info, storeMoved: true, updatedAt: new Date().toISOString(), by: getStaffName() || '' }, { merge: true }).catch(e => console.warn('매장폰 계정 넣기 실패', e));
                 }
                 renderStaffAccounts();
             }, err => { console.warn('직원 계정 목록 불러오기 실패', err); renderStaffAccounts(); });
@@ -24876,31 +24878,30 @@ familyStr + `\n` +
             if (!box) return;
             if (document.activeElement && (['saNewEmail', 'saEditName', 'saEditPhone'].includes(document.activeElement.id) || (document.activeElement.closest && document.activeElement.closest('[data-tr-edit]') && document.activeElement.matches('input:not([type=checkbox])')))) return;   // 입력 중엔 다시 그리지 않음
             const locked = !isSuperAdmin, byEmail = staffByEmail();
-            const list = (staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e))).filter(e => !STORE_PHONE_EMAILS.includes(e) && !SUPER_ADMIN_EMAILS.includes(e));
+            const list = (staffAccounts ? staffAccounts.emails : ALLOWED_EMAILS.filter(e => !SUPER_ADMIN_EMAILS.includes(e))).filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+            STORE_PHONE_EMAILS.forEach(e => { if (storeWaiting(e) && !list.includes(e)) list.push(e); });
             const row = (em, fixed) => {
-                const store = STORE_PHONE_EMAILS.includes(em);
                 const nm = byEmail[em] || (staffAccounts && staffAccounts.info[em] && staffAccounts.info[em].memo) || '';
                 const n = staffCustomerCount(byEmail[em] || '');
                 const inf = staffAccounts && staffAccounts.info[em];
-                return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : store ? 'border-sky-200 bg-sky-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
-                    <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : store ? '🏪 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
-                    <p class="text-xs text-gray-600">${fixed ? '👑 대표 · 코드에 고정' : store ? '🏪 매장폰 · 늘 로그인 가능 (지우기 없음) · 권한은 직급대로' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
+                return `<div class="rounded-xl border ${fixed ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200'} px-3 py-2 space-y-1.5">
+                    <div class="flex items-center gap-2"><span class="text-[15px] font-bold text-gray-900">${fixed ? '👑 ' : ''}${escapeHtml(nm || '(이름 아직 없음)')}</span><span class="text-xs text-gray-500 truncate min-w-0">${escapeHtml(em)}</span></div>
+                    <p class="text-xs text-gray-600">${fixed ? '👑 대표 · 코드에 고정' : `추가: ${escapeHtml((inf && inf.addedAt) || '-')}${inf && inf.addedBy ? ' · ' + escapeHtml(inf.addedBy) : ''}`} · 담당 고객 <b>${n}</b>명</p>
                     ${roleLineHtml(em, fixed, locked)}
                     ${saExtraHtml(em, locked)}
                     ${teamRowHtml(em, locked)}
                     ${locked ? '' : accessLineHtml(em)}
-                    ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed || store ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
+                    ${locked ? '' : `<div class="flex gap-2">${n ? `<button type="button" data-sa-move="${escapeHtml(byEmail[em] || '')}" class="flex-1 h-10 rounded-xl border border-amber-300 bg-white text-sm font-bold text-amber-900"><i class="fa-solid fa-user-pen"></i> 담당 고객 ${n}명 넘기기</button>` : ''}${fixed ? '' : `<button type="button" data-sa-del="${escapeHtml(em)}" class="flex-shrink-0 h-10 px-3 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">계정 지우기</button>`}</div>`}
                 </div>`;
             };
             // 지금 고객에는 담당자로 남아 있는데 계정이 없는 이름 (예전 직원)
-            const known = new Set([...SUPER_ADMIN_EMAILS, ...STORE_PHONE_EMAILS, ...list].map(e => managerKey(byEmail[e] || '')).filter(Boolean));
+            const known = new Set([...SUPER_ADMIN_EMAILS, ...list].map(e => managerKey(byEmail[e] || '')).filter(Boolean));
             const orphan = [...new Set(customerDB.filter(c => !c.deletedAt).map(c => ownerOf(c)).filter(Boolean))].filter(k => ![...known].some(x => sameStaff(x, k)));
             box.innerHTML = `
                 <p class="text-[13px] text-gray-700 leading-relaxed">여기 있는 구글 계정만 강CRM과 악세정산 강CRM 연결에 들어올 수 있어요. 직원이 그만두면 <b>[담당 고객 넘기기]</b> → <b>[계정 지우기]</b> 순서로 해주세요.</p>
                 ${locked ? '<p class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">🔒 총관리자만 바꿀 수 있어요. (보기는 가능)</p>' : ''}
                 ${!staffAccounts && !locked ? '<p class="text-xs font-bold text-indigo-900 bg-indigo-50 rounded-xl px-3 py-2">처음이라 예전 계정 목록을 옮기는 중이에요…</p>' : ''}
                 ${SUPER_ADMIN_EMAILS.map(e => row(e, true)).join('')}
-                ${STORE_PHONE_EMAILS.map(e => row(e, false)).join('')}
                 ${list.map(e => row(e, false)).join('') || '<p class="text-sm text-gray-600 text-center py-2">직원 계정이 없어요.</p>'}
                 ${orphan.length && !locked ? `<div class="rounded-xl bg-gray-50 px-3 py-2 space-y-1.5"><p class="text-xs font-bold text-gray-700">계정 없이 담당자로만 남은 이름</p>${orphan.map(k => `<div class="flex items-center justify-between gap-2"><span class="text-sm text-gray-800">${escapeHtml(k)} · ${staffCustomerCount(k)}명</span><button type="button" data-sa-move="${escapeHtml(k)}" class="h-9 px-3 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-900">넘기기</button></div>`).join('')}</div>` : ''}
                 ${locked ? '' : `<div class="flex gap-2 pt-1">
@@ -24920,7 +24921,7 @@ familyStr + `\n` +
             const add = box.querySelector('#saAddBtn'); if (add) add.onclick = () => addStaffAccount(box.querySelector('#saNewEmail').value);
         }
         async function writeStaffAccounts(emails, info) {
-            await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, updatedAt: new Date().toISOString(), by: getStaffName() || '' });
+            await saveDoc(doc(db, 'staff_accounts', 'list'), { emails, info, storeMoved: !!(staffAccounts && staffAccounts.storeMoved), updatedAt: new Date().toISOString(), by: getStaffName() || '' });   // 🏪 V248 표시 유지 (지운 매장폰이 다시 안 들어오게)
         }
         async function addStaffAccount(raw) {
             if (!isSuperAdmin) return customAlert('총관리자만 바꿀 수 있어요.');
@@ -24971,7 +24972,7 @@ familyStr + `\n` +
         const WHATS_NEW = [
             { v: 'V248', d: '2026-11-02', items: [
                 ['🪪 공용 명함을 직원 칸에서 바로: 설정 → 직원 · 담당의 직원마다 명함 이름 · 직함 · 직통번호 · 사진을 고치고, 없으면 [＋ 명함 만들기]', 'a'],
-                ['👑 대표는 한 명(010-4444-3353)만 · 🏪 매장폰 계정은 늘 들어올 수 있고, 할 수 있는 건 대표가 고른 직급대로', 'a']] },
+                ['👑 대표는 한 명(010-4444-3353)만 · 매장폰 계정은 보통 직원 계정으로 (직급 고르기 · 지우기 가능)', 'a']] },
             { v: 'V247', d: '2026-11-01', items: [
                 ['🎖 직급 · 권한: 설정 → 직원 · 담당에서 직원마다 직급(점장 · 매니저 · 직접 추가)을 고르고, 👑 대표가 직급마다 할 수 있는 걸 켜고 꺼요'],
                 ['🔑 권한 11가지: 다른 직원 고객 고치기 · 고객 지우기 · 엑셀 전체 · 정산 보기 · 정산 입력 · 개통 취소 · 목표 · 급여 · 홍보 · 전체 푸시 · 자동 안내 · 정책 · 거래처 · 안내서 지우기'],
@@ -25400,7 +25401,7 @@ familyStr + `\n` +
             const missing = names.filter(n => !used.has(staffKeyName(n)));
             const st = D.store || {};
             const me = myTeamProfile();
-            const acctKeys = [...SUPER_ADMIN_EMAILS, ...STORE_PHONE_EMAILS, ...((staffAccounts && staffAccounts.emails) || [])].map(e => staffByEmail()[e]).filter(Boolean).map(staffKeyName);   // 🪪 V248
+            const acctKeys = [...SUPER_ADMIN_EMAILS, ...((staffAccounts && staffAccounts.emails) || [])].map(e => staffByEmail()[e]).filter(Boolean).map(staffKeyName);   // 🪪 V248
             const linkedSids = sids.filter(sd => D.staff[sd].key && acctKeys.includes(staffKeyName(D.staff[sd].key))), orphanSids = sids.filter(sd => !linkedSids.includes(sd));
             const prof = (sid) => {
                 const p = D.staff[sid], retired = p.active === false;
