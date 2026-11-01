@@ -493,6 +493,11 @@
                     <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashBirthdayCount">0</span><span class="text-sm">명</span></span>
                     <span id="dashBirthdaySub" class="text-xs text-gray-600 truncate">7일 안</span>
                 </button>
+                <button type="button" id="dashCard" data-dash-filter="card_off" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
+                    <span class="text-xs font-medium text-gray-600 truncate">🔕 명함</span>
+                    <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashCardCount">0</span><span class="text-sm">명</span></span>
+                    <span id="dashCardSub" class="text-xs text-gray-600 truncate">설치 0명</span>
+                </button>
             </div>
 
             <!-- 🔗 바로가기 (V200) -->
@@ -6074,6 +6079,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 대시보드 4개 타일 숫자 계산 (고객 수 기준 / 필터 목록과 같은 함수 사용)
         function updateAlertDashboard() {
+            let cardInst = 0, cardOff = 0;
+            const setTextD = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
             let promiseCount = 0, promiseToday = 0, promiseOverdue = 0;
             let mobileCount = 0;
             let wiredCount = 0, wiredExpired = 0;
@@ -6101,7 +6108,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     birthdayCount++;
                     if (getDaysUntilBirthday(c.dob) === 0) birthdayToday++;
                 }
+                if (c.bizCardInstalled === true) { cardInst++; if (isCardOff(c)) cardOff++; }
             });
+            setTextD('dashCardCount', cardOff);
+            setTextD('dashCardSub', `알림 꺼짐 · 설치 ${cardInst}`);
 
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
             setText('dashVisitCount', visitCount);
@@ -7899,8 +7909,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             yday_act: (n) => { if (!n) return '🔍 전일 개통한 고객이 없어요'; const need = globalFilteredDB.filter(c => actCheckSummary(c).problems > 0).length; return `🔍 전일 개통 ${n}명 점검 중${need ? ` · 확인 필요 ${need}명` : ' · 모두 확인 완료 ✅'}`; },
             target_dashboard: (n) => `무선 만료타겟만 보는 중 (${n}명)`,
             wired_target: (n) => `유선 만료타겟만 보는 중 (${n}명)`,
-            birthday: (n) => `생일 ${BIRTHDAY_DAYS_AHEAD}일 안 고객만 보는 중 (${n}명)`
+            birthday: (n) => `생일 ${BIRTHDAY_DAYS_AHEAD}일 안 고객만 보는 중 (${n}명)`,
+            card_off: (n) => `🔕 명함은 설치했는데 알림이 꺼진 고객 (${n}명 · 알림을 끈 분과 명함을 지운 분이 같이 보여요 · [명함 보내기]로 다시 켜 달라고 부탁해요)`
         };
+        // 🔕 V245 명함 설치했는데 알림을 안 받는 고객 (명함 알림 서버는 '알림 끔'과 '명함 삭제'를 구분 못 해요 → 같이)
+        function isCardOff(c) { return !!c && c.bizCardInstalled === true && c.pushSubscribed !== true; }
 
         // 선택된 타일 강조 + 목록 위 안내 배너 표시
         function updateDashFilterUI() {
@@ -8020,6 +8033,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (currentFilter === 'target_dashboard') return isMobileExpiryTarget(c);
                 if (currentFilter === 'wired_target') return isWiredExpiryTarget(c);
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
+                if (currentFilter === 'card_off') return isCardOff(c);   // 🔕 V245 명함 설치 · 알림 꺼짐(또는 명함 삭제)
 
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
                 if (currentFilter === 'wired') {
@@ -8110,7 +8124,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (monthlyActBoth) monthlyActBoth.textContent = bothCount;
 
             // 정렬: 기본(최근 방문순)일 때는 필터마다 맞는 순서, 직접 고른 정렬이 있으면 그걸로
-            const FILTER_SORTS = ['promise', 'today_promise', 'visit_promise', 'today_act', 'yday_act', 'wired_target', 'birthday'];
+            const FILTER_SORTS = ['promise', 'today_promise', 'visit_promise', 'today_act', 'yday_act', 'wired_target', 'birthday', 'card_off'];
             const useFilterSort = currentSort === 'visit' && FILTER_SORTS.includes(currentFilter);
             const sortLabelEl = document.getElementById('sortLabel');
             if (sortLabelEl) sortLabelEl.textContent = useFilterSort ? '급한 순' : (SORT_OPTIONS.find(o => o.key === currentSort) || SORT_OPTIONS[0]).label;
@@ -8149,6 +8163,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 globalFilteredDB.sort((a, b) => Math.abs(getWiredDaysLeft(a.wiredDate) ?? 99999) - Math.abs(getWiredDaysLeft(b.wiredDate) ?? 99999));
             } else if (currentFilter === 'birthday') {
                 globalFilteredDB.sort((a, b) => (getDaysUntilBirthday(a.dob) ?? 999) - (getDaysUntilBirthday(b.dob) ?? 999));
+            } else if (currentFilter === 'card_off') {   // 최근에 꺼진 분 먼저 (꺼진 날을 아는 분) → 이름순
+                globalFilteredDB.sort((a, b) => String(b.pushOffAt || '').localeCompare(String(a.pushOffAt || '')) || (a.name || '').localeCompare(b.name || '', 'ko'));
             } else {
                 globalFilteredDB.sort((a,b) => (b.visitDate || b.updatedAt || '').localeCompare(a.visitDate || a.updatedAt || ''));
             }
@@ -8599,7 +8615,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             ${isMinor ? `<span class="text-xs font-bold text-orange-800 border border-orange-200 rounded-md px-1.5">미성년</span>` : ''}
                             ${isSenior ? `<span class="text-xs font-bold text-teal-800 border border-teal-200 rounded-md px-1.5">시니어</span>` : ''}
                             ${c.marketingDeny ? `<span class="text-xs font-bold text-red-700 border border-red-200 rounded-md px-1.5">마케팅 거부</span>` : ''}
-                            ${c.bizCardInstalled === true ? `<span class="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-md px-1.5 py-0.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>` : ''}
+                            ${c.bizCardInstalled === true ? (isCardOff(c) ? `<span class="text-xs font-bold text-gray-600 bg-gray-50 border border-gray-300 rounded-md px-1.5 py-0.5 whitespace-nowrap" title="명함은 설치했는데 알림이 꺼졌거나 명함을 지웠어요"><i class="fa-solid fa-bell-slash"></i> 명함 알림 꺼짐${c.pushOffAt ? ` ${escapeHtml(String(c.pushOffAt).slice(5).replace('-', '/'))}` : ''}</span>` : `<span class="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-md px-1.5 py-0.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>`) : ''}
                         </span>
                         <span class="text-[15px] font-medium ${refused ? 'text-gray-500' : 'text-gray-700'} tabular-nums">${hasPhone ? escapeHtml(formatPhone(c.phone)) : '번호 없음'}</span>
                         ${meta ? `<span class="flex flex-wrap gap-x-2.5 text-xs text-gray-500">${meta}</span>` : ''}
@@ -10652,13 +10668,39 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else checkPendingCallResult();
         });
 
+        /* 📞 V245 콜매니저가 이미 결과를 물어본 통화면 강CRM은 안 물어봐요
+           · 예전: 이 브라우저에서 [콜매니저와 연결]을 눌렀을 때만 알았음 → 브라우저 데이터를 지웠거나 홈 화면 앱 · 다른 브라우저면 두 번 물어봤음
+           · 지금: 강CRM에서 건 그 통화의 콜매니저 기록이 들어오면 안 묻고, 이 폰은 콜매니저 폰으로 기억 (다음부턴 아예 안 물어봄)
+           · 콜매니저를 쓰는 직원이면 기록이 올라올 때까지 몇 초 기다렸다가, 끝내 안 오면 그때 물어봄 · 강CRM 창이 떠 있는데 콜매니저 기록이 오면 창을 닫아요 */
+        function callAppLogFor(p, c) {
+            const me = myEmail(), ids = new Set([p.id, ...(c ? prevIdsOf(c) : [])]);
+            return callLogs.find(L => L && L.src === 'android' && (!me || L.uploader === me) && ids.has(L.customerId) && (Date.parse(L.startedAt || L.at || '') || 0) >= p.at - 120000) || null;
+        }
+        function usesCallAppHere() {
+            if (!/Android/i.test(navigator.userAgent || '')) return false;
+            const me = myEmail(), since = Date.now() - 30 * 864e5;
+            return callLogs.some(L => L && L.src === 'android' && L.uploader === me && (Date.parse(L.at || L.startedAt || '') || 0) > since);
+        }
+        function learnCallApp() { try { localStorage.setItem('callAppPaired', '1'); } catch (e) { /* 무시 */ } try { renderCallAppSettings(); } catch (e) { /* 준비 전 */ } }
+        let callWaitTimer = null;
         function checkPendingCallResult() {
             const p = loadPendingCall();
             if (!p || !dbLoaded) return;
             if (Date.now() - p.at > PENDING_CALL_MAX_AGE) { setPendingCall(null); return; }
-            if (!p.left || callResultSheet.style.display === 'flex') return;
+            if (!p.left) return;
             const c = customerDB.find(x => x.id === p.id);
             if (!c) { setPendingCall(null); return; }
+            if (callAppLogFor(p, c)) {   // 콜매니저에서 이미 기록함
+                if (callResultSheet.style.display === 'flex') { closeCallResultSheet(); stockToast('📞 콜매니저에서 통화 결과를 기록했어요'); }
+                else setPendingCall(null);
+                learnCallApp(); return;
+            }
+            if (callResultSheet.style.display === 'flex') return;
+            const android = /Android/i.test(navigator.userAgent || '');
+            if (android && (!callLogsReady || usesCallAppHere())) {   // 콜매니저 기록이 올라올 시간을 줘요 (최대 8초 · 앱을 막 켜서 통화 기록을 아직 못 받았어도)
+                if (!p.waitUntil) setPendingCall({ ...p, waitUntil: Date.now() + 8000 });
+                if (Date.now() < (loadPendingCall() || p).waitUntil) { clearTimeout(callWaitTimer); callWaitTimer = setTimeout(checkPendingCallResult, 1500); return; }
+            }
             openCallResultSheet(c, p);
         }
 
@@ -13162,7 +13204,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (!r || r.error) continue;
                         const upd = {};
                         if (r.found && c.bizCardInstalled !== true) { upd.bizCardInstalled = true; upd.bizCardInstalledAt = c.bizCardInstalledAt || getTodayStr(); }
-                        if ((c.pushSubscribed === true) !== !!r.subscribed) upd.pushSubscribed = !!r.subscribed;
+                        if ((c.pushSubscribed === true) !== !!r.subscribed) {
+                            upd.pushSubscribed = !!r.subscribed;
+                            if (r.subscribed) upd.pushOnAt = getTodayStr(); else if (c.pushSubscribed === true) upd.pushOffAt = getTodayStr();   // 🔕 V245 알림이 꺼진 날 (켜져 있다가 꺼졌을 때)
+                        }
                         if (Object.keys(upd).length) await saveDoc(doc(db, 'smart_customers', c.id), upd, { merge: true });
                     }
                 }
@@ -23289,7 +23334,7 @@ familyStr + `\n` +
             setTimeout(() => { try { window.openProfileCard(c.id); } catch (e) { console.warn(e); } }, 300);
         }
 
-        let callLogs = [], callLogsUnsubs = [];
+        let callLogs = [], callLogsUnsubs = [], callLogsReady = false;
         function attachCallLogsListener() {
             callLogsUnsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } });
             callLogsUnsubs = [];
@@ -23298,10 +23343,12 @@ familyStr + `\n` +
             const merge = () => {
                 const m = new Map(); parts.forEach(arr => arr.forEach(x => m.set(x.id, x)));
                 callLogs = [...m.values()].sort((a, b) => String(b.startedAt || b.at || '').localeCompare(String(a.startedAt || a.at || '')));
+                callLogsReady = true;
                 try { applyCallLogs(); } catch (e) { console.warn(e); }
                 try { runCallAi(); } catch (e) { console.warn(e); }   // 🤖 V222
                 if (currentProfileId) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
                 try { refreshCallSheet(); } catch (e) { /* 무시 */ }   // 🎙 V223
+                try { if (loadPendingCall()) checkPendingCallResult(); } catch (e) { /* 무시 */ }   // 📞 V245 콜매니저 기록이 오면 강CRM 결과 창은 안 띄움
             };
             const qs = isSuperAdmin ? [['all', collection(db, 'call_logs')]]
                 : [['up', query(collection(db, 'call_logs'), where('uploader', '==', me))], ['mg', query(collection(db, 'call_logs'), where('managerEmail', '==', me))]];
@@ -24704,7 +24751,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V244';
+        const APP_VER = 'V245';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24712,6 +24759,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V245', d: '2026-11-01', items: [
+                ['📞 콜매니저에서 통화 결과를 기록하면 강CRM은 다시 안 물어봐요 (예전엔 둘 다 물어볼 때가 있었어요) · 한 번 확인되면 그 폰은 콜매니저 폰으로 기억'],
+                ['🔕 고객 화면 위 칸에 "명함 알림 꺼짐": 명함은 설치했는데 알림을 안 받는 고객 수 · 누르면 명단 (알림을 끈 분 · 명함을 지운 분 같이) · 목록에도 🔕 표시'],
+                ['📅 앞으로 알림이 꺼진 날도 기록해서 최근에 꺼진 분부터 보여줘요']] },
             { v: 'V244', d: '2026-11-01', items: [
                 ['🏠 고객카드 유선 탭에 "지금 바꾸면 (인터넷 · TV)": 위약금 계산기와 같은 식으로 인터넷 · TV · 결합 · 장비 위약금 대략값 · 약정 끝나는 날'],
                 ['🧮 [계산기에서 자세히] → 위약금 계산기가 통신사 · 가입일 · 상품을 채워서 열려요 · 📋 고객에게 보낼 안내 문구 복사'],
