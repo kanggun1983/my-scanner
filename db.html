@@ -461,6 +461,8 @@
                 <button type="button" id="reassignBtn" class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap" title="체크한 고객의 담당자를 한 번에 바꿔요 (총관리자)"><i class="fa-solid fa-user-pen"></i> 담당자 바꾸기</button>
             </div>
 
+            <!-- 📇 V250 아침 전화 명단: 어제부터 명함을 열었거나 견적 · 계산을 본 고객 -->
+            <div id="morningCallBox" class="hidden mb-2.5"></div>
             <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌 · 화면이 좁으면 옆으로 넘겨서 보기) -->
             <div id="alertDashboard" class="flex gap-1.5 mb-2.5 overflow-x-auto scrollbar-hide">
                 <button type="button" id="dashCalc" aria-label="명함 견적요청 보기" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
@@ -737,6 +739,10 @@
                         <label for="calcMyPhoneOn" class="flex items-center justify-between gap-3 cursor-pointer">
                             <span class="text-sm font-bold text-gray-900 leading-snug">📱 고객 명함에 '내 폰 정보' 보이기<br><span class="text-xs font-medium text-gray-600">개인 링크로 본인 확인한 폰에서만: 기종 · 개통 달 · 할부·약정 끝나는 달 · 추천 기변 시기 (이름·번호는 안 나가요) · <b>V185</b>: 개통하고 정한 개월(자동 문자 설정 '📱 내 폰 정보 알림' · 기본 18개월)부터 명함에 '📱 내 폰' 한 줄로 보여요 (그 전엔 숨김)</span></span>
                             <input type="checkbox" id="calcMyPhoneOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
+                        </label>
+                        <label for="calcBigOn" class="flex items-center justify-between gap-3 cursor-pointer">
+                            <span class="text-sm font-bold text-gray-900 leading-snug">👵 60세 이상은 큰 글씨 명함 <span class="text-xs font-bold text-indigo-700">(V250)</span><br><span class="text-xs font-medium text-gray-600">개인 링크로 열면 사진 · 이름 + 큰 버튼 4개(전화 · 문자 · 오시는 길 · 저장)만 · 아래 '작은 글씨로 전체 명함 보기'로 지금 명함 · 나이는 생년월일(없으면 주민번호 앞자리)로</span></span>
+                            <input type="checkbox" id="calcBigOn" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                         </label>
                         <label for="calcRefOn" class="flex items-center justify-between gap-3 cursor-pointer">
                             <span class="text-sm font-bold text-gray-900 leading-snug">🤝 고객 명함에 '소개 현황' 보이기<br><span class="text-xs font-medium text-gray-600">그 고객이 공유한 명함으로 들어온 지인 수 + 아래 감사 문구 · 고객카드에도 🤝 소개 N명 · 명함의 [명함 공유하기]가 [🎁 명함 소개하기]로 바뀌고 아래에 소개 N명</span></span>
@@ -3747,6 +3753,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const ad = String(c.activationDate || ''), okAd = /^\d{4}-\d{2}-\d{2}$/.test(ad) && !c.deletedAt;
             if (calcData.myPhoneOn !== false && !c.deletedAt && c.salesStatus !== '고객거부') { Object.assign(out, cardPhoneInfo(c)); if (okAd) out.pf = addMonthsDay(ad, phoneMonths()); }
             if (calcData.refOn !== false) { const S = refStats(c); if (S.all) out.rc = S.all; if (S.act) out.rk = S.act; }   // rk: 그중 개통한 지인 (V186 · 명함 V4.5 사은품 단계)
+            if (calcData.bigOn !== false && !c.deletedAt) { const ag = promoAgeOf(c); if (ag !== null && ag >= 60) out.bg = '1'; }   // 👵 V250 큰 글씨 명함
             if (okAd) { out.ac = '1'; out.ra = addDaysStr(ad, smsSetting('smsAutoActOn') ? Math.max(7, parseInt(smsSetting('smsActDays'), 10) || 30) : 30); }
             return out;
         }
@@ -8037,6 +8044,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
 
         function renderDB() {
+            try { renderMorningCalls(); } catch (e) { /* 준비 전 */ }
             const selectAll = document.getElementById('selectAllChk');
             try { gdBadge(); } catch (e) { /* 준비 전 */ }   // 📝 V202 서명하고 개통등록 안 한 안내서
 
@@ -10316,7 +10324,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return customerDB.filter(x => x.familyGroupId === c.familyGroupId && x.id !== c.id);
         }
 
-        function familyRowHtml(m) {
+        const FAM_INV = { 아들: '부모', 딸: '부모', 부모: '자녀', 배우자: '배우자', 형제자매: '형제자매', 손자녀: '조부모', '며느리 · 사위': '시부모 · 장인장모', 기타: '가족' };
+        function familyRowHtml(m, viewer) {
+            const relTag = m.familyRel && m.famOf === (viewer && viewer.id) ? m.familyRel : (viewer && viewer.famOf === m.id && viewer.familyRel ? (FAM_INV[viewer.familyRel] || '가족') : (m.familyRel || ''));
             const idAttr = escapeHtml(m.id);
             const calc = getDdayAndMonths(m.activationDate);
             const usage = m.activationDate && m.activationDate.length === 10 ? (calc.months >= 1 ? `${calc.months}개월째` : `개통 ${calc.days}일째`) : '';
@@ -10326,11 +10336,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const expired = dt.includes('해당없음') || dt.includes('만료');
             const st = getStatusInfo(m.salesStatus);
             const hasPhone = !!String(m.phone || '').replace(/[^0-9]/g, '');
-            const sub = [hasPhone ? formatPhone(m.phone) : '번호 없음', m.device, usage, discount].filter(Boolean).join(' · ');
+            const sub = [hasPhone ? formatPhone(m.phone) : '번호 없음', m.device, usage, discount, m.bizCardSentAt ? `📇 명함 ${String(m.bizCardSentAt).slice(5).replace('-', '/')}` : '', m.famConsent ? '문자 동의 ✓' : ''].filter(Boolean).join(' · ');
             return `<div class="py-3 border-b border-gray-100 last:border-0 flex items-center gap-2">
                 <button type="button" data-family-action="open" data-id="${idAttr}" class="flex-1 min-w-0 text-left">
                     <span class="flex items-center gap-1.5 flex-wrap">
                         <span class="text-[15px] font-bold text-gray-900">${escapeHtml(m.name || '이름 없음')}</span>
+                        ${relTag ? `<span class="text-[11px] font-bold text-indigo-800 bg-indigo-100 rounded px-1.5 py-0.5">${escapeHtml(relTag)}</span>` : ''}
                         ${m.carrier && m.carrier !== '미정' ? `<span class="text-[11px] font-medium text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">${escapeHtml(m.carrier)}</span>` : ''}
                         ${target ? `<span class="text-[11px] font-bold px-1.5 py-0.5 rounded bg-orange-50 text-orange-700">${expired ? '약정 끝남' : '기변 시기'}</span>` : ''}
                     </span>
@@ -10352,7 +10363,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${targets >= 2 ? '<p class="text-xs text-indigo-800 mt-0.5">여러 명이 기변 시기예요. 가족 동시 기변을 권해볼 만해요.</p>' : ''}
                 </div>`;
                 const sorted = members.slice().sort((a, b) => Number(isMobileExpiryTarget(b)) - Number(isMobileExpiryTarget(a)) || (a.name || '').localeCompare(b.name || '', 'ko'));
-                html += sorted.map(familyRowHtml).join('');
+                html += sorted.map(m => familyRowHtml(m, c)).join('');
             } else {
                 html += profileEmpty('fa-people-group', '아직 묶인 가족이 없어요.\n[가족 추가]로 가족 고객을 연결하면\n가족 전체의 약정·만료를 한눈에 볼 수 있어요.');
             }
@@ -10362,10 +10373,71 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <p class="text-[13px] text-gray-700 whitespace-pre-wrap">${escapeHtml(c.repFamily)}</p>
                 </div>`;
             }
+            html += famRegHtml(c);
             html += `<button type="button" data-family-action="add" class="mt-3 w-full h-12 rounded-xl border-2 border-dashed border-indigo-300 text-indigo-700 font-bold text-[15px] flex items-center justify-center gap-2"><i class="fa-solid fa-user-plus"></i>가족 추가</button>`;
             return html;
         }
 
+        /* 👨‍👩‍👧 V250 새 가족 등록 · 명함 보내기 — 강CRM 고객으로 등록(가망 · 같은 담당) + 가족 묶기 + (동의하면) 그 가족 개인 명함 문자
+           · 이미 있는 번호면 새로 만들지 않고 연결 · familyRel(관계) · famConsent(문자 동의) · famAlert(이 가족 폰 바꿀 때 안내도 같이) */
+        const FAM_RELS = ['아들', '딸', '배우자', '부모', '형제자매', '손자녀', '며느리 · 사위', '기타'];
+        let famRegOpen = false;
+        function famRegHtml(c) {
+            if (!famRegOpen) return `<button type="button" data-fam-reg="open" class="mt-3 w-full h-12 rounded-xl bg-pink-600 text-white font-bold text-[15px] flex items-center justify-center gap-2"><i class="fa-solid fa-user-plus"></i> 새 가족 등록 · 명함 보내기</button>`;
+            const f = 'mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
+            return `<div class="mt-3 rounded-2xl border-2 border-pink-200 bg-pink-50/40 p-3 space-y-2" data-fam-form>
+                <p class="text-[14px] font-bold text-pink-900">＋ 새 가족 등록 · 명함 보내기</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="text-xs font-bold text-gray-600">관계<select id="famRel" class="${f}">${FAM_RELS.map(r => `<option>${r}</option>`).join('')}</select></label>
+                    <label class="text-xs font-bold text-gray-600">이름<input id="famName" maxlength="20" autocomplete="off" placeholder="예: 김지은" class="${f}"></label>
+                    <label class="col-span-2 text-xs font-bold text-gray-600">휴대폰<input id="famPhone" type="tel" inputmode="tel" maxlength="13" autocomplete="off" placeholder="010-0000-0000" class="${f}"></label>
+                </div>
+                <label class="flex items-start gap-2 text-[13px] font-bold text-gray-900"><input type="checkbox" id="famConsent" class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>문자 받는 것 동의 받음<span class="block text-xs font-normal text-gray-500">없으면 등록 · 연결만 되고 명함 문자는 안 보내요 (광고 문자 규정)</span></span></label>
+                <label class="flex items-start gap-2 text-[13px] font-bold text-gray-900"><input type="checkbox" id="famAlert" checked class="w-5 h-5 mt-0.5 accent-pink-600 flex-shrink-0"><span>${escapeHtml(msgName(c))}님 폰 바꿀 때 안내도 같이<span class="block text-xs font-normal text-gray-500">📱 개통 ${phoneMonths()}개월이 되는 날 이 가족에게도 매장 폰으로 문자 (동의했을 때만)</span></span></label>
+                <div class="flex gap-2"><button type="button" data-fam-reg="cancel" class="flex-shrink-0 h-12 px-4 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">취소</button><button type="button" data-fam-reg="save" class="flex-1 h-12 rounded-xl bg-pink-600 text-white text-[15px] font-bold">📇 등록하고 명함 보내기</button></div>
+                <p class="text-[11px] text-gray-500 leading-relaxed">등록하면 영업상태 '가망' · 담당은 ${escapeHtml(ownerOf(c) || getStaffName() || '나')} · 메모에 '${escapeHtml(msgName(c))} 고객 가족'이 남아요 · 이미 강CRM에 있는 번호면 연결만 해요</p>
+            </div>`;
+        }
+        async function famRegister(parentId) {
+            const c = customerDB.find(x => x.id === parentId); if (!c) return;
+            const rel = (document.getElementById('famRel') || {}).value || '기타';
+            const name = String((document.getElementById('famName') || {}).value || '').trim().slice(0, 20);
+            const digits = String((document.getElementById('famPhone') || {}).value || '').replace(/\D/g, '');
+            const consent = !!(document.getElementById('famConsent') || {}).checked, alertOn = !!(document.getElementById('famAlert') || {}).checked;
+            if (!/^01\d{8,9}$/.test(digits)) return customAlert('가족 휴대폰 번호를 정확히 넣어주세요. (예: 010-1234-5678)');
+            if (digits === String(c.phone || '').replace(/\D/g, '')) return customAlert('지금 고객과 같은 번호예요.');
+            const staff = getStaffName() || '', now = new Date().toISOString();
+            const sameNo = (x) => x.id === digits || String(x.phone || '').replace(/\D/g, '') === digits;
+            let m = customerDB.find(x => !x.deletedAt && sameNo(x));
+            const trashed = !m ? customerDB.find(x => x.deletedAt && sameNo(x)) : null;
+            const famFields = { familyRel: rel, famConsent: consent, famAlert: alertOn && consent, famOf: c.id, updatedAt: now };
+            try {
+                if (m) {
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', m.id), { ...famFields, ...(name && isNoName(m.name) ? { name } : {}), memo: appendLine(m.memo, `${getTodayStr()} ${msgName(c)} 고객 ${rel}로 가족 연결 (${staff})`) }, { merge: true }));
+                    Object.assign(m, famFields);
+                } else if (trashed) {
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', trashed.id), { deletedAt: '', deletedBy: '', ...keepRegFields(trashed), ...famFields, memo: appendLine(trashed.memo, `${getTodayStr()} ${msgName(c)} 고객 ${rel} (가족 등록 · ${staff})`) }, { merge: true }));
+                    m = Object.assign(trashed, { deletedAt: '' }, famFields);
+                } else {
+                    const owner = ownerOf(c) ? c.manager : staff;
+                    const data = { name: name || '', phone: formatPhone(digits), salesStatus: '가망고객', regStore: msgStoreName(), manager: owner, contactManager: staff, memo: `${msgName(c)} 고객 ${rel} (가족 등록)`, regDate: getTodayStr(), regBy: staff, __audit: '가족 등록', createdAt: now, ...famFields };
+                    await waitAtMost(saveDoc(doc(db, 'smart_customers', digits), data, { merge: true }));
+                    delete data.__audit;
+                    m = { id: digits, ...data }; customerDB.push(m);
+                }
+                await linkFamily(c.id, m.id);
+                famRegOpen = false; renderProfileCard();
+                if (consent) { stockToast(`👨‍👩‍👧 ${m.name || '가족'}님을 등록 · 연결했어요 · 명함 문자를 보낼게요`); await sendBizCard(m); }
+                else customAlert(`👨‍👩‍👧 ${m.name || '가족'}님을 강CRM에 등록하고 가족으로 연결했어요.\n문자 동의가 없어서 명함은 안 보냈어요. (동의를 받으면 그 고객카드에서 [명함 보내기])`);
+            } catch (e) { console.error(e); customAlert(koreanError(e, '가족 등록')); }
+        }
+        document.addEventListener('click', (e) => {
+            const b = e.target.closest('[data-fam-reg]'); if (!b || !currentProfileId) return;
+            const a = b.dataset.famReg;
+            if (a === 'open' || a === 'cancel') { famRegOpen = a === 'open'; renderProfileCard(); if (famRegOpen) setTimeout(() => { const i = document.getElementById('famName'); if (i) i.focus(); }, 50); return; }
+            if (a === 'save') { b.disabled = true; famRegister(currentProfileId).finally(() => { b.disabled = false; }); }
+        });
+        document.addEventListener('input', (e) => { if (e.target && e.target.id === 'famPhone') { const d = e.target.value.replace(/\D/g, '').slice(0, 11); e.target.value = d.length > 7 ? `${d.slice(0, 3)}-${d.slice(3, d.length - 4)}-${d.slice(-4)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d); } });
         async function linkFamily(aId, bId) {
             const a = customerDB.find(x => x.id === aId);
             const b = customerDB.find(x => x.id === bId);
@@ -11656,6 +11728,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const visitOn = !!smsSetting('smsAutoVisitOn'), actOn = !!smsSetting('smsAutoActOn');   // V177
             const missOn = !!smsSetting('smsAutoMissOn');   // V222 📵
             const phoneOn = !!smsSetting('smsAutoPhoneOn') && autoPushOn() && !(calcData && calcData.myPhoneOn === false);   // V185 📱 푸시만 · 명함 '내 폰 정보'를 끈 매장은 안 보냄
+            const famPhoneOn = !!smsSetting('smsAutoPhoneOn') && autoSmsOn();   // 👨‍👩‍👧 V250 가족 문자는 📱 내 폰 알림을 켰을 때 · 매장 폰 문자로
             if (promoOn) {
                 const P = promoPlan(), today = getTodayStr(), skip = smsSkipIds(), time = promoTime(), camp = promoCampaign();
                 const lastD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
@@ -11673,7 +11746,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         { heading: `(광고) ${msgStoreName()} 소식`, text: promoText(c, true), image: String(appSettings.smsPromoImage || '') }).filter(it => !skip.has(it.id)));
                 });
             }
-            if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn) return items;
+            if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn && !famPhoneOn) return items;
             const today = getTodayStr();
             const last = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
             const lastStr = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
@@ -11729,6 +11802,19 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         const it = { id: `${base}-p`, channel: 'push', cardId: c.cardId, to: '', name: c.name || '', auto: true, sendAt: smsSendAt(sendDay, time), heading: P.heading, text: P.text, image: '', icon: autoPushIconUrl(), url: cardPushUrl(c, base, P.heading, P.popBody, '', false, true) };
                         if (!skip.has(it.id)) items.push(it);
                     }
+                }
+                // 👨‍👩‍👧 V250 가족에게도 폰 바꿀 때 안내 (가족 등록에서 '안내도 같이' + 문자 동의 · 매장 폰 문자)
+                if (famPhoneOn && !c.marketingDeny && c.salesStatus !== '고객거부' && c.familyGroupId) {
+                    const ad = String(c.activationDate || ''), N = phoneMonths();
+                    const sendDay = /^\d{4}-\d{2}-\d{2}$/.test(ad) ? addMonthsDay(ad, N) : '';
+                    if (sendDay && sendDay >= today && sendDay <= lastStr) getFamilyMembers(c).forEach(m => {
+                        const to = smsMobileDigits(m.phone);
+                        if (!to || m.deletedAt || !m.famAlert || !m.famConsent || m.famOf !== c.id || m.marketingDeny || m.salesStatus === '고객거부') return;
+                        const id = `af-${safeId}-${String(m.id).replace(/[^A-Za-z0-9_-]/g, '')}-${ad.replace(/-/g, '')}`;
+                        const fText = `(광고) [${msgStoreName()}] ${msgName(m)}님, ${msgName(c)}님 가족분께 안내드려요 😊\n${msgName(c)}님 휴대폰이 개통 ${N}개월째예요. 바꾸실 때가 되면 편하게 연락 주세요.${custStaffName(c) ? '\n담당 ' + custStaffName(c) : ''}`;
+                        const it = { id, to, name: m.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: `${withAutoCard(fText, m, 'promo')}\n${String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim()}` };
+                        if (!skip.has(it.id)) items.push(it);
+                    });
                 }
                 // 📵 부재 고객 (V222): 부재 N번 이상 · 마지막으로 건 날(최근 연락) + D일 · 같은 고객 30일에 한 번
                 if (missOn && phone && !c.marketingDeny && !c.missOptOut && c.salesStatus !== '고객거부') {
@@ -15652,8 +15738,10 @@ familyStr + `\n` +
                 let list = [];
                 snap.forEach(d => list.push({ ...d.data(), id: d.id }));
                 list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
-                if (!calcReqFirstLoad) snap.docChanges().forEach(ch => { if (ch.type === 'added' && ch.doc.data().kind !== 'miss') calcNotify(ch.doc.data()); });
+                if (!calcReqFirstLoad) snap.docChanges().forEach(ch => { if (ch.type === 'added' && !['miss', 'seen'].includes(ch.doc.data().kind)) calcNotify(ch.doc.data()); });
                 calcReqFirstLoad = false;
+                cardSeenList = list.filter(r => r.kind === 'seen'); list = list.filter(r => r.kind !== 'seen');   // 📇 V250 명함 열어봄 → 아침 전화 명단에만 (요청 목록엔 안 보임)
+                purgeCardSeen();
                 calcRequests = list.filter(r => r.kind !== 'miss');   // 📵 V228 부재 재연락 응답은 따로 처리 (요청 목록에 안 보임)
                 processMissReplies(list.filter(r => r.kind === 'miss'));
                 list = calcRequests;
@@ -15662,6 +15750,7 @@ familyStr + `\n` +
                 calcReqError = null;
                 calcPurgeOld();
                 renderCalcDash();
+                renderMorningCalls();
                 if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'requests') renderCalcSheet();
                 if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'restock' && !(document.activeElement && document.activeElement.dataset && document.activeElement.dataset.rsMsg !== undefined)) renderCalcSheet();
             }, err => {
@@ -15690,6 +15779,75 @@ familyStr + `\n` +
             });
         }
 
+        /* =====================================================================
+           📇 V250 아침 전화 명단 — 어제 0시부터 명함을 열었거나(seen) 견적 확인 · 계산(calc) · 견적요청(ask)한 등록 고객
+           · 직원은 자기 담당만 · 👑 대표(정산 보기 권한)는 전체 · 오늘 연락했으면 흐리게 · [완료]는 이 폰에서만 (하루)
+           ===================================================================== */
+        let cardSeenList = [], cardSeenPurged = false, morningOpen = true;
+        function purgeCardSeen() {   // 명함 열어봄 기록은 3일만 (아침 명단용)
+            if (cardSeenPurged || !cardSeenList.length) return; cardSeenPurged = true;
+            const lim = Date.now() - 3 * 86400e3;
+            cardSeenList.filter(r => (Date.parse(r.at || '') || 0) < lim).slice(0, 200).forEach(r => deleteDoc(doc(db, 'card_requests', r.id)).catch(() => {}));
+        }
+        function mlDoneMap() { try { const m = JSON.parse(localStorage.getItem('mlDone') || '{}'); return m && m.d === getTodayStr() ? m : { d: getTodayStr(), ids: {} }; } catch (e) { return { d: getTodayStr(), ids: {} }; } }
+        function mlEventOf(r) {
+            const sm = String(r.summary || '');
+            if (r.kind === 'seen') return { rank: 1, tag: '명함 열어봄', cls: 'bg-green-100 text-green-800' };
+            if (r.kind === 'ask' || /견적요청|상담요청/.test(sm)) return { rank: 4, tag: '견적 요청', cls: 'bg-pink-100 text-pink-800' };
+            if (/견적/.test(sm) && /👀/.test(sm)) return { rank: 3, tag: '견적 확인', cls: 'bg-pink-100 text-pink-800' };
+            return { rank: 2, tag: '계산해 봄', cls: 'bg-indigo-100 text-indigo-800' };
+        }
+        function morningCallRows() {
+            if (!dbLoaded) return [];
+            const t = new Date(), since = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 1).getTime();
+            const byCard = new Map(); customerDB.forEach(c => { if (c.cardId && !c.deletedAt) byCard.set(String(c.cardId), c); });
+            const all = isSuperAdmin || can('editOthers'), me = getStaffName() || '';
+            const out = new Map();
+            [...cardSeenList, ...calcRequests].forEach(r => {
+                const at = Date.parse(r.at || '') || 0; if (at < since || !r.cid) return;
+                const c = byCard.get(String(r.cid)); if (!c) return;
+                if (!all && !sameStaff(ownerOf(c) || '', me)) return;
+                const ev = mlEventOf(r), cur = out.get(c.id);
+                if (!cur || ev.rank > cur.ev.rank || (ev.rank === cur.ev.rank && at > cur.at)) out.set(c.id, { c, ev, at, r, n: (cur ? cur.n : 0) + 1 });
+                else cur.n++;
+            });
+            const today = getTodayStr();
+            return [...out.values()].map(x => ({ ...x, called: String(x.c.lastContactDate || '') >= today }))
+                .sort((a, b) => Number(a.called) - Number(b.called) || b.ev.rank - a.ev.rank || b.at - a.at);
+        }
+        function renderMorningCalls() {
+            const box = document.getElementById('morningCallBox'); if (!box) return;
+            const done = mlDoneMap().ids, rows = morningCallRows().filter(x => !done[x.c.id]);
+            if (!rows.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+            const left = rows.filter(x => !x.called).length;
+            const hm = (ms) => { const d = new Date(ms), td = new Date(); const same = d.toDateString() === td.toDateString(); return `${same ? '오늘' : '어제'} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+            const row = (x) => {
+                const c = x.c, ph = String(c.phone || '').replace(/\D/g, ''), age = promoAgeOf(c);
+                const calc = getDdayAndMonths(c.activationDate), usage = /^\d{4}-\d{2}-\d{2}$/.test(String(c.activationDate || '')) ? `개통 ${String(c.activationDate).slice(2).replace(/-/g, '.')} (${calc.months}개월)` : '';
+                const fam = getFamilyMembers(c).slice(0, 2).map(m => `${m.familyRel ? m.familyRel + ' ' : ''}${m.name || ''}`).filter(Boolean).join(', ');
+                const info = [ph ? formatPhone(ph) : '번호 없음', age !== null ? `${age}세` : '', [c.carrier && c.carrier !== '미정' ? c.carrier : '', c.device].filter(Boolean).join(' '), usage].filter(Boolean).join(' · ');
+                const what = [hm(x.at), String(x.r.summary || '').replace(/^[^\s]+\s/, '').slice(0, 40), ownerOf(c) ? `담당 ${ownerOf(c)}` : '', fam ? `👨‍👩‍👧 ${fam}` : ''].filter(Boolean).join(' · ');
+                return `<div class="flex items-center gap-2 bg-white border border-amber-100 rounded-xl px-2.5 py-2 ${x.called ? 'opacity-50' : ''}">
+                    <button type="button" data-ml-open="${escapeHtml(c.id)}" class="flex-1 min-w-0 text-left">
+                        <span class="flex items-center gap-1.5 flex-wrap"><span class="text-[15px] font-bold text-gray-900">${escapeHtml(c.name || '이름 없음')}</span><span class="text-[11px] font-bold rounded px-1.5 py-0.5 ${x.ev.cls}">${x.ev.tag}</span>${x.called ? '<span class="text-[11px] font-bold text-green-700">✓ 오늘 연락함</span>' : ''}</span>
+                        <span class="block text-[12px] text-gray-600 leading-snug">${escapeHtml(info)}</span>
+                        <span class="block text-[12px] text-gray-500 leading-snug">${escapeHtml(what)}</span>
+                    </button>
+                    ${x.called ? '' : `<button type="button" data-ml-done="${escapeHtml(c.id)}" class="flex-shrink-0 w-12 h-11 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-700">완료</button>${ph ? `<a href="tel:${ph}" data-ml-call="${escapeHtml(c.id)}" aria-label="${escapeHtml(c.name || '고객')}에게 전화" class="flex-shrink-0 w-12 h-11 rounded-xl bg-green-600 text-white flex items-center justify-center"><i class="fa-solid fa-phone"></i></a>` : ''}`}
+                </div>`;
+            };
+            box.classList.remove('hidden');
+            box.innerHTML = `<div class="rounded-2xl border border-amber-200 bg-amber-50 p-2.5">
+                <button type="button" data-ml-toggle class="w-full flex items-center justify-between gap-2 text-left"><span class="text-[15px] font-bold text-amber-900">📇 어제부터 명함 본 고객 ${rows.length}명${left ? ` · 오늘 전화할 ${left}명` : ' · 다 연락했어요 👍'}</span><i class="fa-solid fa-chevron-${morningOpen ? 'up' : 'down'} text-amber-700"></i></button>
+                ${morningOpen ? `<div class="space-y-1.5 mt-2">${rows.slice(0, 15).map(row).join('')}</div>${rows.length > 15 ? `<p class="text-xs text-amber-800 mt-1.5 pl-1">외 ${rows.length - 15}명</p>` : ''}` : ''}
+            </div>`;
+        }
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('[data-ml-toggle]')) { morningOpen = !morningOpen; renderMorningCalls(); return; }
+            const o = e.target.closest('[data-ml-open]'); if (o) { openProfileCard(o.dataset.mlOpen); return; }
+            const d = e.target.closest('[data-ml-done]');
+            if (d) { const m = mlDoneMap(); m.ids[d.dataset.mlDone] = 1; try { localStorage.setItem('mlDone', JSON.stringify(m)); } catch (err) { /* 무시 */ } renderMorningCalls(); }
+        });
         /* ---------- 고객 찾기 · 표시 ---------- */
         // 🤝 지인이 받은 명함으로 들어온 상담요청 (명함이 내용 첫 줄에 '🤝 소개 명함: 명함번호'를 붙임)
         const CALC_REF_RE = /^🤝 소개 명함: ?([A-Za-z0-9_-]{2,40})[^\n]*(?:\n|$)/;
@@ -16852,7 +17010,7 @@ familyStr + `\n` +
               const kk = document.getElementById('calcKakao'); if (document.activeElement !== kk) kk.value = d.kakao || ''; kk.disabled = locked;
               const ko = document.getElementById('calcKakaoOn'); ko.checked = d.kakaoOn !== false; ko.disabled = locked; }
             { // 🙋 고객 명함 추가 기능 (V177)
-              [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn']].forEach(([id, k]) => { const el = document.getElementById(id); el.checked = d[k] !== false; el.disabled = locked; });
+              [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn'], ['calcBigOn', 'bigOn']].forEach(([id, k]) => { const el = document.getElementById(id); el.checked = d[k] !== false; el.disabled = locked; });
               const rw = document.getElementById('calcRefReward'); if (document.activeElement !== rw) rw.value = d.refReward || ''; rw.disabled = locked;
               { const T = refTiers(d), box = document.getElementById('calcRefTiers');   // 🎁 소개 사은품 단계 (V186)
                 if (!box.contains(document.activeElement)) for (let i = 0; i < 5; i++) { const n = box.querySelector(`[data-rt-n="${i}"]`), g = box.querySelector(`[data-rt-g="${i}"]`); n.value = T[i] ? String(T[i].n) : ''; g.value = T[i] ? T[i].g : ''; }
@@ -16864,7 +17022,7 @@ familyStr + `\n` +
         }
         // 🙋 고객 명함 추가 기능 저장 (V177 · 총관리자)
         function restockModels(d) { const r = (d || calcData || {}).restock; return r && Array.isArray(r.models) ? r.models.map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 12) : []; }
-        [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', async e => {
+        [['calcVisitBookOn', 'visitBookOn'], ['calcMyPhoneOn', 'myPhoneOn'], ['calcRefOn', 'refOn'], ['calcBigOn', 'bigOn']].forEach(([id, k]) => document.getElementById(id).addEventListener('change', async e => {
             if (!can('editPolicy')) { e.target.checked = !e.target.checked; return customAlert('총관리자만 바꿀 수 있어요.'); }
             const next = calcNormalize(calcData); next[k] = e.target.checked;
             if (!(await calcSave(next, true))) { e.target.checked = !e.target.checked; return; }
@@ -24962,7 +25120,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V249';
+        const APP_VER = 'V250';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -24970,6 +25128,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V250', d: '2026-11-02', items: [
+                ['📇 고객 화면 맨 위 "어제부터 명함 본 고객": 명함을 열었거나 견적 확인 · 계산해 본 고객 · 이름 · 번호 · 나이 · 기종 · 약정 그대로 · 📞 바로 전화 · 오늘 연락하면 흐리게 (직원은 내 담당만)'],
+                ['👨‍👩‍👧 고객카드 → 가족 탭 [새 가족 등록 · 명함 보내기]: 강CRM 등록(가망 · 같은 담당) + 가족 연결 + 그 가족 개인 명함 문자를 한 번에 · 관계(아들 · 딸…) 표시'],
+                ['📱 가족 등록 때 "폰 바꿀 때 안내도 같이"를 켜면 개통 N개월 되는 날 가족에게도 매장 폰 문자 (문자 동의한 가족만)'],
+                ['👵 60세 이상 고객은 명함이 큰 글씨로 (사진 · 이름 + 전화 · 문자 · 오시는 길 · 저장) · 설정 → 📇 고객 명함에서 끄기 · 명함 AI상담원은 없앴어요']] },
             { v: 'V249', d: '2026-11-02', items: [
                 ['🔕 알림을 켤 때 오던 원시그널 인사말 알림(구독 감사)이 이제 안 와요 · 명함도 알림 신청 뒤 [확인]을 한 번 덜 눌러요']] },
             { v: 'V248', d: '2026-11-02', items: [
