@@ -20688,6 +20688,15 @@ familyStr + `\n` +
             return String(t).replace(/\{([^{}]+)\}/g, (m, k) => (map[k] !== undefined ? map[k] : m));
         }
         /* ⚠️ V267 요금제 하향 제한 (안내서 빨간 경고 칸 · 녹음 대본 6-1) — 통신사 하향 기준(설정 → 명함 폰값계산 → 위약금 기준) · 유통망 유지일 · 요금제 유지일 */
+        // 📅 V267 요금제를 바꿀 수 있는 날: 유통망지원금이 있으면 공시 · 선약 모두 유통망 유지일과 같게 (둘 중 늦은 날) — 안내서 · 녹음이 서로 다른 날짜를 말하지 않게
+        function gdKeepEff(g) {
+            const dev = g.kind !== 'usim', dv = g.dev || {};
+            const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
+            let dd = '', dc = '';
+            if (dev && gdNum(dv.extra) > 0 && g.date) { const d = dealerByName(g.dealer), dc0 = dealerDistCode(d, g.carrier); dc = dc0 && dc0 !== 'NONE' ? dc0 : DEALER_DIST_DEFAULT; dd = computeKeepDate(g.date, dc); }
+            const useDist = !!dd && (!kd || dd > kd);
+            return { kd, dd, date: useDist ? dd : kd, code: useDist ? dc : (keep ? g.keep.code : ''), dist: useDist };
+        }
         function gdDownLines(g) {
             const dev = g.kind !== 'usim', dv = g.dev || {}, pl = g.plan || {}, out = [], W = (n) => `${arWon(n)}원`;
             let R = null; try { R = (calcNormalize(calcData).rules || {})[g.carrier] || CALC_RULE_DEFAULTS[g.carrier] || null; } catch (e) { R = CALC_RULE_DEFAULTS[g.carrier] || null; }
@@ -20697,8 +20706,9 @@ familyStr + `\n` +
             const dist = dev && gdNum(dv.extra) > 0, dd = dist && g.date ? computeKeepDate(g.date, dc) : '';
             const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
             if (dev && g.sup === '공시' && lim) out.push(`공통지원금을 받아서 약정 기간 안에 요금제를 월 ${W(lim)} 미만으로 낮추면 공통지원금 차액(차액정산금)이 청구돼요.${R && R.ex ? ` (${R.ex})` : ''}`);
-            if (dist) out.push(`유통망지원금 ${W(gdNum(dv.extra))}은 ${dd ? gdDot(dd) + '까지' : '정해진 날까지'} ${pname}${pfee ? `(월 ${W(pfee)})` : ''} 이상 유지하는 조건이에요. 그 전에 요금제를 낮추거나 해지 · 번호이동 · 기기변경하면 받은 금액이 위약금으로 청구돼요.`);
-            else if (keep && kd) out.push(`${gdDot(kd)}까지 ${pname}을(를) 유지해 주세요. 그 전에 요금제를 낮추면 지원금 차액이 청구될 수 있어요.`);
+            const ke = gdKeepEff(g);   // 📅 바꿀 수 있는 날 (유통망이 있으면 유통망 유지일)
+            if (dist) out.push(`유통망지원금 ${W(gdNum(dv.extra))}은 ${pname}${pfee ? `(월 ${W(pfee)})` : ''} 이상 유지 조건이에요. ${ke.date ? gdDot(ke.date) + '부터' : '정해진 날부터'} 바꿀 수 있고, 그 전에 요금제를 낮추거나 해지 · 번호이동 · 기기변경하면 받은 금액이 위약금으로 청구돼요.`);
+            else if (keep && kd) out.push(`${gdJo(pname, '은', '는')} ${gdDot(kd)}부터 바꿀 수 있어요. 그 전에 요금제를 낮추면 지원금 차액이 청구될 수 있어요.`);
             if (g.sup === '선약' && (dist || (keep && kd))) out.push('선택약정은 요금제를 바꿔도 25% 할인은 계속되지만, 위 날짜 전에는 요금제를 낮추면 안 돼요.');
             return out;
         }
@@ -21213,10 +21223,10 @@ familyStr + `\n` +
             if (piCur) panel(`${piCur.n} 기본 제공 · 혜택`, planInfoLines(g.carrier, piCur), { fill: '#F8FAFF', stroke: '#C7D2FE', titleColor: '#1E3A8A', color: '#1F2937', size: 12 });
             { const down = g.st !== 'draft' ? (Array.isArray(g.down) ? g.down : []) : gdDownLines(g);   // ⚠️ V267 요금제 하향 제한 (서명한 안내서는 그때 문구 · 예전 서명본엔 안 넣음)
               if (down.length) panel('⚠️ 요금제 하향 제한 · 꼭 지켜 주세요', down, { fill: '#FEF2F2', stroke: '#F87171', titleColor: '#B91C1C', color: '#7F1D1D', size: 13 }); }
-            const kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
+            const KE = gdKeepEff(g), kd = KE.date;   // 📅 V267 유통망이 있으면 유통망 유지일과 같게
             if (kd || g.keep.target) {
                 const ls = [];
-                if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(g.keep.code)} 유지 → ${gdDot(kd)}부터 바꿀 수 있어요`);
+                if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(KE.code)} 유지${KE.dist ? ' (유통망지원금 조건)' : ''} → ${gdDot(kd)}부터 바꿀 수 있어요`);
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
                 const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
                 if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
@@ -21624,12 +21634,12 @@ familyStr + `\n` +
             }
             if (g.sup === '공시') add('term', '약정 기간 · 위약금', `공통지원금을 받으셔서 ${g.term || 24}개월 약정입니다. 약정 기간 안에 해지 · 번호이동 하시면 남은 기간만큼 지원금을 위약금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
             else if (g.sup === '선약') add('term', '약정 기간 · 할인반환금', `선택약정 ${g.term || 24}개월입니다. 중간에 해지하시면 그동안 받은 요금 할인 일부를 할인반환금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
-            const kd = g.keep && g.keep.code && g.keep.code !== 'NONE' && g.date ? computeKeepDate(g.date, g.keep.code) : '';
-            add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}까지 유지하신 뒤${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있습니다.` : ''}`);
+            const kd = gdKeepEff(g).date;   // 📅 유통망이 있으면 유통망 유지일
+            add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}부터${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있고, 그 전에는 지금 요금제를 유지하셔야 합니다.` : ''}`);
             const down = gdDownLines(g).map(gdSpeak);
             if (down.length) add('down', '⚠️ 요금제 하향 제한 (필수)', down.join(' '), '네, 이해했습니다', true);
             const pr = (g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && (String(p.name || '').trim() || gdNum(p.fee)));
-            if (pr.length) add('addon', '부가서비스 · 보험', `${pr.map(p => { const d = p.code && g.date ? computeKeepDate(g.date, p.code) : ''; const nm = `${String(p.name || p.kind).trim()}${gdNum(p.fee) ? ` 월 ${W(gdNum(p.fee))}` : ''}`; return d ? `${gdJo(nm, '은', '는')} ${gdDateKo(d)}까지 유지` : `${nm} 유지`; }).join(', ')}해 주십시오. 그 뒤 해지는 자동으로 되지 않아 직접 해지하셔야 하고, 날짜가 되면 매장에서 안내 문자를 드립니다.`);
+            if (pr.length) add('addon', '부가서비스 · 보험', `${pr.map(p => { const d = p.code && g.date ? computeKeepDate(g.date, p.code) : ''; const nm = `${String(p.name || p.kind).trim()}${gdNum(p.fee) ? ` 월 ${W(gdNum(p.fee))}` : ''}`; return d ? `${gdJo(nm, '은', '는')} ${gdDateKo(d)}부터 해지` : `${nm} 유지 후 해지`; }).join(', ')}하실 수 있고, 그 전까지는 유지해 주십시오. 해지는 자동으로 되지 않아 직접 하셔야 하고, 날짜가 되면 매장에서 안내 문자를 드립니다.`);
             const disc = [];
             if (c.comb) disc.push(`${String(pl.combName || '').trim() || '결합'} 할인 월 ${W(c.comb)}`);
             if (c.wel) disc.push(`복지 할인 월 ${W(c.wel)}`);
