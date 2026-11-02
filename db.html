@@ -17325,10 +17325,22 @@ familyStr + `\n` +
             ['rec', '통화 녹음 파일 관리', '내가 하는 통화를 녹음하는 건 불법이 아니에요 (갤럭시 자동 녹음 · 에이닷 · 익시오도 같아요). 다만 녹음 파일에 고객 정보가 들어 있으니 폰 · 드라이브에 오래 쌓아 두지 말고, 퇴사한 직원 폰의 녹음은 지워 주세요. 원하면 첫인사에 "통화가 녹음될 수 있어요"를 넣으면 더 안전해요.', '', ''],
             ['rule', '통신사 서류 보관 지침 확인', '신분증 사본 · 주민번호가 보이는 서류는 대리점 지침상 판매점이 보관하면 안 되는 경우가 많아요. 보관 기간이 지난 서류는 지워 주세요.', '', '']
         ];
-        const SEC_RRN = /(^|[^\d])(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[\s-]?([1-4])\d{6}(?!\d)/;
+        // 🛠 V264 더 엄격하게: '850315-1234567'처럼 가운데 - 가 있는 것 · 붙여 쓴 13자리는 앞에 '주민'이라고 적혀 있을 때만 (바코드 · 주문번호 같은 13자리 숫자가 잘못 걸렸음)
+        const SEC_RRN_DASH = /(^|[^\d])(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))-([1-4])\d{6}(?!\d)/;
+        const SEC_RRN_WORD = /주민[^\d]{0,12}(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))\s?([1-4])\d{6}(?!\d)/;
+        const SEC_FIELD_NM = { memo: '메모', obMemo: 'OB 메모', contactHistory: '연락 기록', legalName: '법정대리인', addr: '주소', address: '주소', name: '이름', visitMemo: '방문 메모' };
         function secRrnHits() {
             const skip = new Set(['id', 'phone', 'legalPhone', 'cardId', 'createdAt', 'updatedAt', 'editLog']);
-            return customerDB.filter(c => !c.deletedAt && Object.keys(c).some(k => !skip.has(k) && typeof c[k] === 'string' && SEC_RRN.test(c[k])));
+            const out = [];
+            customerDB.forEach(c => {
+                if (c.deletedAt) return;
+                for (const k of Object.keys(c)) {
+                    if (skip.has(k) || typeof c[k] !== 'string') continue;
+                    const m = SEC_RRN_DASH.exec(c[k]) || SEC_RRN_WORD.exec(c[k]);
+                    if (m) { const birth = m[2] && m[2].length === 6 ? m[2] : m[1], sx = m[2] && m[2].length === 6 ? m[3] : m[2]; out.push({ c, field: SEC_FIELD_NM[k] || (/^prom.+Memo$/.test(k) ? '약속 메모' : k), masked: `${birth}-${sx}******` }); break; }
+                }
+            });
+            return out;
         }
         function secState() {
             const today = getTodayStr(), chk = (appSettings && appSettings.secCheck) || {};
@@ -17356,7 +17368,7 @@ familyStr + `\n` +
             const ago = (d) => d === null ? '접속 기록 없음' : `${d}일 동안 안 들어옴`;
             let h = `<p class="text-[13px] font-bold text-gray-700">강CRM이 직접 세어 본 것</p>`;
             h += row(!st.idle.length, `안 쓰는 직원 계정 ${st.idle.length ? st.idle.length + '개' : '없음'}`, st.idle.length ? '30일 넘게 안 들어온 계정이에요. 그만둔 직원이면 설정 → 👤 직원 계정에서 빼 주세요 (빼면 고객 정보를 못 봐요).' : '모든 직원이 30일 안에 들어왔어요.', st.idle.length ? `<ul class="text-[12.5px] text-gray-800 pl-4 list-disc">${st.idle.map(x => `<li>${escapeHtml(x.name)} <span class="text-gray-500">· ${escapeHtml(ago(x.days))}</span></li>`).join('')}</ul><button type="button" data-sec-staff class="h-9 px-3 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-800">👤 직원 계정 열기</button>` : '');
-            h += row(!st.rrn.length, `메모에 주민번호처럼 보이는 숫자 ${st.rrn.length ? st.rrn.length + '명' : '없음'}`, st.rrn.length ? '주민등록번호는 법에 따로 정한 경우가 아니면 보관하면 안 돼요. 고객카드에서 그 숫자를 지워 주세요 (생년월일만 남기면 돼요).' : '고객 메모 · 칸에서 주민번호 모양 숫자를 못 찾았어요.', st.rrn.length ? `<div class="flex flex-wrap gap-1.5">${st.rrn.slice(0, 30).map(c => `<button type="button" data-sec-cust="${escapeHtml(c.id)}" class="h-8 px-2.5 rounded-full border border-amber-300 bg-white text-[12.5px] font-bold text-gray-800">${escapeHtml(c.name || formatPhone(c.phone) || '이름 없음')}</button>`).join('')}</div>` : '');
+            h += row(!st.rrn.length, `메모에 주민번호처럼 보이는 숫자 ${st.rrn.length ? st.rrn.length + '명' : '없음'}`, st.rrn.length ? '주민등록번호는 법에 따로 정한 경우가 아니면 보관하면 안 돼요. 어느 칸에 있는지 같이 보여 드려요 — 고객카드의 그 칸에서 숫자를 지워 주세요 (생년월일만 남기면 돼요). 주민번호가 아니면 그냥 두셔도 돼요.' : '고객 메모 · 칸에서 주민번호 모양 숫자를 못 찾았어요.', st.rrn.length ? `<div class="flex flex-wrap gap-1.5">${st.rrn.slice(0, 30).map(x => `<button type="button" data-sec-cust="${escapeHtml(x.c.id)}" class="min-h-8 px-2.5 py-1 rounded-xl border border-amber-300 bg-white text-[12.5px] font-bold text-gray-800 text-left">${escapeHtml(x.c.name || formatPhone(x.c.phone) || '이름 없음')} <span class="font-medium text-gray-500">· ${escapeHtml(x.field)} · ${escapeHtml(x.masked)}</span></button>`).join('')}</div>` : '');
             h += row(!st.doc3, `오래된 서류 · 3년 지남 ${st.doc3}개 · 1년 지남 ${st.doc1}개`, docFilesLoaded ? `드라이브에 올린 서류 ${st.docTotal}개 중이에요. 통신사 · 대리점 지침의 보관 기간이 지난 서류는 드라이브 '강CRM 서류' 폴더에서 지워 주세요.` : '서류 기록을 불러오는 중이에요. 잠시 뒤 다시 열어 주세요.', '');
             h += `<p class="text-[13px] font-bold text-gray-700 pt-2">대표님이 직접 확인할 것 <span class="font-normal text-gray-500">(확인하면 날짜가 남고 90일 뒤 다시 알려 드려요)</span></p>`;
             st.manual.forEach(m => { h += row(m.ok, escapeHtml(m.t), escapeHtml(m.d), `<div class="flex flex-wrap items-center gap-2">${m.url ? `<a href="${m.url}" target="_blank" rel="noopener" class="h-9 px-3 inline-flex items-center rounded-xl border border-indigo-200 bg-white text-[13px] font-bold text-indigo-700">${escapeHtml(m.ul)} ↗</a>` : ''}<button type="button" data-sec-ok="${m.k}" class="h-9 px-3 rounded-xl ${m.ok ? 'border border-gray-200 bg-white text-gray-600' : 'bg-indigo-600 text-white'} text-[13px] font-bold">${m.ok ? '다시 확인했어요' : '✓ 확인했어요'}</button>${m.at ? `<span class="text-[12px] text-gray-500">확인 ${escapeHtml(m.at.slice(5).replace('-', '/'))}</span>` : ''}</div>`); });
@@ -25425,7 +25437,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V263';
+        const APP_VER = 'V264';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25433,6 +25445,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V264', d: '2026-11-02', items: [
+                ['🛠 보안 점검 "주민번호처럼 보이는 숫자"를 더 엄격하게: 850315-1234567처럼 - 가 있거나 앞에 "주민"이라고 적힌 것만 (바코드 같은 13자리 숫자가 잘못 걸렸어요) · 어느 칸인지 · 앞자리만 같이 보여줘요', 'a']] },
             { v: 'V263', d: '2026-11-02', items: [
                 ['🔒 설정 → 🔒 보안 점검 (👑 대표만): 안 쓰는 직원 계정 · 메모 속 주민번호 모양 숫자 · 오래된 서류를 세어 주고, 구글 2단계 인증 · 드라이브 공유 · 녹음 안내 · 서류 보관 지침은 직접 확인 (90일마다 다시 알림)', 'a']] },
             { v: 'V262', d: '2026-11-02', items: [
