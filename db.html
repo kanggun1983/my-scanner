@@ -935,6 +935,18 @@
                             <span class="text-sm font-bold text-gray-900 leading-snug">명함에 '월 납부액 직접 계산해 보기' 보이기<br><span class="text-xs font-medium text-gray-600">명함 [견적요청] 아래 계산기·알뜰유심 추천 버튼. 끄면 고객은 견적요청만 할 수 있어요 (강CRM 상담용 계산기는 그대로)</span></span>
                             <input type="checkbox" id="calcCustomerCalc" class="w-6 h-6 accent-indigo-600 flex-shrink-0 disabled:opacity-40">
                         </label>
+                        <!-- ⭐ V258 명함 견적요청: 인기 · 오늘 특가 기종 · 모델 코드 이름 -->
+                        <details id="qtPickBox" class="rounded-xl border border-amber-200 bg-amber-50/40 px-3 mt-2">
+                            <summary class="min-h-[48px] flex items-center justify-between gap-2 cursor-pointer list-none"><span class="text-sm font-bold text-gray-900">⭐ 명함 견적요청 인기 · 🔥 오늘 특가 기종</span><span class="text-xs font-bold text-amber-700" id="qtPickCount"></span></summary>
+                            <div class="pb-3 space-y-2">
+                                <p class="text-xs text-gray-600 leading-relaxed">기종을 누를 때마다 <b>⭐ 인기 → 🔥 오늘 특가 → 표시 없음</b>으로 바뀌어요. 고른 기종은 명함 견적요청 맨 위 카드에 먼저 나오고 표시가 붙어요 (🔥 특가가 맨 앞). 오늘 특가는 다음 날이 되면 저절로 꺼져요.</p>
+                                <div id="qtPickList" class="flex flex-wrap gap-1.5"></div>
+                                <div id="qtCodeBox" class="hidden pt-2 border-t border-amber-200">
+                                    <p class="text-xs font-bold text-gray-800">📛 이름을 모르는 모델 코드 <span class="font-medium text-gray-600">(이름을 적으면 명함에 그 이름으로 나와요 · 비워 두면 명함에서 빠져요)</span></p>
+                                    <div id="qtCodeList" class="mt-1.5 space-y-1.5"></div>
+                                </div>
+                            </div>
+                        </details>
                         <p id="calcSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                     </div>
                     <button type="button" id="pcalTableBtn" class="w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-sm font-bold text-indigo-800 flex items-center justify-center gap-2"><i class="fa-solid fa-table-list"></i>기종·지원금표 보기</button>
@@ -17097,6 +17109,7 @@ familyStr + `\n` +
             const cc = document.getElementById('calcCustomerCalc');
             cc.checked = d.customerCalc !== false;
             cc.disabled = locked;
+            try { renderQtPick(d, locked); } catch (e) { console.warn('인기 기종', e); }   // ⭐ V258
             { const bb = d.banner || {};
               const on = document.getElementById('bbOn'); on.checked = bb.on !== false; on.disabled = locked;
               [['bbTitleIn', 'title'], ['bbSubIn', 'sub'], ['bbIconIn', 'icon']].forEach(([id, k]) => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = bb[k] || (k === 'icon' ? 'fa-tv' : ''); el.disabled = locked; }); }
@@ -17222,6 +17235,57 @@ familyStr + `\n` +
             const ok = await calcSave(next, true);
             if (!ok) { e.target.checked = !e.target.checked; return; }
             if (e.target.checked && !(next.alert && next.alert.url)) customAlert('켜졌어요. 위에 상담 알림 서버 주소가 있어야 직원 폰으로 알림이 가요.');
+        });
+
+        /* ⭐ V258 명함 견적요청 인기 · 🔥 오늘 특가 기종 (calcData.qtPick {열쇠: 'hot'|'deal'} · qtPickDay: 특가 고른 날) · 📛 모델 코드 이름 (calcData.qtNames {코드: 이름})
+             · 명함(V5.4)과 같은 방식으로 기종을 묶어서 보여줌 (통신사 엑셀 이름 → 같은 기종 하나로) */
+        const QT_CODE_NAMES = { S942: '갤럭시 S26', S947: '갤럭시 S26+', S948: '갤럭시 S26 울트라', S741: '갤럭시 S26 FE', S937: '갤럭시 S25 엣지', S731: '갤럭시 S25 FE', S931: '갤럭시 S25', S936: '갤럭시 S25+', S938: '갤럭시 S25 울트라',
+            F776: '갤럭시 Z 플립8', F971: '갤럭시 Z 폴드8', F976: '갤럭시 Z 폴드8 울트라', F766: '갤럭시 Z 플립7', F966: '갤럭시 Z 폴드7', F741: '갤럭시 Z 플립6',
+            A566: '갤럭시 퀀텀6', M166: '갤럭시 와이드8', A175: '갤럭시 A17', M140: '스타일 폴더2', A256: '갤럭시 A25', M366: '갤럭시 점프4', A166: '갤럭시 버디4', A176: '갤럭시 버디5',
+            IP17: '아이폰17', IP17P: '아이폰17 프로', IP17PM: '아이폰17 프로맥스', IPA: '아이폰17 에어', IP17E: '아이폰17e', IP16E: '아이폰16e', IP18P: '아이폰18 프로', IP18PM: '아이폰18 프로맥스' };
+        const qtIsCodeNm = (nm) => /^(SM-|AIP|U?IP\d|[SFAM]\d{3}(\b|_|\s|$)|[SFAM]\d{3}[A-Z]{0,3}\d*$)/i.test(nm);
+        function qtCodeOfNm(nm) { const s = String(nm || '').trim().toUpperCase().replace(/^SM-/, ''); const m = /^(?:A|U)?(IP\d{0,2}[A-Z]{0,2})(?=[-_\s]|$)/.exec(s) || /^([SFAM]\d{3})/.exec(s); return m ? m[1] : ''; }
+        function qtKeyOf(base) { return String(base || '').toLowerCase().replace(/갤럭시|galaxy|일반/g, '').replace(/pro/g, '프로').replace(/max/g, '맥스').replace(/ultra/g, '울트라').replace(/flip/g, '플립').replace(/fold/g, '폴드').replace(/edge/g, '엣지').replace(/air/g, '에어').replace(/plus/g, '+').replace(/[\s_·]/g, '').replace(/^z(?=플립|폴드)/, ''); }
+        function qtGroupsOf(d) {
+            const map = new Map(), unknown = new Map(), names = d.qtNames || {}, ord = ['LG U+', 'KT', 'SKT'];
+            Object.keys(d.carriers || {}).sort((a, b) => (ord.indexOf(a) + 1 || 9) - (ord.indexOf(b) + 1 || 9)).forEach(k => {
+                const C = d.carriers[k]; if (!C || !C.ready || C.hidden || !Array.isArray(C.models)) return;
+                C.models.forEach(m => {
+                    let nm = String(m.name || '').trim(); if (!nm || /워치|watch/i.test(nm)) return;
+                    if (qtIsCodeNm(nm)) { const code = qtCodeOfNm(nm), nn = String(names[code] || QT_CODE_NAMES[code] || '').trim(); if (!nn) { if (code && !unknown.has(code)) unknown.set(code, { code, ex: nm, price: Number(m.price) || 0, car: k }); return; } nm = nn; }
+                    nm = nm.replace(/^(S\d{2})-$/i, '$1+').replace(/\s*\d+(?:\.\d+)?\s*(GB|TB)\b/i, ' ').replace(/[\s_-]+(\d{3}|1|2)\s*(G|T)(?=$|[\s_-])/i, ' ').replace(/\s(128|256|512)$/, ' ').replace(/\s*[-_]\s*(NP|NEW)\s*$/i, '').replace(/[\s_-]+$/, '').replace(/\s+/g, ' ').trim();
+                    const key = qtKeyOf(nm); if (!key || map.has(key)) return;
+                    map.set(key, { key, name: nm.replace(/일반$/, '') });
+                });
+            });
+            return { groups: [...map.values()], unknown: [...unknown.values()].filter(u => !names[u.code]) };
+        }
+        function qtPickNow(d) { const p = { ...(d.qtPick || {}) }; if (d.qtPickDay && d.qtPickDay !== getTodayStr()) Object.keys(p).forEach(k => { if (p[k] === 'deal') delete p[k]; }); return p; }   // 🔥 특가는 그날만
+        function renderQtPick(d, locked) {
+            const box = document.getElementById('qtPickList'); if (!box) return;
+            const { groups, unknown } = qtGroupsOf(d), pick = qtPickNow(d);
+            const nHot = Object.values(pick).filter(v => v === 'hot').length, nDeal = Object.values(pick).filter(v => v === 'deal').length;
+            document.getElementById('qtPickCount').textContent = nHot || nDeal ? `⭐ ${nHot} · 🔥 ${nDeal}` : '고른 기종 없음';
+            box.innerHTML = groups.length ? groups.map(g => { const v = pick[g.key]; return `<button type="button" data-qtpick="${escapeHtml(g.key)}" ${locked ? 'disabled' : ''} class="h-9 px-3 rounded-full border text-[13px] font-bold ${v === 'deal' ? 'bg-red-50 border-red-300 text-red-700' : (v === 'hot' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-300 text-gray-800')} disabled:opacity-50">${v === 'deal' ? '🔥 ' : (v === 'hot' ? '⭐ ' : '')}${escapeHtml(g.name)}</button>`; }).join('') : '<p class="text-xs text-gray-500">지원금 엑셀을 올리면 기종이 나와요.</p>';
+            const cb = document.getElementById('qtCodeBox');
+            cb.classList.toggle('hidden', !unknown.length);
+            document.getElementById('qtCodeList').innerHTML = unknown.map(u => `<label class="flex items-center gap-2"><span class="w-28 flex-shrink-0 text-[12px] font-mono text-gray-700">${escapeHtml(u.ex)}<br><span class="font-sans text-gray-500">${escapeHtml(u.car)} · ${Math.round(u.price / 10000)}만원</span></span><input type="text" data-qtcode="${escapeHtml(u.code)}" maxlength="30" ${locked ? 'disabled' : ''} placeholder="예) 갤럭시 A37" class="flex-1 min-w-0 h-10 px-3 border border-gray-300 rounded-xl text-[14px] bg-white"></label>`).join('');
+        }
+        document.getElementById('qtPickList').addEventListener('click', async e => {
+            const b = e.target.closest('[data-qtpick]'); if (!b) return;
+            if (!can('editPolicy')) return customAlert('총관리자만 바꿀 수 있어요.');
+            const next = calcNormalize(calcData), pick = qtPickNow(next), k = b.dataset.qtpick;
+            pick[k] = !pick[k] ? 'hot' : (pick[k] === 'hot' ? 'deal' : undefined);
+            if (!pick[k]) delete pick[k];
+            next.qtPick = pick; next.qtPickDay = getTodayStr();
+            if (await calcSave(next, true)) renderQtPick(next, false);
+        });
+        document.getElementById('qtCodeList').addEventListener('change', async e => {
+            const inp = e.target.closest('[data-qtcode]'); if (!inp) return;
+            if (!can('editPolicy')) return customAlert('총관리자만 바꿀 수 있어요.');
+            const v = inp.value.replace(/[<>"]/g, '').trim().slice(0, 30); if (!v) return;
+            const next = calcNormalize(calcData); next.qtNames = { ...(next.qtNames || {}), [inp.dataset.qtcode]: v };
+            if (await calcSave(next, true)) renderQtPick(next, false);
         });
 
         let calcSavedTimer = null;
@@ -25240,7 +25304,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V257';
+        const APP_VER = 'V258';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25248,6 +25312,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V258', d: '2026-11-02', items: [
+                ['⭐ 명함 견적요청에 인기 · 🔥 오늘 특가 기종 표시: 설정 → 💰 지원금표 (명함 폰값계산) → [⭐ 명함 견적요청 인기 · 오늘 특가 기종]에서 기종을 눌러 고르면 명함 맨 위 카드에 먼저 나와요 (특가는 그날만)', 'a'],
+                ['📛 지원금 엑셀의 모델 코드(S942 · SM-F976NK …)를 명함에 갤럭시 S26처럼 이름으로 · 모르는 코드는 같은 곳에서 이름을 적어 주면 돼요', 'a']] },
             { v: 'V257', d: '2026-11-02', items: [
                 ['🔗 부재 재연락 문자의 명함 링크가 짧아졌어요 (연락 이유 한글이 링크에 길게 붙던 것 → 날짜 4자리만) · 고객이 명함에서 누르면 이유는 고객카드에서 그대로 기록'],
                 ['📇 강CRM에 로그인한 폰에서 고객 명함 링크를 열어도 이 폰이 그 고객으로 연결되지 않아요 (내 명함 앱이 고객 명함으로 바뀌던 것)']] },
