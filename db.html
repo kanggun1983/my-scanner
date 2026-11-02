@@ -1163,6 +1163,14 @@
                     </div>
                 </div>
             </section>
+            <!-- 🔒 V263 보안 점검 (👑 대표만) -->
+            <section class="space-y-2 hidden" id="secCheckSec" aria-labelledby="secCheckTitle">
+                <h3 id="secCheckTitle" class="text-[13px] font-bold text-gray-600 pl-1">🔒 보안 점검 <span class="font-normal text-gray-500">(👑 대표만 보여요)</span></h3>
+                <button type="button" id="secCheckBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">🔒 고객 정보 · 서류 · 녹음 보안 점검</span><span id="secCheckSub" class="text-[13px] text-gray-600 leading-snug">구글 2단계 인증 · 드라이브 공유 · 안 쓰는 직원 계정 · 주민번호 메모 · 오래된 서류</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
+            </section>
             <section class="space-y-2" aria-labelledby="setDriveTitle">
                 <h3 id="setDriveTitle" class="text-[13px] font-bold text-gray-600 pl-1">서류 클라우드 백업 <span class="font-normal text-gray-500">(구글 드라이브)</span></h3>
                 <div id="driveSetBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-2"></div>
@@ -9122,6 +9130,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             renderSmsSettings();
             renderCalcManageSub();
             try { renderCalcSettings(); } catch (e) { /* 준비 전 */ }   // V187: 고객 명함·상담 알림 서버 칸이 설정 화면으로 나와서
+            try { secSubRender(); } catch (e) { /* 준비 전 */ }   // 🔒 V263 보안 점검 칸
             setTimeout(() => { try { renderSetSums(); } catch (e) { /* 준비 전 */ } }, 0);
             { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
             { const ol = document.getElementById('ownerLockChk'); if (ol) ol.checked = ownerLockOn(); }
@@ -16657,6 +16666,7 @@ familyStr + `\n` +
             else if (calcSheetMode === 'staff') renderStaffStats();
             else if (calcSheetMode === 'funnel') renderCalcFunnel();
             else if (calcSheetMode === 'restock') renderRestockSheet();
+            else if (calcSheetMode === 'security') renderSecCheck();   // 🔒 V263
             else if (calcSheetMode === 'qtpick') {   // ⭐ V259 명함 견적요청 기종 (따로 창)
                 document.getElementById('calcSheetTitle').textContent = '⭐ 명함 견적요청 기종';
                 document.getElementById('calcSheetSub').textContent = can('editPolicy') ? '누르면 바로 명함에 반영돼요' : '🔒 총관리자만 바꿀 수 있어요 (보기는 가능)';
@@ -17306,6 +17316,68 @@ familyStr + `\n` +
             document.getElementById('qtCodeList').innerHTML = unknown.map(u => `<label class="flex items-center gap-2"><span class="w-28 flex-shrink-0 text-[12px] font-mono text-gray-700">${escapeHtml(u.ex)}<br><span class="font-sans text-gray-500">${escapeHtml(u.car)} · ${Math.round(u.price / 10000)}만원</span></span><input type="text" data-qtcode="${escapeHtml(u.code)}" maxlength="30" ${locked ? 'disabled' : ''} placeholder="예) 갤럭시 A37" class="flex-1 min-w-0 h-10 px-3 border border-gray-300 rounded-xl text-[14px] bg-white"></label>`).join('');
         }
         document.getElementById('qtPickBtn').addEventListener('click', () => openCalcSheet('qtpick'));   // ⭐ V259
+        /* 🔒 V263 보안 점검 (👑 대표만) — 강CRM이 직접 볼 수 있는 것은 자동으로 세고, 구글 계정 · 드라이브처럼 밖에 있는 것은 [확인했어요]로 날짜만 남김
+             · 자동: 30일 넘게 안 들어온 직원 계정 · 메모에 주민번호처럼 보이는 숫자 · 1년/3년 지난 서류
+             · 직접 확인 (smart_global/settings.secCheck {열쇠: 날짜} · 90일 지나면 다시 확인하라고 표시) */
+        const SEC_MANUAL = [
+            ['2fa', '구글 계정 2단계 인증 켜기', '강CRM 관리자 계정 = 서류 · 녹음 드라이브 계정이라 제일 중요해요. 비밀번호가 새도 폰 확인 없이는 못 들어와요.', 'https://myaccount.google.com/signinoptions/twosv', '구글 보안 설정 열기'],
+            ['drive', "드라이브 '강CRM 서류' · '강CRM 녹음' 폴더 공유 확인", '폴더를 길게 눌러 [공유] → "링크가 있는 모든 사용자"로 되어 있으면 "제한됨"으로 바꿔 주세요.', 'https://drive.google.com/drive/my-drive', '구글 드라이브 열기'],
+            ['rec', '통화 녹음 안내', '녹음하는 통화는 고객에게 "통화 내용이 녹음돼요"라고 안내하는 게 안전해요 (컬러링 · 첫인사).', '', ''],
+            ['rule', '통신사 서류 보관 지침 확인', '신분증 사본 · 주민번호가 보이는 서류는 대리점 지침상 판매점이 보관하면 안 되는 경우가 많아요. 보관 기간이 지난 서류는 지워 주세요.', '', '']
+        ];
+        const SEC_RRN = /(^|[^\d])(\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])[\s-]?([1-4])\d{6}(?!\d)/;
+        function secRrnHits() {
+            const skip = new Set(['id', 'phone', 'legalPhone', 'cardId', 'createdAt', 'updatedAt', 'editLog']);
+            return customerDB.filter(c => !c.deletedAt && Object.keys(c).some(k => !skip.has(k) && typeof c[k] === 'string' && SEC_RRN.test(c[k])));
+        }
+        function secState() {
+            const today = getTodayStr(), chk = (appSettings && appSettings.secCheck) || {};
+            const manual = SEC_MANUAL.map(([k, t, d, url, ul]) => { const at = String(chk[k] || ''), days = at ? Math.round((parseDateString(today) - parseDateString(at)) / 86400e3) : 9999; return { k, t, d, url, ul, at, ok: days <= 90 }; });
+            const emails = ((staffAccounts && staffAccounts.emails) || []).map(e => String(e).toLowerCase()).filter(e => !SUPER_ADMIN_EMAILS.includes(e));
+            const idle = emails.map(e => { const a = accessMap[e] || {}, t = Date.parse(a.lastAt || ''); return { e, name: (a.name || (appSettings.staffByEmail || {})[e] || e.split('@')[0]), days: isFinite(t) ? Math.floor((Date.now() - t) / 86400e3) : null }; }).filter(x => x.days === null || x.days >= 30);
+            const rrn = secRrnHits();
+            const docAge = (y) => docFiles.filter(f => { const t = Date.parse(f.at || ''); return isFinite(t) && Date.now() - t > y * 365 * 86400e3; }).length;
+            const doc1 = docAge(1), doc3 = docAge(3);
+            const warn = manual.filter(m => !m.ok).length + (idle.length ? 1 : 0) + (rrn.length ? 1 : 0) + (doc3 ? 1 : 0);
+            return { manual, idle, rrn, doc1, doc3, docTotal: docFiles.length, warn };
+        }
+        function secSubRender() {
+            const sec = document.getElementById('secCheckSec'); if (!sec) return;
+            sec.classList.toggle('hidden', !isSuperAdmin);
+            if (!isSuperAdmin) return;
+            try { const st = secState(); document.getElementById('secCheckSub').textContent = st.warn ? `⚠️ 확인할 것 ${st.warn}가지 · 눌러서 보기` : '✅ 모두 확인했어요 (직접 확인은 90일마다 다시)'; } catch (e) { /* 준비 전 */ }
+        }
+        function renderSecCheck() {
+            document.getElementById('calcSheetTitle').textContent = '🔒 보안 점검';
+            document.getElementById('calcSheetSub').textContent = '고객 정보 · 서류 · 녹음을 안전하게 · 👑 대표만 보여요';
+            const body = document.getElementById('calcSheetBody');
+            if (!isSuperAdmin) { body.innerHTML = '<p class="text-sm text-gray-600">👑 대표만 볼 수 있어요.</p>'; return; }
+            const st = secState(), row = (ok, title, desc, extra) => `<div class="rounded-2xl border ${ok ? 'border-green-200 bg-green-50/50' : 'border-amber-200 bg-amber-50/60'} p-3 space-y-1.5"><p class="text-[14px] font-bold text-gray-900">${ok ? '✅' : '⚠️'} ${title}</p><p class="text-[12.5px] text-gray-700 leading-relaxed">${desc}</p>${extra || ''}</div>`;
+            const ago = (d) => d === null ? '접속 기록 없음' : `${d}일 동안 안 들어옴`;
+            let h = `<p class="text-[13px] font-bold text-gray-700">강CRM이 직접 세어 본 것</p>`;
+            h += row(!st.idle.length, `안 쓰는 직원 계정 ${st.idle.length ? st.idle.length + '개' : '없음'}`, st.idle.length ? '30일 넘게 안 들어온 계정이에요. 그만둔 직원이면 설정 → 👤 직원 계정에서 빼 주세요 (빼면 고객 정보를 못 봐요).' : '모든 직원이 30일 안에 들어왔어요.', st.idle.length ? `<ul class="text-[12.5px] text-gray-800 pl-4 list-disc">${st.idle.map(x => `<li>${escapeHtml(x.name)} <span class="text-gray-500">· ${escapeHtml(ago(x.days))}</span></li>`).join('')}</ul><button type="button" data-sec-staff class="h-9 px-3 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-800">👤 직원 계정 열기</button>` : '');
+            h += row(!st.rrn.length, `메모에 주민번호처럼 보이는 숫자 ${st.rrn.length ? st.rrn.length + '명' : '없음'}`, st.rrn.length ? '주민등록번호는 법에 따로 정한 경우가 아니면 보관하면 안 돼요. 고객카드에서 그 숫자를 지워 주세요 (생년월일만 남기면 돼요).' : '고객 메모 · 칸에서 주민번호 모양 숫자를 못 찾았어요.', st.rrn.length ? `<div class="flex flex-wrap gap-1.5">${st.rrn.slice(0, 30).map(c => `<button type="button" data-sec-cust="${escapeHtml(c.id)}" class="h-8 px-2.5 rounded-full border border-amber-300 bg-white text-[12.5px] font-bold text-gray-800">${escapeHtml(c.name || formatPhone(c.phone) || '이름 없음')}</button>`).join('')}</div>` : '');
+            h += row(!st.doc3, `오래된 서류 · 3년 지남 ${st.doc3}개 · 1년 지남 ${st.doc1}개`, docFilesLoaded ? `드라이브에 올린 서류 ${st.docTotal}개 중이에요. 통신사 · 대리점 지침의 보관 기간이 지난 서류는 드라이브 '강CRM 서류' 폴더에서 지워 주세요.` : '서류 기록을 불러오는 중이에요. 잠시 뒤 다시 열어 주세요.', '');
+            h += `<p class="text-[13px] font-bold text-gray-700 pt-2">대표님이 직접 확인할 것 <span class="font-normal text-gray-500">(확인하면 날짜가 남고 90일 뒤 다시 알려 드려요)</span></p>`;
+            st.manual.forEach(m => { h += row(m.ok, escapeHtml(m.t), escapeHtml(m.d), `<div class="flex flex-wrap items-center gap-2">${m.url ? `<a href="${m.url}" target="_blank" rel="noopener" class="h-9 px-3 inline-flex items-center rounded-xl border border-indigo-200 bg-white text-[13px] font-bold text-indigo-700">${escapeHtml(m.ul)} ↗</a>` : ''}<button type="button" data-sec-ok="${m.k}" class="h-9 px-3 rounded-xl ${m.ok ? 'border border-gray-200 bg-white text-gray-600' : 'bg-indigo-600 text-white'} text-[13px] font-bold">${m.ok ? '다시 확인했어요' : '✓ 확인했어요'}</button>${m.at ? `<span class="text-[12px] text-gray-500">확인 ${escapeHtml(m.at.slice(5).replace('-', '/'))}</span>` : ''}</div>`); });
+            h += `<p class="text-[11.5px] text-gray-500 leading-relaxed pt-1">고객 정보는 Firebase(구글) · 서류 · 녹음은 대표님 구글 드라이브에 있어요. 로그인한 직원만 보고, 서류 기록은 총관리자만 전체를 봐요.</p>`;
+            body.innerHTML = h;
+        }
+        document.getElementById('secCheckBtn').addEventListener('click', () => openCalcSheet('security'));
+        document.getElementById('calcSheetBody').addEventListener('click', async e => {
+            if (calcSheetMode !== 'security') return;
+            const ok = e.target.closest('[data-sec-ok]');
+            if (ok) {
+                if (!isSuperAdmin) return;
+                const k = ok.dataset.secOk;
+                try { await saveDoc(doc(db, 'smart_global', 'settings'), { secCheck: { [k]: getTodayStr() } }, { merge: true }); appSettings.secCheck = { ...(appSettings.secCheck || {}), [k]: getTodayStr() }; renderSecCheck(); secSubRender(); }
+                catch (err) { customAlert(koreanError(err, '저장')); }
+                return;
+            }
+            const cu = e.target.closest('[data-sec-cust]');
+            if (cu) { closeCalcSheet(); setTimeout(() => { try { switchTab('db'); window.openProfileCard(cu.dataset.secCust); } catch (err) { console.warn(err); } }, 50); return; }
+            if (e.target.closest('[data-sec-staff]')) { closeCalcSheet(); setTimeout(() => { const el = document.getElementById('staffAccountsSec') || document.querySelector('[aria-labelledby="setStaffTitle"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50); }
+        });
         document.getElementById('qtPickBox').addEventListener('click', e => { const m = e.target.closest('[data-qtmode]'); if (!m) return; qtPickMode = m.dataset.qtmode; renderQtPick(calcNormalize(calcData), !can('editPolicy')); });
         document.getElementById('qtPickList').addEventListener('click', async e => {
             const c = e.target.closest('[data-qtcat]');
@@ -25353,7 +25425,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V262';
+        const APP_VER = 'V263';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25361,6 +25433,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V263', d: '2026-11-02', items: [
+                ['🔒 설정 → 🔒 보안 점검 (👑 대표만): 안 쓰는 직원 계정 · 메모 속 주민번호 모양 숫자 · 오래된 서류를 세어 주고, 구글 2단계 인증 · 드라이브 공유 · 녹음 안내 · 서류 보관 지침은 직접 확인 (90일마다 다시 알림)', 'a']] },
             { v: 'V262', d: '2026-11-02', items: [
                 ['🛠 콜매니저 "📵 못 받은 전화 → 다시 걸기" 약속이 대표 이름으로 남아 담당 직원 폰에 "⚠️ 강태훈님이 잡은 약속"이 뜨던 것 고침 → 이제 "🤖 자동" · 담당 직원 이름 (예전에 잘못 남은 것도 대표 폰에서 한 번 저절로 바로잡아요)'],
                 ['🛠 통화 결과에서 고른 다음 연락 · 방문 약속도 통화한 직원 이름으로 (대표 폰이 대신 반영해도)']] },
