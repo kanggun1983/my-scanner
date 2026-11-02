@@ -20687,6 +20687,32 @@ familyStr + `\n` +
             const map = { 유통망지원금: W(gdNum(dv.extra)), 유통망유지일: dd ? gdDot(dd) : '정해진 날', 유통망유지기간: keepLabel(dc), 할부카드: icn ? `(${icn})` : '', 할부카드할인: W(gdNum(dv.card)), 요금카드: pcn ? `(${pcn})` : '', 요금카드할인: `월 ${W(gdNum(pl.card))}`, 공시지원금: W(gdNum(dv.pub)), 중고보상: W(gdNum(dv.used)), 요금제유지일: kd ? gdDot(kd) : '안내한 날짜' };
             return String(t).replace(/\{([^{}]+)\}/g, (m, k) => (map[k] !== undefined ? map[k] : m));
         }
+        /* ⚠️ V267 요금제 하향 제한 (안내서 빨간 경고 칸 · 녹음 대본 6-1) — 통신사 하향 기준(설정 → 명함 폰값계산 → 위약금 기준) · 유통망 유지일 · 요금제 유지일 */
+        // 📅 V267 요금제를 바꿀 수 있는 날: 유통망지원금이 있으면 공시 · 선약 모두 유통망 유지일과 같게 (둘 중 늦은 날) — 안내서 · 녹음이 서로 다른 날짜를 말하지 않게
+        function gdKeepEff(g) {
+            const dev = g.kind !== 'usim', dv = g.dev || {};
+            const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
+            let dd = '', dc = '';
+            if (dev && gdNum(dv.extra) > 0 && g.date) { const d = dealerByName(g.dealer), dc0 = dealerDistCode(d, g.carrier); dc = dc0 && dc0 !== 'NONE' ? dc0 : DEALER_DIST_DEFAULT; dd = computeKeepDate(g.date, dc); }
+            const useDist = !!dd && (!kd || dd > kd);
+            return { kd, dd, date: useDist ? dd : kd, code: useDist ? dc : (keep ? g.keep.code : ''), dist: useDist };
+        }
+        function gdDownLines(g) {
+            const dev = g.kind !== 'usim', dv = g.dev || {}, pl = g.plan || {}, out = [], W = (n) => `${arWon(n)}원`;
+            let R = null; try { R = (calcNormalize(calcData).rules || {})[g.carrier] || CALC_RULE_DEFAULTS[g.carrier] || null; } catch (e) { R = CALC_RULE_DEFAULTS[g.carrier] || null; }
+            const lte = /LTE/i.test(String(pl.name || '')), lim = R ? Number(lte ? R.limLTE : R.lim5G) || 0 : 0;
+            const pname = String(pl.name || '').trim() || '지금 요금제', pfee = gdNum(pl.fee);
+            const d = dealerByName(g.dealer), dc0 = dealerDistCode(d, g.carrier), dc = dc0 && dc0 !== 'NONE' ? dc0 : DEALER_DIST_DEFAULT;
+            const dist = dev && gdNum(dv.extra) > 0, dd = dist && g.date ? computeKeepDate(g.date, dc) : '';
+            const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
+            if (dev && g.sup === '공시' && lim) out.push(`공통지원금을 받아서 약정 기간 안에 요금제를 월 ${W(lim)} 미만으로 낮추면 공통지원금 차액(차액정산금)이 청구돼요.${R && R.ex ? ` (${R.ex})` : ''}`);
+            const ke = gdKeepEff(g);   // 📅 바꿀 수 있는 날 (유통망이 있으면 유통망 유지일)
+            if (dist) out.push(`유통망지원금 ${W(gdNum(dv.extra))}은 ${pname}${pfee ? `(월 ${W(pfee)})` : ''} 이상 유지 조건이에요. ${ke.date ? gdDot(ke.date) + '부터' : '정해진 날부터'} 바꿀 수 있고, 그 전에 요금제를 낮추거나 해지 · 번호이동 · 기기변경하면 받은 금액이 위약금으로 청구돼요.`);
+            else if (keep && kd && g.sup === '선약') out.push(`${gdJo(pname, '은', '는')} ${gdDot(kd)} 전까지는 지금 요금제를 유지해 주세요. ${gdDot(kd)}부터는 요금제를 자유롭게 낮추셔도 되고, 선택약정 25% 할인도 그대로예요.`);   // 📶 V267 선약 · 유통망 없음 → 유지일 뒤 하향 자유
+            else if (keep && kd) out.push(`${gdJo(pname, '은', '는')} ${gdDot(kd)}부터 바꿀 수 있어요. 그 전에 요금제를 낮추면 지원금 차액이 청구될 수 있어요.`);
+            if (g.sup === '선약' && dist) out.push(`선택약정도 유통망지원금을 받았으면 공통지원금과 똑같이 하향 제한이 있어요. ${ke.date ? gdDot(ke.date) : '위 날짜'} 전에는 요금제를 낮추면 안 되고, 그 뒤에는 자유롭게 바꿀 수 있어요. (25% 할인은 계속돼요)`);
+            return out;
+        }
         function gdNotesFor(g) {
             const common = gdNotes(), out = common.filter(line => { const gt = GD_NOTE_GATES.find(([re]) => re.test(line)); return !gt || gdNoteApplies(g, gt[1]); });
             gdNoteRules().forEach(r => { if (!r.on || !gdNoteApplies(g, r.k) || common.some(l => r.gate.test(l))) return; r.text.split('\n').map(x => x.trim()).filter(Boolean).forEach(x => out.push(gdNoteFill(x, g))); });
@@ -21196,10 +21222,12 @@ familyStr + `\n` +
             };
             const piCur = gdPiOf(g, 'cur');   // 📶 V236 요금제 혜택 (서명한 안내서는 그때 것 그대로)
             if (piCur) panel(`${piCur.n} 기본 제공 · 혜택`, planInfoLines(g.carrier, piCur), { fill: '#F8FAFF', stroke: '#C7D2FE', titleColor: '#1E3A8A', color: '#1F2937', size: 12 });
-            const kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
+            { const down = g.st !== 'draft' ? (Array.isArray(g.down) ? g.down : []) : gdDownLines(g);   // ⚠️ V267 요금제 하향 제한 (서명한 안내서는 그때 문구 · 예전 서명본엔 안 넣음)
+              if (down.length) panel('⚠️ 요금제 하향 제한 · 꼭 지켜 주세요', down, { fill: '#FEF2F2', stroke: '#F87171', titleColor: '#B91C1C', color: '#7F1D1D', size: 13 }); }
+            const KE = gdKeepEff(g), kd = KE.date;   // 📅 V267 유통망이 있으면 유통망 유지일과 같게
             if (kd || g.keep.target) {
                 const ls = [];
-                if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(g.keep.code)} 유지 → ${gdDot(kd)}부터 바꿀 수 있어요`);
+                if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(KE.code)} 유지${KE.dist ? ' (유통망지원금 조건)' : ''} → ${gdDot(kd)}부터 바꿀 수 있어요`);
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
                 const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
                 if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
@@ -21571,7 +21599,156 @@ familyStr + `\n` +
             if (v) { customAlert(v[0]); if (v[1]) { const el = gdInner.querySelector(`[data-gd="${v[1]}"]`); if (el) { el.scrollIntoView({ block: 'center' }); setTimeout(() => el.focus(), 200); } } return; }
             const c = gdFindCust(gd.phone);
             if (c) { if (!protectGate(c)) return; if (!(await lockGate(c, '구매 안내서', 'sale'))) return; }
-            gdStage = 'sign'; gdRender();
+            gdRecGate(gd, () => { gdStage = 'sign'; gdRender(); });   // 🎙 V267 서명 전 구매 내용 확인 녹음
+        }
+        /* =====================================================================
+           🎙 V267 구매 내용 확인 녹음 (서명 전 · VOC 예방 · KT 스마트신청서처럼)
+           · 안내서 내용으로 대본 자동 (해당 있는 것만 · 이름 · 번호 · 주민번호는 안 넣음) → 직원이 읽고 고객 "네" → [다음]
+           · 6-1 요금제 하향 제한은 필수 (공시 · 유통망 · 요금제 유지가 있으면)
+           · 녹음은 이 폰 메모리에 → 서명 완료하면 고객 서류(드라이브 · 안내서 날짜 폴더)에 올림 · 안내서에 rec 기록
+           ===================================================================== */
+        const gdRecMem = new Map();   // 안내서 id → { blob, mime, dur, ok, total, down, at }
+        let gdRecSt = null;           // { g, items, i, mr, chunks, t0, timer, oks:Set, stream, done }
+        const gdRecEl = document.createElement('div');
+        gdRecEl.id = 'gdRecModal';
+        gdRecEl.className = 'fixed inset-0 z-[72] hidden flex-col bg-gray-50';
+        gdRecEl.style.zIndex = '72';   // 안내서 창(66) 위로
+        document.body.appendChild(gdRecEl);
+        function gdJo(w, a, b) { const t = String(w || '').trim(), ch = t.charCodeAt(t.length - 1); const has = ch >= 0xAC00 && ch <= 0xD7A3 ? (ch - 0xAC00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(t) && !/[2459]$/.test(t); return t + (has ? a : b); }   // 받침 따라 은/는 · 을/를 · 이/가
+        function gdSpeak(x) { return String(x).replace(/(\d{4})\.(\d{2})\.(\d{2})/g, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`).replace(/안 돼요\./g, '안 됩니다.').replace(/돼요\./g, '됩니다.').replace(/돼요/g, '됩니다').replace(/예요\)/g, '입니다)').replace(/이에요\./g, '입니다.').replace(/조건이에요/g, '조건입니다').replace(/주세요\./g, '주십시오.').replace(/있어요\./g, '있습니다.'); }
+        function gdRecScript(g) {
+            const c = gdCalc(g), W = (n) => `${arWon(n)}원`, dv = g.dev || {}, pl = g.plan || {}, dev = g.kind !== 'usim', out = [];
+            const add = (k, title, text, ans, must) => { if (String(text || '').trim()) out.push({ k, title, text: String(text).replace(/\s+/g, ' ').trim(), ans: ans || '네', must: !!must }); };
+            add('start', '시작 · 녹음 동의', '지금부터 고객님의 구매 사항과 계약 조건을 확인하기 위해 녹음을 진행합니다. 개인정보는 녹음하지 않습니다. 녹음에 동의하십니까?', '네, 동의합니다', true);
+            add('join', '가입 정보', `오늘 ${gdDateKo(g.date) || '오늘'}, ${gdCarLabel(g) || ''} ${g.actType || ''}${dev ? '' : ' 유심'}으로 개통합니다.`);
+            if (dev) {
+                const sup = [];
+                if (g.sup === '공시' && c.pub) sup.push(`공통지원금 ${W(c.pub)}`); else if (g.sup === '선약') sup.push(`선택약정 ${g.term || 24}개월로 요금 25% 할인`);
+                if (gdNum(dv.sw)) sup.push(`전환지원금 ${W(gdNum(dv.sw))}`);
+                if (gdNum(dv.extra)) sup.push(`매장 추가지원금(유통망지원금) ${W(gdNum(dv.extra))}`);
+                if (gdNum(dv.used)) sup.push(`중고폰 보상 ${W(gdNum(dv.used))}(반납한 폰 검수 뒤 확정되고 상태에 따라 달라질 수 있습니다)`);
+                if (gdNum(dv.etc)) sup.push(`${String(dv.etcName || '').trim() || '기타 할인'} ${W(gdNum(dv.etc))}`);
+                if (gdNum(dv.prepay)) sup.push(`선납 ${W(gdNum(dv.prepay))}`);
+                add('dev', '기기 · 지원금', `${String(dv.name || dv.code || '단말기').trim()}${dv.color ? ' ' + dv.color : ''}, 출고가 ${W(c.price)}입니다.${sup.length ? ` ${sup.join(', ')}${sup.length > 1 ? '을' : (/[)]$/.test(sup[0]) ? '을' : gdJo(sup[0], '을', '를').slice(-1))} 받으십니다.` : ''}`);
+                const icn = String(dv.cardName || '').trim();
+                add('inst', '할부', (c.loan > 0 && c.n > 0 ? `할부원금 ${W(c.loan)}을 ${c.n}개월 할부(연 5.9% 할부이자 포함, 월 약 ${W(c.month)})로 내십니다.` : (c.loan > 0 ? `기기값 ${W(c.loan)}은 일시불로 내십니다.` : '남는 기기값 없이 처리됩니다.')) + (c.icard ? ` ${icn || '할부카드'} 할부 할인 ${W(c.icard)}은 카드 전월 실적을 채우셔야 유지되고, 못 채운 달은 그달 금액을 직접 내셔야 합니다.` : ''));
+            }
+            if (g.sup === '공시') add('term', '약정 기간 · 위약금', `공통지원금을 받으셔서 ${g.term || 24}개월 약정입니다. 약정 기간 안에 해지 · 번호이동 하시면 남은 기간만큼 지원금을 위약금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
+            else if (g.sup === '선약') add('term', '약정 기간 · 할인반환금', `선택약정 ${g.term || 24}개월입니다. 중간에 해지하시면 그동안 받은 요금 할인 일부를 할인반환금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
+            const kd = gdKeepEff(g).date;   // 📅 유통망이 있으면 유통망 유지일
+            add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}부터${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있고, 그 전에는 지금 요금제를 유지하셔야 합니다.` : ''}`);
+            const down = gdDownLines(g).map(gdSpeak);
+            if (down.length) add('down', '⚠️ 요금제 하향 제한 (필수)', down.join(' '), '네, 이해했습니다', true);
+            const pr = (g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && (String(p.name || '').trim() || gdNum(p.fee)));
+            if (pr.length) add('addon', '부가서비스 · 보험', `${pr.map(p => { const d = p.code && g.date ? computeKeepDate(g.date, p.code) : ''; const nm = `${String(p.name || p.kind).trim()}${gdNum(p.fee) ? ` 월 ${W(gdNum(p.fee))}` : ''}`; return d ? `${gdJo(nm, '은', '는')} ${gdDateKo(d)}부터 해지` : `${nm} 유지 후 해지`; }).join(', ')}하실 수 있고, 그 전까지는 유지해 주십시오. 해지는 자동으로 되지 않아 직접 하셔야 하고, 날짜가 되면 매장에서 안내 문자를 드립니다.`);
+            const disc = [];
+            if (c.comb) disc.push(`${String(pl.combName || '').trim() || '결합'} 할인 월 ${W(c.comb)}`);
+            if (c.wel) disc.push(`복지 할인 월 ${W(c.wel)}`);
+            if (c.card) disc.push(`${String(pl.cardName || '').trim() || '제휴카드'} 요금 할인 월 ${W(c.card)}`);
+            if (disc.length) add('disc', '결합 · 복지 · 제휴카드', `${gdJo(disc.join(', '), '이', '가')} 들어갑니다.${c.comb || c.wel ? ' 결합 · 복지 할인은 통신사 확인 뒤 적용돼 첫 달은 빠질 수 있습니다.' : ''}${c.card ? ' 제휴카드 할인은 카드 실적을 채운 달만 됩니다.' : ''}`);
+            const usim = g.usim && !Array.isArray(g.usim) ? g.usim : null, uf = usim ? gdNum(usim.fee) : 0;
+            add('total', '매달 내실 금액', `매달 할부금과 요금을 합쳐 약 ${W(c.total)}입니다${c.addFee ? `(부가 · 보험 월 ${W(c.addFee)}은 유지 기간 동안 별도)` : ''}. 첫 달은 개통일부터 쓴 날만큼 계산되고${uf ? `, 유심비 ${W(uf)}${usim.pay ? `(${usim.pay})` : ''}도 있어서` : ''} 금액이 달라질 수 있습니다.`);
+            if (/번호이동|MNP/.test(String(g.actType || ''))) add('mnp', '이전 통신사', '이전 통신사의 남은 할부금 · 위약금 · 마지막 달 요금은 이전 통신사에서 따로 청구될 수 있습니다. 소액결제 · 멤버십 · 결합도 이전 통신사에서 정리하셔야 합니다.');
+            if (String(g.gift || '').trim()) add('gift', '사은품', `사은품은 ${String(g.gift).trim()}입니다.`);
+            add('end', '마무리', '개통 후 통화품질 · 단말 불량 외의 단순 변심으로는 개통 철회가 어렵습니다. 기존 폰의 사진 · 연락처 백업은 고객님이 확인해 주십시오. 위 내용을 모두 듣고 이해하셨습니까?', '네, 모두 이해했습니다', true);
+            return out;
+        }
+        function gdRecGate(g, go) {
+            if (!g) return go();
+            const m = gdRecMem.get(g.id);
+            if (m) return go();   // 이미 녹음함 → 바로 서명
+            gdRecSt = { g, go, stage: 'intro' };
+            gdRecRender(); gdRecEl.style.display = 'flex';
+        }
+        function gdRecFmt(ms) { const s = Math.max(0, Math.floor(ms / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+        function gdRecRender() {
+            const S = gdRecSt; if (!S) return;
+            const g = S.g, off = driveMode() === 'off';
+            const head = (title, sub) => `<header class="bg-white border-b border-gray-200 px-4 pt-3 pb-2 flex items-start gap-3"><div class="flex-1 min-w-0"><p class="text-[17px] font-bold text-gray-900">${title}</p><p class="text-xs text-gray-500 truncate">${sub}</p><div class="flex gap-1 mt-2 text-[11px] font-bold"><span class="flex-1 text-center rounded-lg py-1 bg-green-100 text-green-800">✓ 작성</span><span class="flex-1 text-center rounded-lg py-1 ${S.stage === 'done' ? 'bg-green-100 text-green-800' : 'bg-indigo-600 text-white'}">${S.stage === 'done' ? '✓ ' : ''}🎙 녹음</span><span class="flex-1 text-center rounded-lg py-1 ${S.stage === 'done' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-400'}">✍ 서명</span><span class="flex-1 text-center rounded-lg py-1 bg-gray-100 text-gray-400">📤 문자·개통</span></div></div><button type="button" data-rec="close" class="w-10 h-10 rounded-xl text-gray-500 text-xl flex-shrink-0" aria-label="닫기">✕</button></header>`;
+            const sub = `${escapeHtml(gdCarLabel(g) || '')} ${escapeHtml(g.actType || '')} · ${escapeHtml(gdTitle(g))}`;
+            if (S.stage === 'intro') {
+                gdRecEl.innerHTML = head('🎙 구매 내용 확인 녹음', sub) + `<div class="flex-1 overflow-y-auto p-4 space-y-3">
+                    <div class="rounded-2xl bg-pink-50 border border-pink-200 px-4 py-3 text-[13.5px] font-bold text-pink-800 leading-relaxed">※ 본 녹음은 고객님의 구매 사항 및 계약 조건을 확인하기 위한 용도로 진행되며, 개인정보(주민번호 · 카드번호 등)는 녹음하지 않습니다.</div>
+                    <p class="text-[14px] text-gray-800 leading-relaxed">화면에 나오는 안내 문구를 직원이 읽고, 고객님이 <b>"네, 이해했습니다"</b>라고 답하시면 돼요. 약 2~3분 걸려요.</p>
+                    <p class="text-[12.5px] text-gray-600 leading-relaxed">서명을 마치면 녹음 파일이 고객 서류(구글 드라이브)에 올라가요. 처음 한 번은 폰이 <b>마이크 허용</b>을 물어봐요.</p>
+                    ${off ? '<p class="text-[13px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">⚠️ 서류 백업이 꺼져 있어서 녹음을 보관할 수 없어요. 설정 → 서류 클라우드 백업을 먼저 켜 주세요.</p>' : ''}
+                    ${!(navigator.mediaDevices && window.MediaRecorder) ? '<p class="text-[13px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">⚠️ 이 폰 브라우저는 녹음을 지원하지 않아요. 크롬에서 열어 주세요.</p>' : ''}
+                </div><footer class="bg-white border-t border-gray-200 p-3 space-y-2"><button type="button" data-rec="start" ${off || !(navigator.mediaDevices && window.MediaRecorder) ? 'disabled' : ''} class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold disabled:opacity-40">고객 동의 받고 녹음 시작</button><button type="button" data-rec="skip" class="w-full h-11 rounded-2xl border border-gray-200 bg-white text-[14px] font-bold text-gray-700">녹음 없이 서명으로</button></footer>`;
+                return;
+            }
+            if (S.stage === 'rec') {
+                const it = S.items, i = S.i;
+                gdRecEl.innerHTML = head('🎙 구매 내용 확인 녹음', '읽고 → 고객 "네" → [다음]') + `<div class="flex-1 overflow-y-auto p-4 space-y-2" id="gdRecList">
+                    <div class="sticky top-0 z-10 flex items-center justify-between rounded-2xl bg-red-50 border border-red-200 px-3 py-2"><span class="text-[15px] font-bold text-red-700"><span class="inline-block w-2.5 h-2.5 rounded-full bg-red-600 mr-1.5 animate-pulse"></span>녹음 중 <span id="gdRecTime">${gdRecFmt(Date.now() - S.t0)}</span></span><span class="text-[12px] font-bold text-red-800">${Math.min(i + 1, it.length)} / ${it.length}</span></div>
+                    ${it.map((x, j) => `<div data-rec-line="${j}" class="rounded-2xl border px-3 py-2.5 ${j === i ? 'border-indigo-500 border-2 bg-indigo-50 text-[15.5px] font-semibold text-gray-900' : (j < i ? 'border-gray-200 bg-white text-[13px] text-gray-500' : 'border-gray-200 bg-white text-[13.5px] text-gray-800')} leading-relaxed"><p class="text-[11.5px] font-bold ${x.must ? 'text-red-700' : 'text-indigo-700'}">${j + 1} · ${escapeHtml(x.title)}</p><p>${escapeHtml(x.text)}</p>${j < i ? `<p class="mt-1 text-[12px] font-bold text-green-700">고객: ${escapeHtml(x.ans)} ✓</p>` : (j === i ? `<p class="mt-1.5 inline-block text-[12.5px] font-bold text-amber-900 bg-amber-100 rounded-lg px-2 py-0.5">고객님 답변: "${escapeHtml(x.ans)}"</p>` : '')}</div>`).join('')}
+                </div><footer class="bg-white border-t border-gray-200 p-3 flex gap-2"><button type="button" data-rec="prev" ${i ? '' : 'disabled'} class="h-12 px-4 rounded-2xl border border-gray-200 bg-white text-[14px] font-bold text-gray-700 disabled:opacity-40">◀ 이전</button><button type="button" data-rec="next" class="flex-1 h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">${i >= it.length - 1 ? '고객 "네" → 녹음 끝 ■' : '고객 "네" → 다음 ▶'}</button></footer>`;
+                const cur = gdRecEl.querySelector(`[data-rec-line="${i}"]`); if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 30);
+                return;
+            }
+            const m = gdRecMem.get(g.id);
+            gdRecEl.innerHTML = head('🎙 녹음 완료', m ? `${gdRecFmt(m.dur)} · ${m.ok} / ${m.total} 항목 "네"` : '') + `<div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-2"><p class="text-[15px] font-bold text-gray-900">${m && m.ok >= m.total ? '✅' : '⚠️'} ${m ? `${m.ok} / ${m.total} 확인했어요` : ''}${m && m.down ? ' · <span class="text-red-700">하향 제한 안내 ✓</span>' : ''}</p>${m ? `<audio controls src="${m.url}" class="w-full"></audio>` : ''}<button type="button" data-rec="redo" class="w-full h-10 rounded-xl border border-gray-200 bg-white text-[13px] font-bold text-gray-700">🔄 다시 녹음</button></div>
+                <div class="rounded-2xl bg-white border border-gray-200 p-3"><p class="text-[14px] font-bold text-gray-900">다음 순서</p><p class="text-[12.5px] text-gray-600 mt-1 leading-relaxed">✍ 고객 서명 → 📤 안내서 문자 → 📋 개통등록 · 서명을 마치면 이 녹음이 고객 서류(드라이브)에 자동으로 올라가요.</p></div>
+            </div><footer class="bg-white border-t border-gray-200 p-3"><button type="button" data-rec="sign" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">✍ 서명받기 ▶</button></footer>`;
+        }
+        async function gdRecStartRec() {
+            const S = gdRecSt; if (!S) return;
+            let stream;
+            try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+            catch (e) { customAlert('마이크를 쓸 수 없어요. 폰 설정에서 크롬의 마이크 권한을 허용해 주세요.'); return; }
+            const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'].find(t => { try { return MediaRecorder.isTypeSupported(t); } catch (e) { return false; } }) || '';
+            let mr; try { mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(t => t.stop()); customAlert('녹음을 시작하지 못했어요.'); return; }
+            Object.assign(S, { stage: 'rec', items: gdRecScript(S.g), i: 0, stream, mr, chunks: [], t0: Date.now(), oks: new Set() });
+            mr.ondataavailable = (e) => { if (e.data && e.data.size) S.chunks.push(e.data); };
+            mr.start(1000);
+            clearInterval(S.timer); S.timer = setInterval(() => { const el = document.getElementById('gdRecTime'); if (el) el.textContent = gdRecFmt(Date.now() - S.t0); }, 500);
+            gdRecRender();
+        }
+        function gdRecStop(keep) {
+            const S = gdRecSt; if (!S || !S.mr) return Promise.resolve();
+            clearInterval(S.timer);
+            return new Promise(res => {
+                const mr = S.mr; S.mr = null;
+                mr.onstop = () => {
+                    try { S.stream.getTracks().forEach(t => t.stop()); } catch (e) { /* 무시 */ }
+                    if (keep) {
+                        const type = (mr.mimeType || 'audio/webm').split(';')[0], blob = new Blob(S.chunks, { type });
+                        const old = gdRecMem.get(S.g.id); if (old && old.url) URL.revokeObjectURL(old.url);
+                        gdRecMem.set(S.g.id, { blob, mime: type, url: URL.createObjectURL(blob), dur: Date.now() - S.t0, ok: S.oks.size, total: S.items.length, down: S.items.some(x => x.k === 'down') && [...S.oks].some(j => S.items[j] && S.items[j].k === 'down'), at: new Date().toISOString() });
+                    }
+                    res();
+                };
+                try { mr.stop(); } catch (e) { res(); }
+            });
+        }
+        gdRecEl.addEventListener('click', async (e) => {
+            const b = e.target.closest('[data-rec]'); if (!b || !gdRecSt) return;
+            const S = gdRecSt, a = b.dataset.rec;
+            if (a === 'close') { if (S.mr && !(await customConfirm('녹음을 그만둘까요? 지금까지 녹음한 건 지워져요.'))) return; await gdRecStop(false); gdRecEl.style.display = 'none'; gdRecSt = null; return; }
+            if (a === 'skip') { gdRecEl.style.display = 'none'; const go = S.go; gdRecSt = null; go(); return; }
+            if (a === 'start' || a === 'redo') { if (a === 'redo') { const m = gdRecMem.get(S.g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(S.g.id); } await gdRecStartRec(); return; }
+            if (a === 'prev' && S.stage === 'rec') { S.i = Math.max(0, S.i - 1); S.oks.delete(S.i); gdRecRender(); return; }
+            if (a === 'next' && S.stage === 'rec') { S.oks.add(S.i); if (S.i >= S.items.length - 1) { await gdRecStop(true); S.stage = 'done'; } else S.i++; gdRecRender(); return; }
+            if (a === 'sign') { gdRecEl.style.display = 'none'; const go = S.go; gdRecSt = null; go(); }
+        });
+        // 서명 완료 → 녹음을 고객 서류로 (안내서 날짜 폴더) · 안내서 · 고객카드에 기록
+        async function gdRecUpload(g) {
+            const m = gdRecMem.get(g.id); if (!m || !g.custId || driveMode() === 'off') return '';
+            if (driveMode() === 'self' && !driveTokenValid()) return '⚠️ 구글 드라이브 연결이 끊겨서 녹음을 못 올렸어요. 안내서를 다시 열면 이 폰에 남아 있는 동안 다시 올릴 수 있어요.';
+            const ext = /mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm');
+            const f = new File([m.blob], `녹음_구매확인_${String(g.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || getTodayStr()).replace(/-/g, '')}_확인${m.ok}of${m.total}${m.down ? '_하향안내' : ''}.${ext}`, { type: m.mime });
+            try {
+                showUploadToast('🎙 녹음을 서류에 올리는 중…');
+                const r = await uploadDocFiles({ id: g.custId, name: g.name || '', phone: g.phone || '' }, [f], null, { bundle: false, date: g.date });
+                hideUploadToast();
+                if (!r || !r.ok) return '⚠️ 녹음을 서류에 못 올렸어요.';
+                const rec = { at: m.at, dur: Math.round(m.dur / 1000), ok: m.ok, total: m.total, down: !!m.down, up: new Date().toISOString() };
+                setDoc(doc(db, 'smart_guides', g.id), { rec }, { merge: true }).catch(e => console.warn(e)); g.rec = rec;
+                const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 🎙 구매 내용 확인 녹음 ${gdRecFmt(m.dur)} · 확인 ${m.ok}/${m.total}${m.down ? ' · 하향 제한 안내 ✓' : ''}`;
+                txCustomerUpdate(g.custId, (cur) => ({ contactHistory: appendLine(cur.contactHistory, line), __audit: '구매 안내서' })).catch(e => console.warn(e));
+                URL.revokeObjectURL(m.url); gdRecMem.delete(g.id);
+                return '🎙 녹음도 고객 서류에 올렸어요.';
+            } catch (e) { try { hideUploadToast(); } catch (e2) { /* 무시 */ } console.warn('녹음 올리기 실패', e); return '⚠️ 녹음을 서류에 못 올렸어요.'; }
         }
         async function gdSaveDraft() {
             if (!gd || gdStage !== 'edit') return;
@@ -21666,7 +21843,7 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
-                g.notes = gdNotesFor(g); g.notesV = 2; g.pi = gdPiSnap(g); if (g.plan) g.plan.welV = 4;   // 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
+                g.notes = gdNotesFor(g); g.notesV = 2; g.down = gdDownLines(g); g.pi = gdPiSnap(g);   // ⚠️ V267 하향 제한 문구도 그때 것 그대로 if (g.plan) g.plan.welV = 4;   // 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -21674,6 +21851,7 @@ familyStr + `\n` +
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서 서명 · ${gdTitle(g)} (담당: ${me || '-'})`;
                 txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), contactHistory: appendLine(cur.contactHistory, line), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
                 gdDirty = false; gdStage = 'done'; gdRender();
+                if (gdRecMem.has(g.id)) gdRecUpload(g).then(msg => { if (msg) stockToast(msg); });   // 🎙 V267
             } catch (err) {
                 if (g.st === 'signed' && !gdList.some(x => x.id === g.id && x.st !== 'draft')) { g.st = 'draft'; delete g.signed; delete g.pi; }   // V238 저장 못 했으면 서명 전으로
                 console.error('안내서 서명 저장 실패', err);
@@ -23666,7 +23844,7 @@ familyStr + `\n` +
         async function docMergeExisting(cid) {
             const c = customerDB.find(x => x.id === cid); if (!c) return;
             const mode = driveMode(); if (mode === 'off') return customAlert('서류 백업이 꺼져 있어요.');
-            const list = docVisibleOf(c).shown.filter(f => f.fileId).slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+            const list = docVisibleOf(c).shown.filter(f => f.fileId && !/^audio\//.test(f.mime || '')).slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
             if (list.length < 2) return customAlert('합칠 서류가 2개 이상 있어야 해요.');
             if (mode === 'self' && !driveTokenValid()) { try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[PDF 한 묶음으로 합치기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); } return; }
             if (!(await customConfirm(`서류 ${list.length}개를 PDF 한 묶음으로 합칠까요?\n\n· 묶음 PDF 하나만 누르면 다 보여요\n· 원본은 지우지 않고 '묶음에 들어간 원본'으로 접어 둬요`))) return;
@@ -24309,7 +24487,7 @@ familyStr + `\n` +
             const mode = driveMode();
             const row = (f) => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
                     <i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
-                    ${f.fileId ? `<button type="button" data-docview="${escapeHtml(f.id)}" class="flex-1 min-w-0 text-left text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</button>` : `<a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>`}
+                    ${f.fileId && /^audio\//.test(f.mime || '') ? `<a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">🎙 ${escapeHtml(f.name)}</a>` : f.fileId ? `<button type="button" data-docview=""${escapeHtml(f.id)}" class="flex-1 min-w-0 text-left text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</button>` : `<a href="${escapeHtml(f.url || '#')}" target="_blank" rel="noopener" class="flex-1 min-w-0 text-[13px] font-bold text-indigo-700 underline truncate">${escapeHtml(f.name)}</a>`}
                     ${f.bundle ? `<span class="flex-shrink-0 text-[11px] font-bold text-white bg-indigo-600 rounded px-1.5 py-0.5" data-doc-bundle>📑 ${Number(f.pages) || ''}쪽</span>` : ''}
                     <span class="text-[11px] text-gray-500 flex-shrink-0">${escapeHtml(String(f.at || '').slice(5, 10).replace('-', '/'))} · ${escapeHtml(managerKey(f.uploaderName || '') || '')}</span>
                     <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
@@ -25474,7 +25652,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V266';
+        const APP_VER = 'V267';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25482,6 +25660,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V267', d: '2026-11-02', items: [
+                ['🎙 구매 안내서 서명 전 "구매 내용 확인 녹음": 안내서 내용으로 대본이 자동으로 나와요 (약정 · 위약금 · ⚠️ 요금제 하향 제한 필수 · 부가 · 결합 · 월 납부액 · 이전 통신사 …) → 직원이 읽고 고객 "네" → 서명하면 녹음이 고객 서류(드라이브)에 올라가요'],
+                ['⚠️ 안내서 그림에 빨간 "요금제 하향 제한" 칸: 공시면 통신사 하향 기준(예: 월 45,000원 미만), 유통망 · 요금제 유지가 있으면 유지 날짜 · 위약금 (서명할 때 문구 그대로 보관)'],
+                ['📶 선택약정: 유통망지원금이 있으면 공통지원금과 똑같이 유지일 전 하향 제한 (위약금) · 유통망이 없으면 유지일부터 요금제를 자유롭게 낮춰도 된다고 안내']] },
             { v: 'V266', d: '2026-11-02', items: [
                 ['📅 개통등록에서 올린 서류(서명한 안내서 포함)는 올린 날이 아니라 개통일 기준 월 폴더 · 파일 이름 날짜로 (10/31 개통을 11/1에 올려도 2026-10 폴더)'],
                 ['📁 고객카드에서 나중에 올린 추가 서류 · PDF 합치기도 그 고객 원래 폴더로 (최근 서류가 있는 달 → 없으면 개통일 달)']] },
