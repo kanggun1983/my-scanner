@@ -11592,11 +11592,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             let base = DEFAULT_CARD_URL, qs = '';
             let sid = '';
             if (!boss && teamCardOn()) { sid = teamSidFor(own); if (sid) { base = TEAM_CARD_URL; qs = 's=' + sid; } }
-            return c && c.cardId ? `${base}?c=${encodeURIComponent(c.cardId)}${sid ? '.' + sid : ''}` : base + (qs ? '?' + qs : '');   // 🔗 V260 공용 명함은 ?c=고객번호.직원번호 (& 없이 · 문자앱이 & 뒤를 잘라서 직원이 빠졌음)
+            if (sid) base = TEAM_CARD_URL + sid + '/';   // 🔗 V261 공용 명함은 직원 미리보기 주소 /team/직원번호/ (문자 미리보기에 직원 이름 · 사진 · & 없음)
+            return c && c.cardId ? `${base}?c=${encodeURIComponent(c.cardId)}` : base;
         }
         function withAutoCard(text, c, kind) {
             const t = String(text || '').trim();
-            if (!smsCardOn(kind) || !t || /kanggun1983\.github\.io\/(team\/)?(\?|$|\s)/.test(t)) return t;   // 명함 링크가 이미 있으면 또 안 붙임
+            if (!smsCardOn(kind) || !t || /kanggun1983\.github\.io\/(team\/([a-z0-9]{3,12}\/)?)?(\?|$|\s)/.test(t)) return t;   // 명함 링크가 이미 있으면 또 안 붙임
             return `${t}\n\n📇 ${custStaffName(c) || msgStoreName()} 명함\n${autoCardLink(c)}`;
         }
         // 문구·명함 링크·리뷰 주소·사진이 바뀌면 이미 예약된 자동 문자도 새 내용으로 다시 넣기 위한 표시 (종류별)
@@ -13119,8 +13120,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function setCardChoice(v) { try { localStorage.setItem('cardChoice', v === 'team' ? 'team' : 'main'); } catch (e) { /* 무시 */ } }
         function myCardBase() { return cardChoice() === 'team' ? TEAM_CARD_URL : DEFAULT_CARD_URL; }
         function myCardQs() { if (cardChoice() !== 'team') return ''; const p = myTeamProfile(); return p ? 's=' + p.sid : ''; }
-        function myCardUrl() { const q = myCardQs(); return myCardBase() + (q ? '?' + q : ''); }
-        function cardLinkFor(cardId) { const q = myCardQs(); return `${myCardBase()}?c=${encodeURIComponent(cardId)}${q ? '.' + q.replace(/^s=/, '') : ''}`; }   // 🔗 V260 & 없이 ?c=고객번호.직원번호
+        // 🔗 V261 공용 명함: 직원 미리보기 주소 /team/직원번호/ (문자 미리보기에 직원 이름 · 사진) · 명함 V5.7
+        function myCardHome() { const q = myCardQs(); return q ? myCardBase() + q.replace(/^s=/, '') + '/' : myCardBase(); }
+        function myCardUrl() { return myCardHome(); }
+        function cardLinkFor(cardId) { return `${myCardHome()}?c=${encodeURIComponent(cardId)}`; }
         // 고객 화면에 누구로 보이는지 한 줄 (명함 보내기 창 · 설정)
         function cardWhoLine() {
             if (cardChoice() !== 'team') return { ok: true, text: '👑 대표 명함 · 강태훈 과장으로 보여요' };
@@ -25347,7 +25350,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V260';
+        const APP_VER = 'V261';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25355,6 +25358,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V261', d: '2026-11-02', items: [
+                ['🔗 공용 명함 문자 미리보기에 담당 직원 이름 · 사진: 링크가 kanggun1983.github.io/team/직원번호/?c=… 로 바뀌어요 (미리보기 "임호규 과장님의 명함") · 누르면 그 직원 공용 명함으로']] },
             { v: 'V260', d: '2026-11-02', items: [
                 ['🔗 공용 명함 링크가 고객 폰에서 매장 명함으로 보이던 것 고침: 문자앱으로 넘길 때 링크의 & 뒤(보낸 직원)가 잘렸어요 → 이제 ?c=고객번호.직원번호 한 덩어리로 보내요 (명함 V5.6과 같이)']] },
             { v: 'V259', d: '2026-11-02', items: [
