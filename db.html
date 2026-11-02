@@ -3923,6 +3923,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const access = user ? await checkStaffAccess(emailLc) : { ok: false };
                     if (user && access.ok) {
                         isSuperAdmin = SUPER_ADMIN_EMAILS.includes(emailLc);
+                        try { localStorage.setItem('kcrm_staff_dev', String(Date.now())); } catch (e) { /* 무시 */ }   // 📇 V257 직원 폰 표시: 같은 주소의 명함이 이 폰을 고객으로 연결하지 않게 (고객 명함 링크를 열어도 내 폰은 그대로)
                         document.getElementById('loginOverlay').style.display = 'none';
                         document.getElementById('appContent').style.display = 'block';
                         document.getElementById('userEmailDisplay').textContent = user.email;
@@ -11971,7 +11972,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function missCustomAt(v, baseMs) { const n = Number(v); if (!isFinite(n) || n <= 0 || n < baseMs - 10 * 60e3 || n > baseMs + 8 * 86400e3) return 0; return missQuiet(n); }
         // 📢 V229 (광고) 표시: 매장 기본값 · '콜매니저 창에서 문자마다'가 켜져 있을 때만 그 문자에서 고른 것
         function missAdOn(pick) { return smsSetting('smsMissAdToggle') === true && typeof pick === 'boolean' ? pick : smsSetting('smsMissAdMark') !== false; }
-        function missCardLink(c, phrase) { const u = autoCardLink(c); return c && c.cardId ? `${u}&mr=${encodeURIComponent(String(phrase || '').replace(/드리려고$/, '').trim().slice(0, 30))}` : u; }   // 링크는 짧게: '약정 만료 안내' (명함이 '드리려고'를 붙임)
+        // 🔗 V257 링크는 짧게: 연락 이유(한글)는 문자 본문에 이미 있으니 링크엔 날짜 4자리만 (mr=1102) · 명함은 '안내드릴 게 있어서'로 · 응답이 오면 이유는 고객카드 missReason에서
+        function missCardLink(c, phrase) { const u = autoCardLink(c); if (!c || !c.cardId) return u; const d = new Date(Date.now() + 9 * 3600e3); return `${u}&mr=${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`; }
         function missText(c, phrase, adPick) {
             let tpl = String(smsSetting('smsTplMiss') || SMS_AUTO_DEFAULTS.smsTplMiss);
             if (tpl.trim() === MISS_TPL_V222) tpl = SMS_AUTO_DEFAULTS.smsTplMiss;   // 예전 기본 문구 그대로면 새 기본 문구로
@@ -16135,7 +16137,7 @@ familyStr + `\n` +
                         return true;
                     });
                     if (!claimed || !R || !c) continue;
-                    const reason = String(r.detail || '').split('\n')[0].replace(/\s+/g, ' ').trim().slice(0, 40).replace(/드리려고$/, '');   // 첫 줄만 (공용 명함은 아래에 '📇 명함: 공용' 줄)
+                    const reason = (String(r.detail || '').split('\n')[0].replace(/\s+/g, ' ').trim() || String(c.missReason || '').replace(/\s+/g, ' ').trim()).slice(0, 40).replace(/드리려고$/, '');   // 첫 줄만 (공용 명함은 아래에 '📇 명함: 공용' 줄) · 🔗 V257 짧은 링크(이유 없음)면 고객카드의 연락 이유
                     const ts = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}]`, why = reason ? ` (${reason})` : '';
                     await txCustomerUpdate(c.id, (cur) => {
                         const base = { missReplyAt: new Date().toISOString(), missReply: R.kind, updatedAt: new Date().toISOString(), __audit: '명함 응답 (부재 재연락)' };
@@ -25238,7 +25240,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V256';
+        const APP_VER = 'V257';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25246,6 +25248,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V257', d: '2026-11-02', items: [
+                ['🔗 부재 재연락 문자의 명함 링크가 짧아졌어요 (연락 이유 한글이 링크에 길게 붙던 것 → 날짜 4자리만) · 고객이 명함에서 누르면 이유는 고객카드에서 그대로 기록'],
+                ['📇 강CRM에 로그인한 폰에서 고객 명함 링크를 열어도 이 폰이 그 고객으로 연결되지 않아요 (내 명함 앱이 고객 명함으로 바뀌던 것)']] },
             { v: 'V256', d: '2026-11-01', items: [
                 ['💳 고객카드 모바일 탭 맨 위에 "매달 내실 금액": 구매 안내서와 같은 숫자 (휴대폰 할부 · 요금 = 월정액 − 선약 − 결합 − 복지 · 부가 · 보험) · 할부 남은 개월 자동 · 요금제 바꾼 뒤 금액까지'],
                 ['📶 개통보고 · 안내서 월요금 자동 채우기에 통신사 전체 요금제 표도 · "변경 후 요금제" 줄은 비어도 보이고 월요금이 빠졌으면 알려줘요']] },
