@@ -18966,8 +18966,8 @@ familyStr + `\n` +
         function arBranchSync() { const v = arVal('ar-store'), b = document.getElementById('ar-branch'); if (v && b) b.value = v; }
         document.getElementById('arSave').onclick = async () => {
             // 서류 첨부 + 각자 드라이브인데 아직 구글 연결 전이면, 누른 그 순간 연결 창부터 (나중엔 폰이 창을 막음)
-            { const fEl = document.getElementById('ar-files');
-              if (fEl && fEl.files && fEl.files.length && driveMode() === 'self' && !driveTokenValid()) {
+            { const fEl = document.getElementById('ar-files'), gA = document.getElementById('ar-gd-attach');
+              if (((fEl && fEl.files && fEl.files.length) || (gA && gA.checked && gdArId)) && driveMode() === 'self' && !driveTokenValid()) {
                   try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요. [저장]을 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); }
                   return;
               } }
@@ -19131,16 +19131,33 @@ familyStr + `\n` +
             try {
                 await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
                 if (isM) stockAfterActSave(digits, upd.name, arVal('ar-date'), usimNewId);   // 📦 재고에서 고른 단말 → '개통' · 💳 유심 재고 1개 빼기
+                const gdAttachWant = isM && driveMode() !== 'off' && !(document.getElementById('ar-gd-attach') && !document.getElementById('ar-gd-attach').checked);   // 📎 V265 (체크를 끈 경우만 빼요)
                 if (isM) { try { const uo = !!(document.getElementById('ar-tg-usim') || {}).checked || /^유심/.test(arVal('ar-type')); await gdAfterAct(digits, arVal('ar-date'), { usimOnly: uo, model: uo ? '' : arVal('ar-model'), serial: uo ? '' : arVal('ar-serial') }); } catch (e) { console.warn(e); } }   // 📝 안내서와 묶기 (V202 · 3️⃣ 4️⃣ 조건 확인)
                 const fEl = document.getElementById('ar-files');
                 const files = fEl ? [...(fEl.files || [])] : [];
                 closeActReg();
+                // 📎 V265 서명한 안내서 → 그림(JPG)으로 만들어 서류에 자동 첨부 (한 번만 · 다운받아 다시 올릴 필요 없음)
+                let gdUp = '';
+                if (gdAttachWant && gdAfterActId) {
+                    try {
+                        const g = await gdGet(gdAfterActId);
+                        if (g && g.st === 'signed' && !g.docAt && !(driveMode() === 'self' && !driveTokenValid())) {
+                            showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
+                            const url = await gdImage(g), blob = await (await fetch(url)).blob();
+                            const gf = new File([blob], `구매안내서_${String(g.name || upd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || arVal('ar-date') || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
+                            const gr = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, [gf], null, { bundle: false });
+                            if (gr && gr.ok) { gdUp = '\n📎 서명한 안내서도 서류에 첨부했어요.'; setDoc(doc(db, 'smart_guides', g.id), { docAt: new Date().toISOString() }, { merge: true }).catch(e => console.warn(e)); }
+                            else gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요. 안내서 화면에서 [다운] 뒤 직접 첨부해 주세요.';
+                            hideUploadToast();
+                        } else if (g && g.st === 'signed' && !g.docAt) gdUp = '\n⚠️ 구글 드라이브 연결이 끊겨서 서명한 안내서는 첨부하지 못했어요.';
+                    } catch (e) { console.warn('안내서 자동 첨부 실패', e); try { hideUploadToast(); } catch (e2) { /* 무시 */ } gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요.'; }
+                }
                 if (files.length) {
                     showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
                     const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
                     hideUploadToast();
-                    customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n${docUpText(ur)}${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}`);
-                } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${keepLatest ? '\n📜 예전 날짜라 개통 기록에만 넣었어요 (고객 정보는 최근 개통 그대로).' : ''}${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
+                    customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n${docUpText(ur)}${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}${gdUp}`);
+                } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${gdUp}${keepLatest ? '\n📜 예전 날짜라 개통 기록에만 넣었어요 (고객 정보는 최근 개통 그대로).' : ''}${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
                 // 상세카드에서 열었으면 상세카드도 새 내용으로
                 if (typeof currentDetailId !== 'undefined' && currentDetailId === digits && document.getElementById('detailModal').style.display === 'flex') { try { openDetailModal(digits); } catch (e) { /* 무시 */ } }
             } catch (e) { fail(koreanError(e, '저장')); }
@@ -21862,12 +21879,18 @@ familyStr + `\n` +
             const warn = (fp && gp && fp !== gp) || nameDiff ? `<span class="block mt-1 text-xs font-bold text-red-700">⚠ 안내서 고객(${escapeHtml(g.name || '')} ${escapeHtml(formatPhone(gp))})과 이 칸의 ${fp && gp && fp !== gp ? '번호' : '이름'}가 달라요. 맞는지 확인해 주세요.</span>` : '';   // 4️⃣ 번호 · 이름이 다르면 바로 알려줌
             const bn = document.getElementById('arGuideBanner');
             if (bn) bn.innerHTML = `<span class="flex-1 min-w-0"><b class="block text-[14px] text-teal-900">✅ 안내서로 채웠어요</b>${warn}<span class="block text-xs text-teal-800">${g.kind === 'usim' ? '유심 일련번호' : '일련번호(바코드)'} · 정산만 넣고 저장하세요. 저장하면 안내서와 묶여요.</span></span>`;
+            // 📎 V265 서명한 안내서 자동 첨부 줄 (저장 버튼 위 · 끄면 안 올려요)
+            { const old = document.getElementById('arGdAttachRow'); if (old) old.remove();
+              const errEl = document.getElementById('arErr');
+              if (errEl && g.st === 'signed' && driveMode() !== 'off' && !g.docAt) errEl.insertAdjacentHTML('beforebegin', `<label id="arGdAttachRow" class="flex items-start gap-2 rounded-2xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-[13px] font-bold text-teal-900"><input type="checkbox" id="ar-gd-attach" checked class="w-5 h-5 mt-0.5 accent-teal-600 flex-shrink-0"><span>📎 서명한 안내서를 고객 서류에 자동 첨부<span class="block text-[11.5px] font-medium text-teal-800">저장하면 안내서 그림이 구글 드라이브 서류로 올라가요 · 다운받아 다시 올릴 필요 없어요</span></span></label>`); }
             stockToast('📝 안내서 내용을 채웠어요');
         }
         // 저장한 개통을 안내서와 묶기 · info = { usimOnly, model, serial } (개통등록 칸 값)
         //  3️⃣ [채우기]를 안 눌렀으면: 3일 안 · 같은 종류(단말/유심) · 단말이면 기종이나 일련번호가 맞는 안내서가 딱 하나일 때만 자동으로
         //  4️⃣ [채우기]를 눌렀는데 개통번호가 안내서 번호와 다르면: 묶을지 한 번 물어봄 (아니오 → 안 묶음)
+        let gdAfterActId = '';
         async function gdAfterAct(custId, date, info = {}) {
+            gdAfterActId = '';
             let id = gdArId, ix = gdArG; gdArId = ''; gdArG = null;
             const c = customerDB.find(x => x.id === custId);
             if (id && ix && ix.phone && ix.phone !== custId) {
@@ -21890,6 +21913,7 @@ familyStr + `\n` +
             const act = { date, at: new Date().toISOString(), by: getStaffName() || '' };
             setDoc(doc(db, 'smart_guides', id), { act }, { merge: true }).catch(e => console.warn(e));
             const hit = gdList.find(x => x.id === id); if (hit) hit.act = act;
+            gdAfterActId = id;   // 📎 V265 저장한 개통과 묶인 안내서 (서명 안내서 자동 첨부용)
             const mark = (cur) => (Array.isArray(cur.guides) && cur.guides.some(e => e && e.id === id) ? { guides: cur.guides.map(e => e && e.id === id ? { ...e, act: date } : e), __audit: '자동' } : {});
             [...new Set([custId, ix && ix.custId].filter(Boolean))].forEach(cid => txCustomerUpdate(cid, mark).catch(e => console.warn(e)));   // 안내서 기록이 있는 고객카드(안내서 고객)도 같이
         }
@@ -25437,7 +25461,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V264';
+        const APP_VER = 'V265';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25445,6 +25469,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V265', d: '2026-11-02', items: [
+                ['📎 서명한 구매 안내서로 개통등록을 저장하면 그 안내서가 고객 서류에 자동으로 첨부돼요 (다운받아 다시 올릴 필요 없음 · 서류 백업이 켜져 있을 때 · 안내서마다 한 번)']] },
             { v: 'V264', d: '2026-11-02', items: [
                 ['🛠 보안 점검 "주민번호처럼 보이는 숫자"를 더 엄격하게: 850315-1234567처럼 - 가 있거나 앞에 "주민"이라고 적힌 것만 (바코드 같은 13자리 숫자가 잘못 걸렸어요) · 어느 칸인지 · 앞자리만 같이 보여줘요', 'a']] },
             { v: 'V263', d: '2026-11-02', items: [
