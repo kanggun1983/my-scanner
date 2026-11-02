@@ -21690,6 +21690,7 @@ familyStr + `\n` +
                 <div class="rounded-2xl bg-white border border-gray-200 p-3"><p class="text-[14px] font-bold text-gray-900">다음 순서</p><p class="text-[12.5px] text-gray-600 mt-1 leading-relaxed">✍ 고객 서명 → 📤 안내서 문자 → 📋 개통등록</p></div>
             </div><footer class="bg-white border-t border-gray-200 p-3"><button type="button" data-rec="sign" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">✍ 서명받기 ▶</button></footer>`;
         }
+        function gdRecHide() { gdRecEl.querySelectorAll('audio').forEach(x => { try { x.pause(); } catch (e) { /* 무시 */ } }); gdRecEl.style.display = 'none'; gdRecEl.innerHTML = ''; }   // 🔇 V268 들어 보던 녹음은 창을 닫으면 멈춤
         function gdRecEl2(S) { return Math.max(0, Date.now() - S.t0 - (S.pausedMs || 0) - (S.pausedAt ? Date.now() - S.pausedAt : 0)); }   // ⏱ 멈춘 시간 빼고
         function gdRecReady() { const S = gdRecSt; if (!S) return; Object.assign(S, { stage: 'rec', items: gdRecScript(S.g), i: 0, mr: null, chunks: [], oks: new Set(), pausedMs: 0, pausedAt: 0 }); gdRecRender(); }
         async function gdRecStartRec() {
@@ -21726,15 +21727,15 @@ familyStr + `\n` +
         gdRecEl.addEventListener('click', async (e) => {
             const b = e.target.closest('[data-rec]'); if (!b || !gdRecSt) return;
             const S = gdRecSt, a = b.dataset.rec;
-            if (a === 'close') { if (S.mr && !(await customConfirm('녹음을 그만둘까요? 지금까지 녹음한 건 지워져요.'))) return; await gdRecStop(false); gdRecEl.style.display = 'none'; gdRecSt = null; return; }
-            if (a === 'skip') { gdRecEl.style.display = 'none'; const go = S.go; gdRecSt = null; go(); return; }
-            if (a === 'start' || a === 'redo') { if (a === 'redo') { const m = gdRecMem.get(S.g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(S.g.id); } gdRecReady(); return; }
+            if (a === 'close') { if (S.mr && !(await customConfirm('녹음을 그만둘까요? 지금까지 녹음한 건 지워져요.'))) return; await gdRecStop(false); gdRecHide(); gdRecSt = null; return; }
+            if (a === 'skip') { gdRecHide(); const go = S.go; gdRecSt = null; go(); return; }
+            if (a === 'start' || a === 'redo') { if (a === 'redo') { gdRecEl.querySelectorAll('audio').forEach(x => { try { x.pause(); } catch (e) { /* 무시 */ } }); const m = gdRecMem.get(S.g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(S.g.id); } gdRecReady(); return; }
             if (a === 'go' && S.stage === 'rec' && !S.mr) { await gdRecStartRec(); return; }
             if (a === 'pause' && S.mr && !S.pausedAt) { try { S.mr.pause(); } catch (e) { /* 무시 */ } S.pausedAt = Date.now(); gdRecRender(); return; }
             if (a === 'resume' && S.mr && S.pausedAt) { try { S.mr.resume(); } catch (e) { /* 무시 */ } S.pausedMs = (S.pausedMs || 0) + Date.now() - S.pausedAt; S.pausedAt = 0; gdRecRender(); return; }
             if (a === 'prev' && S.stage === 'rec' && S.mr && !S.pausedAt) { S.i = Math.max(0, S.i - 1); S.oks.delete(S.i); gdRecRender(); return; }
             if (a === 'next' && S.stage === 'rec' && S.mr && !S.pausedAt) { S.oks.add(S.i); if (S.i >= S.items.length - 1) { await gdRecStop(true); S.stage = 'done'; } else S.i++; gdRecRender(); return; }
-            if (a === 'sign') { gdRecEl.style.display = 'none'; const go = S.go; gdRecSt = null; go(); }
+            if (a === 'sign') { gdRecHide(); const go = S.go; gdRecSt = null; go(); }
         });
         // 서명 완료 → 녹음을 고객 서류로 (안내서 날짜 폴더) · 안내서 · 고객카드에 기록
         async function gdRecUpload(g) {
@@ -25667,6 +25668,7 @@ familyStr + `\n` +
         const WHATS_NEW = [
             { v: 'V268', d: '2026-11-03', items: [
                 ['🎙 구매 확인 녹음: 첫 화면 고객 안내를 크게 (직원용 작은 글씨는 뺌) · 녹음은 안내 문구 화면에서 [● 녹음 시작]을 눌러야 시작 · 중간에 [❚❚ 잠깐 멈춤] → [● 이어서 녹음] (멈춘 시간은 빼고 한 파일로)'],
+                ['🔇 녹음 완료 화면에서 들어 보던 녹음이 [서명받기]로 넘어가도 계속 나오던 것 고침 (창이 닫히면 바로 멈춤)'],
                 ['🗣 녹음 대본 말투를 자연스럽게: "유지해 주십시오" → "꼭 유지해 주셔야 합니다" · "확인해 주시기 바랍니다" · 남아 있던 "~예요"도 "~입니다"로']] },
             { v: 'V267', d: '2026-11-02', items: [
                 ['🎙 구매 안내서 서명 전 "구매 내용 확인 녹음": 안내서 내용으로 대본이 자동으로 나와요 (약정 · 위약금 · ⚠️ 요금제 하향 제한 필수 · 부가 · 결합 · 월 납부액 · 이전 통신사 …) → 직원이 읽고 고객 "네" → 서명하면 녹음이 고객 서류(드라이브)에 올라가요'],
