@@ -4063,14 +4063,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const noShowBusy = new Set();
         // 🤖 V255 자동으로 잡는 재연락 약속: 등록자 = 마지막으로 연락한 직원 → 담당자 (자동 작업을 돌린 폰 주인이 아니라) · promCallAuto 표시
         function autoPromBy(cur) { return managerKey((cur && cur.contactManager) || '') || ownerOf(cur || {}) || managerKey((cur && cur.manager) || '') || ''; }
-        const AUTO_PROM_RE = /^(📵 부재 재연락|🏬 .*\(자동\)|📇 명함: )/;
+        const AUTO_PROM_RE = /^(📵 부재 재연락|📵 못 받은 전화|🏬 .*\(자동\)|📇 명함: )/;   // 🛠 V262 '못 받은 전화 → 다시 걸기'도
         let autoPromFixed = false;
         function fixAutoPromBy() {   // 예전에 잘못 남은 등록자 한 번 바로잡기 (👑 대표 폰 · 한 번)
             if (autoPromFixed || !isSuperAdmin || !db || !dbLoaded) return; autoPromFixed = true;
-            try { if (localStorage.getItem('fixAutoProm255') === '1') return; } catch (e) { /* 무시 */ }
+            try { if (localStorage.getItem('fixAutoProm262') === '1') return; } catch (e) { /* 무시 */ }   // 🛠 V262 못 받은 전화 약속도 한 번 더 바로잡기
             const list = customerDB.filter(c => !c.deletedAt && !c.promCallChk && !c.promCallAuto && AUTO_PROM_RE.test(String(c.promCallMemo || '')) && String(c.promCallDate || '').length >= 10);
             Promise.allSettled(list.slice(0, 200).map(c => saveDoc(doc(db, 'smart_customers', c.id), { promCallBy: autoPromBy(c), promCallAuto: true }, { merge: true })))
-                .then(() => { try { localStorage.setItem('fixAutoProm255', '1'); } catch (e) { /* 무시 */ } });
+                .then(() => { try { localStorage.setItem('fixAutoProm262', '1'); } catch (e) { /* 무시 */ } });
         }
         function autoNoShowRecontact() {
             if (!db || !dbLoaded || !settingsLoaded || smsSetting('smsVisitNoShow') === false) return;
@@ -23825,13 +23825,16 @@ familyStr + `\n` +
             if (memo && r) up.obMemo = appendLine(cur.obMemo, `[${String(E.d.getMonth() + 1).padStart(2, '0')}/${String(E.d.getDate()).padStart(2, '0')}] ${r.label}: ${memo}`);
             if (!locked) {
                 if (r && r.status) up.salesStatus = r.status;
-                if (next && L.nextKind === 'visit') { up.promVisitDate = next; up.promVisitMemo = memo || '통화에서 방문 약속'; up.promVisitChk = false; }
-                else if (next) { up.promCallDate = next; up.promCallMemo = memo || `${(r && r.label) || '통화'} → 다시 연락`; up.promCallChk = false; }
+                // 🛠 V262 약속 등록자 = 통화한 직원 (👑 대표 폰이 30분 뒤 대신 반영해도 대표 이름으로 안 남게)
+                const by = managerKey(L.staff || '') || autoPromBy(cur);
+                if (next && L.nextKind === 'visit') { up.promVisitDate = next; up.promVisitMemo = memo || '통화에서 방문 약속'; up.promVisitChk = false; if (by) up.promVisitBy = by; }
+                else if (next) { up.promCallDate = next; up.promCallMemo = memo || `${(r && r.label) || '통화'} → 다시 연락`; up.promCallChk = false; if (by) { up.promCallBy = by; up.promCallAuto = false; } }
             }
             // 📵 V223 못 받은 고객 전화 → '오늘 할 일'에 콜백 약속 (이미 열린 연락 약속이 있으면 그대로) · 그 뒤 통화가 되면 저절로 끝
             const CBK = '📵 못 받은 전화';
             if (!locked && L.direction === 'missed' && Date.now() - E.d.getTime() < 3 * 86400e3 && !(cur.promCallDate && !cur.promCallChk) && !up.promCallDate) {
                 up.promCallDate = E.date; up.promCallMemo = `${CBK} (${String(E.d.getHours()).padStart(2, '0')}:${String(E.d.getMinutes()).padStart(2, '0')}) → 다시 걸기`; up.promCallChk = false;
+                up.promCallBy = autoPromBy(cur); up.promCallAuto = true;   // 🛠 V262 자동 약속 (예전엔 대신 반영한 👑 대표 폰 이름으로 남아 '강태훈님이 잡은 약속' 경고가 떴음)
             }
             if (!locked && (L.direction === 'in' || L.direction === 'out') && (Number(L.durationSec) || 0) > 0 && String(cur.promCallMemo || '').startsWith(CBK) && !cur.promCallChk && !up.promCallDate) up.promCallChk = true;
             return up;
@@ -25350,7 +25353,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V261';
+        const APP_VER = 'V262';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25358,6 +25361,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V262', d: '2026-11-02', items: [
+                ['🛠 콜매니저 "📵 못 받은 전화 → 다시 걸기" 약속이 대표 이름으로 남아 담당 직원 폰에 "⚠️ 강태훈님이 잡은 약속"이 뜨던 것 고침 → 이제 "🤖 자동" · 담당 직원 이름 (예전에 잘못 남은 것도 대표 폰에서 한 번 저절로 바로잡아요)'],
+                ['🛠 통화 결과에서 고른 다음 연락 · 방문 약속도 통화한 직원 이름으로 (대표 폰이 대신 반영해도)']] },
             { v: 'V261', d: '2026-11-02', items: [
                 ['🔗 공용 명함 문자 미리보기에 담당 직원 이름 · 사진: 링크가 kanggun1983.github.io/team/직원번호/?c=… 로 바뀌어요 (미리보기 "임호규 과장님의 명함") · 누르면 그 직원 공용 명함으로']] },
             { v: 'V260', d: '2026-11-02', items: [
