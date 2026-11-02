@@ -19135,6 +19135,7 @@ familyStr + `\n` +
                 if (isM) { try { const uo = !!(document.getElementById('ar-tg-usim') || {}).checked || /^유심/.test(arVal('ar-type')); await gdAfterAct(digits, arVal('ar-date'), { usimOnly: uo, model: uo ? '' : arVal('ar-model'), serial: uo ? '' : arVal('ar-serial') }); } catch (e) { console.warn(e); } }   // 📝 안내서와 묶기 (V202 · 3️⃣ 4️⃣ 조건 확인)
                 const fEl = document.getElementById('ar-files');
                 const files = fEl ? [...(fEl.files || [])] : [];
+                const actDay = /^\d{4}-\d{2}-\d{2}$/.test(p('date')) ? p('date') : '';   // 📅 V266 서류는 개통일(홈상품은 설치일) 월 폴더로
                 closeActReg();
                 // 📎 V265 서명한 안내서 → 그림(JPG)으로 만들어 서류에 자동 첨부 (한 번만 · 다운받아 다시 올릴 필요 없음)
                 let gdUp = '';
@@ -19145,7 +19146,7 @@ familyStr + `\n` +
                             showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
                             const url = await gdImage(g), blob = await (await fetch(url)).blob();
                             const gf = new File([blob], `구매안내서_${String(g.name || upd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || arVal('ar-date') || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
-                            const gr = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, [gf], null, { bundle: false });
+                            const gr = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, [gf], null, { bundle: false, date: actDay });
                             if (gr && gr.ok) { gdUp = '\n📎 서명한 안내서도 서류에 첨부했어요.'; setDoc(doc(db, 'smart_guides', g.id), { docAt: new Date().toISOString() }, { merge: true }).catch(e => console.warn(e)); }
                             else gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요. 안내서 화면에서 [다운] 뒤 직접 첨부해 주세요.';
                             hideUploadToast();
@@ -19154,7 +19155,7 @@ familyStr + `\n` +
                 }
                 if (files.length) {
                     showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
-                    const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
+                    const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { date: actDay }).catch(e => ({ ok: 0, errs: [e.message] }));
                     hideUploadToast();
                     customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n${docUpText(ur)}${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}${gdUp}`);
                 } else customAlert(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${gdUp}${keepLatest ? '\n📜 예전 날짜라 개통 기록에만 넣었어요 (고객 정보는 최근 개통 그대로).' : ''}${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
@@ -23597,34 +23598,46 @@ familyStr + `\n` +
         async function docUploadOne(cust, f, mode, today, custFolder, extra = {}) {
             if (f.size > 20 * 1024 * 1024) throw new Error(`${f.name}: 20MB가 넘어요`);
             const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
-            const r = mode === 'admin' ? await uploadViaScript(f, name, today.slice(0, 7), custFolder) : await uploadViaGis(f, name, today.slice(0, 7), custFolder);
+            const month = /^\d{4}-\d{2}$/.test(String(extra.__month || '')) ? extra.__month : today.slice(0, 7);   // 📁 V266 고객 폴더가 있는 달 (나중에 올린 서류도 같은 폴더로)
+            extra = { ...extra }; delete extra.__month;
+            const r = mode === 'admin' ? await uploadViaScript(f, name, month, custFolder) : await uploadViaGis(f, name, month, custFolder);
             const rid = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
             saveDoc(doc(db, 'smart_customers', cust.id), { docCount: increment(1), docAt: new Date().toISOString() }, { merge: true }).catch(e => console.error('서류 개수 저장 실패', e));
-            await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString(), ...extra });
+            await saveDoc(doc(db, 'doc_files', rid), { customerId: cust.id, customerName: cust.name || '', name: f.name, size: f.size, mime: f.type || '', fileId: r.id, url: r.url || '', mode, driveOwner: r.owner, uploader: myEmail(), uploaderName: getStaffName() || '', at: new Date().toISOString(), month, ...extra });
             return rid;
         }
-        function docBundleName(cust, pages) { return `서류묶음_${String(cust.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${getTodayStr().replace(/-/g, '')}_${pages}쪽.pdf`; }
+        // 📁 V266 이 고객 서류 폴더가 있는 달: 최근에 올린 서류의 달 → 없으면 개통일(무선 · 유선 중 최근) → 없으면 '' (오늘 달)
+        function docCustMonth(c) {
+            if (!c) return '';
+            const ids = new Set([c.id, ...prevIdsOf(c)]);
+            const recs = docFiles.filter(f => ids.has(f.customerId) && /^\d{4}-\d{2}$/.test(String(f.month || ''))).sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
+            if (recs.length) return recs[0].month;
+            const d = [c.activationDate, c.wiredDate].map(x => String(x || '').slice(0, 10)).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x)).sort().pop();
+            return d ? d.slice(0, 7) : '';
+        }
+        function docBundleName(cust, pages, day) { return `서류묶음_${String(cust.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(day || getTodayStr()).replace(/-/g, '')}_${pages}쪽.pdf`; }
         async function uploadDocFiles(cust, files, onProgress, opt = {}) {
             const mode = driveMode();
             if (mode === 'off') throw new Error('서류 백업이 꺼져 있어요. 총관리자가 설정 → 서류 클라우드 백업에서 켜야 해요.');
-            const today = getTodayStr(), custFolder = docCustFolder(cust);
+            const today = /^\d{4}-\d{2}-\d{2}$/.test(String(opt.date || '')) ? opt.date : getTodayStr(), custFolder = docCustFolder(cust);   // 📅 V266 개통등록에서 올리면 개통일 기준 (월 폴더 · 파일 이름 앞 날짜)
             let ok = 0, bundled = 0, parts = 0, rest = files; const errs = [];
+            const mx = /^\d{4}-\d{2}$/.test(String(opt.month || '')) ? { __month: opt.month } : {};   // 📁 V266
             if (opt.bundle !== false && docBundleOn() && files.length >= 2) {   // 📑 V216 한 묶음
                 try {
                     try { showUploadToast(`📑 서류 ${files.length}장을 PDF 한 묶음으로 만드는 중…`); } catch (e) { /* 무시 */ }
                     const B = await docBuildBundle(files);
                     if (B.blob && (B.pages >= 2 || !B.left.length)) {
-                        const pf = new File([B.blob], docBundleName(cust, B.pages), { type: 'application/pdf' });
+                        const pf = new File([B.blob], docBundleName(cust, B.pages, today), { type: 'application/pdf' });
                         if (onProgress) onProgress(1, 1 + B.left.length);
                         const inB = files.filter(f => !B.left.includes(f));
-                        await docUploadOne(cust, pf, mode, today, custFolder, { bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40) });
+                        await docUploadOne(cust, pf, mode, today, custFolder, { ...mx, bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40) });
                         ok++; bundled = B.pages; parts = inB.length; rest = B.left;
                     }
                 } catch (e) { console.warn('묶음 실패 → 따로 올림', e); errs.length = 0; }
             }
             for (let i = 0; i < rest.length; i++) {
                 if (onProgress) onProgress(i + 1 + (bundled ? 1 : 0), rest.length + (bundled ? 1 : 0));
-                try { await docUploadOne(cust, await prepUploadFile(rest[i]), mode, today, custFolder); ok++; }
+                try { await docUploadOne(cust, await prepUploadFile(rest[i]), mode, today, custFolder, mx); ok++; }
                 catch (e) { console.error(e); errs.push(e.message || String(e)); }
             }
             return { ok, errs, bundled, parts };
@@ -23670,7 +23683,7 @@ familyStr + `\n` +
                 if (!B.blob) { hideUploadToast(); return customAlert('PDF로 만들지 못했어요.'); }
                 const inB = used.filter((u, i) => !B.left.includes(files[i]));
                 showUploadToast('📑 묶음 올리는 중…');
-                const rid = await docUploadOne(c, new File([B.blob], docBundleName(c, B.pages), { type: 'application/pdf' }), mode, getTodayStr(), docCustFolder(c), { bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40), partIds: inB.map(f => f.id).slice(0, 40) });
+                const rid = await docUploadOne(c, new File([B.blob], docBundleName(c, B.pages), { type: 'application/pdf' }), mode, getTodayStr(), docCustFolder(c), { __month: docCustMonth(c), bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40), partIds: inB.map(f => f.id).slice(0, 40) });
                 await Promise.all(inB.map(f => saveDoc(doc(db, 'doc_files', f.id), { bundledIn: rid }, { merge: true }).catch(e => console.warn(e))));
                 hideUploadToast();
                 customAlert(`서류 ${inB.length}개를 PDF 한 묶음(${B.pages}쪽)으로 합쳤어요.\n이제 묶음 하나만 누르면 다 보여요.${skip.length ? `\n받지 못해 빠진 것: ${skip.slice(0, 3).join(', ')}` : ''}`);
@@ -24319,7 +24332,7 @@ familyStr + `\n` +
             docInput.value = '';
             if (!files.length || !docTarget) return;
             showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
-            const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`)).catch(e => ({ ok: 0, errs: [e.message] }));
+            const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { month: docCustMonth(docTarget) }).catch(e => ({ ok: 0, errs: [e.message] }));
             hideUploadToast();
             customAlert(r.errs.length ? `${docUpText(r)}\n못 올린 것: ${r.errs.slice(0, 3).join('\n')}` : `${docUpText(r)} (구글 드라이브)`);
         });
@@ -25461,7 +25474,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V265';
+        const APP_VER = 'V266';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25469,6 +25482,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V266', d: '2026-11-02', items: [
+                ['📅 개통등록에서 올린 서류(서명한 안내서 포함)는 올린 날이 아니라 개통일 기준 월 폴더 · 파일 이름 날짜로 (10/31 개통을 11/1에 올려도 2026-10 폴더)'],
+                ['📁 고객카드에서 나중에 올린 추가 서류 · PDF 합치기도 그 고객 원래 폴더로 (최근 서류가 있는 달 → 없으면 개통일 달)']] },
             { v: 'V265', d: '2026-11-02', items: [
                 ['📎 서명한 구매 안내서로 개통등록을 저장하면 그 안내서가 고객 서류에 자동으로 첨부돼요 (다운받아 다시 올릴 필요 없음 · 서류 백업이 켜져 있을 때 · 안내서마다 한 번)']] },
             { v: 'V264', d: '2026-11-02', items: [
