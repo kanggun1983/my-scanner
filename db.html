@@ -8043,18 +8043,29 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // ↩ V284 개통 전 카드 값 찾기: actPrev(V284부터 저장) → 없으면 변경 기록(editLog)의 '전' 값으로
         const ACT_SNAP_KEYS = ['carrier', 'device', 'deviceSerial', 'plan', 'fee', 'planFee', 'actType', 'discountType', 'installment', 'installment2', 'openDealer', 'openStore', 'repTargetPlan'];
         const ACT_SNAP_LAB = { carrier: '통신사', device: '단말기', deviceSerial: '일련번호', plan: '요금제', fee: '월 요금', planFee: '요금제 금액', actType: '개통 유형', discountType: '할인', installment: '할부', installment2: '이중할부', openDealer: '개통거래처', openStore: '개통점', repTargetPlan: '변경 후 요금제' };
+        const ACT_DETAIL_KEYS = ['prevCarrier', 'devicePrice', 'publicSupport', 'distSupport', 'switchSupport', 'tradeInDiscount', 'etcDiscount', 'instCardName', 'instCardDiscount', 'loanPrincipal', 'addons', 'insurance', 'discountCard', 'usimModel', 'usimSerial', 'policyItems', 'installmentBaseDate'];   // 🧾 V287 개통 상세 칸
+        ACT_SNAP_KEYS.push(...ACT_DETAIL_KEYS);
+        Object.assign(ACT_SNAP_LAB, { prevCarrier: '전통신사', devicePrice: '출고가', publicSupport: '공통지원금', distSupport: '유통망지원금', switchSupport: '전환지원금', tradeInDiscount: '중고보상할인', etcDiscount: '추가할인', instCardName: '할부카드', instCardDiscount: '할부카드 할인', loanPrincipal: '할부원금', addons: '부가서비스', insurance: '단말기보험', discountCard: '제휴카드', usimModel: '유심', usimSerial: '유심 일련번호', policyItems: '부가 · 보험 유지', installmentBaseDate: '할부 기준일' });
+        const actSame = (x, y) => JSON.stringify(x ?? '') === JSON.stringify(y ?? '') || ((x === '' || x == null || (Array.isArray(x) && !x.length)) && (y === '' || y == null || (Array.isArray(y) && !y.length)));
         function actPrevFor(c, a) {
             if (!c || !a || a.kind === '유선') return null;
-            if (c.actPrev && c.actPrev.date === a.date && c.actPrev.v && Object.keys(c.actPrev.v).length) return { v: c.actPrev.v, src: 'snap' };
-            const md = String(a.date).slice(5).replace('-', '/'), inv = {}; Object.entries(AUDIT_FIELDS).forEach(([k, l]) => { inv[l] = k; });
-            const L = editLogOf(c).slice().reverse(), e = L.find(e => e.c.some(x => (x.l === '개통일' && x.t === a.date) || (x.l === '개통 기록 추가' && String(x.t || '').startsWith(md))));
-            if (!e) return null;
-            const v = {}; e.c.forEach(x => { const k = inv[x.l]; if (!k || !ACT_SNAP_KEYS.includes(k) || String(x.f || '').endsWith('…')) return;
-                if (k === 'installment' || k === 'installment2') { if (!x.f) { v[k] = ''; return; } try { v[k] = JSON.parse(x.f); } catch (err) { /* 못 읽으면 건너뜀 */ } return; }
-                v[k] = x.f || ''; });
-            return Object.keys(v).length ? { v, src: 'log' } : null;
+            let v = null, src = '';
+            if (c.actPrev && c.actPrev.date === a.date && c.actPrev.v && Object.keys(c.actPrev.v).length) { v = { ...c.actPrev.v }; src = 'snap'; }
+            else {
+                const md = String(a.date).slice(5).replace('-', '/'), inv = {}; Object.entries(AUDIT_FIELDS).forEach(([k, l]) => { inv[l] = k; });
+                const e = editLogOf(c).slice().reverse().find(e => e.c.some(x => (x.l === '개통일' && x.t === a.date) || (x.l === '개통 기록 추가' && String(x.t || '').startsWith(md))));
+                if (e) { v = {}; src = 'log'; e.c.forEach(x => { const k = inv[x.l]; if (!k || !ACT_SNAP_KEYS.includes(k) || String(x.f || '').endsWith('…')) return;
+                    if ((k === 'installment' || k === 'installment2') && /^[{[]/.test(String(x.f || ''))) { try { v[k] = JSON.parse(x.f); } catch (err) { /* 못 읽으면 건너뜀 */ } return; }
+                    v[k] = x.f || ''; }); }
+            }
+            // 🧾 V287 취소한 개통 뒤 남은 무선 개통이 없으면, 그 개통으로 들어온 개통 상세(출고가 · 할부원금 · 부가 …)는 비우기 (보관 값이 없을 때)
+            const liveM = actsOf(c).filter(x => !x.canceled && x.kind !== '유선');
+            if (a.canceled && !liveM.length) { v = v || {}; src = src || 'log'; [...ACT_DETAIL_KEYS, 'actType'].forEach(k => { if (!(k in v) && c[k] !== undefined && !actSame(c[k], '')) v[k] = Array.isArray(c[k]) ? [] : ''; }); }
+            if (!v) return null;
+            Object.keys(v).forEach(k => { if (actSame(c[k], v[k])) delete v[k]; });   // 이미 그 값이면 뺌 (되돌린 뒤 버튼 사라짐)
+            return Object.keys(v).length ? { v, src } : null;
         }
-        const actPrevShow = (k, x) => { if (x === '' || x === null || x === undefined) return '(빈칸)'; if (typeof x === 'object') { const t = x.total || x.amount || x.price; return t ? `${Number(t).toLocaleString('ko-KR')}원${x.months ? ' / ' + x.months + '개월' : ''}` : JSON.stringify(x).slice(0, 30); } return String(x).slice(0, 30); };
+        const actPrevShow = (k, x) => { if (x === '' || x === null || x === undefined || (Array.isArray(x) && !x.length)) return '(빈칸)'; if (k === 'policyItems' && Array.isArray(x)) return x.filter(it => it && it.name).map(it => it.name).join(', ').slice(0, 30) || '(빈칸)'; if (/Price|Support|Discount|loanPrincipal/.test(k) && Number(x)) return `${Number(x).toLocaleString('ko-KR')}원`; if (typeof x === 'object') { const t = x.total || x.amount || x.price; return t ? `${Number(t).toLocaleString('ko-KR')}원${x.months ? ' / ' + x.months + '개월' : ''}` : JSON.stringify(x).slice(0, 30); } return String(x).slice(0, 30); };
         // 📜 V285 개통 기록 → 그 개통의 상세 (지금 카드 / 보관한 예전 카드 / 변경 기록에서 찾은 값)
         const ACT_CARD_KEYS = [['carrier', '통신사'], ['actType', '개통종류'], ['prevCarrier', '전통신사'], ['device', '단말기'], ['deviceSerial', '단말기 일련번호'], ['plan', '요금제'], ['fee', '월 요금'], ['discountType', '할인'], ['installment', '할부'],
             ['devicePrice', '출고가', 'won'], ['publicSupport', '공통지원금', 'won'], ['distSupport', '유통망지원금', 'won'], ['tradeInDiscount', '중고보상할인', 'won'], ['etcDiscount', '추가할인', 'won'], ['instCardName', '할부카드'], ['instCardDiscount', '할부카드 할인', 'won'], ['loanPrincipal', '할부원금', 'won'],
@@ -26338,7 +26349,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V286';
+        const APP_VER = 'V287';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26346,6 +26357,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V287', d: '2026-11-03', items: [
+                ['🧾 [↩ 카드 값 되돌리기]에 개통 상세(출고가 · 할부원금 · 부가서비스 · 부가 유지 · 개통종류 …)도: 남은 개통이 없으면 비우고, 앞으로는 개통 전 값을 통째로 보관해서 그대로 되돌려요', 'a']] },
             { v: 'V286', d: '2026-11-03', items: [
                 ['✅ 재연락 약속 자동 완료: 약속한 날(또는 지난 뒤)에 그 고객과 통화가 되면 (콜매니저 · 강CRM 통화 결과) 약속이 저절로 끝나요 · 앞날 약속 · 부재중 · 새 다음 연락일을 고른 통화는 그대로', 'a']] },
             { v: 'V285', d: '2026-11-03', items: [
