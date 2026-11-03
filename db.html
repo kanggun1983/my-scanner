@@ -20760,9 +20760,10 @@ familyStr + `\n` +
             if (hitU && mEl && stockKey(mEl.value) !== stockKey(hitU.model)) { mEl.value = hitU.model; mEl.dispatchEvent(new Event('input', { bubbles: true })); mEl.dispatchEvent(new Event('change', { bubbles: true })); stockToast(`💳 재고 유심이에요 · ${hitU.dealer} ${hitU.model} (저장하면 이 번호를 재고에서 빼요)`); return; }   // 💳 V292
             if (bcLastUsim && mEl && !mEl.value.trim() && bcLastUsim.sn === usimSn(arVal('ar-usimserial'))) { mEl.value = bcLastUsim.model; mEl.dispatchEvent(new Event('input', { bubbles: true })); mEl.dispatchEvent(new Event('change', { bubbles: true })); stockToast(`💳 유심 모델 '${bcLastUsim.model}' (바코드에 적힌 모델)`); return; }   // 💳 V292 LG 유심
             const m = document.getElementById('ar-usim'), pf = usimPfxOf(arVal('ar-usimserial')), map = stockData.usimPfx || {};
-            if (!m || m.value.trim() || !pf || !map[pf]) return;
-            m.value = map[pf]; m.dispatchEvent(new Event('input', { bubbles: true })); m.dispatchEvent(new Event('change', { bubbles: true }));
-            stockToast(`💳 유심 모델 '${map[pf]}' (전에 같은 번호대로 쓴 유심)`);
+            const sv = String(arVal('ar-usimserial') || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(), isk = /^898230/.test(sv) ? 'iss:KT' : (/^898205/.test(sv) || /^\d{5}\d{8}[A-Z]$/.test(sv) ? 'iss:SK' : ''), mv = (pf && map[pf]) || (isk && map[isk]) || '';   // 번호대 → 통신사에서 마지막으로 쓴 모델
+            if (!m || m.value.trim() || !mv) return;
+            m.value = mv; m.dispatchEvent(new Event('input', { bubbles: true })); m.dispatchEvent(new Event('change', { bubbles: true }));
+            stockToast(`💳 유심 모델 '${mv}' (전에 쓴 유심 · 다르면 고쳐 주세요)`);
         }
         arEl.addEventListener('change', (e) => { if (e.target.id === 'ar-serial') { clearTimeout(arStockT); arStockLookup(); } if (e.target.id === 'ar-store-sel' || e.target.id === 'ar-store') arStockSync(); });
 
@@ -20853,7 +20854,16 @@ familyStr + `\n` +
             return { text: v, fmt: f, cls, label, len };
         }
         // QR처럼 한 바코드에 여러 값('IMEI1:… S/N:…') → 번호처럼 생긴 것만 따로
-        function bcSplit(raw) {
+        function bcUsimTag(c) {   // 💳 V292 통신사별 유심 번호 (SK: 898205 뒤 · KT: 89… 전체 · 모델은 번호대로 배움)
+            if (!c || c.cls !== 'iccid' || c.model) return c;
+            const t = String(c.text || '').toUpperCase();
+            if (/^898205/.test(t)) { const v = t.slice(6); return { ...c, text: v, len: v.length, label: 'SK 유심 번호', iss: 'SK' }; }
+            if (/^898230/.test(t)) return { ...c, label: 'KT 유심 번호', iss: 'KT' };
+            if (/^898206/.test(t)) return { ...c, label: 'LG 유심 번호', iss: 'LG' };
+            return c;
+        }
+        function bcSplit(raw) { return bcSplit0(raw).map(bcUsimTag); }
+        function bcSplit0(raw) {
             const t = String((raw && raw.text) || '').trim();
             if (!t) return [];
             { const m = t.replace(/\s+/g, '').match(/^([A-Z]\d{4})[0-9A-Z]{0,4}[\/|-](\d{6,10})$/i);   // 💳 V292 LG 유심 바코드 'C492078/01924095' → 모델 C4920 · 번호 01924095 (유심에 찍힌 번호)
@@ -21212,7 +21222,7 @@ familyStr + `\n` +
         }
         // 📦 직접 입력 → 여러 대 연속 (한 줄에 하나씩 채움)
         // 💳 V292 유심 낱개: 번호로 재고 유심 찾기 · 입고 바코드 (거래처 고르고 한 장씩 → 모델은 번호 앞자리로 · 처음 보는 번호대는 고른 모델)
-        const usimSn = (v) => String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+        const usimSn = (v) => { const t = String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(); return /^898205\d{12,14}[A-Z]?$/.test(t) ? t.slice(6) : t; };   // 💳 V292 SK는 앞 898205 뺀 번호(유심에 찍힌 2404614470047F)
         function stockUsimBySerial(sn) { const v = usimSn(sn); if (v.length < 8) return null; return stockItems().find(x => !stockIsDev(x) && stockSt(x) === '재고' && (x.serials || []).includes(v)) || null; }
         function openUsimIn() {
             const dealers = stockDealerNames(true), d0 = stockFilter && !stockFilter.startsWith('__') ? stockFilter : (gdLS('usimInDealer', '') || dealers[0] || '');
@@ -21231,14 +21241,14 @@ familyStr + `\n` +
                 if (!dealer) return customAlert('거래처를 골라 주세요.');
                 if (!model) return customAlert('유심 모델을 넣어 주세요. (예: C4920)');
                 gdLSSet('usimInDealer', dealer); gdLSSet('usimInModel', model); sh.remove();
-                const got = new Map();   // 번호 → 모델
-                const modelOf = (v) => (stockData.usimPfx || {})[usimPfxOf(v)] || model;
+                const got = new Map(), iss = new Map();   // 번호 → 모델 · 통신사
+                const modelOf = (v, c) => { const map = stockData.usimPfx || {}; return (c && c.model) || map[usimPfxOf(v)] || (c && c.iss && map['iss:' + c.iss]) || model; };   // 번호대 → 통신사(SK · KT)에서 마지막으로 쓴 모델 → 고른 모델
                 openBarcode({ title: `💳 유심 입고 · ${dealer}`, field: 'usimIn', kind: 'usim', multi: true,
                     hint: '유심 카드 · 포장의 바코드를 한 장씩 비춰 주세요 (89로 시작하는 번호).',
-                    note: (c) => c.cls === 'iccid' ? `<span class="text-teal-700">${escapeHtml(c.model || modelOf(c.text))}</span>` : '',
+                    note: (c) => c.cls === 'iccid' ? `<span class="text-teal-700">${escapeHtml(modelOf(c.text, c))}</span>` : '',
                     skip: (v) => (usimSn(v).length < 8 ? '유심 번호가 아니에요' : (got.has(usimSn(v)) ? '이미 찍었어요' : (stockUsimBySerial(v) ? '이미 재고에 있어요' : ''))),
                     headText: () => `💳 <b class="text-teal-700 text-[15px]">${got.size}</b>장 찍음 <span class="font-medium text-gray-600">· ${escapeHtml(dealer)}</span>`,
-                    onPick: (v, c) => { got.set(usimSn(v), (c && c.model) || modelOf(v)); },
+                    onPick: (v, c) => { got.set(usimSn(v), modelOf(v, c)); if (c && c.iss) iss.set(usimSn(v), c.iss); },
                     onRemove: (v) => { got.delete(usimSn(v)); },
                     onDone: async () => {
                         if (!got.size) return;
@@ -21250,7 +21260,7 @@ familyStr + `\n` +
                                     if (!add.length) return;
                                     if (it) { const i = items.indexOf(it); items[i] = { ...it, qty: (Number(it.qty) || 0) + add.length, serials: [...(it.serials || []), ...add] }; }
                                     else items.push({ id: stockNewId(), dealer, kind: '유심', model: m, qty: add.length, serials: add, memo: '', st: '재고', at: getTodayStr(), by: getStaffName() || '' });
-                                    add.forEach(v => { const pf = usimPfxOf(v); if (pf && !pfx[pf]) pfx[pf] = m; }); });
+                                    add.forEach(v => { const pf = usimPfxOf(v); if (pf && !pfx[pf]) pfx[pf] = m; if (iss.get(v)) pfx['iss:' + iss.get(v)] = m; }); });
                                 return { ...cur, items, usimPfx: Object.fromEntries(Object.entries(pfx).slice(-60)) }; });
                             renderStock(); stockToast(`💳 유심 ${got.size}장 입고 · ${[...by.values()].map(x => `${x.m} ${x.l.length}`).join(' · ')}`);
                         } catch (err) { customAlert(koreanError(err, '저장')); }
@@ -23663,9 +23673,10 @@ familyStr + `\n` +
             const dev = it && !usimOnly && stockSerialMatch(it.serial, serial) && !(stockSt(it) === '개통' && it.tp === tp) ? it.id : '';
             const addMiss = !dev && !it && !usimOnly && serial && arStockAddMiss && !!(document.getElementById('ar-stock-addmiss') || {}).checked && !stockFind(stockNorm(serial), ['재고', '개통', '정리']).length;   // ➕ V288
             const pf = usimPfxOf(arVal('ar-usimserial')), um = arVal('ar-usim'), learn = pf && um && (stockData.usimPfx || {})[pf] !== um;   // 💳 V288
+            const rawU = String(arVal('ar-usimserial') || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(), issK = /^898230/.test(rawU) ? 'iss:KT' : (/^898205/.test(rawU) || /^\d{13}[A-Z]$/.test(rawU) ? 'iss:SK' : '');
             arStockAddMiss = false;
             if (!dev && !usimId && !addMiss && !learn) return;
-            stockTx(cur => ({ ...cur, ...(learn ? { usimPfx: Object.fromEntries(Object.entries({ ...(cur.usimPfx || {}), [pf]: um }).slice(-60)) } : {}), items: [...cur.items, ...(addMiss ? [{ id: stockNewId(), dealer: arVal('ar-store') || '거래처 없음', kind: '단말', model: arVal('ar-model'), color: arVal('ar-color'), serial, memo: '입고 누락 → 개통 때 추가', st: '개통', at: date || getTodayStr(), by: getStaffName() || '', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' }] : [])].map(x => {
+            stockTx(cur => ({ ...cur, ...(learn ? { usimPfx: Object.fromEntries(Object.entries({ ...(cur.usimPfx || {}), [pf]: um, ...(issK ? { [issK]: um } : {}) }).slice(-60)) } : {}), items: [...cur.items, ...(addMiss ? [{ id: stockNewId(), dealer: arVal('ar-store') || '거래처 없음', kind: '단말', model: arVal('ar-model'), color: arVal('ar-color'), serial, memo: '입고 누락 → 개통 때 추가', st: '개통', at: date || getTodayStr(), by: getStaffName() || '', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' }] : [])].map(x => {
                 if (dev && x.id === dev) return { ...x, st: '개통', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' };
                 if (usimId && x.id === usimId && !stockIsDev(x)) { const sn = usimSn(arVal('ar-usimserial')); return { ...x, qty: Math.max(0, (Number(x.qty) || 0) - 1), ...((x.serials || []).includes(sn) ? { serials: x.serials.filter(v => v !== sn) } : {}) }; }   // 💳 유심 재고 1개 빼기 · V292 그 번호도
                 return x;
@@ -26507,7 +26518,7 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V292', d: '2026-11-03', items: [
-                ['💳 유심 입고 바코드: 재고 탭 [💳 유심 입고] → 거래처 고르고 한 장씩 찍으면 수량 +1씩 · 모델은 번호 앞자리로 자동 (처음 보는 번호대는 고른 모델) · LG 유심(C492078/01924095)은 바코드의 모델 C4920 · 번호 01924095 그대로 · KT 유심은 89… 전체 번호', 'a'],
+                ['💳 유심 입고 바코드: 재고 탭 [💳 유심 입고] → 거래처 고르고 한 장씩 찍으면 수량 +1씩 · 모델은 번호 앞자리로 자동 (처음 보는 번호대는 고른 모델) · LG 유심(C492078/01924095)은 바코드의 모델 C4920 · 번호 01924095 그대로 · SK는 앞 898205를 뺀 번호(2404614470047F) · KT는 89… 전체 번호 · SK · KT 모델(C01 · F3005)은 한 번 고르면 기억', 'a'],
                 ['💳 유심 낱개 관리: 찍은 번호가 재고에 남아요 · 개통등록에서 그 번호를 찍으면 그 유심을 바로 빼요 (모델도 자동) · 개통 취소하면 번호도 다시 재고로 · 검색칸에 번호를 쳐도 찾아요', 'a']] },
             { v: 'V291', d: '2026-11-03', items: [
                 ['📦 재고 바코드: 상자 S/N(예: SMF971AV1165047)의 끝 7자리(1165047)로 바로 담아요 · 앞자리가 0이어도 그대로 · 다른 모양을 직접 고르면 그걸 기억', 'a']] },
