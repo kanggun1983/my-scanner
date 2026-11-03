@@ -604,6 +604,7 @@
             <div id="stockToolRow" class="grid grid-cols-2 gap-2">
                 <button type="button" id="stockAuditBtn" class="h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-[14px] font-bold text-indigo-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-barcode" aria-hidden="true"></i>재고 확인 (실사)</button>
                 <button type="button" id="stockExportBtn" class="h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-arrow-down text-emerald-700" aria-hidden="true"></i>엑셀 · PDF로 받기</button>
+                <button type="button" id="stockUsimInBtn" class="col-span-2 h-11 rounded-xl border border-teal-300 bg-teal-50 text-[14px] font-bold text-teal-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-sim-card" aria-hidden="true"></i>💳 유심 입고 (바코드로 한 장씩)</button>
                 <button type="button" id="stockResetBtn" class="hidden col-span-2 h-11 rounded-xl border border-red-200 bg-white text-[14px] font-bold text-red-700 items-center justify-center gap-1.5"><i class="fa-solid fa-trash-can" aria-hidden="true"></i>전체 초기화</button>
             </div>
             <div id="stockDealerHint"></div>
@@ -8147,7 +8148,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 });
                 if (stockN || a.usimStockId) await stockTx(cur => ({ ...cur, items: cur.items.map(x => {
                     if (stockOf(x)) return { ...x, st: '재고', sd: '', to: '', tp: '', sb: '' };
-                    if (a.usimStockId && x.id === a.usimStockId && !stockIsDev(x)) return { ...x, qty: (Number(x.qty) || 0) + 1 };
+                    if (a.usimStockId && x.id === a.usimStockId && !stockIsDev(x)) return { ...x, qty: (Number(x.qty) || 0) + 1, ...(a.usimSn && !(x.serials || []).includes(a.usimSn) ? { serials: [...(x.serials || []), a.usimSn] } : {}) };   // 💳 V292 번호도 되돌림
                     return x;
                 }) })).catch(e => console.warn('재고 되돌리기 실패', e));
                 renderGoalRow(); if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ }
@@ -19670,10 +19671,10 @@ familyStr + `\n` +
                 freshAct = !sameAct;   // 새 개통 → 그 개통 칸(부가·보험·미비서류·중고폰·월요금…)은 이번 값으로 (V195)
                 if (freshAct) { if (!(arNum('ar-planfee') > 0)) upd.planFee = ''; if (!(arNum('ar-targetfee') > 0)) upd.targetPlanFee = ''; if (!arUsedPhone()) upd.usedPhone = null; }
                 const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
-                const usimHit = arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null;
+                const usimHit = stockUsimBySerial(arVal('ar-usimserial')) || (arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null);   // 💳 V292 찍은 번호가 재고에 있으면 그 유심부터
                 if (usimHit && !(sameAct && sameAct.usimStockId)) usimNewId = usimHit.id;
                 const actRec = { date: d, kind: '무선', staff: arVal('ar-manager') || getStaffName() || '', store: arVal('ar-store'), shop: arVal('ar-shop'), carrier: arVal('ar-carrier'), mvno: (isMvno(arVal('ar-carrier')) && arVal('ar-mvno').slice(0, 30)) || undefined, actType: arVal('ar-type'), plan: arVal('ar-plan'), model: model || undefined, color: model ? arVal('ar-color') || undefined : undefined,
-                    planFee: arNum('ar-planfee') || undefined, device: model ? [model, arVal('ar-color')].filter(Boolean).join(' ') : (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), serial: usimOnly ? '' : arVal('ar-serial'), usim: arVal('ar-usim'), cardAmt: arNum('ar-cardamt') || undefined,
+                    planFee: arNum('ar-planfee') || undefined, device: model ? [model, arVal('ar-color')].filter(Boolean).join(' ') : (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), serial: usimOnly ? '' : arVal('ar-serial'), usim: arVal('ar-usim'), usimSn: usimSn(arVal('ar-usimserial')) || undefined, cardAmt: arNum('ar-cardamt') || undefined,
                     used: arUsedPhone() || undefined, promKeys: arKeepPlan().map(k => k.key), dist: arNum('ar-dist') || undefined,
                     stockId: arStockHit && !usimOnly && stockSerialMatch(arStockHit.serial, arVal('ar-serial')) ? arStockHit.id : undefined,
                     usimStockId: (sameAct && sameAct.usimStockId) || (usimHit ? usimHit.id : undefined), src: '개통등록', at: now, by: getStaffName() || '' };
@@ -19859,7 +19860,7 @@ familyStr + `\n` +
         function stockClean(x) {
             const o = { id: String(x.id || stockNewId()), dealer: String(x.dealer || '').trim().slice(0, 30), kind: x.kind === '유심' ? '유심' : '단말', model: String(x.model || '').trim().slice(0, 40), color: String(x.color || '').trim().slice(0, 20),
                 serial: String(x.serial || '').trim().slice(0, 40), memo: String(x.memo || '').trim().slice(0, 60), st: ['개통', '정리'].includes(x.st) ? x.st : '재고', at: String(x.at || getTodayStr()), by: String(x.by || getStaffName() || ''), o: Number(x.o) || 0 };
-            if (o.kind === '유심') o.qty = Math.max(0, Math.min(9999, parseInt(x.qty, 10) || 0));
+            if (o.kind === '유심') { o.qty = Math.max(0, Math.min(9999, parseInt(x.qty, 10) || 0)); if (Array.isArray(x.serials) && x.serials.length) o.serials = [...new Set(x.serials.map(v => String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase()).filter(v => v.length >= 10))].slice(-400); }   // 💳 V292 유심 낱개 번호
             if (o.st !== '재고') { o.sd = String(x.sd || getTodayStr()); if (x.to) o.to = String(x.to).slice(0, 30); if (x.tp) o.tp = String(x.tp).slice(0, 20); if (x.sb) o.sb = String(x.sb).slice(0, 20); }
             if (o.st === '정리' && STOCK_REASON[x.reason]) o.reason = x.reason;   // 🧹 V288 뺀 이유
             if (Array.isArray(x.log) && x.log.length) o.log = x.log.filter(l => l && l.t).slice(-STOCK_LOG_MAX).map(l => ({ t: String(l.t).slice(0, 6), at: String(l.at || '').slice(0, 16), by: String(l.by || '').slice(0, 12), ...(l.r ? { r: String(l.r).slice(0, 30) } : {}) }));   // 📜 V288 변동 기록
@@ -19946,7 +19947,7 @@ familyStr + `\n` +
             const chip = (v, label) => `<button type="button" data-stk-f="${escapeHtml(v)}" class="flex-shrink-0 h-10 px-3.5 rounded-full border text-[13px] font-bold ${stockKey(stockFilter) === stockKey(v) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-gray-300 text-gray-700'}">${label}</button>`;
             document.getElementById('stockChips').innerHTML = all.length || usedAny ? [all.length ? chip('', `전체 ${devs.length}`) : '', ...dealers.map(n => chip(n, `${escapeHtml(n)} ${devs.filter(x => stockKey(x.dealer) === stockKey(n)).length}`)), old.length ? chip('__old', `⏳ ${stockOldDays()}일↑ ${old.length}`) : '', SA.usim.length ? chip('__usimlow', `💳 유심 부족 ${SA.usim.length}`) : '', sold.length ? chip('__sold', `✅ 개통됨 ${sold.length}`) : '', cleaned.length ? chip('__clean', `🧹 정리됨 ${cleaned.length}`) : '', usedAny ? chip('__used', '📱 중고폰') : '', all.some(stockIsDev) ? chip('__turn', '📊 판매 회전') : '', isSuperAdmin && dealers.length ? '<button type="button" data-stk-merge class="flex-shrink-0 h-10 px-3.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">🔗 거래처 합치기</button>' : ''].join('') : '';
             const q = stockNorm(stockQuery);
-            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && (x.serials || []).some(v => stockNorm(v).includes(q))) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
             const listEl = document.getElementById('stockList');
             if (stockFilter === '__used') {   // 📱 중고폰 거래업체별 (개통 기록 기준 · 달마다)
                 const money = canSeeSettle(), byB = [];
@@ -19990,7 +19991,7 @@ familyStr + `\n` +
                     <div class="flex items-center justify-between gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200"><h3 class="text-[16px] font-extrabold text-gray-900 truncate">${escapeHtml(g.n)}${car ? ` <span class="ml-1 align-middle text-[11px] font-bold border rounded-full px-2 py-0.5 ${STOCK_CAR_TONE[car] || 'bg-gray-50 text-gray-600 border-gray-200'}">${escapeHtml(car)}</span>` : ''}</h3><span class="flex-shrink-0 text-[13px] font-bold text-gray-600">${g.dev.length}대${g.usim.length ? ` · 유심 ${g.usim.reduce((t, u) => t + (Number(u.qty) || 0), 0)}` : ''}</span></div>
                     ${models.map(m => `<div class="border-b border-gray-100 last:border-b-0"><div class="flex items-center justify-between px-3 pt-2.5 pb-0.5"><span class="text-[15px] font-extrabold text-gray-900">${escapeHtml(m.m || '모델 없음')}${stockModelName(m.m) ? ` <span class="text-[13px] font-bold text-indigo-700">${escapeHtml(stockModelName(m.m))}</span>` : ''}</span><span class="text-xs font-bold text-gray-500">${m.list.length}대</span></div>
                         ${m.list.map(x => `<button type="button" data-stk="${escapeHtml(x.id)}" class="w-full flex items-center gap-2 pl-5 pr-3 min-h-[44px] text-left hover:bg-gray-50"><span class="w-[72px] flex-shrink-0 text-[14px] text-gray-700 truncate">${escapeHtml(x.color || '-')}</span><span class="flex-1 min-w-0 font-mono text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.serial || '(일련번호 없음)')}</span>${ageOf(x) >= stockOldDays() ? `<span class="flex-shrink-0 text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="들어온 지 ${ageOf(x)}일">⏳${ageOf(x)}일</span>` : ''}${x.memo ? `<span class="flex-shrink-0 max-w-[96px] truncate text-[11px] font-bold text-red-700 bg-red-50 border border-red-100 rounded px-1.5 py-0.5">${escapeHtml(x.memo)}</span>` : ''}<i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`).join('')}
-                    ${g.usim.length ? `<div class="px-3 py-2.5 bg-gray-50/70 border-t border-gray-100"><p class="text-xs font-bold text-gray-500 mb-1.5">💳 유심</p><div class="flex flex-wrap gap-1.5">${g.usim.map(u => `<button type="button" data-stk="${escapeHtml(u.id)}" class="min-h-[36px] px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${escapeHtml(u.model || '유심')} <span class="text-indigo-700">${Number(u.qty) || 0}개</span>${u.memo ? ` <span class="font-medium text-gray-500">· ${escapeHtml(u.memo)}</span>` : ''}</button>`).join('')}</div></div>` : ''}
+                    ${g.usim.length ? `<div class="px-3 py-2.5 bg-gray-50/70 border-t border-gray-100"><p class="text-xs font-bold text-gray-500 mb-1.5">💳 유심</p><div class="flex flex-wrap gap-1.5">${g.usim.map(u => `<button type="button" data-stk="${escapeHtml(u.id)}" class="min-h-[36px] px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${escapeHtml(u.model || '유심')} <span class="text-indigo-700">${Number(u.qty) || 0}개</span>${(u.serials || []).length ? `<span class="text-teal-700 text-[11px]"> · 번호 ${u.serials.length}</span>` : ''}${u.memo ? ` <span class="font-medium text-gray-500">· ${escapeHtml(u.memo)}</span>` : ''}</button>`).join('')}</div></div>` : ''}
                     ${!q && stockNotesOf(g.n).length ? `<p class="px-3 py-2 text-xs text-gray-600 border-t border-gray-100">📝 ${stockNotesOf(g.n).map(escapeHtml).join(' · ')}</p>` : ''}
                 </section>`;
             }).join('') : `<p class="px-1 py-6 text-center text-sm text-gray-500">${q ? `'${escapeHtml(stockQuery)}' 재고가 없어요` : '재고가 없어요'}</p>`);
@@ -20063,7 +20064,7 @@ familyStr + `\n` +
         function stockExportRows(opt = stockExpOpt) {
             const view = opt.scope === 'view' && stockFilter !== '__used', f = view ? stockFilter : '', q = view ? stockNorm(stockQuery) : '';
             const today = getTodayStr(), ageOf = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(String(x.at || today).slice(0, 10))) / 86400000));
-            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
+            const hit = (x) => !q || [x.model, x.color, x.serial, x.dealer, x.memo, x.to].some(v => stockNorm(v).includes(q)) || (q.length >= 8 && (x.serials || []).some(v => stockNorm(v).includes(q))) || (q.length >= 8 && stockSerialMatch(x.serial, q));   // V201: 찍은 전체 번호 ↔ 끝자리만 적은 재고
             const order = stockDealerNames(true), oi = (d) => { const i = order.findIndex(n => stockKey(n) === stockKey(d)); return i < 0 ? 999 : i; };
             const stRank = { 재고: 0, 개통: 1, 정리: 2 };
             return stockItems().filter(x => {
@@ -20755,6 +20756,8 @@ familyStr + `\n` +
         // 💳 V288 유심 일련번호(바코드) 앞자리 → 유심 모델 자동 (한 번 같이 저장하면 배워요 · 모델 칸이 비어 있을 때만)
         const usimPfxOf = (sn) => { const v = String(sn || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(); return v.length >= 12 ? v.slice(0, 10) : ''; };
         function arUsimFromSerial() {
+            const hitU = stockUsimBySerial(arVal('ar-usimserial')), mEl = document.getElementById('ar-usim');
+            if (hitU && mEl && stockKey(mEl.value) !== stockKey(hitU.model)) { mEl.value = hitU.model; mEl.dispatchEvent(new Event('input', { bubbles: true })); mEl.dispatchEvent(new Event('change', { bubbles: true })); stockToast(`💳 재고 유심이에요 · ${hitU.dealer} ${hitU.model} (저장하면 이 번호를 재고에서 빼요)`); return; }   // 💳 V292
             const m = document.getElementById('ar-usim'), pf = usimPfxOf(arVal('ar-usimserial')), map = stockData.usimPfx || {};
             if (!m || m.value.trim() || !pf || !map[pf]) return;
             m.value = map[pf]; m.dispatchEvent(new Event('input', { bubbles: true })); m.dispatchEvent(new Event('change', { bubbles: true }));
@@ -21203,6 +21206,52 @@ familyStr + `\n` +
             if (await customConfirm(`📦 재고에 없는 번호예요\n${v}\n\n이 번호로 재고를 넣을까요?`)) { openStockEdit(''); const ta = document.getElementById('st-serials'); if (ta) ta.value = v; }
         }
         // 📦 직접 입력 → 여러 대 연속 (한 줄에 하나씩 채움)
+        // 💳 V292 유심 낱개: 번호로 재고 유심 찾기 · 입고 바코드 (거래처 고르고 한 장씩 → 모델은 번호 앞자리로 · 처음 보는 번호대는 고른 모델)
+        const usimSn = (v) => String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+        function stockUsimBySerial(sn) { const v = usimSn(sn); if (v.length < 10) return null; return stockItems().find(x => !stockIsDev(x) && stockSt(x) === '재고' && (x.serials || []).includes(v)) || null; }
+        function openUsimIn() {
+            const dealers = stockDealerNames(true), d0 = stockFilter && !stockFilter.startsWith('__') ? stockFilter : (gdLS('usimInDealer', '') || dealers[0] || '');
+            const models = [...new Set(stockItems().filter(x => !stockIsDev(x)).map(x => x.model).filter(Boolean))];
+            const sh = document.createElement('div'); sh.id = 'usimInSheet'; sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+            sh.innerHTML = `<div class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-4 space-y-3" role="dialog" aria-modal="true"><div class="flex items-center justify-between"><h2 class="text-[18px] font-bold text-gray-900">💳 유심 입고 (바코드)</h2><button type="button" data-ui-x class="w-11 h-11 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">거래처</span><select id="ui-dealer" class="${stCls}">${dealers.map(n => `<option value="${escapeHtml(n)}" ${stockKey(n) === stockKey(d0) ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('')}</select></label>
+                <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">유심 모델 <span class="font-medium text-gray-500">(처음 보는 번호대에 쓸 모델 · 아는 번호대는 자동)</span></span><input id="ui-model" list="uiModels" value="${escapeHtml(gdLS('usimInModel', '') || models[0] || '')}" placeholder="예) C4920" class="${stCls} font-bold"><datalist id="uiModels">${models.map(m => `<option value="${escapeHtml(m)}"></option>`).join('')}</datalist></label>
+                <p class="text-[12px] text-gray-500 leading-relaxed">유심 카드 · 포장의 바코드를 한 장씩 비추면 쌓여요. [완료]를 누르면 그 거래처 유심 수량이 찍은 장수만큼 늘고, 번호도 재고에 남아요 (개통 때 찍은 번호면 그 유심을 바로 빼요).</p>
+                <button type="button" data-ui-go class="w-full h-12 rounded-xl bg-teal-600 text-white text-[15px] font-bold">📷 찍기 시작</button></div>`;
+            document.body.appendChild(sh);
+            sh.addEventListener('click', (e) => {
+                if (e.target === sh || e.target.closest('[data-ui-x]')) { sh.remove(); return; }
+                if (!e.target.closest('[data-ui-go]')) return;
+                const dealer = document.getElementById('ui-dealer').value, model = String(document.getElementById('ui-model').value || '').trim();
+                if (!dealer) return customAlert('거래처를 골라 주세요.');
+                if (!model) return customAlert('유심 모델을 넣어 주세요. (예: C4920)');
+                gdLSSet('usimInDealer', dealer); gdLSSet('usimInModel', model); sh.remove();
+                const got = new Map();   // 번호 → 모델
+                const modelOf = (v) => (stockData.usimPfx || {})[usimPfxOf(v)] || model;
+                openBarcode({ title: `💳 유심 입고 · ${dealer}`, field: 'usimIn', kind: 'usim', multi: true,
+                    hint: '유심 카드 · 포장의 바코드를 한 장씩 비춰 주세요 (89로 시작하는 번호).',
+                    note: (c) => c.cls === 'iccid' ? `<span class="text-teal-700">${escapeHtml(modelOf(c.text))}</span>` : '',
+                    skip: (v) => (usimSn(v).length < 10 ? '유심 번호가 아니에요' : (got.has(usimSn(v)) ? '이미 찍었어요' : (stockUsimBySerial(v) ? '이미 재고에 있어요' : ''))),
+                    headText: () => `💳 <b class="text-teal-700 text-[15px]">${got.size}</b>장 찍음 <span class="font-medium text-gray-600">· ${escapeHtml(dealer)}</span>`,
+                    onPick: (v) => { got.set(usimSn(v), modelOf(v)); },
+                    onRemove: (v) => { got.delete(usimSn(v)); },
+                    onDone: async () => {
+                        if (!got.size) return;
+                        const by = new Map(); got.forEach((m, sn) => { const k = stockKey(m); if (!by.has(k)) by.set(k, { m, l: [] }); by.get(k).l.push(sn); });
+                        try {
+                            await stockTx(cur => { const items = cur.items.slice(), pfx = { ...(cur.usimPfx || {}) };
+                                by.forEach(({ m, l }) => { let it = items.find(x => !stockIsDev(x) && stockSt(x) === '재고' && stockKey(x.dealer) === stockKey(dealer) && stockKey(x.model) === stockKey(m) && !/고품|불량/.test(x.memo || ''));
+                                    const have = new Set(items.filter(x => !stockIsDev(x)).flatMap(x => x.serials || [])), add = l.filter(v => !have.has(v));
+                                    if (!add.length) return;
+                                    if (it) { const i = items.indexOf(it); items[i] = { ...it, qty: (Number(it.qty) || 0) + add.length, serials: [...(it.serials || []), ...add] }; }
+                                    else items.push({ id: stockNewId(), dealer, kind: '유심', model: m, qty: add.length, serials: add, memo: '', st: '재고', at: getTodayStr(), by: getStaffName() || '' });
+                                    add.forEach(v => { const pf = usimPfxOf(v); if (pf && !pfx[pf]) pfx[pf] = m; }); });
+                                return { ...cur, items, usimPfx: Object.fromEntries(Object.entries(pfx).slice(-60)) }; });
+                            renderStock(); stockToast(`💳 유심 ${got.size}장 입고 · ${[...by.values()].map(x => `${x.m} ${x.l.length}`).join(' · ')}`);
+                        } catch (err) { customAlert(koreanError(err, '저장')); }
+                    } });
+            });
+        }
         function bcStockMulti() {
             const ta = () => document.getElementById('st-serials');
             const lines = () => { const t = ta(); return t ? t.value.split(/[\n,]+/).map(x => x.trim()).filter(Boolean) : []; };
@@ -21278,6 +21327,7 @@ familyStr + `\n` +
                         stockTx(cur => ({ ...cur, items: cur.items.map(x => ids.has(x.id) && stockSt(x) === '재고' ? { ...x, st: '정리', sd: today, to: '재고 확인 때 없음', reason: r } : x) })).then(() => { sh.remove(); renderStock(); stockToast(`🧹 ${ids.size}대를 재고에서 뺐어요`); }).catch(err => customAlert(koreanError(err, '저장'))); }); }
             });
         }
+        document.getElementById('stockUsimInBtn').addEventListener('click', openUsimIn);   // 💳 V292
         document.getElementById('stockAuditBtn').addEventListener('click', () => { if (bcAuditLoad().ids.size) bcAuditResult(); else bcAuditStart(true); });   // 오늘 찍던 게 있으면 결과부터 (이어서 · 처음부터)
 
         // 🔎 고객 찾기: 단말 · 유심 · 중고폰 · 개통 기록의 일련번호 (끝자리 ↔ 전체 번호 둘 다)
@@ -23612,7 +23662,7 @@ familyStr + `\n` +
             if (!dev && !usimId && !addMiss && !learn) return;
             stockTx(cur => ({ ...cur, ...(learn ? { usimPfx: Object.fromEntries(Object.entries({ ...(cur.usimPfx || {}), [pf]: um }).slice(-60)) } : {}), items: [...cur.items, ...(addMiss ? [{ id: stockNewId(), dealer: arVal('ar-store') || '거래처 없음', kind: '단말', model: arVal('ar-model'), color: arVal('ar-color'), serial, memo: '입고 누락 → 개통 때 추가', st: '개통', at: date || getTodayStr(), by: getStaffName() || '', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' }] : [])].map(x => {
                 if (dev && x.id === dev) return { ...x, st: '개통', sd: date || getTodayStr(), to: name || '', tp, sb: getStaffName() || '' };
-                if (usimId && x.id === usimId && !stockIsDev(x)) return { ...x, qty: Math.max(0, (Number(x.qty) || 0) - 1) };   // 💳 유심 재고 1개 빼기
+                if (usimId && x.id === usimId && !stockIsDev(x)) { const sn = usimSn(arVal('ar-usimserial')); return { ...x, qty: Math.max(0, (Number(x.qty) || 0) - 1), ...((x.serials || []).includes(sn) ? { serials: x.serials.filter(v => v !== sn) } : {}) }; }   // 💳 유심 재고 1개 빼기 · V292 그 번호도
                 return x;
             }) })).catch(e => { console.warn('재고 처리 실패', e); stockToast('⚠ 재고 반영을 못 했어요 (인터넷 확인 후 재고 탭에서 확인)'); });
         }
@@ -26443,7 +26493,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V291';
+        const APP_VER = 'V292';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26451,6 +26501,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V292', d: '2026-11-03', items: [
+                ['💳 유심 입고 바코드: 재고 탭 [💳 유심 입고] → 거래처 고르고 한 장씩 찍으면 수량 +1씩 · 모델은 번호 앞자리로 자동 (처음 보는 번호대는 고른 모델)', 'a'],
+                ['💳 유심 낱개 관리: 찍은 번호가 재고에 남아요 · 개통등록에서 그 번호를 찍으면 그 유심을 바로 빼요 (모델도 자동) · 개통 취소하면 번호도 다시 재고로 · 검색칸에 번호를 쳐도 찾아요', 'a']] },
             { v: 'V291', d: '2026-11-03', items: [
                 ['📦 재고 바코드: 상자 S/N(예: SMF971AV1165047)의 끝 7자리(1165047)로 바로 담아요 · 앞자리가 0이어도 그대로 · 다른 모양을 직접 고르면 그걸 기억', 'a']] },
             { v: 'V290', d: '2026-11-03', items: [
