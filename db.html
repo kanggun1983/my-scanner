@@ -1001,11 +1001,11 @@
                         </div></details>
                         <div id="mvnoRulesBox" class="mt-2"></div>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="hidden flex items-center justify-between gap-3" data-v273-off>
                         <label class="flex items-center gap-2 text-[15px] font-bold text-gray-900 min-w-0"><input type="checkbox" id="autoAddonOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>부가서비스 해지 <span class="text-xs font-normal text-gray-500 block">부가를 적었을 때</span></span></label>
                         <span class="w-28 flex-shrink-0"><select id="keepAddon" aria-label="부가서비스 해지 기본 조건" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select></span>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="hidden flex items-center justify-between gap-3" data-v273-off>
                         <label class="flex items-center gap-2 text-[15px] font-bold text-gray-900 min-w-0"><input type="checkbox" id="autoInsOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>보험 해지 <span class="text-xs font-normal text-gray-500 block">보험을 적었을 때</span></span></label>
                         <span class="w-28 flex-shrink-0"><select id="keepIns" aria-label="보험 해지 기본 조건" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select></span>
                     </div>
@@ -3903,11 +3903,23 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { id: 'h', name: '헬로모바일', match: ['헬로모바일', 'LG헬로모바일', 'CJ헬로모바일'], keep: 215, down: 0, noCall: '개통 2달째부터 5달째까지 음성통화 합 10분 이상', doc: 0, short: 31 }
         ];
         const mvnoNorm = (x) => String(x || '').replace(/\s|\(.*?\)/g, '').toLowerCase();
-        function mvnoRules() { const r = appSettings && Array.isArray(appSettings.mvnoRules) ? appSettings.mvnoRules : null; return (r && r.length ? r : MVNO_RULES_DEF).filter(x => x && Number(x.keep) > 0); }
-        function mvnoRuleFor(carrier, brand) {
+        // 🏢 V272 알뜰 거래처별: 심코리아(=심커넥트SK/KT/LG) · 고고모바일 — 거래처 이름에 '고고'가 있으면 고고모바일 표, 아니면 심코리아 표
+        const MVNO_SETS = [{ id: 'sim', name: '심코리아(심커넥트)', key: 'mvnoRules' }, { id: 'gogo', name: '고고모바일', key: 'mvnoRulesGogo' }];
+        const mvnoSetOf = (dealer) => /고고/.test(String(dealer || '')) ? 'gogo' : 'sim';
+        function mvnoRules(set = 'sim') { const S = MVNO_SETS.find(x => x.id === set) || MVNO_SETS[0], r = appSettings && Array.isArray(appSettings[S.key]) ? appSettings[S.key] : null; return (r && r.length ? r : (S.id === 'sim' ? MVNO_RULES_DEF : [])).filter(x => x && Number(x.keep) > 0); }
+        // 🏢 V273 거래처마다 표 (거래처 수정 화면) · 아직 안 넣은 거래처는 이름으로 예전 표(심커넥트/심코리아 → 심코리아 · 고고 → 고고모바일)
+        function dealerMvnoRules(d) {
+            if (!d) return [];
+            if (Array.isArray(d.mvnoRules)) return d.mvnoRules.filter(x => Number(x.keep) > 0);
+            if (/심커넥트|심코리아/.test(d.name)) return mvnoRules('sim');
+            if (/고고/.test(d.name)) return mvnoRules('gogo');
+            return [];
+        }
+        function mvnoRuleFor(carrier, brand, dealer) {
             if (!/^알뜰/.test(String(carrier || '')) || !brand || (appSettings && appSettings.mvnoRulesOn === false)) return null;
             const b = mvnoNorm(brand); if (!b) return null;
-            return mvnoRules().find(r => [r.name, ...(r.match || [])].some(m => { const n = mvnoNorm(m); return n && (b === n || b.includes(n) || n.includes(b)); })) || null;
+            const D = typeof dealer === 'object' ? dealer : (dealer ? dealerByName(dealer) : null);
+            return dealerMvnoRules(D).find(r => [r.name, ...(r.match || [])].some(m => { const n = mvnoNorm(m); return n && (b === n || b.includes(n) || n.includes(b)); })) || null;
         }
         const mvnoKeepCode = (r) => r ? 'D' + (Number(r.keep) + MVNO_BUF) : '';
         const mvnoDownCode = (r) => r && Number(r.down) > 0 ? 'D' + (Number(r.down) + MVNO_BUF) : '';
@@ -4077,7 +4089,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const valid = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
             const base = [valid(c.activationDate), valid(c.salesStatusAt), valid(c.wiredDate)].filter(Boolean).sort().pop() || valid(c.visitDate);   // 유선 개통도 판매로 침
             if (!base) return '';
-            const mr = mvnoRuleFor(c.carrier, c.mvnoBrand); if (mr) return computeKeepDate(base, mvnoKeepCode(mr));   // 📶 V271 알뜰폰은 브랜드 유지일(+2일) 지나면 '미정'
+            const mr = mvnoRuleFor(c.carrier, c.mvnoBrand, c.openDealer); if (mr) return computeKeepDate(base, mvnoKeepCode(mr));   // 📶 V271 알뜰폰은 브랜드 유지일(+2일) 지나면 '미정'
             return computeKeepDate(base, 'M6');
         }
         // 💙 가망고객 하나로 (V175) — 예전 '가망고객(문자발송)'·'가망고객(OB콜)'을 '가망고객 (진행중)'으로 · 👑 총관리자 폰에서 · 31일 자동 정리 날짜(statusAt)는 그대로
@@ -9306,7 +9318,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 planPub: String(d.planPub !== undefined ? d.planPub : (d.plan || '')), planSel: String(d.planSel !== undefined ? d.planSel : (d.plan || '')), planDist: String(d.planDist || ''),   /* V211 · 예전 '요금제 유지'는 공시 · 선약 둘 다로 */
                 addons: [0, 1, 2].map(i => { const x = (Array.isArray(d.addons) ? d.addons[i] : null) || {}; return { name: String(x.name || '').trim().slice(0, 30), code: String(x.code || ''), amount: dlAmt(x.amount) }; }),
                 ins: { name: String((d.ins && d.ins.name) || '').trim().slice(0, 30), code: String((d.ins && d.ins.code) || ''), amount: dlAmt(d.ins && d.ins.amount) },
-                grade: dlAmt(d.grade), distAdd: dlAmt(d.distAdd), card: dlAmt(d.card), cardDev: dlAmt(d.cardDev !== undefined ? d.cardDev : d.card) }));   /* V212 card = 요금DC카드 · cardDev = 단말할인카드 (예전 값은 둘 다로) */
+                grade: dlAmt(d.grade), distAdd: dlAmt(d.distAdd), card: dlAmt(d.card), cardDev: dlAmt(d.cardDev !== undefined ? d.cardDev : d.card),
+                mvnoRules: Array.isArray(d.mvnoRules) ? d.mvnoRules.filter(x => x && String(x.name || '').trim()).map(x => ({ id: String(x.id || ''), name: String(x.name).trim().slice(0, 30), match: Array.isArray(x.match) ? x.match.map(String).slice(0, 8) : [], keep: Math.max(0, Math.min(730, parseInt(x.keep, 10) || 0)), down: Math.max(0, Math.min(730, parseInt(x.down, 10) || 0)), noCall: String(x.noCall || '').slice(0, 80), doc: parseInt(x.doc, 10) || 0, short: parseInt(x.short, 10) || 0 })) : null }));   /* 📶 V273 알뜰 거래처 브랜드별 유지기간 (null = 아직 안 넣음) */   /* V212 card = 요금DC카드 · cardDev = 단말할인카드 (예전 값은 둘 다로) */
         }
         function dealerByName(name) {   // 띄어쓰기·대소문자 상관없이 (V192) · 🔗 합친 거래처의 예전 이름으로도 (V203)
             const key = (v) => String(v || '').replace(/\s+/g, '').toUpperCase(), n = key(name);
@@ -9332,6 +9345,30 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return [first, ...(first[0] === '' && first[2] ? [['NONE', '만들지 않기']] : []), ...list.map(k => [k, keepLabel(k)]), ['__CUSTOM__', '직접 입력…']]
                 .map(([v, l]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${escapeHtml(l)}</option>`).join('');
         }
+        /* 📶 V273 알뜰 거래처 수정 화면: 브랜드별 유지기간 표 (사진 · 엑셀 · 다른 거래처 표 복사) */
+        function dlmHtml(d, lock) {
+            const R = dealerMvnoRules(d), legacy = !Array.isArray(d.mvnoRules) && R.length;
+            const others = dealerList().filter(x => x.id !== d.id && isMvno(x.carrier) && dealerMvnoRules(x).length);
+            const inp = (k, i, v, cls) => `<input data-dlm-${k}="${i}" value="${escapeHtml(String(v || ''))}" ${k === 'name' ? 'placeholder="브랜드 (예: KT M모바일)"' : 'type="number" inputmode="numeric" min="0" max="730"'} ${lock ? 'disabled' : ''} class="h-10 min-w-0 w-full px-2 border border-gray-300 rounded-lg text-[14px] ${cls} bg-white disabled:bg-gray-50">`;
+            return `<div class="rounded-xl bg-yellow-50/70 border border-yellow-200 p-2 space-y-1.5" data-dlm>
+                <p class="text-xs font-bold text-yellow-900">📶 브랜드별 유지기간 <span class="font-medium text-yellow-800">· 개통등록 · 안내서 · '미정' 자동 변경에 일수 + ${MVNO_BUF}일로 (표에 있는 브랜드는 위 '요금제 유지'보다 먼저)</span></p>
+                ${legacy ? '<p class="text-[11px] text-yellow-800">지금은 예전 공통 표(심코리아 기본값)를 쓰는 중이에요. 고치면 이 거래처 표로 저장돼요.</p>' : ''}
+                <div class="grid gap-1.5 items-center text-[11px] font-bold text-gray-600" style="grid-template-columns:1fr 64px 64px 32px"><span>브랜드</span><span class="text-right">유지 D+</span><span class="text-right">하향 D+</span><span></span>
+                ${R.map((r, i) => `${inp('name', i, r.name, 'font-bold')}${inp('keep', i, r.keep, 'text-right')}${inp('down', i, r.down, 'text-right')}<button type="button" data-dlm-del="${i}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg text-gray-400 text-lg" aria-label="${escapeHtml(r.name)} 지우기">✕</button>`).join('')}
+                ${R.length ? '' : '<span class="text-[12px] font-medium text-gray-500 py-1" style="grid-column:1/-1">아직 없어요. 정책표 사진 · 엑셀을 올리거나 [+ 브랜드]로 넣어요.</span>'}</div>
+                ${lock ? '' : `<div class="grid grid-cols-3 gap-1.5"><button type="button" data-dlm-add class="h-10 rounded-lg border border-yellow-300 bg-white text-[12px] font-bold text-yellow-900">+ 브랜드</button><button type="button" data-dlm-photo class="h-10 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800">📷 사진</button><button type="button" data-dlm-xlsx class="h-10 rounded-lg border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-800">📄 엑셀</button></div>
+                ${others.length ? `<select data-dlm-copy class="h-10 w-full px-2 border border-gray-300 rounded-lg text-[13px] bg-white"><option value="">📋 다른 거래처 표 그대로 복사…</option>${others.map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)} (${dealerMvnoRules(x).length}곳)</option>`).join('')}</select>` : ''}`}
+            </div>`;
+        }
+        function dlmSave(id, rules) { const next = dealerList().map(x => x.id === id ? { ...x, mvnoRules: rules } : x); saveDealers(next, true); }
+        function dlmRead(card, d) {   // 화면 칸 → 표 (이름이 바뀐 줄은 강CRM 브랜드 이름과 다시 연결)
+            const base = dealerMvnoRules(d);
+            return [...card.querySelectorAll('[data-dlm-name]')].map(el => { const i = +el.dataset.dlmName, b = base[i] || {}, name = el.value.trim().slice(0, 30);
+                const num = (k) => Math.max(0, Math.min(730, parseInt((card.querySelector(`[data-dlm-${k}="${i}"]`) || {}).value, 10) || 0));
+                const known = MVNO_BRANDS.filter(x => { const n = mvnoNorm(x), m = mvnoNorm(name); return m && (n.includes(m) || m.includes(n)); });
+                return { id: b.id || 'r' + Date.now().toString(36) + i, name, match: name === b.name ? (b.match || []) : [...new Set([name, ...known])], keep: num('keep'), down: num('down'), noCall: b.noCall || '', doc: b.doc || 0, short: b.short || 0 };
+            }).filter(r => r.name);
+        }
         let dealerOpenId = '', dealerSaveT = null;
         function renderDealers() {
             const box = document.getElementById('dealerList'); if (!box) return;
@@ -9352,6 +9389,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         <label class="block min-w-0 text-[11px] font-bold text-gray-600">선약<select data-dl="ps" class="mt-0.5 ${f.replace('text-[15px]', 'text-[14px]')}" ${lock ? 'disabled' : ''}>${dealerKeepOpts(d.planSel, ['', plabel, 1])}</select></label>
                         <label class="block min-w-0 text-[11px] font-bold text-gray-600 leading-tight">+ 유통망지원금<select data-dl="pd" class="mt-0.5 ${f.replace('text-[15px]', 'text-[14px]')}" ${lock ? 'disabled' : ''}>${dealerKeepOpts(d.planDist, ['', `기본 (${d.carrier ? keepLabel(planDistFor(d.carrier)) : '통신사 기본'})`, 1])}</select></label></div>
                         <p class="text-[11px] text-gray-600 leading-snug">유통망지원금을 쓰면 공시 · 선약 둘 다 오른쪽 칸으로 잡혀요. '기본'은 아래 통신사 기본의 '유통망지원금 쓰면' 칸이에요.</p></div>
+                    ${isMvno(d.carrier) ? dlmHtml(d, lock) : ''}
                     ${money ? '<p class="text-[11px] font-bold text-gray-500 -mb-1">부가 · 보험: 이름 · 유지 · <span class="text-emerald-700">정책 추가(+)</span> / <span class="text-red-600">차감(−)</span> 금액</p>' : ''}
                     ${d.addons.map((a, i) => row(`부가 ${i + 1}`, `an${i}`, `ac${i}`, a.name, a.code, `aa${i}`, a.amount)).join('')}
                     ${row('보험', 'in', 'ic', d.ins.name, d.ins.code, 'ia', d.ins.amount)}
@@ -9397,6 +9435,17 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         });
         document.getElementById('dealerList').addEventListener('click', async (e) => {
             const op = e.target.closest('[data-dl-open]'); if (op) { dealerOpenId = op.dataset.dlOpen; renderDealers(); return; }
+            {   // 📶 V273 알뜰 표
+                const card = e.target.closest('[data-dl-card]'), dm = e.target.closest('[data-dlm-add],[data-dlm-del],[data-dlm-photo],[data-dlm-xlsx]');
+                if (card && dm && isSuperAdmin) {
+                    const id = card.dataset.dlCard, d = dealerList().find(x => x.id === id); if (!d) return;
+                    if (dm.hasAttribute('data-dlm-add')) { dlmSave(id, [...dlmRead(card, d), { id: 'r' + Date.now().toString(36), name: '새 브랜드', match: [], keep: 0, down: 0, noCall: '', doc: 0, short: 0 }]); renderDealers(); return; }
+                    if (dm.hasAttribute('data-dlm-del')) { const R = dlmRead(card, d), r = R[+dm.dataset.dlmDel]; if (!r || !(await customConfirm(`${r.name} 줄을 지울까요?`))) return; R.splice(+dm.dataset.dlmDel, 1); dlmSave(id, R); renderDealers(); return; }
+                    const T = { title: d.name, cur: dealerMvnoRules(d), save: async (next) => { dlmSave(id, next); setTimeout(renderDealers, 50); } };
+                    if (dm.hasAttribute('data-dlm-photo')) { if (!geminiApiKey) return customAlert('사진 읽기는 AI 키가 필요해요. 설정 → AI 키를 먼저 넣어주세요.'); mvrPick('image/*', (f) => mvrFromPhoto(f, T)); return; }
+                    if (dm.hasAttribute('data-dlm-xlsx')) { mvrPick('.xlsx,.xls,.csv', (f) => mvrFromXlsx(f, T)); return; }
+                }
+            }
             const sg = e.target.closest('[data-dl-sign]');
             if (sg) {   // 💰 V211 추가(+) ↔ 차감(−)
                 if (!can('editPolicy')) return;
@@ -9444,6 +9493,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         };
         document.getElementById('dealerList').addEventListener('input', (e) => { if (e.target.matches('input[data-dl]')) dealerEdit(e); });
         document.getElementById('dealerList').addEventListener('change', dealerEdit);
+        document.getElementById('dealerList').addEventListener('change', async (e) => {   // 📶 V273 알뜰 표 칸 · 복사
+            const card = e.target.closest('[data-dl-card]'); if (!card || !isSuperAdmin) return;
+            const id = card.dataset.dlCard, d = dealerList().find(x => x.id === id); if (!d) return;
+            if (e.target.matches('[data-dlm-copy]')) { const src = dealerList().find(x => x.id === e.target.value); if (!src) return; if (!(await customConfirm(`${src.name} 표(${dealerMvnoRules(src).length}곳)를 ${d.name}에 그대로 넣을까요? 지금 표는 바뀌어요.`))) { e.target.value = ''; return; } dlmSave(id, dealerMvnoRules(src).map(r => ({ ...r }))); renderDealers(); stockToast('📋 표를 복사했어요'); return; }
+            if (e.target.matches('[data-dlm-name],[data-dlm-keep],[data-dlm-down]')) dlmSave(id, dlmRead(card, d));
+        });
         document.getElementById('dealerList').addEventListener('focusin', (e) => { if (e.target.matches('select[data-dl], input[data-dl="name"]')) e.target.dataset.prev = e.target.value; });
         // 거래처 이름을 바꾸면 📦 재고의 거래처 이름도 같이 (연결이 안 끊기게 · V192)
         document.getElementById('dealerList').addEventListener('change', (e) => {
@@ -14835,12 +14890,11 @@ ${AI_TONES[aiSmsTone]}
         }
         function resetReportKeep() {
             const carrier = document.getElementById('rep-carrier').value || (reportCustomerData ? reportCustomerData.carrier : '');
-            const mrR = mvnoRuleFor(carrier, reportCustomerData && reportCustomerData.mvnoBrand);   // 📶 V271
+            const mrR = mvnoRuleFor(carrier, reportCustomerData && reportCustomerData.mvnoBrand, reportCustomerData && reportCustomerData.openDealer);   // 📶 V271
             const plans = mrR ? [mvnoKeepCode(mrR)] : planChoicesFor(carrier);
             reportKeep = {
                 plan: plans[0] || 'NONE',
-                addon: appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault,
-                ins: appSettings.insDefault || AUTO_PROMISE_DEFAULTS.insDefault
+                addon: 'NONE', ins: 'NONE'   // 🏢 V273 부가 · 보험 해지 공통 기본값 없앰 → 거래처 조건으로만
             };
             KEEP_TYPES.forEach(t => { document.getElementById(`repKeepDays_${t}`).value = ''; });
             renderReportKeep();
@@ -17386,24 +17440,100 @@ familyStr + `\n` +
         // 📶 V271 설정 → 알뜰폰 브랜드별 유지기간 (👑 대표가 고침 · 매장 공용)
         function mvnoRulesRender() {
             const box = document.getElementById('mvnoRulesBox'); if (!box) return;
-            const list = mvnoRules(), on = appSettings.mvnoRulesOn !== false, lock = !isSuperAdmin;
+            if (!box.dataset.legacy) { box.innerHTML = `<p class="rounded-xl border border-yellow-200 bg-yellow-50/60 px-3 py-2 text-[13px] text-yellow-900 leading-relaxed">📶 <b>알뜰폰 브랜드별 유지기간</b>은 이제 <b>거래처마다</b> 넣어요 → 🏢 거래처별 조건에서 알뜰 거래처(심커넥트 · 고고모바일) [수정]. 거래처를 안 고르면 자동 유지일이 안 잡혀요.</p>`; return; }
+            const setId = box.dataset.set || 'sim', SET = MVNO_SETS.find(x => x.id === setId), list = mvnoRules(setId), on = appSettings.mvnoRulesOn !== false, lock = !isSuperAdmin;
             const inp = (r, k) => `<input type="number" inputmode="numeric" min="0" max="730" data-mvr="${escapeHtml(r.id)}" data-mvk="${k}" value="${Number(r[k]) || ''}" ${lock ? 'disabled' : ''} class="w-full h-10 px-2 border border-gray-300 rounded-lg text-[15px] text-right disabled:bg-gray-50">`;
-            box.innerHTML = `<details class="rounded-xl border border-yellow-200 bg-yellow-50/50 px-3 py-2" ${box.dataset.open ? 'open' : ''}><summary class="cursor-pointer text-[14px] font-bold text-yellow-900 py-1">📶 알뜰폰 브랜드별 유지기간 <span class="font-medium text-yellow-700">· ${on ? `${list.length}곳 · 여유 +${MVNO_BUF}일` : '꺼짐'}</span></summary>
-                <p class="text-xs text-gray-600 leading-relaxed mt-1">개통등록 · 안내서에서 알뜰폰 브랜드를 넣으면 이 일수 + ${MVNO_BUF}일로 요금제 유지가 자동으로 잡혀요. 개통완료 → '미정'도 이 날짜가 지나야 풀려요 (다른 통신사는 M+6 그대로). 기본값: 심코리아 MVNO 표 (2026.11)</p>
+            box.innerHTML = `<details class="rounded-xl border border-yellow-200 bg-yellow-50/50 px-3 py-2" ${box.dataset.open ? 'open' : ''}><summary class="cursor-pointer text-[14px] font-bold text-yellow-900 py-1">📶 알뜰폰 브랜드별 유지기간 <span class="font-medium text-yellow-700">· ${on ? `거래처 ${MVNO_SETS.length}곳 · 여유 +${MVNO_BUF}일` : '꺼짐'}</span></summary>
+                <div class="grid grid-cols-2 gap-1.5 mt-2">${MVNO_SETS.map(x => `<button type="button" data-mvr-set="${x.id}" class="h-10 rounded-xl text-[13px] font-bold border border-yellow-300 ${x.id === setId ? 'text-white' : 'bg-white text-yellow-900'}" ${x.id === setId ? 'style="background:#ca8a04;border-color:#ca8a04"' : ''}>🏢 ${x.name} <span class="font-medium">${mvnoRules(x.id).length}</span></button>`).join('')}</div>
+                <p class="text-xs text-gray-600 leading-relaxed mt-1">개통등록 · 안내서에서 알뜰폰 브랜드를 넣으면 이 일수 + ${MVNO_BUF}일로 요금제 유지가 자동으로 잡혀요. 개통완료 → '미정'도 이 날짜가 지나야 풀려요 (다른 통신사는 M+6 그대로). 거래처 이름에 '고고'가 있으면 고고모바일 표, 아니면 심코리아(심커넥트SK/KT/LG) 표를 써요.${setId === 'sim' ? ' 기본값: 심코리아 MVNO 표 (2026.11)' : ''}</p>
                 <label class="flex items-center gap-2 mt-2 text-[14px] font-bold text-gray-900"><input type="checkbox" data-mvr-on ${on ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">브랜드별 유지기간 쓰기</label>
                 <div class="grid gap-1.5 items-center mt-2 text-[12px] font-bold text-gray-600" style="grid-template-columns:1fr 76px 76px"><span>브랜드</span><span class="text-right">유지 D+</span><span class="text-right">하향 D+</span>
+                ${list.length ? '' : `<span class="text-[13px] font-medium text-gray-500 py-2" style="grid-column:1/-1">아직 없어요. ${SET.name} 정책표를 [📷 사진] · [📄 엑셀]로 올려 주세요. 그 전에는 ${SET.name} 개통 알뜰폰은 자동 유지일이 안 잡혀요.</span>`}
                 ${list.map(r => `<span class="text-[14px] text-gray-900">${escapeHtml(r.name)}<span class="block text-[11px] font-medium text-gray-500">${escapeHtml((r.match || []).slice(0, 3).join(' · '))}</span></span>${inp(r, 'keep')}${inp(r, 'down')}`).join('')}</div>
-                ${lock ? '<p class="text-xs text-gray-500 mt-2">👑 대표만 고칠 수 있어요</p>' : `<div class="flex gap-2 mt-2"><button type="button" data-mvr-save class="flex-1 h-10 rounded-xl bg-indigo-600 text-white text-[13px] font-bold">저장</button><button type="button" data-mvr-reset class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">기본값</button></div>`}</details>`;
+                ${lock ? '<p class="text-xs text-gray-500 mt-2">👑 대표만 고칠 수 있어요</p>' : `<div class="grid grid-cols-2 gap-2 mt-2"><button type="button" data-mvr-photo class="h-10 rounded-xl border border-indigo-200 bg-indigo-50 text-[13px] font-bold text-indigo-800">📷 정책표 사진으로</button><button type="button" data-mvr-xlsx class="h-10 rounded-xl border border-emerald-200 bg-emerald-50 text-[13px] font-bold text-emerald-800">📄 엑셀로</button></div><div class="flex gap-2 mt-2"><button type="button" data-mvr-save class="flex-1 h-10 rounded-xl bg-indigo-600 text-white text-[13px] font-bold">저장</button><button type="button" data-mvr-reset class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">${setId === 'sim' ? '기본값' : '지우기'}</button></div>`}</details>`;
             const dt = box.querySelector('details'); dt.addEventListener('toggle', () => { box.dataset.open = dt.open ? '1' : ''; });
             box.onclick = async (e) => {
-                if (e.target.closest('[data-mvr-reset]')) { if (!(await customConfirm('알뜰폰 유지기간을 기본값(심코리아 표)으로 되돌릴까요?'))) return; await saveDoc(doc(db, 'smart_global', 'settings'), { mvnoRules: [] }, { merge: true }); appSettings.mvnoRules = []; mvnoRulesRender(); stockToast('📶 기본값으로 되돌렸어요'); return; }
+                const st = e.target.closest('[data-mvr-set]'); if (st) { box.dataset.set = st.dataset.mvrSet; box.dataset.open = '1'; mvnoRulesRender(); return; }
+                if (e.target.closest('[data-mvr-photo]')) { if (!geminiApiKey) return customAlert('사진 읽기는 AI 키가 필요해요. 설정 → AI 키를 먼저 넣어주세요.'); mvrPick('image/*', (f) => mvrFromPhoto(f, { title: SET.name, cur: list, save: async (next) => { await saveDoc(doc(db, 'smart_global', 'settings'), { [SET.key]: next }, { merge: true }); appSettings[SET.key] = next; mvnoRulesRender(); } })); return; }
+                if (e.target.closest('[data-mvr-xlsx]')) { mvrPick('.xlsx,.xls,.csv', (f) => mvrFromXlsx(f, { title: SET.name, cur: list, save: async (next) => { await saveDoc(doc(db, 'smart_global', 'settings'), { [SET.key]: next }, { merge: true }); appSettings[SET.key] = next; mvnoRulesRender(); } })); return; }
+                if (e.target.closest('[data-mvr-reset]')) { if (!(await customConfirm(setId === 'sim' ? '심코리아 유지기간을 기본값(심코리아 표)으로 되돌릴까요?' : `${SET.name} 유지기간을 모두 지울까요?`))) return; await saveDoc(doc(db, 'smart_global', 'settings'), { [SET.key]: [] }, { merge: true }); appSettings[SET.key] = []; mvnoRulesRender(); stockToast(setId === 'sim' ? '📶 기본값으로 되돌렸어요' : '📶 지웠어요'); return; }
                 if (!e.target.closest('[data-mvr-save]')) return;
-                const next = mvnoRules().map(r => ({ ...r }));
+                const next = mvnoRules(setId).map(r => ({ ...r }));
                 box.querySelectorAll('[data-mvr]').forEach(el => { const r = next.find(x => x.id === el.dataset.mvr); if (r) r[el.dataset.mvk] = Math.max(0, Math.min(730, parseInt(el.value, 10) || 0)); });
                 const onV = !!(box.querySelector('[data-mvr-on]') || {}).checked;
-                await saveDoc(doc(db, 'smart_global', 'settings'), { mvnoRules: next, mvnoRulesOn: onV }, { merge: true });
-                appSettings.mvnoRules = next; appSettings.mvnoRulesOn = onV; mvnoRulesRender(); stockToast('📶 알뜰폰 유지기간을 저장했어요');
+                await saveDoc(doc(db, 'smart_global', 'settings'), { [SET.key]: next, mvnoRulesOn: onV }, { merge: true });
+                appSettings[SET.key] = next; appSettings.mvnoRulesOn = onV; mvnoRulesRender(); stockToast('📶 알뜰폰 유지기간을 저장했어요');
             };
+        }
+        /* 📶 V272 알뜰폰 유지기간 — 정책표 사진(AI) · 엑셀로 바꾸기 → 비교 화면에서 확인 후 적용 (없는 브랜드는 그대로 둠) */
+        function mvrPick(accept, fn) { const f = document.createElement('input'); f.type = 'file'; f.accept = accept; f.onchange = () => { const x = f.files && f.files[0]; if (x) fn(x); }; f.click(); }
+        const mvrDays = (v) => { const t = String(v == null ? '' : v); const m = t.match(/D\s*\+?\s*(\d{1,3})/i) || t.match(/^\s*(\d{1,3})\s*(일)?\s*$/); return m ? Math.min(730, parseInt(m[1], 10)) : 0; };
+        async function mvrFromPhoto(file, T) {
+            try {
+                showUploadToast('📷 정책표를 AI가 읽는 중… (30초쯤)');
+                const data = await photoToB64(file);
+                const prompt = `한국 알뜰폰(MVNO) "통신사별 유지기간 및 환수기준" 표 사진이야. 브랜드(통신사)마다 아래를 JSON으로 줘.
+- brand: 브랜드 이름 그대로 (예: "유모바일", "M모바일", "텔링크", "헬로모바일")
+- keep: 유지기간 일수 숫자 (예: "D+183" → 183)
+- down: 요금제 하향이 환수되는 마지막 날 일수 (예: "요금제 D+183일이내 하향시 환수" → 183, "정지/요금제변경 D+185 이내" → 185, 하향 조건이 따로 없으면 0)
+- noCall: 무통화 기준을 짧게 (예: "개통 후 3개월 안에 통화 20분 또는 데이터 200MB"), 없으면 ""
+- doc: 서류 보완 기한 일수 (예: "D+2일 이내 미보완" → 2, "D+5 경과" → 5), 없으면 0
+- short: 초단기 해지 기준 일수 (예: "D+31일이내 초단기 해지" → 31), 없으면 0
+표에 있는 브랜드는 빠짐없이. 금액은 넣지 말 것.`;
+                const S = { type: 'OBJECT', properties: { rules: { type: 'ARRAY', items: { type: 'OBJECT', properties: { brand: { type: 'STRING' }, keep: { type: 'NUMBER' }, down: { type: 'NUMBER' }, noCall: { type: 'STRING' }, doc: { type: 'NUMBER' }, short: { type: 'NUMBER' } }, required: ['brand', 'keep'] } } }, required: ['rules'] };
+                const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data } }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: S, temperature: 0 } }, { timeoutMs: 120000, onRetry: (l) => showUploadToast(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
+                hideUploadToast();
+                const j = JSON.parse(text);
+                mvrReview((j.rules || []).map(r => ({ brand: String(r.brand || '').trim(), keep: mvrDays(r.keep), down: mvrDays(r.down), noCall: String(r.noCall || '').trim().slice(0, 80), doc: mvrDays(r.doc), short: mvrDays(r.short) })), '📷 사진', T);
+            } catch (err) { hideUploadToast(); console.error(err); customAlert(`사진을 읽지 못했어요.\n${err.reason || err.message || ''}`); }
+        }
+        async function mvrFromXlsx(file, T) {
+            try {
+                const X = await loadSheetJS(), wb = X.read(await file.arrayBuffer(), { type: 'array' });
+                const rows = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' }).map(r => r.map(x => String(x).trim()));
+                const hi = rows.findIndex(r => r.some(x => /브랜드|통신사|회사/.test(x)) && r.some(x => /유지/.test(x)));
+                if (hi < 0) return customAlert('엑셀 첫 줄에 "브랜드(또는 통신사)"와 "유지기간" 칸이 있어야 해요.\n예) 브랜드 | 유지기간 | 하향 | 무통화 | 서류 | 초단기');
+                const H = rows[hi], col = (re) => H.findIndex(x => re.test(x));
+                const cB = col(/브랜드|통신사|회사/), cK = col(/유지/), cD = col(/하향/), cN = col(/무통화|통화/), cDoc = col(/서류/), cS = col(/초단기/);
+                const list = rows.slice(hi + 1).filter(r => r[cB] && mvrDays(r[cK])).map(r => ({ brand: r[cB], keep: mvrDays(r[cK]), down: cD >= 0 ? mvrDays(r[cD]) : 0, noCall: cN >= 0 ? String(r[cN]).slice(0, 80) : '', doc: cDoc >= 0 ? mvrDays(r[cDoc]) : 0, short: cS >= 0 ? mvrDays(r[cS]) : 0 }));
+                mvrReview(list, '📄 엑셀', T);
+            } catch (err) { console.error(err); customAlert(`엑셀을 읽지 못했어요.\n${err.message || ''}`); }
+        }
+        function mvrReview(incoming, src, T) {
+            incoming = incoming.filter(r => r.brand && r.keep > 0);
+            if (!incoming.length) return customAlert('유지기간을 읽지 못했어요. 표가 잘 보이게 다시 올려 주세요.');
+            const cur = (T.cur || []).map(r => ({ ...r, match: [...(r.match || [])] }));
+            const findCur = (b) => { const n = mvnoNorm(b); return cur.find(r => [r.name, ...(r.match || [])].some(m => { const x = mvnoNorm(m); return x && (x === n || x.includes(n) || n.includes(x)); })); };
+            const rows = incoming.map((r, i) => { const c = findCur(r.brand); return { i, r, c, on: true }; });
+            const sh = document.createElement('div'); sh.className = 'fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center'; sh.style.zIndex = 76;
+            const cell = (k, v, i) => `<input type="number" inputmode="numeric" min="0" max="730" data-mvi="${i}" data-mvk="${k}" value="${v || ''}" class="w-full h-9 px-1.5 border border-gray-300 rounded-lg text-[14px] text-right">`;
+            const diff = (o, n) => o === undefined ? '' : (Number(o) || 0) === (Number(n) || 0) ? '<span class="text-gray-400">그대로</span>' : `<span class="text-red-700 font-bold">${Number(o) || '-'} → ${Number(n) || '-'}</span>`;
+            sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3" role="dialog" aria-label="알뜰폰 유지기간 바꾸기">
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">📶 알뜰폰 유지기간 바꾸기</p><p class="text-xs text-gray-600">🏢 ${escapeHtml(T.title || '')} · ${src}에서 ${rows.length}곳 읽었어요 · 숫자를 원본과 맞춰 보고 [적용]</p></div><button type="button" data-mvx="close" class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <p class="text-[12px] font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2">AI · 엑셀이 읽은 값이에요. 틀리면 칸에서 고치세요. 표에 없는 브랜드는 지우지 않고 그대로 둬요. 실제 적용은 일수 + ${MVNO_BUF}일이에요.</p>
+                ${rows.map(x => `<div class="rounded-xl border ${x.c ? 'border-gray-200' : 'border-emerald-300 bg-emerald-50/40'} p-2.5 space-y-1.5">
+                    <label class="flex items-center gap-2 text-[14px] font-bold text-gray-900"><input type="checkbox" data-mvon="${x.i}" checked class="w-5 h-5 accent-indigo-600">${escapeHtml(x.r.brand)} ${x.c ? `<span class="text-[11px] font-medium text-gray-500">→ ${escapeHtml(x.c.name)}</span>` : '<span class="text-[11px] font-bold text-emerald-700">➕ 새 브랜드</span>'}</label>
+                    <div class="grid gap-1.5 items-center text-[12px] text-gray-600" style="grid-template-columns:44px 1fr 1fr"><span>유지</span>${cell('keep', x.r.keep, x.i)}<span class="text-[11px]">${diff(x.c && x.c.keep, x.r.keep)}</span><span>하향</span>${cell('down', x.r.down, x.i)}<span class="text-[11px]">${diff(x.c && x.c.down, x.r.down)}</span></div>
+                    ${x.r.noCall ? `<p class="text-[11px] text-gray-500">무통화: ${escapeHtml(x.r.noCall)}${x.r.doc ? ` · 서류 D+${x.r.doc}` : ''}${x.r.short ? ` · 초단기 D+${x.r.short}` : ''}</p>` : ''}</div>`).join('')}
+                <button type="button" data-mvx="ok" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">적용</button></div>`;
+            sh.addEventListener('click', async (e) => {
+                const a = (e.target.closest('[data-mvx]') || {}).dataset; if (!a || !a.mvx) return;
+                if (a.mvx === 'close') { sh.remove(); return; }
+                const next = cur.map(r => ({ ...r }));
+                rows.forEach(x => {
+                    if (!(sh.querySelector(`[data-mvon="${x.i}"]`) || {}).checked) return;
+                    const v = (k) => Math.max(0, Math.min(730, parseInt((sh.querySelector(`[data-mvi="${x.i}"][data-mvk="${k}"]`) || {}).value, 10) || 0));
+                    const keep = v('keep'); if (!keep) return;
+                    const t = x.c ? next.find(r => r.id === x.c.id) : null;
+                    const upd = { keep, down: v('down'), ...(x.r.noCall ? { noCall: x.r.noCall } : {}), ...(x.r.doc ? { doc: x.r.doc } : {}), ...(x.r.short ? { short: x.r.short } : {}) };
+                    if (t) Object.assign(t, upd);
+                    else { const known = MVNO_BRANDS.filter(b => { const n = mvnoNorm(b), m = mvnoNorm(x.r.brand); return n.includes(m) || m.includes(n); }); next.push({ id: 'x' + Date.now().toString(36) + x.i, name: x.r.brand, match: [...new Set([x.r.brand, ...known])], noCall: '', doc: 0, short: 0, ...upd }); }
+                });
+                try { await T.save(next); }
+                catch (err) { return customAlert(`저장하지 못했어요.\n${err.message || ''}`); }
+                sh.remove(); stockToast(`📶 알뜰폰 유지기간 ${rows.length}곳을 확인해서 적용했어요`);
+            });
+            document.body.appendChild(sh);
         }
         function secSubRender() {
             const sec = document.getElementById('secCheckSec'); if (!sec) return;
@@ -18478,7 +18608,7 @@ familyStr + `\n` +
         const arSupNow = () => (document.querySelector('input[name="ar-sup"]:checked') || {}).value || '선약';
         const arDistOn = () => arNum('ar-dist') > 0 && !((document.getElementById('ar-tg-usim') || {}).checked);
         function arPlanWhy() {   // 🏢 V211 요금제 유지가 어디서 왔는지 (거래처 · 공시/선약 · 유통망지원금)
-            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(arVal('ar-carrier'), arVal('ar-mvno')); if (mr) return { code: mvnoKeepCode(mr), why: `📶 ${mr.name} 유지 D+${mr.keep} + 여유 ${MVNO_BUF}일` }; }   // 📶 V271
+            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(arVal('ar-carrier'), arVal('ar-mvno'), arDealer); if (mr) return { code: mvnoKeepCode(mr), why: `📶 ${mr.name} 유지 D+${mr.keep} + 여유 ${MVNO_BUF}일` }; }   // 📶 V271
             if (!arDealer) return arDistOn() && appSettings.autoPlanOn !== false ? { code: planDistFor(arVal('ar-carrier')), why: `${arSupNow()} + 유통망지원금`, base: true } : null;   // 🏷 V213 거래처 없이도 유통망지원금이면 통신사 기본 오른쪽 칸
             if (arDistOn()) return { code: dealerDistCode(arDealer, arVal('ar-carrier')), why: `${arSupNow()} + 유통망지원금` };
             const c = arSupNow() === '공시' ? arDealer.planPub : arDealer.planSel;
@@ -18834,7 +18964,7 @@ familyStr + `\n` +
                 }
                 body.querySelectorAll('[data-ar-add]').forEach(btn => btn.onclick = () => {
                     const k = btn.dataset.arAdd;
-                    const code = k === '부가' ? (appSettings.autoAddonOn !== false ? (appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault) : '') : (k === '보험' ? (appSettings.autoInsOn !== false ? (appSettings.insDefault || AUTO_PROMISE_DEFAULTS.insDefault) : '') : '');
+                    const code = k === '부가' ? '' : (k === '보험' ? '' : '');
                     arItems.push({ kind: k, name: '', amount: 0, code, days: 0, autoDate: true, touched: true });
                     renderArItems(); arRecalc();
                     const ins = document.querySelectorAll('#arItemsBox [data-f="name"]'); if (ins.length) ins[ins.length - 1].focus();
@@ -20761,7 +20891,7 @@ familyStr + `\n` +
             const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
             if (dev && g.sup === '공시' && lim) out.push(`공통지원금을 받아서 약정 기간 안에 요금제를 월 ${W(lim)} 미만으로 낮추면 공통지원금 차액(차액정산금)이 청구돼요.${R && R.ex ? ` (${R.ex})` : ''}`);
             const ke = gdKeepEff(g);   // 📅 바꿀 수 있는 날 (유통망이 있으면 유통망 유지일)
-            const mr = mvnoRuleFor(g.carrier, g.mvnoName);   // 📶 V271 알뜰폰 브랜드 규칙 (고객에게는 날짜 · 할 일만 · 매장 환수 금액은 안 보여 줌)
+            const mr = mvnoRuleFor(g.carrier, g.mvnoName, g.dealer);   // 📶 V271 알뜰폰 브랜드 규칙 (고객에게는 날짜 · 할 일만 · 매장 환수 금액은 안 보여 줌)
             if (mr && !dist && g.date) {
                 const kd2 = keep && kd ? kd : computeKeepDate(g.date, mvnoKeepCode(mr)), dn = mvnoDownCode(mr), dd2 = dn ? computeKeepDate(g.date, dn) : '';
                 if (dd2 && dd2 < kd2) out.push(`${gdJo(pname, '은', '는')} ${gdDot(dd2)}부터 낮출 수 있고, 해지 · 번호이동 · 정지(미납)는 ${gdDot(kd2)}부터 해 주셔야 해요. (개통할 때 약속한 유지 조건이에요)`);
@@ -20975,7 +21105,7 @@ familyStr + `\n` +
             return `12개월마다 위약금이 끝나요 · ${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월에 첫 약정이 끝나면 자동으로 12개월 연장돼 25% 할인이 그대로 이어져요`;
         }
         function gdKeepDefault(g) {
-            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(g.carrier, g.mvnoName); if (mr) return mvnoKeepCode(mr); }   // 📶 V271 알뜰폰 브랜드 유지일
+            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(g.carrier, g.mvnoName, g.dealer); if (mr) return mvnoKeepCode(mr); }   // 📶 V271 알뜰폰 브랜드 유지일
             const d = dealerByName(g.dealer);
             if (d) {   // 🏢 V212: 유통망지원금이면 189일(거래처 설정) · 아니면 공시 / 선약 따로
                 const c = g.kind !== 'usim' && gdNum(g.dev && g.dev.extra) > 0 ? dealerDistCode(d, g.carrier) : (g.sup === '공시' ? d.planPub : d.planSel);
@@ -21631,7 +21761,7 @@ familyStr + `\n` +
             const add = e.target.closest('[data-gd-padd]');
             if (add) {
                 const k = add.dataset.gdPadd;
-                const code = k === '부가' ? (appSettings.autoAddonOn !== false ? (appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault) : '') : (k === '보험' ? (appSettings.autoInsOn !== false ? (appSettings.insDefault || AUTO_PROMISE_DEFAULTS.insDefault) : '') : '');
+                const code = k === '부가' ? '' : (k === '보험' ? '' : '');
                 gd.promises.push({ kind: k, name: '', code }); gdDirty = true;
                 document.getElementById('gdProms').innerHTML = gdPromRows(gd);
                 const ins = gdInner.querySelectorAll('[data-gd-p]'); if (ins.length) ins[ins.length - 1].focus();
@@ -22680,7 +22810,7 @@ familyStr + `\n` +
             const ex = e.target.closest('[data-cm-etcx]'); if (ex) { const dv = cmp.devs[+ex.dataset.cmEtcx]; if (dv) Object.assign(dv, { etcOn: false, etc: 0, etcName: '', etcMode: 'both' }); cmpSave(); cmpRender(); return; }
             const em = e.target.closest('[data-cm-etcmode]'); if (em) { const [i2, v] = em.dataset.cmEtcmode.split('|'); const dv = cmp.devs[+i2]; if (dv) dv.etcMode = v; cmpSave(); cmpRender(); return; }
             const aa = e.target.closest('[data-cm-aadd]');
-            if (aa) { const k = aa.dataset.cmAadd, code = k === '부가' ? (appSettings.autoAddonOn !== false ? (appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault) : '') : (appSettings.autoInsOn !== false ? (appSettings.insDefault || AUTO_PROMISE_DEFAULTS.insDefault) : ''); cmp.adds.push({ kind: k, name: '', fee: 0, code }); cmpSave(); cmpRender(); const ins = cmpInner.querySelectorAll('[data-cm^="a."][data-cm$=".name"]'); if (ins.length) try { ins[ins.length - 1].focus(); } catch (err) { /* 무시 */ } return; }
+            if (aa) { const k = aa.dataset.cmAadd, code = k === '부가' ? '' : ''; cmp.adds.push({ kind: k, name: '', fee: 0, code }); cmpSave(); cmpRender(); const ins = cmpInner.querySelectorAll('[data-cm^="a."][data-cm$=".name"]'); if (ins.length) try { ins[ins.length - 1].focus(); } catch (err) { /* 무시 */ } return; }
             const ad = e.target.closest('[data-cm-adel]'); if (ad) { cmp.adds.splice(+ad.dataset.cmAdel, 1); cmpSave(); cmpRender(); return; }
             const use = e.target.closest('[data-cm-use]'); if (use) { const [i, mode] = use.dataset.cmUse.split('|'); cmpUse(+i, mode); return; }
             const s2 = e.target.closest('[data-cm-send]'); if (s2) { cmpSend(s2.dataset.cmSend, s2); return; }
@@ -25782,7 +25912,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V271';
+        const APP_VER = 'V273';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25790,6 +25920,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V273', d: '2026-11-03', items: [
+                ['🏢 알뜰폰 브랜드별 유지기간을 거래처마다: 설정 → 🏢 거래처별 조건 → 알뜰 거래처(심커넥트SK · KT · LG · 고고모바일) [수정] 안에 표 · 📷 사진 · 📄 엑셀 · 📋 다른 거래처 표 복사 (심커넥트는 처음엔 심코리아 기본값)'],
+                ['🧹 공통 [부가서비스 해지 · 보험 해지] 기본 일수를 없앴어요: 거래처마다 달라서 거래처 조건의 부가 · 보험 유지로만 잡혀요 (거래처가 없으면 개통등록에서 직접 골라요)']] },
+            { v: 'V272', d: '2026-11-03', items: [
+                ['🏢 알뜰 거래처별 유지기간: 심코리아(심커넥트SK/KT/LG) · 고고모바일 표를 따로 (거래처 이름에 \'고고\'가 있으면 고고모바일 표)'],
+                ['📶 알뜰폰 브랜드별 유지기간을 [📷 정책표 사진으로] · [📄 엑셀로] 바꿔요: AI · 엑셀이 읽은 값을 지금 값과 비교해서 보여 주고, 확인 후 [적용] (표에 없는 브랜드는 그대로 · 새 브랜드는 추가)']] },
             { v: 'V271', d: '2026-11-03', items: [
                 ['📶 알뜰폰 브랜드별 유지기간: 개통등록 · 안내서에서 브랜드를 넣으면 요금제 유지가 자동 (유모바일 183 · M모바일 243 · 텔링크/세븐모바일 185 · 헬로모바일 215일 + 여유 2일)'],
                 ['🔄 알뜰폰 개통완료 고객은 M+6이 아니라 브랜드 유지일(+2일)이 지나야 \'미정\'으로 풀려요'],
