@@ -17691,14 +17691,25 @@ familyStr + `\n` +
             return { key: m.slice(0, 20), name: String(model).slice(0, 20) };
         }
         // 📱 V281 시세표 묶음: S · Z(폴드·플립) · 아이폰 = 플래그십 / A · M · 나머지 = 중저가 (모르는 모델은 출고가 100만 이상이면 플래그십)
+        // 📋 V281 정책표 구간 이름을 자르지 않고 그대로 — 칸에 맞게 글씨 줄이고, 그래도 길면 두 줄
+        function siseFit(g, F, txt, cx, top, w, h) {
+            for (let sz = 20; sz >= 15; sz--) { g.font = F(700, sz); if (g.measureText(txt).width <= w) { g.fillText(txt, cx, top + h / 2 + sz * 0.36); return; } }
+            const words = txt.split(/(?<=[\s/,·])/); let best = [txt, ''], bd = 1e9; for (let i = 1; i < words.length; i++) { const A = words.slice(0, i).join('').trim(), B = words.slice(i).join('').trim(), d = Math.abs(A.length - B.length); if (d < bd) { bd = d; best = [A, B]; } }
+            if (!best[1]) { const m = Math.ceil(txt.length / 2); best = [txt.slice(0, m), txt.slice(m)]; }
+            let sz = 15; g.font = F(700, sz); while (sz > 10 && Math.max(g.measureText(best[0]).width, g.measureText(best[1]).width) > w) { sz--; g.font = F(700, sz); }
+            g.fillText(best[0], cx, top + h / 2 - 2); g.fillText(best[1], cx, top + h / 2 + sz - 1);
+        }
         function siseTier(key, price) { const k = String(key || ''); if (/^(S\d|F\d|Z\d|IP)/.test(k)) return 0; if (/^[AMLX]\d/.test(k)) return 1; return (Number(price) || 0) >= 1000000 ? 0 : 1; }
+        // 📋 V281 시세표 기본 요금제 구간: SK 109 · KT 110 · LG 115 (정책표 구간 이름에 그 숫자가 있는 구간, 없으면 첫 구간)
+        const SISE_DEF_PLAN = { SKT: '109', KT: '110', LGU: '115' };
+        function siseDefTier(ck, P) { const T = (P && P.tiers) || [], n = SISE_DEF_PLAN[ck], re = n ? new RegExp(`(^|\\D)${n}(\\D|$)`) : null, hit = re && T.find(t => re.test(t.name || '')); return ((hit || T[0]) || {}).id; }
         const SISE_TIER_LAB = ['🔥 플래그십 (갤럭시 S · Z · 아이폰)', '💚 중저가 (갤럭시 A · M 등)'];
         const SISE_CARS = [['SKT', 'SK', '#e60012'], ['KT', 'KT', '#1d3f94'], ['LGU', 'LG', '#a50034']];
         function siseMake() {
             const C = siseCfg(), byCar = {};
             Object.entries(siseCache).forEach(([id, P]) => { if (id === 'config' || !P || !P.rows) return; const d = dealerList().find(x => x.id === id); if (!d) return; const ck = carrierKeepKey(d.carrier || ''); (byCar[ck] = byCar[ck] || []).push({ d, P }); });
             const st = { sup: 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null, supBy: {} };   // supBy: 기종 키 → 'P' 공시 · 'S' 선약 · 'B' 싼 쪽
-            SISE_CARS.forEach(([ck]) => { const f = (byCar[ck] || [])[0]; if (f) st.pick[ck] = { id: f.d.id, tier: ((f.P.tiers || [])[0] || {}).id }; });
+            SISE_CARS.forEach(([ck]) => { const f = (byCar[ck] || [])[0]; if (f) st.pick[ck] = { id: f.d.id, tier: siseDefTier(ck, f.P) }; });
             const rowsOf = () => {   // 기종 키 → 통신사별 { mnp, chg }
                 const map = new Map();
                 SISE_CARS.forEach(([ck]) => { const pk = st.pick[ck]; if (!pk) return; const it = (byCar[ck] || []).find(x => x.d.id === pk.id); if (!it) return;
@@ -17720,7 +17731,7 @@ familyStr + `\n` +
                 const x0 = 40, nameW = 300, colW = (W - x0 * 2 - nameW) / 6;
                 SISE_CARS.forEach(([ck, lab, col], i) => { const x = x0 + nameW + i * colW * 2; g.fillStyle = col; g.fillRect(x, 160, colW * 2, 60); g.fillStyle = '#fff'; g.font = F(800, 32); g.fillText(lab, x + colW, 202);
                     const pk = st.pick[ck], it = pk && (byCar[ck] || []).find(y => y.d.id === pk.id), tn = it ? (((it.P.tiers || []).find(t => t.id === pk.tier) || {}).name || '') : '';
-                    g.fillStyle = '#fde2e4'; g.fillRect(x, 220, colW * 2, 40); g.fillStyle = '#374151'; g.font = F(600, 18); g.fillText(tn.slice(0, 22) || '-', x + colW, 247);
+                    g.fillStyle = '#fde2e4'; g.fillRect(x, 220, colW * 2, 40); g.fillStyle = '#374151'; siseFit(g, F, tn || '-', x + colW, 220, colW * 2 - 12, 40);
                     g.fillStyle = '#fff'; g.fillRect(x, 260, colW * 2, 36); g.fillStyle = '#111'; g.font = F(700, 20); g.fillText('번호이동', x + colW / 2, 285); g.fillText('기기변경', x + colW * 1.5, 285); });
                 g.fillStyle = '#fff'; g.fillRect(x0, 160, nameW, 136); g.fillStyle = '#111'; g.font = F(800, 26); g.fillText('모델', x0 + nameW / 2, 236);
                 bands.forEach(bd => { g.fillStyle = bd.grp ? '#d1fae5' : '#fee2e2'; g.fillRect(x0, bd.y, W - x0 * 2, bandH); g.fillStyle = bd.grp ? '#065f46' : '#991b1b'; g.font = F(800, 24); g.textAlign = 'left'; g.fillText(SISE_TIER_LAB[bd.grp], x0 + 18, bd.y + 33); g.textAlign = 'center'; g.strokeStyle = '#e5e7eb'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, bd.y + bandH); g.lineTo(W - x0, bd.y + bandH); g.stroke(); });
@@ -17742,7 +17753,7 @@ familyStr + `\n` +
                 const use = rows.filter(r => st.on.has(r.key)); cv = draw(use);
                 return `<div class="grid grid-cols-3 gap-1.5">${[['P', '공시 기준'], ['S', '선약 기준'], ['B', '싼 쪽']].map(([k, l]) => `<button type="button" data-sx-sup="${k}" class="h-9 rounded-lg text-[12px] font-bold border ${st.sup === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
                     ${SISE_CARS.map(([ck, lab]) => { const L = byCar[ck] || [], pk = st.pick[ck]; if (!L.length) return `<p class="text-[12px] text-gray-400">${lab}: 정책표 없음</p>`; const it = L.find(x => x.d.id === (pk || {}).id) || L[0];
-                        const tid = (pk || {}).tier || ((it.P.tiers || [])[0] || {}).id, R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length, nNew = R0.filter(r => { const x = siseV(it.P, r, tid); return ['nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length;
+                        const tid = (pk || {}).tier || siseDefTier(ck, it.P), R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length, nNew = R0.filter(r => { const x = siseV(it.P, r, tid); return ['nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length;
                         const diag = `<p class="col-span-2 text-[11px] ${nVal && nPrice ? 'text-gray-500' : 'text-red-700 font-bold'}" style="grid-column:1/-1">모델 ${R0.length} · 출고가 ${nPrice} · 공시 ${nPub} · 이 구간 번호이동·기변 금액 ${nVal}${nNew ? ` (신규 ${nNew})` : ''}${!nVal ? (nNew ? ' → 신규 칸에만 금액이 있어요 (번호이동·기변 칸을 못 읽음 · 다시 올려 주세요)' : ' → 이 구간 금액을 못 읽었어요 (다른 구간을 골라 보거나 다시 올려 주세요)') : (!nPrice ? ' → 출고가를 못 읽었어요' : (!nPub && st.sup === 'P' ? ' → 공시를 못 읽어서 공시 기준은 못 내요 · 선약 기준을 눌러 보세요' : ''))}</p>`;
                         return `<div class="grid grid-cols-2 gap-1.5 items-center">${diag}<select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
                     <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><p class="text-[11px] text-gray-500 mt-1">기종마다 공시 · 선약을 따로 고를 수 있어요 (공시가 적으면 선약, 많으면 공시가 유리 · '싼 쪽'은 알아서)</p><div class="mt-1.5 space-y-1">${rows.map(r => { const md = st.supBy[r.key] || ''; return `<div class="flex items-center gap-1.5 text-[12px]"><label class="flex-1 min-w-0 flex items-center gap-1.5"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600 flex-shrink-0"><span class="truncate">${escapeHtml(r.name)}</span> <span class="text-gray-400 flex-shrink-0">${Object.keys(r.c).length}사</span></label><select data-sx-sb="${escapeHtml(r.key)}" class="h-8 px-1 border border-gray-300 rounded-md text-[12px] bg-white flex-shrink-0"><option value="" ${md ? '' : 'selected'}>위와 같게</option><option value="P" ${md === 'P' ? 'selected' : ''}>공시</option><option value="S" ${md === 'S' ? 'selected' : ''}>선약</option><option value="B" ${md === 'B' ? 'selected' : ''}>싼 쪽</option></select></div>`; }).join('')}</div></details>
@@ -17750,7 +17761,7 @@ familyStr + `\n` +
             }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><button type="button" data-ss="notice" class="w-full h-11 rounded-2xl border border-pink-300 bg-pink-50 text-[13px] font-bold text-pink-800">📌 명함 열 때 한 번만 띄우기 (알림 없이 · 2일)</button><button type="button" data-ss="diag" class="w-full h-9 rounded-xl border border-gray-200 bg-white text-[12px] font-bold text-gray-500">🔍 진단 복사 (금액이 '-'일 때 이걸 복사해서 보내 주세요)</button><p class="text-[11px] text-gray-500 text-center">📣 알림은 켠 고객에게만 가고, 보내면 명함 열 때도 한 번 떠요 · 문자는 보내지 않아요</p>`);
             S.sh.addEventListener('change', (e) => {
                 const dd = e.target.closest('[data-sx-d]'), tt = e.target.closest('[data-sx-t]'), on = e.target.closest('[data-sx-on]');
-                if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: ((it && it.P.tiers || [])[0] || {}).id }; }
+                if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: it ? siseDefTier(dd.dataset.sxD, it.P) : undefined }; }
                 if (tt) st.pick[tt.dataset.sxT] = { ...(st.pick[tt.dataset.sxT] || {}), tier: tt.value };
                 if (on) { if (on.checked) st.on.add(on.dataset.sxOn); else st.on.delete(on.dataset.sxOn); }
                 const sb = e.target.closest('[data-sx-sb]'); if (sb) { if (sb.value) st.supBy[sb.dataset.sxSb] = sb.value; else delete st.supBy[sb.dataset.sxSb]; }
@@ -26241,6 +26252,7 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V281', d: '2026-11-03', items: [
+                ['📋 시세표 이미지: 요금제 구간 기본값 SK 109 · KT 110 · LG 115 · 구간 이름을 정책표 그대로 (안 자르고 칸에 맞게 줄이거나 두 줄)', 'a'],
                 ['📱 시세표 이미지: 플래그십(갤럭시 S · Z · 아이폰) / 중저가(갤럭시 A · M 등) 칸을 나눠서 그림', 'a']] },
             { v: 'V280', d: '2026-11-03', items: [
                 ['🧠 정책표 읽기: AI가 신규 칸만 채우고 번호이동 · 기변 칸을 건너뛰던 문제 고침 (6칸 다 채우게) → 시세표 \'-\' 원인 · 정책표를 한 번씩 다시 올려 주세요', 'a'],
