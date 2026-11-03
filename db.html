@@ -10063,11 +10063,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const gn = ev.target.closest('[data-dm-gnew]'); if (gn) { if (c && !protectGate(c)) return; gdNew(gn.dataset.dmGnew, c || null); return; }
             const go = ev.target.closest('[data-dm-gopen]'); if (go) { gdOpenById(go.dataset.dmGopen); return; }
             if (!ev.target.closest('#dmPaneActs')) return;
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"], [data-paction="actedit"]');
             if (x) {
                 const aid = x.dataset.aid;
                 if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
                 if (x.dataset.paction === 'actview') return openActView(cid, aid);   // 📜 V285
+                if (x.dataset.paction === 'actedit') { const cc = customerDB.find(y => y.id === cid), aa = cc && actsOf(cc).find(y => y.id === aid); if (!cc || !aa) return; if (!(await lockGate(cc, '개통 고치기'))) return; try { closeProfileModal && closeProfileModal(); } catch (err) { /* 없음 */ } openActReg(cc, 'mobile'); setTimeout(() => arGoAct(aid, aa.date), 150); return; }   // ✏️ V298 그 개통을 불러와서 고치기
                 if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
                 if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
                 if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
@@ -23691,7 +23692,7 @@ familyStr + `\n` +
         // 📜 같은 날 개통 기록이 있으면: 어느 기록으로 저장할지 [✏️ 고치기] [➕ 따로 새 개통] (V193)
         //    · 안 고르면 자동: 같은 기종이면 그 기록을 고치고, 기종이 다르면 따로 새 기록 (같은 분·같은 날이라도 기종이 다르면 따로)
         //    · 고치는 기록이면 정산·중고폰 칸을 그 값으로 채움 → '따로 새 개통'으로 바꾸면 채웠던 값은 다시 비움
-        let arActPrefilled = '', arActTarget = '', arPrefillVals = {}, arMgrPrefill = null;
+        let arActPrefilled = '', arActTarget = '', arPrefillVals = {}, arMgrPrefill = null, arItemsBefore = null;
         function arSameDayActs() { const d = arVal('ar-date'); return arCust ? actsOf(arCust).filter(a => a.kind !== '유선' && a.date === d) : []; }
         function arModelNow() { return (document.getElementById('ar-tg-usim') || {}).checked ? '' : arVal('ar-model'); }
         function arAutoTarget(list) {
@@ -23705,6 +23706,7 @@ familyStr + `\n` +
             Object.entries(arPrefillVals).forEach(([id, v]) => { const el = document.getElementById(id); if (el && el.value === v) el.value = ''; });
             if (arPrefillVals.__usedTg) { const tg = document.getElementById('ar-tg-used'); const anyLeft = ['ar-up-model', 'ar-up-color', 'ar-up-serial', 'ar-up-buyer', 'ar-used'].some(id => (document.getElementById(id) || {}).value); if (tg && tg.checked && !anyLeft) { tg.checked = false; tg.dispatchEvent(new Event('change', { bubbles: true })); } }
             { const fe = document.getElementById('ar-fee'); if (fe && 'ar-fee' in arPrefillVals && !fe.value) fe.dataset.manual = ''; }   /* 📱 V211 고치던 개통 수수료를 비우면 다시 MNP 자동 */
+            if (arPrefillVals.__items && arItemsBefore) { arItems = arItemsBefore; arItemsBefore = null; try { renderArItems(); } catch (e) { /* 무시 */ } }
             arPrefillVals = {};
             if (arMgrPrefill) { const mg = document.getElementById('ar-manager'); if (mg && mg.value === arMgrPrefill.put) mg.value = arMgrPrefill.prev; arMgrPrefill = null; }
         }
@@ -23713,10 +23715,22 @@ familyStr + `\n` +
                 const mg = document.getElementById('ar-manager');
                 if (mg && !sameStaff(mg.value, act.staff) && (!mg.value.trim() || sameStaff(mg.value, getStaffName()))) { arMgrPrefill = { put: act.staff, prev: mg.value }; mg.value = act.staff; }
             }
+            if (act) {   // ✏️ V298 고치는 개통의 기종 · 색상 · 일련번호 · 유심 · 요금제 · 부가/보험 줄도 그대로 (예전엔 정산만 → 비운 칸으로 덮어써짐)
+                const putT = (id, v) => { const el = document.getElementById(id); if (el && !String(el.value || '').trim() && v) { el.value = String(v); arPrefillVals[id] = el.value; } };
+                const COL = /^(블랙|화이트|실버|그레이|블루|바이올렛|퍼플|크림|라벤더|그라파이트|핑크|민트|옐로|그린|레드|골드|네이비|티타늄|내추럴|데저트|오렌지|코랄|아이스블루|제트블랙|팬텀블랙|딥퍼플|스페이스블랙|코발트|섀도우|화이트티타늄|블랙티타늄|내추럴티타늄)$/;
+                const dv = String(act.device || '').trim().split(/\s+/), col = dv.length > 1 && COL.test(dv[dv.length - 1]) ? dv.pop() : '';
+                if (act.device && !/^유심 /.test(act.device)) { putT('ar-model', dv.join(' ')); putT('ar-color', col); }
+                putT('ar-serial', act.serial); putT('ar-usim', act.usim); putT('ar-usimserial', act.usimSn || (arCust && arCust.activationDate === act.date ? arCust.usimSerial : '')); putT('ar-plan', act.plan);
+                { const ty = document.getElementById('ar-type'); if (ty && !ty.value && act.actType && [...ty.options].some(o => o.value === act.actType)) { ty.value = act.actType; arPrefillVals['ar-type'] = ty.value; ty.dispatchEvent(new Event('change', { bubbles: true })); } }
+                if (Array.isArray(act.policyItems) && act.policyItems.length && !arItems.some(it => it.touched && !it.fromDealer)) {
+                    arItemsBefore = arItems.slice(); arItems = act.policyItems.map(it => ({ ...it, amount: Number(it.amount) || 0, autoDate: !it.date, touched: true, fromAct: true })); arPrefillVals.__items = '1';
+                    try { renderArItems(); } catch (e) { /* 무시 */ }
+                }
+            }
             if (!act || !canSeeSettle()) return;
             const S = act.settle || {}, put = (id, v, money) => { const el = document.getElementById(id); if (el && !el.value && (money ? Number(v) : v)) { el.value = money ? arWon(v) : String(v); arPrefillVals[id] = el.value; } };
             { const fe = document.getElementById('ar-fee'); if (fe && act.settle && S.수수료 !== undefined && S.수수료 !== null && S.수수료 !== '') { if (fe.dataset.auto === '1' || !String(fe.value).trim()) { fe.value = Number(S.수수료) ? arWon(S.수수료) : ''; arPrefillVals['ar-fee'] = fe.value; } fe.dataset.auto = ''; fe.dataset.manual = '1'; } }   /* 📱 V211 고치는 개통에 적힌 수수료가 먼저 (0원이어도 · MNP 자동보다) */
-            put('ar-base', S.기본정책, 1); put('ar-add', S.추가정책, 1); put('ar-fee', S.수수료, 1); put('ar-disc', S.할인금액, 1);
+            put('ar-base', S.기본정책, 1); put('ar-add', S.추가정책, 1); put('ar-fee', S.수수료, 1); put('ar-disc', S.할인금액, 1); put('ar-oral1', S.구두추가1, 1); put('ar-oral2', S.구두추가2, 1);
             const u = act.used;
             if (u && (u.model || u.serial || u.buyer || u.amount)) {
                 const tg = document.getElementById('ar-tg-used');
@@ -23731,6 +23745,12 @@ familyStr + `\n` +
             if (!list.length) {
                 if (arActPrefilled) { arClearPrefill(); arActPrefilled = ''; }
                 arActTarget = '';
+                const recent = !newer && acts.filter(a => !a.canceled && a.kind !== '유선' && a.date < d && a.date >= addDaysStr(d, -60)).pop();
+                if (recent) {   // ✏️ V298 다른 날 개통을 고치러 왔는데 날짜가 오늘이면 새 개통으로 저장돼요 → 그날로 바꾸는 버튼
+                    note.className = 'col-span-2 text-xs font-bold rounded-lg px-2.5 py-2 leading-relaxed border bg-amber-50 border-amber-300 text-amber-900';
+                    note.innerHTML = `📜 이 분은 ${stockMD(recent.date)}에 개통했어요 (${escapeHtml(recent.device || recent.plan || '')}). <b>그 개통을 고치려면</b> 아래를 누르세요 — 지금 날짜(${stockMD(d)})로 저장하면 <b>새 개통</b>으로 따로 남아요.<div class="mt-1.5"><button type="button" data-ar-goact="${escapeHtml(recent.id)}|${recent.date}" class="min-h-[36px] px-3 rounded-lg bg-amber-500 text-white text-[12px] font-bold">✏️ ${stockMD(recent.date)} 개통 고치기 (날짜를 그날로)</button></div>`;
+                    return;
+                }
                 if (newer) { note.className = 'col-span-2 text-xs font-bold rounded-lg px-2.5 py-2 leading-relaxed border bg-amber-50 border-amber-200 text-amber-900'; note.textContent = `📜 최근 개통(${stockMD(newer.date)})보다 예전 날짜예요. 저장할 때 '기록에만 넣을지' 물어봐요.`; }
                 else note.className = 'col-span-2 hidden';
                 return;
@@ -23744,12 +23764,14 @@ familyStr + `\n` +
                 <p class="mt-1.5 font-medium text-sky-800">${arActTarget ? '직접 골랐어요.' : '안 고르면 자동: 같은 기종이면 그 기록을 고치고, 기종(번호)이 다르면 따로 남아요.'}${eff !== 'new' && canSeeSettle() ? ' 정산 칸을 비워 두면 예전 정산 그대로.' : ''}${eff !== 'new' && list.find(a => a.id === eff && a.canceled) ? ' 저장하면 취소됐던 개통이 다시 살아나요.' : ''}</p>`;
             if (eff !== arActPrefilled) {
                 arClearPrefill();
+                arActPrefilled = eff;   // 먼저 (채우면서 생기는 change → 다시 여기로 들어와도 안 돌게)
                 if (eff !== 'new') arPrefillFrom(list.find(a => a.id === eff));
-                arActPrefilled = eff;
                 arRecalc();
             }
         }
         arEl.addEventListener('click', (e) => { const b = e.target.closest('[data-ar-act]'); if (!b) return; arActTarget = b.dataset.arAct; arActSync(); try { arUsimNote(); } catch (err) { /* 무시 */ } });
+        function arGoAct(aid, date) { const de = document.getElementById('ar-date'); if (!de) return; de.value = date; arActTarget = aid; de.dispatchEvent(new Event('change', { bubbles: true })); arActSync(); try { arUsimNote(); arRecalc(); } catch (err) { /* 무시 */ } stockToast(`✏️ ${stockMD(date)} 개통을 불러왔어요 · 고칠 칸만 고치고 저장`); }   // ✏️ V298
+        arEl.addEventListener('click', (e) => { const g = e.target.closest('[data-ar-goact]'); if (!g) return; const [aid, date] = g.dataset.arGoact.split('|'); arGoAct(aid, date); });
         arEl.addEventListener('change', (e) => { if (['ar-date', 'ar-model', 'ar-tg-usim', 'ar-type'].includes(e.target.id) && arMode === 'mobile') arActSync(); });
         arEl.addEventListener('input', (e) => { if (e.target.id === 'ar-model' && arMode === 'mobile' && !arActTarget) { clearTimeout(arActSync.t); arActSync.t = setTimeout(arActSync, 400); } });
         function stockAfterActSave(tp, name, date, usimId) {
@@ -23810,7 +23832,7 @@ familyStr + `\n` +
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
-                        <span class="ml-auto flex gap-1"><button type="button" data-paction="actview" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">🔍 자세히</button>${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled && !a.notSale && actPrevFor(c, a) ? `<button type="button" data-paction="actundocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-indigo-300 bg-indigo-50 text-xs font-bold text-indigo-800">↩ 카드 값 되돌리기</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
+                        <span class="ml-auto flex gap-1"><button type="button" data-paction="actview" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">🔍 자세히</button>${!a.canceled && a.kind !== '유선' && !opt.tab ? `<button type="button" data-paction="actedit" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">✏️ 고치기</button>` : ''}${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled && !a.notSale && actPrevFor(c, a) ? `<button type="button" data-paction="actundocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-indigo-300 bg-indigo-50 text-xs font-bold text-indigo-800">↩ 카드 값 되돌리기</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
                 </div>`; }).join('')}</div>`;
             }
             if (!can('cancelAct')) hList = hList.replace(/<button type="button" data-paction="act(?:cancel|restore)"[^>]*>[\s\S]*?<\/button>/g, '');   // 🎖 V247 권한 없으면 버튼 숨김
@@ -23823,11 +23845,12 @@ familyStr + `\n` +
             return h;
         }
         profileModal.addEventListener('click', async (ev) => {
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"], [data-paction="actedit"]');
             if (!x || !currentProfileId) return;
             const cid = currentProfileId, aid = x.dataset.aid, c = customerDB.find(y => y.id === cid);
             if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
                 if (x.dataset.paction === 'actview') return openActView(cid, aid);   // 📜 V285
+                if (x.dataset.paction === 'actedit') { const cc = customerDB.find(y => y.id === cid), aa = cc && actsOf(cc).find(y => y.id === aid); if (!cc || !aa) return; if (!(await lockGate(cc, '개통 고치기'))) return; try { closeProfileModal && closeProfileModal(); } catch (err) { /* 없음 */ } openActReg(cc, 'mobile'); setTimeout(() => arGoAct(aid, aa.date), 150); return; }   // ✏️ V298 그 개통을 불러와서 고치기
                 if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
             if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
             if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
@@ -26594,7 +26617,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V297';
+        const APP_VER = 'V298';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26602,6 +26625,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V298', d: '2026-11-03', items: [
+                ['🛠 개통 고치기: 다른 날 개통한 고객을 [개통등록]으로 열면 날짜가 오늘이라 새 개통으로 저장돼서 예전 기록(부가 · 정산)이 비워지던 것 → [✏️ 그날 개통 고치기] 버튼이 떠요', 'a'],
+                ['✏️ 고객카드 개통 기록마다 [✏️ 고치기]: 그 개통의 기종 · 색상 · 일련번호 · 유심 · 요금제 · 부가/보험 줄 · 정산을 다 불러와서 고칠 칸만 고치고 저장', 'a']] },
             { v: 'V297', d: '2026-11-03', items: [
                 ['🗣 개통등록 정산정보에 [구두추가 1 · 2] 칸 (정산금액에 더해요) · 정산에 들어간 정책 줄 합계(⭐ 그레이드 · 📦 부가 ± · 🛡 보험 ± · 💳 제휴카드 · 기타)를 정산정보에서 바로 보고 [+ 줄] 더하기', 'a']] },
             { v: 'V296', d: '2026-11-03', items: [
