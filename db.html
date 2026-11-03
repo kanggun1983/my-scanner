@@ -19992,7 +19992,7 @@ familyStr + `\n` +
                     ${models.map(m => `<div class="border-b border-gray-100 last:border-b-0"><div class="flex items-center justify-between px-3 pt-2.5 pb-0.5"><span class="text-[15px] font-extrabold text-gray-900">${escapeHtml(m.m || '모델 없음')}${stockModelName(m.m) ? ` <span class="text-[13px] font-bold text-indigo-700">${escapeHtml(stockModelName(m.m))}</span>` : ''}</span><span class="text-xs font-bold text-gray-500">${m.list.length}대</span></div>
                         ${m.list.map(x => `<button type="button" data-stk="${escapeHtml(x.id)}" class="w-full flex items-center gap-2 pl-5 pr-3 min-h-[44px] text-left hover:bg-gray-50"><span class="w-[72px] flex-shrink-0 text-[14px] text-gray-700 truncate">${escapeHtml(x.color || '-')}</span><span class="flex-1 min-w-0 font-mono text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.serial || '(일련번호 없음)')}</span>${ageOf(x) >= stockOldDays() ? `<span class="flex-shrink-0 text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="들어온 지 ${ageOf(x)}일">⏳${ageOf(x)}일</span>` : ''}${x.memo ? `<span class="flex-shrink-0 max-w-[96px] truncate text-[11px] font-bold text-red-700 bg-red-50 border border-red-100 rounded px-1.5 py-0.5">${escapeHtml(x.memo)}</span>` : ''}<i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`).join('')}
                     ${g.usim.length ? `<div class="px-3 py-2.5 bg-gray-50/70 border-t border-gray-100"><p class="text-xs font-bold text-gray-500 mb-1.5">💳 유심</p><div class="flex flex-wrap gap-1.5">${g.usim.map(u => `<button type="button" data-stk="${escapeHtml(u.id)}" class="min-h-[36px] px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${escapeHtml(u.model || '유심')} <span class="text-indigo-700">${Number(u.qty) || 0}개</span>${(u.serials || []).length ? `<span class="text-teal-700 text-[11px]"> · 번호 ${u.serials.length}</span>` : ''}${u.memo ? ` <span class="font-medium text-gray-500">· ${escapeHtml(u.memo)}</span>` : ''}</button>`).join('')}</div></div>` : ''}
-                    ${!q && stockNotesOf(g.n).length ? `<p class="px-3 py-2 text-xs text-gray-600 border-t border-gray-100">📝 ${stockNotesOf(g.n).map(escapeHtml).join(' · ')}</p>` : ''}
+                    ${!q && stockNotesOf(g.n).length ? `<div class="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100"><p class="flex-1 min-w-0 text-xs text-gray-600">📝 ${stockNotesOf(g.n).map(escapeHtml).join(' · ')}</p><button type="button" data-stk-notes="${escapeHtml(g.n)}" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-700">✏️ 고치기</button></div>` : ''}
                 </section>`;
             }).join('') : `<p class="px-1 py-6 text-center text-sm text-gray-500">${q ? `'${escapeHtml(stockQuery)}' 재고가 없어요` : '재고가 없어요'}</p>`);
         }
@@ -20345,6 +20345,24 @@ familyStr + `\n` +
         document.getElementById('stockList').addEventListener('click', async (e) => {
             const cu = e.target.closest('[data-stk-cust]'); if (cu) { window.openProfileCard(cu.dataset.stkCust); return; }
             if (e.target.closest('[data-stk-alertset]')) { stockAlertSet(); return; }   // 📦 V208
+            const nb = e.target.closest('[data-stk-notes]');
+            if (nb) {   // ✏️ V293 거래처 메모 (재고표에서 읽은 '리셋 후 사용가능' 같은 글) 고치기 · 지우기 — 예전엔 다음 재고표를 올릴 때까지 계속 남았음
+                const d = nb.dataset.stkNotes, cur0 = stockNotesOf(d);
+                const sh = document.createElement('div'); sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+                sh.innerHTML = `<div class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-4 space-y-3" role="dialog" aria-modal="true"><div class="flex items-center justify-between"><h2 class="text-[17px] font-bold text-gray-900">📝 ${escapeHtml(d)} 메모</h2><button type="button" data-nt-x class="w-11 h-11 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                    <p class="text-[12px] text-gray-500">재고표에서 읽은 메모예요. 한 줄에 하나씩 · 다 지우고 저장하면 메모가 없어져요.</p>
+                    <textarea id="ntText" rows="5" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px]">${escapeHtml(cur0.join('\n'))}</textarea>
+                    <div class="grid grid-cols-2 gap-2"><button type="button" data-nt-del class="h-12 rounded-xl border border-red-200 bg-red-50 text-[14px] font-bold text-red-700">🗑 메모 지우기</button><button type="button" data-nt-save class="h-12 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">저장</button></div></div>`;
+                document.body.appendChild(sh);
+                sh.addEventListener('click', async (ev) => {
+                    if (ev.target === sh || ev.target.closest('[data-nt-x]')) { sh.remove(); return; }
+                    const del = ev.target.closest('[data-nt-del]'), sv = ev.target.closest('[data-nt-save]'); if (!del && !sv) return;
+                    const lines = del ? [] : String(document.getElementById('ntText').value || '').split('\n').map(x => x.trim()).filter(Boolean).slice(0, 10);
+                    try { await stockTx(cur => { const notes = { ...(cur.notes || {}) }; Object.keys(notes).forEach(k => { if (stockKey(k) === stockKey(d)) delete notes[k]; }); if (lines.length) notes[d] = lines; return { ...cur, notes }; });
+                        sh.remove(); renderStock(); stockToast(lines.length ? '📝 메모를 고쳤어요' : '🗑 메모를 지웠어요'); } catch (err) { customAlert(koreanError(err, '저장')); }
+                });
+                return;
+            }
             if (e.target.closest('[data-stk-retlist]')) {   // 📋 V288 거래처별 반납 목록 → 복사 / 공유 (문자 · 카톡에 붙여넣기)
                 const today = getTodayStr(), od = stockOldDays(), age = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(String(x.at || today).slice(0, 10))) / 86400000));
                 const L = stockItems().filter(x => stockSt(x) === '재고' && stockIsDev(x) && age(x) >= od), by = [];
@@ -26509,7 +26527,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V292';
+        const APP_VER = 'V293';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26517,6 +26535,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V293', d: '2026-11-03', items: [
+                ['✏️ 재고 거래처 메모(재고표에서 읽은 \'리셋 후 사용가능\' 같은 글) 옆 [고치기] → 고치기 · 지우기 (예전엔 다음 재고표를 올릴 때까지 남았음)', 'a']] },
             { v: 'V292', d: '2026-11-03', items: [
                 ['💳 유심 입고 바코드: 재고 탭 [💳 유심 입고] → 거래처 고르고 한 장씩 찍으면 수량 +1씩 · 모델은 번호 앞자리로 자동 (처음 보는 번호대는 고른 모델) · LG 유심(C492078/01924095)은 바코드의 모델 C4920 · 번호 01924095 그대로 · SK는 앞 898205를 뺀 번호(2404614470047F) · KT는 89… 전체 번호 · SK · KT 모델(C01 · F3005)은 한 번 고르면 기억', 'a'],
                 ['💳 유심 낱개 관리: 찍은 번호가 재고에 남아요 · 개통등록에서 그 번호를 찍으면 그 유심을 바로 빼요 (모델도 자동) · 개통 취소하면 번호도 다시 재고로 · 검색칸에 번호를 쳐도 찾아요', 'a']] },
