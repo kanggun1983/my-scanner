@@ -4353,6 +4353,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
                 settingsLoaded = true;
                 try { bindStaffName(); } catch (e) { console.error(e); }
+                try { syncPermsDoc(); } catch (e) { /* 준비 전 */ }   // 🔐 V275 보안 규칙이 읽는 권한표
                 if (dbLoaded) setTimeout(() => autoReleaseProspects(), 1500);
                 if (prevLock !== `${appSettings.ownerLock}|${appSettings.actProtect}` && dbLoaded) { try { renderDB(); } catch (e) { /* 준비 전 */ } }   // 🔒 담당자 잠금을 켜고 끄면 목록 표시도 바로
                 if (document.getElementById('pushSheet').style.display === 'flex') { try { renderPushIconStrip(); } catch (e) { /* 준비 전 */ } }
@@ -5382,6 +5383,26 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const r = myRole();
             if (r && r.perms && Object.prototype.hasOwnProperty.call(r.perms, k)) return !!r.perms[k];
             return !!PERM_DEF[k];
+        }
+        /* 🔐 V275 Firebase 보안 규칙용 권한표 — smart_global/perms { byEmail: { 이메일: { editPolicy, editAuto, pushAll, goalPay } } }
+           · 직급은 배열이라 규칙이 못 찾아서, 👑 대표 폰이 이메일마다 '매장 설정을 바꿀 수 있는지'만 따로 적어 둠 (대표만 쓰기 · 규칙이 읽음)
+           · 직급 · 담당을 바꾸면 바로, 대표 폰을 열 때도 달라졌으면 다시 씀 */
+        const RULE_PERMS = ['editPolicy', 'editAuto', 'pushAll', 'goalPay'];
+        function permsDocData() {
+            const byEmail = {};
+            Object.keys(appSettings.staffRole || {}).forEach(em => { const r = roleOfEmail(em); if (!r) return; const o = {}; RULE_PERMS.forEach(k => { const v = r.perms && Object.prototype.hasOwnProperty.call(r.perms, k) ? !!r.perms[k] : !!PERM_DEF[k]; if (v) o[k] = true; }); if (Object.keys(o).length) byEmail[String(em).toLowerCase()] = o; });
+            return byEmail;
+        }
+        let permsSyncing = false;
+        async function syncPermsDoc(force) {
+            if (!isSuperAdmin || !db || !settingsLoaded || permsSyncing) return;
+            const byEmail = permsDocData(), sig = JSON.stringify(byEmail);
+            let last = ''; try { last = localStorage.getItem('permsSig275') || ''; } catch (e) { /* 무시 */ }
+            if (!force && last === sig) return;
+            permsSyncing = true;
+            try { await setDoc(doc(db, 'smart_global', 'perms'), { byEmail, at: new Date().toISOString() }); try { localStorage.setItem('permsSig275', sig); } catch (e) { /* 무시 */ } }
+            catch (e) { console.warn('권한표 저장 실패', e); }
+            finally { permsSyncing = false; }
         }
         function noPerm(what) { customAlert(`${what} 권한이 없어요.\n(👑 대표가 설정 → 직원 · 담당 → 직급 · 권한에서 정해요)`); }
         function setAdminLock(el, lock) {
@@ -25687,7 +25708,7 @@ familyStr + `\n` +
         async function saveRoles(roles, staffRole) {
             if (!isSuperAdmin) return customAlert('직급 · 권한은 👑 대표만 정할 수 있어요.');
             const patch = {}; if (roles) patch.roles = roles; if (staffRole) patch.staffRole = staffRole;
-            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); renderRoleBox(); try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ } stockToast('🎖 저장했어요'); }
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true }); Object.assign(appSettings, patch); syncPermsDoc(true); renderRoleBox(); try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ } stockToast('🎖 저장했어요'); }
             catch (e) { customAlert(koreanError(e, '저장')); }
         }
         document.addEventListener('click', async (e) => {
@@ -25894,7 +25915,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V274';
+        const APP_VER = 'V275';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25902,6 +25923,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V275', d: '2026-11-03', items: [
+                ['🔐 매장 설정을 Firebase 보안 규칙에서도 직급 · 권한대로 잠글 준비: 👑 대표 폰이 직급마다 권한표를 따로 적어 둬요 (정책 · 거래처 = 정책 권한 · 자동 안내 = 자동 안내 권한 · 홍보 = 홍보 권한 · 목표/급여 = 목표 권한 · 직급 · 보안 · 드라이브 등은 대표만)', 'a']] },
             { v: 'V274', d: '2026-11-03', items: [
                 ['🧭 설정 정리 (👑): [정책 · 지원금]은 지원금표만 · 개통 후 자동 약속(통신사 기본)은 [유지 조건 · 거래처]로 · ⭐ 인기 · 🔥 특가 · 분류 · 모델 코드는 [고객 명함]으로 · 🔒 보안 점검 · 서류 클라우드 백업은 [데이터 · 보안]으로 · 앱 정보는 [내 정보 · 계정] 안으로', 'a'],
                 ['🧹 화면에 보이던 버전 번호 글자 · 부가 · 보험 해지 공통 칸 지움', 'a']] },
