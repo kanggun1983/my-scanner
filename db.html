@@ -8043,9 +8043,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // ↩ V284 개통 전 카드 값 찾기: actPrev(V284부터 저장) → 없으면 변경 기록(editLog)의 '전' 값으로
         const ACT_SNAP_KEYS = ['carrier', 'device', 'deviceSerial', 'plan', 'fee', 'planFee', 'actType', 'discountType', 'installment', 'installment2', 'openDealer', 'openStore', 'repTargetPlan'];
         const ACT_SNAP_LAB = { carrier: '통신사', device: '단말기', deviceSerial: '일련번호', plan: '요금제', fee: '월 요금', planFee: '요금제 금액', actType: '개통 유형', discountType: '할인', installment: '할부', installment2: '이중할부', openDealer: '개통거래처', openStore: '개통점', repTargetPlan: '변경 후 요금제' };
-        const ACT_DETAIL_KEYS = ['prevCarrier', 'devicePrice', 'publicSupport', 'distSupport', 'switchSupport', 'tradeInDiscount', 'etcDiscount', 'instCardName', 'instCardDiscount', 'loanPrincipal', 'addons', 'insurance', 'discountCard', 'usimModel', 'usimSerial', 'policyItems', 'installmentBaseDate'];   // 🧾 V287 개통 상세 칸
+        const ACT_DETAIL_KEYS = ['discountCardAmt', 'prevCarrier', 'devicePrice', 'publicSupport', 'distSupport', 'switchSupport', 'tradeInDiscount', 'etcDiscount', 'instCardName', 'instCardDiscount', 'loanPrincipal', 'addons', 'insurance', 'discountCard', 'usimModel', 'usimSerial', 'policyItems', 'installmentBaseDate'];   // 🧾 V287 개통 상세 칸
         ACT_SNAP_KEYS.push(...ACT_DETAIL_KEYS);
-        Object.assign(ACT_SNAP_LAB, { prevCarrier: '전통신사', devicePrice: '출고가', publicSupport: '공통지원금', distSupport: '유통망지원금', switchSupport: '전환지원금', tradeInDiscount: '중고보상할인', etcDiscount: '추가할인', instCardName: '할부카드', instCardDiscount: '할부카드 할인', loanPrincipal: '할부원금', addons: '부가서비스', insurance: '단말기보험', discountCard: '제휴카드', usimModel: '유심', usimSerial: '유심 일련번호', policyItems: '부가 · 보험 유지', installmentBaseDate: '할부 기준일' });
+        Object.assign(ACT_SNAP_LAB, { prevCarrier: '전통신사', devicePrice: '출고가', publicSupport: '공통지원금', distSupport: '유통망지원금', switchSupport: '전환지원금', tradeInDiscount: '중고보상할인', etcDiscount: '추가할인', instCardName: '할부카드', instCardDiscount: '할부카드 할인', loanPrincipal: '할부원금', addons: '부가서비스', insurance: '단말기보험', discountCard: '제휴카드', discountCardAmt: '카드 월 할인', usimModel: '유심', usimSerial: '유심 일련번호', policyItems: '부가 · 보험 유지', installmentBaseDate: '할부 기준일' });
         const actSame = (x, y) => JSON.stringify(x ?? '') === JSON.stringify(y ?? '') || ((x === '' || x == null || (Array.isArray(x) && !x.length)) && (y === '' || y == null || (Array.isArray(y) && !y.length)));
         function actPrevFor(c, a) {
             if (!c || !a || a.kind === '유선') return null;
@@ -8069,7 +8069,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 📜 V285 개통 기록 → 그 개통의 상세 (지금 카드 / 보관한 예전 카드 / 변경 기록에서 찾은 값)
         const ACT_CARD_KEYS = [['carrier', '통신사'], ['actType', '개통종류'], ['prevCarrier', '전통신사'], ['device', '단말기'], ['deviceSerial', '단말기 일련번호'], ['plan', '요금제'], ['fee', '월 요금'], ['discountType', '할인'], ['installment', '할부'],
             ['devicePrice', '출고가', 'won'], ['publicSupport', '공통지원금', 'won'], ['distSupport', '유통망지원금', 'won'], ['tradeInDiscount', '중고보상할인', 'won'], ['etcDiscount', '추가할인', 'won'], ['instCardName', '할부카드'], ['instCardDiscount', '할부카드 할인', 'won'], ['loanPrincipal', '할부원금', 'won'],
-            ['addons', '부가서비스'], ['insurance', '단말기보험'], ['discountCard', '제휴카드'], ['usimModel', '유심'], ['usimSerial', '유심 일련번호'], ['openDealer', '개통거래처'], ['openStore', '개통점'], ['policyItems', '부가 · 보험 유지']];
+            ['addons', '부가서비스'], ['insurance', '단말기보험'], ['discountCard', '제휴카드'], ['discountCardAmt', '카드 월 할인', 'won'], ['usimModel', '유심'], ['usimSerial', '유심 일련번호'], ['openDealer', '개통거래처'], ['openStore', '개통점'], ['policyItems', '부가 · 보험 유지']];
         function actCardOf(c, a) {
             if (!c || !a) return null;
             const live = actsOf(c).filter(x => !x.canceled && x.kind !== '유선'), last = live[live.length - 1];
@@ -19195,6 +19195,7 @@ familyStr + `\n` +
                     <div data-tg="ar-tg-comb" class="col-span-2 grid grid-cols-2 gap-2 ${tgComb ? '' : 'hidden'}">
                         ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
                         ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
+                        ${arMoney('ar-cardamt', '카드 월 할인')}
                         ${arSel('ar-k-card', '카드 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
                         ${appSettings.autoCardChkOn !== false ? `<p class="col-span-2 text-[12px] font-bold text-sky-800 leading-relaxed">💳 제휴카드를 적으면 개통 ${cardChkDays()}일 뒤 [카드 발급 확인 · 등록하기] 약속이 저절로 잡혀요</p>` : ''}
                     </div>
@@ -19615,7 +19616,7 @@ familyStr + `\n` +
             const now = new Date().toISOString(), today = getTodayStr();
             const upd = { updatedAt: now };
             let note, usimNewId = null, keepLatest = false, freshAct = false, keepStaff = '';
-            const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
+            const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'discountCardAmt', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
             if (isM) {
                 const usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;   // 유심만 개통이면 단말기 칸은 안 씀
                 const d = arVal('ar-date'), model = usimOnly ? '' : arVal('ar-model');
@@ -19625,7 +19626,7 @@ familyStr + `\n` +
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-shop'), openDealer: arVal('ar-store'), repManager: arVal('ar-manager'),   // 🏪 V227 개통점 = 우리 매장 · 개통거래처 = 거래처
                     plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: '', insurance: '',
                     ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee'), fee: `${arWon(arNum('ar-planfee'))}원` } : {}), ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금 · V205 고객카드 월 요금도
-                    discountCard: arVal('ar-card'), usimFee: arVal('ar-usimfee'),
+                    discountCard: arVal('ar-card'), discountCardAmt: arNum('ar-cardamt') || '', usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
                     discountType: r.sup === '공시' ? '공시지원금' : (arVal('ar-term') === '무약정' ? '해당없음' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)')),   // V237 무약정 = 할인 없음 (기변 타겟 '약정 없는 고객')
                     salesStatus: '판매성공', salesStatusAt: d,
@@ -19672,7 +19673,7 @@ familyStr + `\n` +
                 const usimHit = arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null;
                 if (usimHit && !(sameAct && sameAct.usimStockId)) usimNewId = usimHit.id;
                 const actRec = { date: d, kind: '무선', staff: arVal('ar-manager') || getStaffName() || '', store: arVal('ar-store'), shop: arVal('ar-shop'), carrier: arVal('ar-carrier'), mvno: (isMvno(arVal('ar-carrier')) && arVal('ar-mvno').slice(0, 30)) || undefined, actType: arVal('ar-type'), plan: arVal('ar-plan'), model: model || undefined, color: model ? arVal('ar-color') || undefined : undefined,
-                    planFee: arNum('ar-planfee') || undefined, device: model ? [model, arVal('ar-color')].filter(Boolean).join(' ') : (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), serial: usimOnly ? '' : arVal('ar-serial'), usim: arVal('ar-usim'),
+                    planFee: arNum('ar-planfee') || undefined, device: model ? [model, arVal('ar-color')].filter(Boolean).join(' ') : (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), serial: usimOnly ? '' : arVal('ar-serial'), usim: arVal('ar-usim'), cardAmt: arNum('ar-cardamt') || undefined,
                     used: arUsedPhone() || undefined, promKeys: arKeepPlan().map(k => k.key), dist: arNum('ar-dist') || undefined,
                     stockId: arStockHit && !usimOnly && stockSerialMatch(arStockHit.serial, arVal('ar-serial')) ? arStockHit.id : undefined,
                     usimStockId: (sameAct && sameAct.usimStockId) || (usimHit ? usimHit.id : undefined), src: '개통등록', at: now, by: getStaffName() || '' };
@@ -22762,7 +22763,7 @@ familyStr + `\n` +
                 if (g.dev.serial) set('ar-serial', g.dev.serial);
             }
             const comb = [g.plan.combName && gdNum(g.plan.comb) ? g.plan.combName : '', g.plan.welType ? `복지(${gdWelLabel(g)})` : ''].filter(Boolean).join(' / ');
-            if (comb || g.plan.cardName) { check('ar-tg-comb', true); if (comb) set('ar-comb', comb); if (g.plan.cardName) set('ar-card', g.plan.cardName); }
+            if (comb || g.plan.cardName || gdNum(g.plan.card)) { check('ar-tg-comb', true); if (comb) set('ar-comb', comb); if (g.plan.cardName) set('ar-card', g.plan.cardName); if (gdNum(g.plan.card)) money('ar-cardamt', g.plan.card); }   // 💳 V290 요금DC카드 월 할인 금액도
             // 부가 · 보험 약속: 거래처 자동 줄 중 안내서에서 뺀 건 빼고, 안내서에 직접 넣은 줄은 더함
             const want = (g.promises || []).filter(p => p.kind !== '기타' && (String(p.name || '').trim() || p.code));
             const key = (k, n) => `${k}|${stockKey(n)}`, wantKeys = new Set(want.map(p => key(p.kind, p.name)));
@@ -23636,7 +23637,7 @@ familyStr + `\n` +
             let h = '', hRows = '', hMoney = '', hList = '';
             const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
                 kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('추가할인', won(c.etcDiscount)), kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')), kv('할부원금', won(c.loanPrincipal)),
-                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : c.repUsedPhone), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', c.discountCard), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
+                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : c.repUsedPhone), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
                 ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}${canSeeSettle() && it.amount ? ` (${arWon(it.amount)}원)` : ''}`)) : [])].join('');
             if (rows) hRows = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
             const acts = actsOf(c), money = canSeeSettle();
@@ -26439,7 +26440,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V289';
+        const APP_VER = 'V290';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26447,6 +26448,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V290', d: '2026-11-03', items: [
+                ['💳 개통등록 제휴카드 옆에 [카드 월 할인] 칸 · 안내서의 요금DC카드 월 할인 금액이 [안내서로 채우기] 때 같이 들어가요 · 고객카드 개통 상세에 \'제휴카드 · 월 -○원\'', 'a']] },
             { v: 'V289', d: '2026-11-03', items: [
                 ['🛠 안내서: 서명할 때 복지할인 계산 버전이 저장 안 되던 것 고침 (예전 임시저장본은 서명 뒤 복지할인 금액이 바뀔 수 있었음)', 'a'],
                 ['🛠 안내서: 처음 오신 고객은 이름을 넣어야 서명으로 (이름 없는 고객카드가 생기던 것)', 'a'],
