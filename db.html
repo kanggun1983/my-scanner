@@ -11206,7 +11206,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (next && callResultChoice === 'visit') { update.promVisitDate = next; update.promVisitMemo = memo || '통화에서 방문 약속'; update.promVisitChk = false; }
                     else if (next) { update.promCallDate = next; update.promCallMemo = memo || `${r.label} → 다시 연락`; update.promCallChk = false; }
                 }
-                if (!lockedNow && callResultChoice !== 'missed' && !update.promCallDate && String(cur.promCallMemo || '').startsWith('📵 못 받은 전화') && !cur.promCallChk) update.promCallChk = true;   // 📵 V223 콜백 끝
+                if (!lockedNow && callResultChoice !== 'missed' && !update.promCallDate && !cur.promCallChk && (String(cur.promCallMemo || '').startsWith('📵 못 받은 전화') || callPromDue(cur, getTodayStr()))) update.promCallChk = true;   // 📵 V223 콜백 끝 · ✅ V286 약속한 날(또는 지난) 통화하면 재연락 약속 끝
                 return update;
             };
             const saveBtn = document.getElementById('callResultSave');
@@ -24783,6 +24783,8 @@ familyStr + `\n` +
             return { entry: `[${ts}] ${body} 📱 (담당: ${who})`, date: `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`, who, d };
         }
         // 강CRM '통화 결과'와 같은 규칙 (영업상태 · 부재 횟수 · OB 메모 · 다음 연락 약속 · 🔒 다른 직원 고객은 기록만)
+        // ✅ V286 열린 재연락 약속이 그 통화 날짜에 이미 됐는지 (약속일 ≤ 통화일) → 통화가 되면 자동으로 끝 (앞날 약속은 그대로)
+        function callPromDue(cur, day) { const d = String(cur.promCallDate || ''); return d.length >= 10 && !cur.promCallChk && d.slice(0, 10) <= String(day || ''); }
         function callLogPatch(L, c, cur, E) {
             if (String(cur.contactHistory || '').split('\n').some(l => l.trim() === E.entry)) return {};   // 이미 반영
             const key = String(L.resultKey || ''), r = CALL_RESULTS[key] || null;
@@ -24814,7 +24816,7 @@ familyStr + `\n` +
                 up.promCallDate = E.date; up.promCallMemo = `${CBK} (${String(E.d.getHours()).padStart(2, '0')}:${String(E.d.getMinutes()).padStart(2, '0')}) → 다시 걸기`; up.promCallChk = false;
                 up.promCallBy = autoPromBy(cur); up.promCallAuto = true;   // 🛠 V262 자동 약속 (예전엔 대신 반영한 👑 대표 폰 이름으로 남아 '강태훈님이 잡은 약속' 경고가 떴음)
             }
-            if (!locked && (L.direction === 'in' || L.direction === 'out') && (Number(L.durationSec) || 0) > 0 && String(cur.promCallMemo || '').startsWith(CBK) && !cur.promCallChk && !up.promCallDate) up.promCallChk = true;
+            if (!locked && (L.direction === 'in' || L.direction === 'out') && (Number(L.durationSec) || 0) > 0 && (String(cur.promCallMemo || '').startsWith(CBK) || (key !== 'missed' && callPromDue(cur, E.date))) && !cur.promCallChk && !up.promCallDate) up.promCallChk = true;   // ✅ V286 재연락 약속 날(또는 지난 뒤) 통화가 되면 약속 끝
             return up;
         }
         const callApplying = new Set();
@@ -26336,7 +26338,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V285';
+        const APP_VER = 'V286';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26344,6 +26346,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V286', d: '2026-11-03', items: [
+                ['✅ 재연락 약속 자동 완료: 약속한 날(또는 지난 뒤)에 그 고객과 통화가 되면 (콜매니저 · 강CRM 통화 결과) 약속이 저절로 끝나요 · 앞날 약속 · 부재중 · 새 다음 연락일을 고른 통화는 그대로', 'a']] },
             { v: 'V285', d: '2026-11-03', items: [
                 ['📜 개통 기록마다 [🔍 자세히]: 그 개통의 출고가 · 할부원금 · 부가 · 요금제 · 정산을 따로 보기 (두 번 개통한 고객도 예전 개통 상세 그대로)', 'a'],
                 ['📜 새 개통을 등록하면 예전 개통 때 카드 상세를 보관해 둬요 (예전에 덮어써진 건 변경 기록에 남은 칸만)', 'a']] },
