@@ -999,6 +999,7 @@
                         <select id="keepPlanETC" aria-label="알뜰폰·기타 요금제 유지 기본 조건" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select>
                         <select id="keepPlanETC2" aria-label="알뜰폰·기타 요금제 유지 · 유통망지원금 쓰면" class="w-full min-w-0 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></select>
                         </div></details>
+                        <div id="mvnoRulesBox" class="mt-2"></div>
                     </div>
                     <div class="flex items-center justify-between gap-3">
                         <label class="flex items-center gap-2 text-[15px] font-bold text-gray-900 min-w-0"><input type="checkbox" id="autoAddonOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0"><span>부가서비스 해지 <span class="text-xs font-normal text-gray-500 block">부가를 적었을 때</span></span></label>
@@ -3888,6 +3889,28 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const r = code[0] === 'M' ? new Date(d.getFullYear(), d.getMonth() + n + 1, 1) : new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
             return `${r.getFullYear()}-${String(r.getMonth() + 1).padStart(2, '0')}-${String(r.getDate()).padStart(2, '0')}`;
         }
+        /* =====================================================================
+           📶 V271 알뜰폰 브랜드별 유지기간 (거래처 정책표 · 기본값 = 심코리아 MVNO 표 2026-11)
+           · 유지 D+N → 바꿔도 되는 날 = 개통일 + N + 여유 2일 (V271: "이틀 길게")
+           · 개통등록 · 안내서 요금제 유지 자동 · 개통완료 → '미정' 자동 풀림도 이 날짜 (M+6 대신)
+           · 👑 설정 → 알뜰폰 유지기간에서 일수 고치면 appSettings.mvnoRules
+           ===================================================================== */
+        const MVNO_BUF = 2;
+        const MVNO_RULES_DEF = [
+            { id: 'u', name: '유모바일', match: ['유모바일', 'U+유모바일', 'LG유모바일'], keep: 183, down: 183, noCall: '개통 후 3개월 안에 통화 20분 또는 데이터 200MB 이상', doc: 2, short: 0 },
+            { id: 'm', name: 'M모바일', match: ['M모바일', 'KT M모바일', 'KTM모바일', '케이티엠모바일'], keep: 243, down: 183, noCall: '개통 다음 달부터 3개월 동안 통화 10분 이상', doc: 5, short: 31 },
+            { id: 't', name: '텔링크(세븐모바일)', match: ['텔링크', 'SK텔링크', '세븐모바일', '7모바일'], keep: 185, down: 185, noCall: '개통 후 3개월 안에 음성통화 10분 이상', doc: 0, short: 31 },
+            { id: 'h', name: '헬로모바일', match: ['헬로모바일', 'LG헬로모바일', 'CJ헬로모바일'], keep: 215, down: 0, noCall: '개통 2달째부터 5달째까지 음성통화 합 10분 이상', doc: 0, short: 31 }
+        ];
+        const mvnoNorm = (x) => String(x || '').replace(/\s|\(.*?\)/g, '').toLowerCase();
+        function mvnoRules() { const r = appSettings && Array.isArray(appSettings.mvnoRules) ? appSettings.mvnoRules : null; return (r && r.length ? r : MVNO_RULES_DEF).filter(x => x && Number(x.keep) > 0); }
+        function mvnoRuleFor(carrier, brand) {
+            if (!/^알뜰/.test(String(carrier || '')) || !brand || (appSettings && appSettings.mvnoRulesOn === false)) return null;
+            const b = mvnoNorm(brand); if (!b) return null;
+            return mvnoRules().find(r => [r.name, ...(r.match || [])].some(m => { const n = mvnoNorm(m); return n && (b === n || b.includes(n) || n.includes(b)); })) || null;
+        }
+        const mvnoKeepCode = (r) => r ? 'D' + (Number(r.keep) + MVNO_BUF) : '';
+        const mvnoDownCode = (r) => r && Number(r.down) > 0 ? 'D' + (Number(r.down) + MVNO_BUF) : '';
         function carrierKeepKey(carrier) {
             if (carrier === 'SKT') return 'SKT';
             if (carrier === 'KT') return 'KT';
@@ -4053,7 +4076,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function salesReleaseDate(c) {
             const valid = (d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : '';
             const base = [valid(c.activationDate), valid(c.salesStatusAt), valid(c.wiredDate)].filter(Boolean).sort().pop() || valid(c.visitDate);   // 유선 개통도 판매로 침
-            return base ? computeKeepDate(base, 'M6') : '';
+            if (!base) return '';
+            const mr = mvnoRuleFor(c.carrier, c.mvnoBrand); if (mr) return computeKeepDate(base, mvnoKeepCode(mr));   // 📶 V271 알뜰폰은 브랜드 유지일(+2일) 지나면 '미정'
+            return computeKeepDate(base, 'M6');
         }
         // 💙 가망고객 하나로 (V175) — 예전 '가망고객(문자발송)'·'가망고객(OB콜)'을 '가망고객 (진행중)'으로 · 👑 총관리자 폰에서 · 31일 자동 정리 날짜(statusAt)는 그대로
         const LEGACY_PROSPECT = new Set(['가망고객(문자발송)', '가망고객(OB콜)']);
@@ -9134,6 +9159,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             renderCalcManageSub();
             try { renderCalcSettings(); } catch (e) { /* 준비 전 */ }   // V187: 고객 명함·상담 알림 서버 칸이 설정 화면으로 나와서
             try { secSubRender(); } catch (e) { /* 준비 전 */ }   // 🔒 V263 보안 점검 칸
+            try { mvnoRulesRender(); } catch (e) { /* 준비 전 */ }   // 📶 V271 알뜰폰 브랜드별 유지기간
             setTimeout(() => { try { renderSetSums(); } catch (e) { /* 준비 전 */ } }, 0);
             { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
             { const ol = document.getElementById('ownerLockChk'); if (ol) ol.checked = ownerLockOn(); }
@@ -14809,7 +14835,8 @@ ${AI_TONES[aiSmsTone]}
         }
         function resetReportKeep() {
             const carrier = document.getElementById('rep-carrier').value || (reportCustomerData ? reportCustomerData.carrier : '');
-            const plans = planChoicesFor(carrier);
+            const mrR = mvnoRuleFor(carrier, reportCustomerData && reportCustomerData.mvnoBrand);   // 📶 V271
+            const plans = mrR ? [mvnoKeepCode(mrR)] : planChoicesFor(carrier);
             reportKeep = {
                 plan: plans[0] || 'NONE',
                 addon: appSettings.addonDefault || AUTO_PROMISE_DEFAULTS.addonDefault,
@@ -17356,6 +17383,28 @@ familyStr + `\n` +
             const warn = manual.filter(m => !m.ok).length + (idle.length ? 1 : 0) + (rrn.length ? 1 : 0) + (doc3 ? 1 : 0);
             return { manual, idle, rrn, doc1, doc3, docTotal: docFiles.length, warn };
         }
+        // 📶 V271 설정 → 알뜰폰 브랜드별 유지기간 (👑 대표가 고침 · 매장 공용)
+        function mvnoRulesRender() {
+            const box = document.getElementById('mvnoRulesBox'); if (!box) return;
+            const list = mvnoRules(), on = appSettings.mvnoRulesOn !== false, lock = !isSuperAdmin;
+            const inp = (r, k) => `<input type="number" inputmode="numeric" min="0" max="730" data-mvr="${escapeHtml(r.id)}" data-mvk="${k}" value="${Number(r[k]) || ''}" ${lock ? 'disabled' : ''} class="w-full h-10 px-2 border border-gray-300 rounded-lg text-[15px] text-right disabled:bg-gray-50">`;
+            box.innerHTML = `<details class="rounded-xl border border-yellow-200 bg-yellow-50/50 px-3 py-2" ${box.dataset.open ? 'open' : ''}><summary class="cursor-pointer text-[14px] font-bold text-yellow-900 py-1">📶 알뜰폰 브랜드별 유지기간 <span class="font-medium text-yellow-700">· ${on ? `${list.length}곳 · 여유 +${MVNO_BUF}일` : '꺼짐'}</span></summary>
+                <p class="text-xs text-gray-600 leading-relaxed mt-1">개통등록 · 안내서에서 알뜰폰 브랜드를 넣으면 이 일수 + ${MVNO_BUF}일로 요금제 유지가 자동으로 잡혀요. 개통완료 → '미정'도 이 날짜가 지나야 풀려요 (다른 통신사는 M+6 그대로). 기본값: 심코리아 MVNO 표 (2026.11)</p>
+                <label class="flex items-center gap-2 mt-2 text-[14px] font-bold text-gray-900"><input type="checkbox" data-mvr-on ${on ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">브랜드별 유지기간 쓰기</label>
+                <div class="grid gap-1.5 items-center mt-2 text-[12px] font-bold text-gray-600" style="grid-template-columns:1fr 76px 76px"><span>브랜드</span><span class="text-right">유지 D+</span><span class="text-right">하향 D+</span>
+                ${list.map(r => `<span class="text-[14px] text-gray-900">${escapeHtml(r.name)}<span class="block text-[11px] font-medium text-gray-500">${escapeHtml((r.match || []).slice(0, 3).join(' · '))}</span></span>${inp(r, 'keep')}${inp(r, 'down')}`).join('')}</div>
+                ${lock ? '<p class="text-xs text-gray-500 mt-2">👑 대표만 고칠 수 있어요</p>' : `<div class="flex gap-2 mt-2"><button type="button" data-mvr-save class="flex-1 h-10 rounded-xl bg-indigo-600 text-white text-[13px] font-bold">저장</button><button type="button" data-mvr-reset class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">기본값</button></div>`}</details>`;
+            const dt = box.querySelector('details'); dt.addEventListener('toggle', () => { box.dataset.open = dt.open ? '1' : ''; });
+            box.onclick = async (e) => {
+                if (e.target.closest('[data-mvr-reset]')) { if (!(await customConfirm('알뜰폰 유지기간을 기본값(심코리아 표)으로 되돌릴까요?'))) return; await saveDoc(doc(db, 'smart_global', 'settings'), { mvnoRules: [] }, { merge: true }); appSettings.mvnoRules = []; mvnoRulesRender(); stockToast('📶 기본값으로 되돌렸어요'); return; }
+                if (!e.target.closest('[data-mvr-save]')) return;
+                const next = mvnoRules().map(r => ({ ...r }));
+                box.querySelectorAll('[data-mvr]').forEach(el => { const r = next.find(x => x.id === el.dataset.mvr); if (r) r[el.dataset.mvk] = Math.max(0, Math.min(730, parseInt(el.value, 10) || 0)); });
+                const onV = !!(box.querySelector('[data-mvr-on]') || {}).checked;
+                await saveDoc(doc(db, 'smart_global', 'settings'), { mvnoRules: next, mvnoRulesOn: onV }, { merge: true });
+                appSettings.mvnoRules = next; appSettings.mvnoRulesOn = onV; mvnoRulesRender(); stockToast('📶 알뜰폰 유지기간을 저장했어요');
+            };
+        }
         function secSubRender() {
             const sec = document.getElementById('secCheckSec'); if (!sec) return;
             sec.classList.toggle('hidden', !isSuperAdmin);
@@ -18429,6 +18478,7 @@ familyStr + `\n` +
         const arSupNow = () => (document.querySelector('input[name="ar-sup"]:checked') || {}).value || '선약';
         const arDistOn = () => arNum('ar-dist') > 0 && !((document.getElementById('ar-tg-usim') || {}).checked);
         function arPlanWhy() {   // 🏢 V211 요금제 유지가 어디서 왔는지 (거래처 · 공시/선약 · 유통망지원금)
+            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(arVal('ar-carrier'), arVal('ar-mvno')); if (mr) return { code: mvnoKeepCode(mr), why: `📶 ${mr.name} 유지 D+${mr.keep} + 여유 ${MVNO_BUF}일` }; }   // 📶 V271
             if (!arDealer) return arDistOn() && appSettings.autoPlanOn !== false ? { code: planDistFor(arVal('ar-carrier')), why: `${arSupNow()} + 유통망지원금`, base: true } : null;   // 🏷 V213 거래처 없이도 유통망지원금이면 통신사 기본 오른쪽 칸
             if (arDistOn()) return { code: dealerDistCode(arDealer, arVal('ar-carrier')), why: `${arSupNow()} + 유통망지원금` };
             const c = arSupNow() === '공시' ? arDealer.planPub : arDealer.planSel;
@@ -18797,7 +18847,8 @@ familyStr + `\n` +
             const cEl2 = document.getElementById('ar-carrier');
             if (cEl2) cEl2.addEventListener('change', () => { renderArPicker(); arSyncVis(); });
             const mvEl = document.getElementById('ar-mvno');
-            if (mvEl) mvEl.addEventListener('input', () => arSyncVis());
+            if (mvEl) mvEl.addEventListener('input', () => { arSyncVis(); try { arAutoPlan(); } catch (e) { /* 무시 */ } });   // 📶 V271 브랜드 → 유지일
+            if (cEl2) cEl2.addEventListener('change', () => { try { arAutoPlan(); } catch (e) { /* 무시 */ } });
             if (arMode === 'mobile') { arSetPlanKeep(arDefaultPlanCode()); arSyncVis(); arApplyDealer(arDealer); arStockHit = null; arStockSync(); arActPrefilled = ''; arActTarget = ''; arPrefillVals = {}; arActSync(); arUsimNote(); }   // 거래처 조건 (요금제 유지 · 부가·보험 줄) · 📦 재고 수
             else renderArItems();
             arRecalc();
@@ -20710,6 +20761,14 @@ familyStr + `\n` +
             const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
             if (dev && g.sup === '공시' && lim) out.push(`공통지원금을 받아서 약정 기간 안에 요금제를 월 ${W(lim)} 미만으로 낮추면 공통지원금 차액(차액정산금)이 청구돼요.${R && R.ex ? ` (${R.ex})` : ''}`);
             const ke = gdKeepEff(g);   // 📅 바꿀 수 있는 날 (유통망이 있으면 유통망 유지일)
+            const mr = mvnoRuleFor(g.carrier, g.mvnoName);   // 📶 V271 알뜰폰 브랜드 규칙 (고객에게는 날짜 · 할 일만 · 매장 환수 금액은 안 보여 줌)
+            if (mr && !dist && g.date) {
+                const kd2 = keep && kd ? kd : computeKeepDate(g.date, mvnoKeepCode(mr)), dn = mvnoDownCode(mr), dd2 = dn ? computeKeepDate(g.date, dn) : '';
+                if (dd2 && dd2 < kd2) out.push(`${gdJo(pname, '은', '는')} ${gdDot(dd2)}부터 낮출 수 있고, 해지 · 번호이동 · 정지(미납)는 ${gdDot(kd2)}부터 해 주셔야 해요. (개통할 때 약속한 유지 조건이에요)`);
+                else out.push(`${gdDot(kd2)} 전에는 요금제를 낮추거나 해지 · 번호이동 · 정지(미납)하시면 안 돼요. ${gdDot(kd2)}부터는 자유롭게 바꾸셔도 돼요.`);
+                if (mr.noCall) out.push(`개통하면 바로 유심을 꽂고 통화를 꼭 써 주세요. (기준: ${mr.noCall}) 통화 기록이 없으면 회선이 정리될 수 있어요.`);
+                return out;
+            }
             if (dist) out.push(`유통망지원금 ${W(gdNum(dv.extra))}은 ${pname}${pfee ? `(월 ${W(pfee)})` : ''} 이상 유지 조건이에요. ${ke.date ? gdDot(ke.date) + '부터' : '정해진 날부터'} 바꿀 수 있고, 그 전에 요금제를 낮추거나 해지 · 번호이동 · 기기변경하면 받은 금액이 위약금으로 청구돼요.`);
             else if (keep && kd && g.sup === '선약') out.push(`${gdJo(pname, '은', '는')} ${gdDot(kd)} 전까지는 지금 요금제를 유지해 주셔야 해요. ${gdDot(kd)}부터는 자유롭게 낮추셔도 되고, 선택약정 25% 할인은 그대로 유지돼요.`);   // 📶 V267 선약 · 유통망 없음 → 유지일 뒤 하향 자유
             else if (keep && kd) out.push(`${gdJo(pname, '은', '는')} ${gdDot(kd)}부터 바꿀 수 있어요. 그 전에 요금제를 낮추면 지원금 차액이 청구될 수 있어요.`);
@@ -20916,6 +20975,7 @@ familyStr + `\n` +
             return `12개월마다 위약금이 끝나요 · ${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월에 첫 약정이 끝나면 자동으로 12개월 연장돼 25% 할인이 그대로 이어져요`;
         }
         function gdKeepDefault(g) {
+            { const mr = appSettings.autoPlanOn !== false && mvnoRuleFor(g.carrier, g.mvnoName); if (mr) return mvnoKeepCode(mr); }   // 📶 V271 알뜰폰 브랜드 유지일
             const d = dealerByName(g.dealer);
             if (d) {   // 🏢 V212: 유통망지원금이면 189일(거래처 설정) · 아니면 공시 / 선약 따로
                 const c = g.kind !== 'usim' && gdNum(g.dev && g.dev.extra) > 0 ? dealerDistCode(d, g.carrier) : (g.sup === '공시' ? d.planPub : d.planSel);
@@ -25722,7 +25782,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V270';
+        const APP_VER = 'V271';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25730,6 +25790,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V271', d: '2026-11-03', items: [
+                ['📶 알뜰폰 브랜드별 유지기간: 개통등록 · 안내서에서 브랜드를 넣으면 요금제 유지가 자동 (유모바일 183 · M모바일 243 · 텔링크/세븐모바일 185 · 헬로모바일 215일 + 여유 2일)'],
+                ['🔄 알뜰폰 개통완료 고객은 M+6이 아니라 브랜드 유지일(+2일)이 지나야 \'미정\'으로 풀려요'],
+                ['⚠️ 알뜰폰 안내서 빨간 칸 · 녹음: 그 날짜 전 하향 · 해지 · 정지(미납) 안 됨 + 개통 후 통화 꼭 쓰기 안내 · 설정 → 자동 약속 → 📶 알뜰폰 브랜드별 유지기간에서 일수 고치기']] },
             { v: 'V270', d: '2026-11-03', items: [
                 ['🪪 바로가기 [신분증편집기]도 강CRM 연결판으로 열려요: 찍고 [☁️ 강CRM 서류로 보내기] → 어느 고객 서류로 올릴지 이름 · 번호로 골라요'],
                 ['📱 신분증 스캐너: 폴드 · 일부 폰에서 아래 버튼([이대로 자르기] 등)이 잘리던 것 고침 (넘치면 아래 칸만 스크롤)']] },
