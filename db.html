@@ -384,7 +384,7 @@
                 <label for="searchInput" class="sr-only">고객 검색</label>
                 <div class="relative flex-1 min-w-0">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500"></i>
-                    <input type="search" id="searchInput" placeholder="이름·번호·메모" class="w-full min-w-0 h-11 pl-10 pr-11 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <input type="search" id="searchInput" placeholder="이름·번호·메모·일련번호" class="w-full min-w-0 h-11 pl-10 pr-11 bg-white border border-gray-200 rounded-xl text-[15px] text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-300">
                     <button type="button" id="custScanBtn" class="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-9 rounded-lg text-indigo-700 hover:bg-indigo-50 text-[17px]" aria-label="바코드로 고객 찾기" title="바코드로 고객 찾기 (일련번호)"><i class="fa-solid fa-barcode" aria-hidden="true"></i></button>
                 </div>
                 <label for="managerFilter" class="sr-only">담당자별 보기</label>
@@ -8282,13 +8282,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!matchesManagerFilter(c)) return false;   // 👤 담당자별 보기
                 if (!matchesListRange(c)) return false;      // 🔎 기간 · 개통종류 · 통신사
                 // 이름·번호·법대·담당자 + 단말기·요금제·메모·가족정보·결합·인터넷/TV로도 검색
-                const qDigits = query.replace(/-/g, '');
+                const qDigits = query.replace(/-/g, ''), qSn = query.replace(/[\s-]/g, '');
                 const matchSearch = !query
                     || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.openDealer, c.cardId, c.visitPurpose, c.regStore]
                         .some(v => String(v || '').toLowerCase().includes(query))
                     || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)))
                     || (/^\d{4,}$/.test(qDigits) && prevIdsOf(c).some(p => p.includes(qDigits)))   // 📱 예전 번호로도 찾기
-                    || (query.length >= 5 && /^[a-z0-9]+$/.test(query) && bcSerialHit(c, query));   // 📷 일련번호 (끝자리 · 바코드로 찍은 전체 번호) V201
+                    || (qSn.length >= 5 && /^[a-z0-9]+$/.test(qSn) && (bcSerialHit(c, qSn) || (qSn.length >= 6 && bcCustSerials(c).some(x => stockNorm(x).includes(stockNorm(qSn))))));   // 📷 일련번호 · 💳 유심번호 (끝자리 · 전체 · V295 띄어쓰기 · 중간 몇 자리도)
                 
                 if (!matchSearch) return false;
 
@@ -8963,7 +8963,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (globalFilteredDB.length === 0) {
                 const query = document.getElementById('searchInput').value.trim();
                 if (customerDB.length === 0) list.innerHTML = buildListMessageHtml('아직 등록된 고객이 없어요', '[＋]를 눌러 사진이나 직접 입력으로 첫 고객을 등록해보세요.', 'add', '고객 등록하기');
-                else if (query) list.innerHTML = buildListMessageHtml(`'${query}'에 맞는 고객이 없어요`, '이름, 번호, 단말기, 요금제, 메모로 찾을 수 있어요.', 'clear-search', '검색 지우기');
+                else if (query) list.innerHTML = buildListMessageHtml(`'${query}'에 맞는 고객이 없어요`, '이름, 번호, 단말기, 요금제, 메모 · 단말 일련번호 · 유심 번호(끝 5자리부터)로 찾을 수 있어요.', 'clear-search', '검색 지우기');
                 else list.innerHTML = buildListMessageHtml('이 조건에 맞는 고객이 없어요', '', 'show-all', '전체 보기');
                 footer.innerHTML = ''; hideRange();
                 return;
@@ -21400,7 +21400,7 @@ familyStr + `\n` +
         // 🔎 고객 찾기: 단말 · 유심 · 중고폰 · 개통 기록의 일련번호 (끝자리 ↔ 전체 번호 둘 다)
         function bcCustSerials(c) {
             const out = [c.deviceSerial, c.usimSerial, c.usedPhone && c.usedPhone.serial];
-            (Array.isArray(c.acts) ? c.acts : []).forEach(a => { if (a) { out.push(a.serial); if (a.used) out.push(a.used.serial); } });
+            (Array.isArray(c.acts) ? c.acts : []).forEach(a => { if (a) { out.push(a.serial, a.usimSn); if (a.used) out.push(a.used.serial); } });   // 💳 V295 개통 기록의 유심 번호도
             return out.map(v => String(v || '').trim()).filter(v => v.length >= 5);
         }
         function bcSerialHit(c, q) { try { return bcCustSerials(c).some(x => stockSerialMatch(x, q)); } catch (e) { return false; } }
@@ -26561,7 +26561,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V294';
+        const APP_VER = 'V295';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26569,6 +26569,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V295', d: '2026-11-03', items: [
+                ['🔎 고객 검색칸: 단말 일련번호 · 유심 번호로 찾기 더 넓게 (띄어쓰기 · 하이픈 섞여도 · 끝자리뿐 아니라 중간 6자리 이상도 · 개통 기록의 유심 번호까지)', 'a']] },
             { v: 'V294', d: '2026-11-03', items: [
                 ['✍️ [직접 입력] 💳 유심에 [유심 번호] 칸: 바코드 없이도 한 줄에 하나씩 적으면 그만큼 수량 + 번호 저장 · 고치기 화면에서 번호를 지우면 수량도 줄어요', 'a'],
                 ['💳 유심 입고 바코드를 [직접 입력] 화면 안으로: 💳 유심 고르고 모델 넣고 → [바코드로 유심 한 장씩 찍기] (재고 탭 위 큰 버튼은 뺌)', 'a'],
