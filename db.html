@@ -3475,6 +3475,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     out.editLog = (Array.isArray(data.editLog) || base.length >= EDITLOG_MAX) ? [...base.slice(-(EDITLOG_KEEP - 1)), audit] : arrayUnion(audit);
                 }
             } catch (e) { console.warn('변경 이력 만들기 실패', e); }
+            try {   // ↩ V284 새 무선 개통으로 카드 값(단말기 · 요금제 · 할부 …)이 바뀌면 개통 전 값을 actPrev에 → 개통 취소 때 되돌리기
+                const nd = data.activationDate;
+                if (cur && cur.id && typeof nd === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(nd) && nd !== cur.activationDate && !('actPrev' in data)) {
+                    const v = {}; ACT_SNAP_KEYS.forEach(k => { if (k in data && JSON.stringify(data[k] ?? '') !== JSON.stringify(cur[k] ?? '')) v[k] = cur[k] ?? ''; });
+                    if (Object.keys(v).length) out.actPrev = { date: nd, at: new Date().toISOString(), v };
+                }
+            } catch (e) { console.warn('개통 전 값 저장 실패', e); }
             Object.keys(data).forEach(k => {
                 const m = /^prom([A-Za-z0-9]+)Date$/.exec(k);
                 if (!m || (`prom${m[1]}By` in data)) return;
@@ -8026,6 +8033,32 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 } catch (err) { customAlert(koreanError(err, '저장')); }
             });
         }
+        // ↩ V284 개통 전 카드 값 찾기: actPrev(V284부터 저장) → 없으면 변경 기록(editLog)의 '전' 값으로
+        const ACT_SNAP_KEYS = ['carrier', 'device', 'deviceSerial', 'plan', 'fee', 'planFee', 'actType', 'discountType', 'installment', 'installment2', 'openDealer', 'openStore', 'repTargetPlan'];
+        const ACT_SNAP_LAB = { carrier: '통신사', device: '단말기', deviceSerial: '일련번호', plan: '요금제', fee: '월 요금', planFee: '요금제 금액', actType: '개통 유형', discountType: '할인', installment: '할부', installment2: '이중할부', openDealer: '개통거래처', openStore: '개통점', repTargetPlan: '변경 후 요금제' };
+        function actPrevFor(c, a) {
+            if (!c || !a || a.kind === '유선') return null;
+            if (c.actPrev && c.actPrev.date === a.date && c.actPrev.v && Object.keys(c.actPrev.v).length) return { v: c.actPrev.v, src: 'snap' };
+            const md = String(a.date).slice(5).replace('-', '/'), inv = {}; Object.entries(AUDIT_FIELDS).forEach(([k, l]) => { inv[l] = k; });
+            const L = editLogOf(c).slice().reverse(), e = L.find(e => e.c.some(x => (x.l === '개통일' && x.t === a.date) || (x.l === '개통 기록 추가' && String(x.t || '').startsWith(md))));
+            if (!e) return null;
+            const v = {}; e.c.forEach(x => { const k = inv[x.l]; if (!k || !ACT_SNAP_KEYS.includes(k) || String(x.f || '').endsWith('…')) return;
+                if (k === 'installment' || k === 'installment2') { if (!x.f) { v[k] = ''; return; } try { v[k] = JSON.parse(x.f); } catch (err) { /* 못 읽으면 건너뜀 */ } return; }
+                v[k] = x.f || ''; });
+            return Object.keys(v).length ? { v, src: 'log' } : null;
+        }
+        const actPrevShow = (k, x) => { if (x === '' || x === null || x === undefined) return '(빈칸)'; if (typeof x === 'object') { const t = x.total || x.amount || x.price; return t ? `${Number(t).toLocaleString('ko-KR')}원${x.months ? ' / ' + x.months + '개월' : ''}` : JSON.stringify(x).slice(0, 30); } return String(x).slice(0, 30); };
+        async function undoActCard(cid, aid, ask = true) {
+            const c = customerDB.find(x => x.id === cid); if (!c) return false;
+            const a = actsOf(c).find(x => x.id === aid) || { date: (c.actPrev || {}).date, kind: '무선' }, P = actPrevFor(c, a);
+            if (!P) { if (!ask) customAlert('되돌릴 개통 전 값을 찾지 못했어요.\n고객카드 → 📝 변경 기록에서 예전 값을 보고 [수정]으로 고쳐 주세요.'); return false; }
+            const lines = Object.entries(P.v).map(([k, x]) => `· ${ACT_SNAP_LAB[k] || k}: ${actPrevShow(k, c[k])} → ${actPrevShow(k, x)}`).join('\n');
+            if (!(await customConfirm(`${c.name || ''} 카드 값도 개통 전으로 되돌릴까요?\n\n${lines}${P.src === 'log' ? '\n\n(변경 기록에서 찾은 값 · 월 요금처럼 기록 안 된 칸은 그대로)' : ''}`))) return false;
+            try { await txCustomerUpdate(cid, () => ({ ...P.v, actPrev: null, updatedAt: new Date().toISOString(), __audit: '개통 전 값으로 되돌림' }));
+                if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ }
+                stockToast('↩ 카드 값을 개통 전으로 되돌렸어요'); return true;
+            } catch (err) { customAlert(koreanError(err, '저장')); return false; }
+        }
         /* ❌ 개통 취소 — 기록은 '취소됨'으로 남고, 매출·개통 수에서 빠짐 · 재고는 다시 재고로 · 이 개통으로 생긴 자동 약속은 지움 */
         async function cancelAct(cid, aid) {
             const c = customerDB.find(x => x.id === cid); if (!c) return;
@@ -8057,7 +8090,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     return x;
                 }) })).catch(e => console.warn('재고 되돌리기 실패', e));
                 renderGoalRow(); if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ }
-                customAlert(`❌ ${stockMD(a.date)} 개통을 취소했어요.${stockN ? `\n📦 재고 ${stockN}대를 다시 재고로 넣었어요.` : ''}\n(고객카드 개통 기록에 '취소됨'으로 남아요)`);
+                const back = actPrevFor(customerDB.find(x => x.id === cid) || c, a) ? await undoActCard(cid, aid, true) : false;   // ↩ V284
+                customAlert(`❌ ${stockMD(a.date)} 개통을 취소했어요.${back ? '\n↩ 카드 값도 개통 전으로 되돌렸어요.' : ''}${stockN ? `\n📦 재고 ${stockN}대를 다시 재고로 넣었어요.` : ''}\n(고객카드 개통 기록에 '취소됨'으로 남아요)`);
             } catch (err) { customAlert(koreanError(err, '저장')); }
         }
         async function restoreAct(cid, aid) {
@@ -9968,10 +10002,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const gn = ev.target.closest('[data-dm-gnew]'); if (gn) { if (c && !protectGate(c)) return; gdNew(gn.dataset.dmGnew, c || null); return; }
             const go = ev.target.closest('[data-dm-gopen]'); if (go) { gdOpenById(go.dataset.dmGopen); return; }
             if (!ev.target.closest('#dmPaneActs')) return;
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"]');
             if (x) {
                 const aid = x.dataset.aid;
                 if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
+                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
                 if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
                 if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
                 if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
@@ -23468,7 +23503,7 @@ familyStr + `\n` +
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
-                        <span class="ml-auto flex gap-1">${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
+                        <span class="ml-auto flex gap-1">${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled && !a.notSale && actPrevFor(c, a) ? `<button type="button" data-paction="actundocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-indigo-300 bg-indigo-50 text-xs font-bold text-indigo-800">↩ 카드 값 되돌리기</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
                 </div>`; }).join('')}</div>`;
             }
             if (!can('cancelAct')) hList = hList.replace(/<button type="button" data-paction="act(?:cancel|restore)"[^>]*>[\s\S]*?<\/button>/g, '');   // 🎖 V247 권한 없으면 버튼 숨김
@@ -23481,10 +23516,11 @@ familyStr + `\n` +
             return h;
         }
         profileModal.addEventListener('click', async (ev) => {
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"]');
             if (!x || !currentProfileId) return;
             const cid = currentProfileId, aid = x.dataset.aid, c = customerDB.find(y => y.id === cid);
             if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
+                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
             if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
             if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
             if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
@@ -26248,7 +26284,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V283';
+        const APP_VER = 'V284';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26256,6 +26292,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V284', d: '2026-11-03', items: [
+                ['↩ 개통 취소할 때 카드 값(단말기 · 요금제 · 할부 · 통신사 …)도 개통 전으로 되돌리기: 기존 카드에 개통을 덮어써도 취소하면 원래대로', 'a'],
+                ['↩ 이미 취소한 개통은 고객카드 → 개통 기록의 [↩ 카드 값 되돌리기] (변경 기록에서 예전 값을 찾아요)', 'a']] },
             { v: 'V283', d: '2026-11-03', items: [
                 ['❌ 정산 미입력 목록에서 바로 [개통 취소]: 테스트 · 잘못 넣은 개통을 고객카드까지 안 가고 정리 (기록은 \'취소됨\'으로 남고 개통 수 · 매출에서 빠짐)', 'a']] },
             { v: 'V282', d: '2026-11-03', items: [
