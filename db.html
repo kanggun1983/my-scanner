@@ -4304,7 +4304,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 checkPendingCallResult();
                 try { applyCallLogs(); } catch (e) { /* 준비 전 */ }   // 📞 V221 전화 앱 통화 기록 → 연락 기록
                 try { runMissRecall(); } catch (e) { console.warn(e); }   // ⏰ V228 부재 재연락 재통화 알림
-                try { openCustFromUrl(); } catch (e) { console.warn(e); }   // 🔗 V224 전화 앱 [강CRM 카드]
+                try { openCustFromUrl(); } catch (e) { console.warn(e); }
+                try { scanInCheck(); } catch (e) { console.warn(e); }   // 🪪 V269 신분증 스캐너에서 넘어온 사본   // 🔗 V224 전화 앱 [강CRM 카드]
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
                 try { dmRefreshTabs(); } catch (e) { /* 준비 전 */ }   // 🗂 V242 수정 화면 개통 기록 · 안내서 탭
                 try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'cal') renderPromCalendar(); } catch (e) { /* 준비 전 */ }
@@ -24053,6 +24054,62 @@ familyStr + `\n` +
             saveDoc(doc(db, 'smart_global', 'settings'), { crmHref: h }, { merge: true }).then(() => { appSettings = { ...appSettings, crmHref: h }; }).catch(e => console.warn('강CRM 주소 저장 실패:', e)).finally(() => { crmHrefSaving = false; });
             return true;
         }
+        /* =====================================================================
+           🪪 V269 신분증 스캐너(idscan.html) → 강CRM 서류
+           · 스캐너가 A4 한 장(JPG)을 이 폰 브라우저 안(IndexedDB 'kcrm-scan')에 잠깐 넣고 넘어옴
+           · 고객을 확인하고 [서류에 올리기] → 구글 드라이브 → 바로 지움 (30분 지나면 그냥 지움) · 폰 갤러리 · 다운로드에 안 남음
+           ===================================================================== */
+        let scanInDone = false;
+        function scanIdb() { return new Promise((res, rej) => { const r = indexedDB.open('kcrm-scan', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+        async function scanIdbDo(mode, val) { const db = await scanIdb(); return new Promise((res, rej) => { const tx = db.transaction('h', mode === 'get' ? 'readonly' : 'readwrite'), st = tx.objectStore('h'); const rq = mode === 'get' ? st.get('last') : st.delete('last'); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); }
+        async function scanInCheck() {
+            if (scanInDone || !dbLoaded || dbLoadError) return; scanInDone = true;
+            try { const u = new URL(location.href); if (u.searchParams.has('scanIn')) { u.searchParams.delete('scanIn'); history.replaceState(history.state, '', u.pathname + u.search + u.hash); } } catch (e) { /* 무시 */ }
+            let rec = null; try { rec = await scanIdbDo('get'); } catch (e) { return; }
+            if (!rec || !rec.blob) return;
+            if (Date.now() - (Number(rec.at) || 0) > 30 * 60000) { scanIdbDo('del').catch(() => {}); return; }   // 오래된 건 그냥 지움
+            scanInSheet(rec);
+        }
+        function scanInSheet(rec) {
+            const url = URL.createObjectURL(rec.blob);
+            let target = rec.cust ? (customerDB.find(x => x.id === rec.cust) || null) : null;
+            const sh = document.createElement('div'); sh.id = 'scanInSheet'; sh.className = 'fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center'; sh.style.zIndex = 75;
+            const close = () => { URL.revokeObjectURL(url); sh.remove(); };
+            const render = () => {
+                const q = (sh.querySelector('#scanInQ') || {}).value || '';
+                const hits = !target && q.trim() ? customerDB.filter(c => !c.deletedAt && (String(c.name || '').includes(q.trim()) || (q.replace(/\D/g, '').length >= 3 && String(c.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))))).slice(0, 8) : [];
+                sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3" role="dialog" aria-label="신분증 사본 서류로 올리기">
+                    <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">🪪 스캔한 신분증 사본</p><p class="text-xs text-gray-600">${escapeHtml(rec.kind || '신분증')}${Number(rec.pages) > 1 ? ` · ${Number(rec.pages)}장 (A4 한 장)` : ''} · 아직 어디에도 안 올라갔어요</p></div><button type="button" data-si="close" class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                    <img src="${url}" alt="스캔한 신분증 사본 미리보기" class="w-full max-h-[38vh] object-contain rounded-xl border border-gray-200 bg-gray-50">
+                    ${target ? `<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between gap-2"><p class="text-[15px] font-bold text-emerald-900">👤 ${escapeHtml(target.name || '이름 없음')} <span class="text-[12px] font-medium text-emerald-700">${escapeHtml(formatPhone ? formatPhone(target.phone || '') : (target.phone || ''))}</span></p><button type="button" data-si="change" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-white text-xs font-bold text-emerald-800">다른 고객</button></div>`
+                    : `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">어느 고객 서류로 올릴까요?</span><input id="scanInQ" type="search" value="${escapeHtml(q)}" placeholder="이름 또는 전화번호" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px]" autocomplete="off"></label>
+                    <div class="space-y-1">${hits.map(c => `<button type="button" data-si-pick="${escapeHtml(c.id)}" class="w-full text-left rounded-xl border border-gray-200 px-3 py-2 text-[14px] font-bold text-gray-900">${escapeHtml(c.name || '이름 없음')} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(String(c.phone || ''))}</span></button>`).join('')}${q.trim() && !hits.length ? '<p class="text-xs text-gray-500 px-1">찾는 고객이 없어요</p>' : ''}</div>`}
+                    <button type="button" data-si="up" ${target ? '' : 'disabled'} class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold disabled:opacity-40">☁️ 이 고객 서류에 올리기</button>
+                    <button type="button" data-si="drop" class="w-full h-10 rounded-xl border border-gray-200 bg-white text-[13px] font-bold text-gray-600">버리기 (안 올리고 지움)</button></div>`;
+                const inp = sh.querySelector('#scanInQ'); if (inp) { inp.addEventListener('input', () => { const pos = inp.selectionStart; render(); const n = sh.querySelector('#scanInQ'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (e) { /* 무시 */ } } }); }
+            };
+            sh.addEventListener('click', async (e) => {
+                const pk = e.target.closest('[data-si-pick]'); if (pk) { target = customerDB.find(x => x.id === pk.dataset.siPick) || null; render(); return; }
+                const a = (e.target.closest('[data-si]') || {}).dataset; if (!a || !a.si) return;
+                if (a.si === 'close') { close(); stockToast('사본은 30분 동안 남아 있어요 · 강CRM을 다시 열면 또 물어봐요'); return; }
+                if (a.si === 'change') { target = null; render(); return; }
+                if (a.si === 'drop') { if (!(await customConfirm('스캔한 사본을 지울까요? (어디에도 안 올라가요)'))) return; await scanIdbDo('del').catch(() => {}); close(); stockToast('🗑 사본을 지웠어요'); return; }
+                if (a.si === 'up' && target) {
+                    if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
+                    if (driveMode() === 'self' && !driveTokenValid()) { try { await getDriveToken(false); } catch (err) { return customAlert(err.message); } }
+                    const f = new File([rec.blob], rec.name || `신분증사본_${getTodayStr()}.jpg`, { type: rec.blob.type || 'image/jpeg' });
+                    showUploadToast('🪪 신분증 사본 올리는 중…');
+                    const r = await uploadDocFiles(target, [f], null, { bundle: false, month: docCustMonth(target) }).catch(err => ({ ok: 0, errs: [err.message] }));
+                    hideUploadToast();
+                    if (!r || !r.ok) return customAlert(`못 올렸어요. 다시 눌러 주세요.\n${((r && r.errs) || []).slice(0, 2).join('\n')}`);
+                    await scanIdbDo('del').catch(() => {});
+                    const id = target.id; close(); stockToast(`☁️ ${target.name || '고객'} 서류에 올렸어요 · 폰에는 안 남았어요`);
+                    try { switchTab('db'); } catch (err) { /* 무시 */ }
+                    setTimeout(() => { try { window.openProfileCard(id); } catch (err) { /* 무시 */ } }, 300);
+                }
+            });
+            document.body.appendChild(sh); render();
+        }
         // 🔗 V224 전화 앱 → 강CRM주소?cust=고객번호 → 고객 목록을 다 불러온 뒤 그 고객카드 열기 (한 번만 · 주소에서 지움)
         let custUrlDone = false;
         function openCustFromUrl() {
@@ -24500,7 +24557,7 @@ familyStr + `\n` +
                 </div>`;
             let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2" data-docbox>
                 <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
-                <div class="flex items-center gap-1.5">${list.length >= 2 ? '<button type="button" data-paction="docviewall" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>' : ''}<button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
+                <div class="flex items-center gap-1.5">${list.length >= 2 ? '<button type="button" data-paction="docviewall" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>' : ''}${mode === 'off' ? '' : '<button type="button" data-paction="idscan" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold">🪪 신분증 스캔</button>'}<button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
             h += list.length ? list.map(row).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}${mode !== 'off' && docBundleOn() ? ' 여러 장을 고르면 PDF 한 묶음으로 올라가요.' : ''}</p>`);
             if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
             if (V.inB.length) h += `<details class="mt-1.5 border-t border-gray-100 pt-1" data-doc-inb><summary class="cursor-pointer text-[12px] font-bold text-gray-500 py-1">묶음에 들어간 원본 ${V.inB.length}개</summary>${V.inB.map(row).join('')}</details>`;
@@ -24532,6 +24589,11 @@ familyStr + `\n` +
             if (ev.target.closest('[data-paction="docviewall"]') && currentProfileId) { docViewAll(currentProfileId); return; }   // 👀 V216
             const dv1 = ev.target.closest('[data-docview]'); if (dv1 && currentProfileId) { docViewAll(currentProfileId, dv1.dataset.docview); return; }   // 👀 V218 하나만
             if (ev.target.closest('[data-paction="docmerge"]') && currentProfileId) { docMergeExisting(currentProfileId); return; }   // 📑 V216
+            if (ev.target.closest('[data-paction="idscan"]') && currentProfileId) {   // 🪪 V269 신분증 스캐너 → 다 찍으면 이 고객 서류로 (폰에 안 남김)
+                const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
+                location.href = `idscan.html?c=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.name || '')}`;
+                return;
+            }
             if (up && currentProfileId) {
                 if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
                 docTarget = customerDB.find(x => x.id === currentProfileId);
@@ -25658,7 +25720,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V268';
+        const APP_VER = 'V269';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25666,6 +25728,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V269', d: '2026-11-03', items: [
+                ['🪪 고객카드 서류 칸에 [🪪 신분증 스캔]: 신분증 스캐너로 찍고 자르고(뒷자리 가리기 · 워터마크) → [☁️ 강CRM 서류로 보내기] → 그 고객 서류(구글 드라이브)로 바로 올라가요 · 폰 갤러리 · 다운로드에 파일이 안 남아요'],
+                ['🌏 신분증 스캐너에 외국인등록증 추가 (가리는 위치는 [위치 조정]으로 맞추면 기억)']] },
             { v: 'V268', d: '2026-11-03', items: [
                 ['🎙 구매 확인 녹음: 첫 화면 고객 안내를 크게 (직원용 작은 글씨는 뺌) · 녹음은 안내 문구 화면에서 [● 녹음 시작]을 눌러야 시작 · 중간에 [❚❚ 잠깐 멈춤] → [● 이어서 녹음] (멈춘 시간은 빼고 한 파일로)'],
                 ['🔇 녹음 완료 화면에서 들어 보던 녹음이 [서명받기]로 넘어가도 계속 나오던 것 고침 (창이 닫히면 바로 멈춤)'],

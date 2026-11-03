@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121212">
+  <title>신분증 스캔 · 강CRM</title>
+  <!-- 🪪 강CRM 연결판 (원본: kanggun1983/Public index.html 독립판) — 강CRM 서류로 바로 보내기 · 폰에 안 남김 -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="강CRM">
+  <style>
+    :root {
+      --bg: #0e0e0e; --panel: #181818; --card: #222; --line: #2e2e2e;
+      --text: #f2f2f2; --sub: #9a9a9a; --accent: #00d26a; --accent-dk: #0b3b22;
+      --warn: #ffb300; --danger: #ff5252; --blue: #2f7cf6; --purple: #9c4dcc;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+    input[type=text] { user-select: text; -webkit-user-select: text; }
+    button { font-family: inherit; cursor: pointer; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── 헤더 + 단계 표시 ── */
+    header { height: 46px; background: var(--panel); display: flex; align-items: center; justify-content: space-between; padding: 0 12px; flex-shrink: 0; gap: 8px; }
+    .brand { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+    #engine { font-size: 11px; font-weight: 600; color: var(--sub); }
+    #engine.ok { color: var(--accent); }
+    .hbtn { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid #444; background: #262626; color: #fff; font-size: 12px; font-weight: 700; }
+
+    .steps { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 10px 8px; background: var(--panel); border-bottom: 1px solid var(--line); flex-shrink: 0; }
+    .st { display: flex; align-items: center; gap: 5px; border: none; background: none; color: #666; font-size: 12px; font-weight: 700; padding: 4px 6px; border-radius: 8px; }
+    .st i { font-style: normal; width: 20px; height: 20px; border-radius: 50%; background: #2a2a2a; color: #777; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+    .st.done { color: #bbb; } .st.done i { background: #2d4a39; color: var(--accent); }
+    .st.cur { color: #fff; } .st.cur i { background: var(--accent); color: #000; }
+    .st:disabled { cursor: default; }
+    .arrow { color: #444; font-size: 13px; }
+
+    /* ── 작업 영역 ── */
+    #stage { flex: 1; position: relative; overflow: hidden; background: #000; min-height: 0; }
+    .view { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; }
+    body[data-step="1"] #upload-view, body[data-step="2"] #editor-view, body[data-step="3"] #preview-view { display: flex; }
+    body[data-step="1"] #stage { background: var(--bg); }
+
+    #upload-view { padding: 16px; }
+    .up-card { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 10px; text-align: center; padding: 26px 18px; border: 2px dashed #3a3a3a; border-radius: 18px; background: #141414; transition: border-color .15s, background .15s; }
+    .up-card.drag { border-color: var(--accent); background: #12241a; }
+    .up-icon { font-size: 44px; line-height: 1; }
+    .up-title { font-size: 19px; font-weight: 800; }
+    .up-sub { font-size: 13px; color: var(--sub); line-height: 1.55; margin-bottom: 6px; }
+    .pc-tip { font-size: 11px; color: #666; margin-top: 2px; }
+    .pending-note { display: none; font-size: 13px; font-weight: 700; color: var(--warn); background: #2e2410; border: 1px solid #5a4514; padding: 8px 10px; border-radius: 10px; }
+    .opt-sum { font-size: 12px; color: var(--sub); border-top: 1px solid #262626; padding-top: 12px; margin-top: 4px; line-height: 1.7; }
+    .opt-sum b.on { color: var(--accent); } .opt-sum b.off { color: #777; }
+
+    #editor-canvas { touch-action: none; display: block; }
+    #loupe { position: absolute; top: 10px; width: 132px; height: 132px; border: 2.5px solid var(--accent); border-radius: 14px; background: #181818; z-index: 5; display: none; pointer-events: none; overflow: hidden; box-shadow: 0 6px 22px rgba(0,0,0,.9); }
+    #loupe canvas { width: 100%; height: 100%; }
+    #loupe span { position: absolute; top: 4px; left: 6px; font-size: 11px; font-weight: 700; color: var(--accent); background: rgba(0,0,0,.8); padding: 2px 6px; border-radius: 4px; }
+
+    #preview-view { padding: 14px; background: var(--bg); }
+    #preview-canvas { max-width: 100%; max-height: 100%; border-radius: 12px; box-shadow: 0 6px 28px rgba(0,0,0,.6), 0 0 0 1px #2a2a2a; touch-action: none; }
+    .float-bar { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: none; align-items: center; gap: 6px; background: rgba(20,20,20,.96); border: 1px solid #ffea00; border-radius: 22px; padding: 5px 6px 5px 14px; z-index: 6; white-space: nowrap; box-shadow: 0 4px 16px rgba(0,0,0,.6); }
+    .float-bar.show { display: flex; }
+    .float-bar .t { font-size: 12px; font-weight: 700; color: #ffea00; margin-right: 2px; }
+    .float-bar button { height: 32px; min-width: 36px; padding: 0 10px; border-radius: 16px; border: none; background: #333; color: #fff; font-size: 13px; font-weight: 700; }
+    .float-bar button.ok { background: #ffea00; color: #000; }
+
+    /* ── 하단 패널 ── */
+    .panel { display: none; flex-direction: column; gap: 8px; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); flex-shrink: 0; }
+    body[data-step="2"] #panel-2, body[data-step="3"] #panel-3 { display: flex; }
+    .panel > * { width: 100%; max-width: 440px; margin-left: auto; margin-right: auto; }
+
+    .hint-line { font-size: 12px; color: var(--sub); text-align: center; line-height: 1.45; }
+    .hint-line b { color: #ffea00; }
+    .row { display: flex; gap: 6px; }
+    .f1 { flex: 1; }
+
+    .big { height: 54px; border-radius: 12px; border: none; font-size: 16px; font-weight: 800; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; width: 100%; color: #fff; }
+    .big small { font-size: 11px; font-weight: 600; opacity: .75; }
+    .big:active, .mid:active, .chip:active, .tgl-main:active { transform: scale(.98); }
+    .primary { background: var(--accent); color: #000; }
+    .ghost { background: #2a2a2a; color: #fff; border: 1px solid #3a3a3a; }
+    .mid { flex: 1; height: 42px; border-radius: 10px; border: 1px solid #3a3a3a; background: #262626; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+    .mid.on { background: #3a3200; border-color: #ffea00; color: #ffea00; }
+    .mid.print { background: #3a2346; border-color: #5b3870; }
+    .mid.share { background: #183055; border-color: #2c4f86; }
+
+    /* 정밀조정 */
+    #fine-box { display: none; align-items: center; justify-content: center; gap: 14px; background: #121212; border: 1px solid #2a2a2a; border-radius: 12px; padding: 8px; }
+    #fine-box.show { display: flex; }
+    .corner-grid { display: grid; grid-template-columns: 52px 52px; grid-template-rows: 40px 40px; gap: 4px; }
+    .cbtn { border-radius: 8px; border: 1px solid #444; background: #262626; color: #aaa; font-size: 16px; font-weight: 800; }
+    .cbtn.active { background: #ffea00; border-color: #ffea00; color: #000; }
+    .dpad { display: grid; grid-template-columns: 44px 44px 44px; grid-template-rows: 40px 40px; gap: 3px; }
+    .dpad button { background: #2e2e2e; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 16px; touch-action: none; }
+    .dpad button:active { background: var(--accent); color: #000; }
+    #step-btn { width: 48px; height: 84px; border-radius: 8px; border: none; background: #ff9800; color: #000; font-size: 11px; font-weight: 800; line-height: 1.3; }
+
+    /* 결과 화면: 켜고 끄기 카드 */
+    .toggles { display: flex; gap: 8px; }
+    .tgl { flex: 1; display: flex; flex-direction: column; border-radius: 12px; border: 1.5px solid #3a3a3a; background: #1f1f1f; overflow: hidden; transition: border-color .15s, background .15s; }
+    .tgl.on { border-color: var(--accent); background: #12261a; }
+    .tgl-main { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: none; background: none; color: inherit; text-align: left; }
+    .tgl-ico { font-size: 20px; }
+    .tgl-txt { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .tgl-txt b { font-size: 13px; }
+    .tgl-txt small { font-size: 11px; color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pill { font-size: 11px; font-weight: 800; padding: 3px 7px; border-radius: 10px; background: #3a3a3a; color: #999; }
+    .tgl.on .pill { background: var(--accent); color: #000; }
+    .tgl-sub { border: none; border-top: 1px solid #2c2c2c; background: rgba(0,0,0,.2); color: #ccc; font-size: 12px; font-weight: 700; height: 32px; }
+    .tgl:not(.on) .tgl-sub { color: #666; }
+
+    .q-row { display: flex; align-items: center; gap: 6px; }
+    .q-label { font-size: 12px; color: var(--sub); font-weight: 700; width: 30px; }
+    .chip { flex: 1; height: 34px; border-radius: 17px; border: 1px solid #3a3a3a; background: #232323; color: #ccc; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-dk); }
+    .chip.more { flex: 0 0 auto; padding: 0 12px; }
+
+    .pages { display: none; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 700; color: var(--warn); background: #2a220f; border: 1px solid #4d3c12; border-radius: 10px; padding: 6px 6px 6px 12px; }
+    .pages.show { display: flex; }
+    .pages button { height: 28px; padding: 0 10px; border-radius: 14px; border: none; background: #4d3c12; color: #ffd36b; font-size: 12px; font-weight: 700; }
+
+    /* 바텀시트 */
+    .sheet-wrap { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; display: none; align-items: flex-end; justify-content: center; }
+    .sheet-wrap.show { display: flex; }
+    .sheet { width: 100%; max-width: 480px; background: #1c1c1c; border-radius: 18px 18px 0 0; padding: 14px 16px calc(18px + env(safe-area-inset-bottom)); display: none; flex-direction: column; gap: 12px; max-height: 85dvh; overflow-y: auto; }
+    .sheet.show { display: flex; }
+    .sheet h3 { font-size: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .sheet h3 button { height: 32px; padding: 0 16px; border-radius: 16px; border: none; background: var(--accent); color: #000; font-weight: 800; font-size: 13px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field > label { font-size: 12px; color: var(--sub); font-weight: 700; }
+    .text-input { width: 100%; height: 42px; background: #111; border: 1px solid #3a3a3a; border-radius: 10px; color: #fff; padding: 0 12px; font-size: 15px; }
+    .chips-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chips-wrap .chip { flex: 0 0 auto; padding: 0 12px; }
+    .chip[data-type] { padding: 0 2px; letter-spacing: -0.3px; }
+    @media (max-width: 380px) { .chip[data-type] { font-size: 11px; } }
+    .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .check-row input { width: 20px; height: 20px; accent-color: var(--accent); }
+    .slider-row { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; }
+    .slider-row .lb { width: 46px; color: #ddd; }
+    .slider-row input { flex: 1; accent-color: var(--accent); }
+    .slider-row .v { width: 42px; text-align: right; color: var(--accent); }
+    .swatches { display: flex; gap: 8px; }
+    .swatch { flex: 1; height: 34px; border-radius: 10px; border: 2px solid transparent; color: #fff; font-size: 12px; font-weight: 700; }
+    .swatch.active { border-color: #fff; }
+    .wm-preview { font-size: 12px; color: #ccc; background: #111; border-radius: 8px; padding: 8px 10px; line-height: 1.4; word-break: keep-all; }
+
+    #toast { position: fixed; top: 96px; left: 50%; transform: translateX(-50%); background: rgba(0,210,106,.96); color: #000; padding: 9px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; z-index: 9999; display: none; max-width: 92%; text-align: center; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+    #toast.warn { background: rgba(255,179,0,.97); }
+
+    #print-area { display: none; }
+    @media print {
+      @page { size: A4; margin: 0; }
+      html, body { height: auto !important; overflow: visible !important; background: #fff !important; }
+      body > *:not(#print-area) { display: none !important; }
+      #print-area { display: flex !important; flex-direction: column; align-items: center; gap: 8mm; padding-top: 15mm; }
+      #print-area img { width: 85.6mm !important; height: 54mm !important; display: block !important; }
+    }
+    @media (max-height: 640px) {
+      .big { height: 48px; } .mid { height: 38px; } .tgl-main { padding: 7px 9px; }
+    }
+  </style>
+</head>
+<body data-step="1">
+
+  <header>
+    <div class="brand">🪪 신분증 스캐너 <small style="font-size:10px;color:#666;font-weight:600">v4</small> <span id="engine" class="ok">🔒 기기 내 처리</span></div>
+    <div style="display:flex;gap:6px"><button class="hbtn" onclick="newCustomer()">🔄 새 손님</button><button class="hbtn" onclick="backToCrm()">← 강CRM</button></div>
+  </header>
+
+  <div id="crm-cust" style="display:none;padding:6px 14px;background:#0b3b22;color:#c8f7dc;font-size:13px;font-weight:700"></div>
+  <nav class="steps">
+    <button class="st" data-s="1" onclick="gotoStep(1)"><i>1</i>촬영</button>
+    <span class="arrow">›</span>
+    <button class="st" data-s="2" onclick="gotoStep(2)"><i>2</i>영역 확인</button>
+    <span class="arrow">›</span>
+    <button class="st" data-s="3" onclick="gotoStep(3)"><i>3</i>저장·인쇄</button>
+  </nav>
+
+  <div id="toast"></div>
+  <input type="file" id="camera-input" accept="image/*" capture="environment" hidden>
+  <input type="file" id="album-input" accept="image/*" hidden>
+
+  <main id="stage">
+    <!-- 1. 촬영 -->
+    <div class="view" id="upload-view">
+      <div class="up-card" id="drop-zone">
+        <div class="up-icon">📸</div>
+        <div class="up-title" id="up-title">신분증을 찍어주세요</div>
+        <div class="up-sub">어두운 바탕 위에 놓고 빛 반사 없이 찍으면<br>테두리가 자동으로 잡혀요</div>
+        <div class="pending-note" id="up-pending"></div>
+        <button class="big primary" onclick="pick('camera')">📸 카메라로 촬영</button>
+        <button class="big ghost" onclick="pick('album')">🖼️ 사진 불러오기</button>
+        <div class="pc-tip">PC: 사진을 여기로 끌어놓거나 Ctrl+V로 붙여넣기</div>
+        <div class="opt-sum" id="opt-sum"></div>
+      </div>
+    </div>
+
+    <!-- 2. 영역 확인 -->
+    <div class="view" id="editor-view">
+      <canvas id="editor-canvas"></canvas>
+      <div id="loupe"><span id="loupe-label"></span><canvas id="loupe-canvas" width="264" height="264"></canvas></div>
+    </div>
+
+    <!-- 3. 결과 -->
+    <div class="view" id="preview-view">
+      <canvas id="preview-canvas"></canvas>
+      <div class="float-bar" id="mask-bar">
+        <span class="t">노란 박스를 끌어서 맞추세요</span>
+        <button onclick="addMask()" title="박스 추가">＋</button>
+        <button onclick="deleteMask()" title="선택 삭제">🗑</button>
+        <button onclick="resetMasks()" title="기본 위치">↺</button>
+        <button class="ok" onclick="exitMaskEdit()">완료</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- 2단계 패널 -->
+  <section class="panel" id="panel-2">
+    <div class="hint-line">초록 테두리가 신분증에 맞으면 <b>자르기</b> · 모서리는 손가락으로 끌어 옮겨요</div>
+    <div id="fine-box">
+      <div class="corner-grid">
+        <button class="cbtn" data-c="0" onclick="selectCorner(0)">┌</button>
+        <button class="cbtn" data-c="1" onclick="selectCorner(1)">┐</button>
+        <button class="cbtn" data-c="3" onclick="selectCorner(3)">└</button>
+        <button class="cbtn" data-c="2" onclick="selectCorner(2)">┘</button>
+      </div>
+      <div class="dpad">
+        <div></div><button id="btn-up">▲</button><div></div>
+        <button id="btn-left">◀</button><button id="btn-down">▼</button><button id="btn-right">▶</button>
+      </div>
+      <button id="step-btn" onclick="toggleStep()">이동<br>0.5px</button>
+    </div>
+    <div class="row">
+      <button class="mid" onclick="autoDetect(false)">🔍 자동 맞춤</button>
+      <button class="mid" onclick="rotatePoints()">↻ 90° 회전</button>
+      <button class="mid" id="btn-fine" onclick="toggleFine()">🎯 정밀조정</button>
+    </div>
+    <button class="big primary" onclick="applyCrop()">✂️ 이대로 자르기</button>
+  </section>
+
+  <!-- 3단계 패널 -->
+  <section class="panel" id="panel-3">
+    <div class="q-row">
+      <span class="q-label">종류</span>
+      <button class="chip" data-type="jumin" onclick="setCardType('jumin')">주민등록증</button>
+      <button class="chip" data-type="license" onclick="setCardType('license')">운전면허증</button>
+      <button class="chip" data-type="welfare" onclick="setCardType('welfare')">복지카드</button>
+      <button class="chip" data-type="alien" onclick="setCardType('alien')">외국인등록증</button>
+    </div>
+
+    <div class="toggles">
+      <div class="tgl" id="tgl-mask">
+        <button class="tgl-main" onclick="toggleMask()">
+          <span class="tgl-ico">⬛</span>
+          <span class="tgl-txt"><b>뒷자리 가리기</b><small id="mask-desc">주민번호 뒷자리</small></span>
+          <span class="pill" id="pill-mask">OFF</span>
+        </button>
+        <button class="tgl-sub" onclick="enterMaskEdit()">✏️ 위치 조정</button>
+      </div>
+      <div class="tgl" id="tgl-wm">
+        <button class="tgl-main" onclick="toggleWm()">
+          <span class="tgl-ico">💧</span>
+          <span class="tgl-txt"><b>워터마크</b><small id="wm-desc">용도 표시</small></span>
+          <span class="pill" id="pill-wm">OFF</span>
+        </button>
+        <button class="tgl-sub" onclick="openSheet('wm')">✏️ 문구 설정</button>
+      </div>
+    </div>
+
+    <div class="q-row">
+      <span class="q-label">화질</span>
+      <button class="chip" data-preset="orig" onclick="applyPreset('orig')">원본</button>
+      <button class="chip" data-preset="sharp" onclick="applyPreset('sharp')">선명하게</button>
+      <button class="chip" data-preset="doc" onclick="applyPreset('doc')">흑백</button>
+      <button class="chip more" id="chip-custom" onclick="openSheet('adjust')">세부 ⚙️</button>
+    </div>
+
+    <div class="pages" id="pages">
+      <span id="pages-txt"></span>
+      <button onclick="clearPending()">비우기</button>
+    </div>
+
+    <button class="big primary" onclick="sendToCrm()">☁️ 강CRM 서류로 보내기<small id="crm-sub">폰에 파일을 남기지 않고 고객 서류(구글 드라이브)로</small></button>
+    <button class="big ghost" onclick="saveA4()" style="height:44px;font-size:14px">💾 이 폰에 A4로 저장<small id="save-sub">JPG · 300dpi · 실물 85.6×54mm</small></button>
+    <div class="row">
+      <button class="mid" onclick="gotoStep(2)">◀ 다시 자르기</button>
+      <button class="mid" onclick="addAnother()">➕ 뒷면 추가</button>
+    </div>
+    <div class="row">
+      <button class="mid print" onclick="printRealSize()">🖨️ 인쇄</button>
+      <button class="mid" onclick="savePdf()">📄 PDF</button>
+      <button class="mid" onclick="saveCardOnly()">🪪 카드만</button>
+      <button class="mid share" onclick="shareImage()">📤 공유</button>
+    </div>
+  </section>
+
+  <!-- 바텀시트 -->
+  <div class="sheet-wrap" id="sheet-wrap" onclick="if(event.target===this) closeSheet()">
+    <div class="sheet" id="sheet-wm">
+      <h3>💧 워터마크 문구 <button onclick="closeSheet()">완료</button></h3>
+      <div class="field">
+        <label>매장명</label>
+        <input type="text" class="text-input" id="wm-store" maxlength="20" oninput="onWmChange()" placeholder="예: 행복통신 OO점">
+      </div>
+      <div class="field">
+        <label>용도</label>
+        <div class="chips-wrap" id="purpose-chips"></div>
+        <input type="text" class="text-input" id="wm-purpose" maxlength="30" oninput="onWmChange()" placeholder="직접 입력">
+      </div>
+      <label class="check-row"><input type="checkbox" id="wm-date" onchange="onWmChange()">오늘 날짜 붙이기</label>
+      <div class="wm-preview" id="wm-preview"></div>
+      <div class="slider-row"><span class="lb">진하기</span><input type="range" id="wm-opacity" min="10" max="70" value="30" oninput="onWmChange()"><span class="v" id="txt-wm-opacity">30%</span></div>
+      <div class="slider-row"><span class="lb">글자</span><input type="range" id="wm-size" min="70" max="150" value="100" oninput="onWmChange()"><span class="v" id="txt-wm-size">100%</span></div>
+      <div class="swatches">
+        <button class="swatch" data-color="0,0,0" style="background:#333" onclick="setWmColor('0,0,0')">검정</button>
+        <button class="swatch" data-color="211,47,47" style="background:#c62828" onclick="setWmColor('211,47,47')">빨강</button>
+        <button class="swatch" data-color="25,90,200" style="background:#195ac8" onclick="setWmColor('25,90,200')">파랑</button>
+      </div>
+    </div>
+
+    <div class="sheet" id="sheet-adjust">
+      <h3>⚙️ 세부 보정 <button onclick="closeSheet()">완료</button></h3>
+      <div class="slider-row"><span class="lb">밝기</span><input type="range" id="val-b" min="50" max="150" value="100" oninput="onAdjust()"><span class="v" id="txt-b">100%</span></div>
+      <div class="slider-row"><span class="lb">대비</span><input type="range" id="val-c" min="50" max="200" value="100" oninput="onAdjust()"><span class="v" id="txt-c">100%</span></div>
+      <div class="slider-row"><span class="lb">흑백</span><input type="range" id="val-g" min="0" max="100" value="0" oninput="onAdjust()"><span class="v" id="txt-g">0%</span></div>
+      <button class="mid" onclick="applyPreset('orig')">↺ 원본으로</button>
+    </div>
+  </div>
+
+  <div id="print-area"></div>
+
+  <script>
+    // ================= 상수 =================
+    const CARD_W = 1011, CARD_H = 638;      // 85.6 × 54mm @ 300dpi
+    const A4_W = 2480, A4_H = 3508;          // A4 @ 300dpi
+    const DPI = 300;
+    const MAX_SRC = 3200;                    // 원본 최대 변 (폰 메모리 보호)
+    const MAX_CARDS = 4;                     // A4 한 장에 담을 최대 장수
+    const DPR = Math.min(2, window.devicePixelRatio || 1);
+    // 주민등록증·운전면허증·복지카드 모두 ISO ID-1 규격 (85.6 × 54mm)
+    const CARD_TYPES = {
+      jumin:   { name: '주민등록증', masks: [{ x: 0.29, y: 0.33, w: 0.22, h: 0.17 }] },
+      license: { name: '운전면허증', masks: [{ x: 0.55, y: 0.36, w: 0.25, h: 0.13 }] },
+      welfare: { name: '복지카드',   masks: [{ x: 0.29, y: 0.33, w: 0.22, h: 0.17 }] },
+      alien:   { name: '외국인등록증', masks: [{ x: 0.62, y: 0.2, w: 0.22, h: 0.12 }] }   // 외국인등록번호 뒷자리 (위치 조정으로 맞추면 기억)
+    };
+    const typeDefaults = t => CARD_TYPES[t].masks.map(m => ({ ...m }));
+    const PRESETS = { orig: [100, 100, 0], sharp: [104, 125, 0], doc: [112, 150, 100] };
+    const PURPOSES = ['휴대폰 개통 용도 외 사용금지', '본인 확인 용도 외 사용금지', '명의 변경 용도 외 사용금지', '제출용'];
+    const cornerNames = ['좌상단 ┌', '우상단 ┐', '우하단 ┘', '좌하단 └'];
+
+    // ================= 상태 =================
+    let srcCanvas = null;                   // 원본(축소본)
+    let points = [];                        // 모서리 4개 (원본 픽셀 좌표)
+    let ds = 1;                             // 화면캔버스px / 원본px
+    let activeIdx = 0, stepSize = 0.5, fineMode = false, dragging = false;
+    let flatCanvas = null, adjustedCanvas = null;
+    let pending = [];                       // A4에 같이 넣을 이전 카드들
+    let maskEdit = false, selMask = 0, maskDrag = null;
+    let dirty = false;
+    let renderReq = false, nudgeTimer = null, nudgeInterval = null;
+
+    // ================= 설정 (이 기기에 저장) =================
+    const DEFAULTS = {
+      cardType: 'jumin', masksByType: {}, topDirPortrait: 'right', topDirLandscape: 'up',
+      maskOn: true, masks: typeDefaults('jumin'),
+      wmOn: true, wmStore: 'LGU+ 진천점', wmPurpose: PURPOSES[0], wmDate: true,
+      wmOpacity: 30, wmSize: 100, wmColor: '0,0,0', preset: 'orig'
+    };
+    const settings = Object.assign({}, DEFAULTS, loadSettings());
+    if (!CARD_TYPES[settings.cardType]) settings.cardType = 'jumin';
+    function loadSettings() { try { return JSON.parse(localStorage.getItem('idscan-v2') || '{}'); } catch (e) { return {}; } }
+    function saveSettings() { try { localStorage.setItem('idscan-v2', JSON.stringify(settings)); } catch (e) {} }
+
+    const $ = id => document.getElementById(id);
+
+    let toastTimer = null;
+    function toast(msg, warn = false, ms = 2200) {
+      const t = $('toast');
+      t.textContent = msg; t.className = warn ? 'warn' : ''; t.style.display = 'block';
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, ms);
+    }
+
+    // ================= 단계 이동 =================
+    const step = () => +document.body.dataset.step;
+    function setStep(n) {
+      document.body.dataset.step = n;
+      document.querySelectorAll('.st').forEach(b => {
+        const s = +b.dataset.s;
+        b.classList.toggle('cur', s === n);
+        b.classList.toggle('done', s < n || (s === 2 && srcCanvas && n !== 2) || (s === 3 && flatCanvas && n !== 3));
+        b.disabled = !canGo(s);
+      });
+      if (n !== 2) $('loupe').style.display = 'none';
+      if (n !== 3) exitMaskEdit(true);
+      if (n === 1) refreshUploadView();
+      if (n === 2) requestAnimationFrame(fitEditor);
+      if (n === 3) { syncUI(); renderPreview(); }
+    }
+    function canGo(s) { return s === 1 || (s === 2 && !!srcCanvas) || (s === 3 && !!flatCanvas); }
+    function gotoStep(s) { if (canGo(s)) setStep(s); }
+
+    function refreshUploadView() {
+      const n = pending.length;
+      $('up-title').textContent = n ? `${n + 1}번째 장 (뒷면 등) 촬영` : '신분증을 찍어주세요';
+      const p = $('up-pending');
+      p.style.display = n ? 'block' : 'none';
+      p.textContent = n ? `📄 A4에 ${n}장 대기 중 — 찍으면 같은 A4에 아래로 붙어요` : '';
+      const on = v => v ? '<b class="on">켜짐</b>' : '<b class="off">꺼짐</b>';
+      $('opt-sum').innerHTML = `출력 설정 · 뒷자리 가리기 ${on(settings.maskOn)} · 워터마크 ${on(settings.wmOn)}<br>(3단계에서 바로 바꿀 수 있어요)`;
+    }
+
+    // ================= 이미지 불러오기 =================
+    function pick(kind) { $(kind === 'camera' ? 'camera-input' : 'album-input').click(); }
+    function onFileInput(e) { const f = e.target.files[0]; e.target.value = ''; if (f) loadFile(f); }
+    $('camera-input').onchange = onFileInput;
+    $('album-input').onchange = onFileInput;
+
+    function loadFile(file) {
+      if (!file.type.startsWith('image/')) { toast('이미지 파일만 가능해요', true); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, MAX_SRC / Math.max(img.naturalWidth, img.naturalHeight));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        srcCanvas = c; flatCanvas = null; adjustedCanvas = null;
+        setDefaultPoints();
+        fineMode = false; updateFineUI();
+        setStep(2);
+        requestAnimationFrame(() => autoDetect(true));
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); toast('이미지를 열 수 없어요. 다른 사진으로 해주세요.', true); };
+      img.src = url;
+    }
+
+    // PC: 끌어놓기 / 붙여넣기
+    const dz = $('drop-zone');
+    ['dragenter', 'dragover'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); if (step() === 1) dz.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(ev => document.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+    document.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) loadFile(f); });
+    document.addEventListener('paste', e => {
+      const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.type.startsWith('image/'));
+      if (item && step() !== 3) loadFile(item.getAsFile());
+    });
+
+    function setDefaultPoints() {
+      const w = srcCanvas.width, h = srcCanvas.height;
+      const cw = Math.min(w * 0.8, h * 0.8 * 1.586), ch = cw / 1.586;
+      const sx = (w - cw) / 2, sy = (h - ch) / 2;
+      points = [{ x: sx, y: sy }, { x: sx + cw, y: sy }, { x: sx + cw, y: sy + ch }, { x: sx, y: sy + ch }];
+    }
+
+    // ================= 2단계: 영역 =================
+    function fitEditor() {
+      if (!srcCanvas || step() !== 2) return;
+      const v = $('editor-view');
+      const W = v.clientWidth - 16, H = v.clientHeight - 16;
+      if (W <= 0 || H <= 0) return;
+      const s = Math.min(W / srcCanvas.width, H / srcCanvas.height);
+      const c = $('editor-canvas');
+      const cssW = Math.round(srcCanvas.width * s), cssH = Math.round(srcCanvas.height * s);
+      c.style.width = cssW + 'px'; c.style.height = cssH + 'px';
+      c.width = Math.round(cssW * DPR); c.height = Math.round(cssH * DPR);
+      ds = c.width / srcCanvas.width;
+      requestRender();
+    }
+    new ResizeObserver(() => { if (step() === 2) fitEditor(); else if (step() === 3) renderPreview(); }).observe($('stage'));
+
+    function requestRender() {
+      if (renderReq) return;
+      renderReq = true;
+      requestAnimationFrame(() => { renderReq = false; renderEditor(); });
+    }
+
+    function renderEditor() {
+      if (!srcCanvas || step() !== 2) return;
+      const c = $('editor-canvas'), ctx = c.getContext('2d');
+      ctx.clearRect(0, 0, c.width, c.height);
+      ctx.drawImage(srcCanvas, 0, 0, c.width, c.height);
+      const P = points.map(p => ({ x: p.x * ds, y: p.y * ds }));
+
+      // 바깥 어둡게
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, 0, c.width, c.height);
+      ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(P[i].x, P[i].y); ctx.closePath();
+      ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fill('evenodd');
+      ctx.restore();
+
+      ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); for (let i = 1; i < 4; i++) ctx.lineTo(P[i].x, P[i].y); ctx.closePath();
+      ctx.strokeStyle = '#00d26a'; ctx.lineWidth = 2.5 * DPR; ctx.stroke();
+
+      // 윗변 = 결과물의 위쪽
+      ctx.beginPath(); ctx.moveTo(P[0].x, P[0].y); ctx.lineTo(P[1].x, P[1].y);
+      ctx.strokeStyle = '#ffea00'; ctx.lineWidth = 4 * DPR; ctx.stroke();
+      const mx = (P[0].x + P[1].x) / 2, my = (P[0].y + P[1].y) / 2;
+      ctx.font = `bold ${12 * DPR}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      const ang = Math.atan2(P[1].y - P[0].y, P[1].x - P[0].x);
+      ctx.save(); ctx.translate(mx, my); ctx.rotate(ang);
+      ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(-20 * DPR, -22 * DPR, 40 * DPR, 17 * DPR);
+      ctx.fillStyle = '#ffea00'; ctx.fillText('▲ 위', 0, -7 * DPR);
+      ctx.restore();
+
+      P.forEach((p, i) => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 13 * DPR, 0, Math.PI * 2);
+        ctx.fillStyle = (fineMode && i === activeIdx) ? 'rgba(255,234,0,.9)' : 'rgba(255,255,255,.35)';
+        ctx.fill(); ctx.lineWidth = 2.5 * DPR; ctx.strokeStyle = (fineMode && i === activeIdx) ? '#000' : '#00d26a'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(p.x, p.y, 2.5 * DPR, 0, Math.PI * 2); ctx.fillStyle = '#ff1744'; ctx.fill();
+      });
+      updateLoupe();
+    }
+
+    function updateLoupe() {
+      const loupe = $('loupe');
+      if (!(fineMode || dragging)) { loupe.style.display = 'none'; return; }
+      loupe.style.display = 'block';
+      const p = points[activeIdx];
+      // 잡은 모서리 반대편에 확대경 표시
+      const right = p.x > srcCanvas.width / 2;
+      loupe.style.left = right ? '10px' : 'auto';
+      loupe.style.right = right ? 'auto' : '10px';
+      $('loupe-label').textContent = cornerNames[activeIdx];
+      const L = $('loupe-canvas'), lx = L.getContext('2d'), S = L.width, cx = S / 2;
+      const view = 36 * DPR / ds;   // 화면 36px 영역을 확대
+      lx.fillStyle = '#181818'; lx.fillRect(0, 0, S, S);
+      try { lx.drawImage(srcCanvas, p.x - view / 2, p.y - view / 2, view, view, 0, 0, S, S); } catch (e) {}
+      const dx = (activeIdx === 0 || activeIdx === 3) ? 1 : -1, dy = (activeIdx === 0 || activeIdx === 1) ? 1 : -1;
+      lx.lineWidth = 4; lx.strokeStyle = '#ff1744'; lx.beginPath();
+      lx.moveTo(cx + 70 * dx, cx); lx.lineTo(cx, cx); lx.lineTo(cx, cx + 70 * dy); lx.stroke();
+      lx.fillStyle = '#ffea00'; lx.beginPath(); lx.arc(cx, cx, 4, 0, Math.PI * 2); lx.fill();
+    }
+
+    function selectCorner(i) {
+      activeIdx = i;
+      document.querySelectorAll('.cbtn').forEach(b => b.classList.toggle('active', +b.dataset.c === i));
+      requestRender();
+    }
+    function toggleFine() { fineMode = !fineMode; updateFineUI(); requestAnimationFrame(fitEditor); }
+    function updateFineUI() {
+      $('fine-box').classList.toggle('show', fineMode);
+      $('btn-fine').classList.toggle('on', fineMode);
+      $('btn-fine').textContent = fineMode ? '🎯 정밀조정 닫기' : '🎯 정밀조정';
+      selectCorner(activeIdx);
+    }
+    function toggleStep() {
+      stepSize = stepSize === 0.5 ? 2 : 0.5;
+      const b = $('step-btn');
+      b.innerHTML = `이동<br>${stepSize}px`;
+      b.style.background = stepSize === 2 ? '#2f7cf6' : '#ff9800';
+      b.style.color = stepSize === 2 ? '#fff' : '#000';
+    }
+    function nudge(dx, dy) {
+      const p = points[activeIdx], k = stepSize * DPR / ds;
+      p.x = Math.max(0, Math.min(srcCanvas.width, p.x + dx * k));
+      p.y = Math.max(0, Math.min(srcCanvas.height, p.y + dy * k));
+      requestRender();
+    }
+    function stopNudge() { clearTimeout(nudgeTimer); clearInterval(nudgeInterval); nudgeTimer = nudgeInterval = null; }
+    [['btn-up', 0, -1], ['btn-down', 0, 1], ['btn-left', -1, 0], ['btn-right', 1, 0]].forEach(([id, dx, dy]) => {
+      const b = $(id);
+      b.addEventListener('pointerdown', e => {
+        e.preventDefault(); stopNudge(); nudge(dx, dy);
+        nudgeTimer = setTimeout(() => { nudgeInterval = setInterval(() => nudge(dx, dy), 50); }, 280);
+      });
+      ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => b.addEventListener(ev, stopNudge));
+    });
+
+    function rotatePoints() {
+      points = [points[3], points[0], points[1], points[2]];
+      requestRender();
+      toast('↻ 노란 선(▲ 위)이 결과물의 윗면이 돼요');
+    }
+
+    // 모서리 끌기
+    const ec = $('editor-canvas');
+    let dragOff = null;
+    function canvasPt(cnv, e) {
+      const r = cnv.getBoundingClientRect();
+      return { x: (e.clientX - r.left) * (cnv.width / r.width), y: (e.clientY - r.top) * (cnv.height / r.height) };
+    }
+    ec.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const pt = canvasPt(ec, e), sp = { x: pt.x / ds, y: pt.y / ds };
+      let min = Infinity, idx = 0;
+      points.forEach((p, i) => { const d = Math.hypot(p.x - sp.x, p.y - sp.y); if (d < min) { min = d; idx = i; } });
+      selectCorner(idx);
+      const near = min * ds / DPR < 60;   // 화면 60px 이내면 그대로 잡기
+      dragOff = near ? { x: points[idx].x - sp.x, y: points[idx].y - sp.y } : { x: 0, y: 0 };
+      if (!near) moveCorner(sp);
+      dragging = true;
+      ec.setPointerCapture(e.pointerId);
+      requestRender();
+    });
+    ec.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      e.preventDefault();
+      const pt = canvasPt(ec, e);
+      moveCorner({ x: pt.x / ds + dragOff.x, y: pt.y / ds + dragOff.y });
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => ec.addEventListener(ev, () => { dragging = false; requestRender(); }));
+    function moveCorner(p) {
+      points[activeIdx].x = Math.max(0, Math.min(srcCanvas.width, p.x));
+      points[activeIdx].y = Math.max(0, Math.min(srcCanvas.height, p.y));
+      requestRender();
+    }
+
+    // 키보드 (PC)
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (step() === 2) {
+        const m = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+        if (m) { e.preventDefault(); nudge(...m); }
+        else if ('1234'.includes(e.key) && e.key) selectCorner(+e.key - 1);
+        else if (e.key === 'Enter') applyCrop();
+      } else if (step() === 3 && (e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveA4(); }
+    });
+
+    // ---------- 자동 감지 (외부 라이브러리 없이 기기 안에서) ----------
+    function boxBlur(a, W, H, r) {
+      const t = new Float32Array(a.length), o = new Float32Array(a.length), d = 2 * r + 1;
+      for (let y = 0; y < H; y++) {
+        let s = 0; const row = y * W;
+        for (let x = -r; x <= r; x++) s += a[row + Math.min(W - 1, Math.max(0, x))];
+        for (let x = 0; x < W; x++) { t[row + x] = s / d; s += a[row + Math.min(W - 1, x + r + 1)] - a[row + Math.max(0, x - r)]; }
+      }
+      for (let x = 0; x < W; x++) {
+        let s = 0;
+        for (let y = -r; y <= r; y++) s += t[Math.min(H - 1, Math.max(0, y)) * W + x];
+        for (let y = 0; y < H; y++) { o[y * W + x] = s / d; s += t[Math.min(H - 1, y + r + 1) * W + x] - t[Math.max(0, y - r) * W + x]; }
+      }
+      return o;
+    }
+    function morph(m, W, H, r, dilate) {
+      // 정사각형 커널 팽창/침식 (가로→세로 분리)
+      const pass = (src, horiz) => {
+        const out = new Uint8Array(src.length), L = horiz ? W : H, N = horiz ? H : W;
+        for (let j = 0; j < N; j++) {
+          const idx = i => horiz ? j * W + i : i * W + j;
+          let cnt = 0;
+          for (let i = 0; i <= Math.min(r, L - 1); i++) cnt += src[idx(i)];
+          for (let i = 0; i < L; i++) {
+            const lo = Math.max(0, i - r), hi = Math.min(L - 1, i + r);
+            out[idx(i)] = dilate ? (cnt > 0 ? 1 : 0) : (cnt === hi - lo + 1 ? 1 : 0);
+            if (i + r + 1 < L) cnt += src[idx(i + r + 1)];
+            if (i - r >= 0) cnt -= src[idx(i - r)];
+          }
+        }
+        return out;
+      };
+      return pass(pass(m, true), false);
+    }
+    function otsu(vals, maxV) {
+      const bins = 256, h = new Float64Array(bins), sc = (bins - 1) / maxV;
+      for (let i = 0; i < vals.length; i++) h[Math.min(bins - 1, (vals[i] * sc) | 0)]++;
+      let total = vals.length, sum = 0; for (let i = 0; i < bins; i++) sum += i * h[i];
+      let sB = 0, wB = 0, best = 0, th = 0;
+      for (let i = 0; i < bins; i++) {
+        wB += h[i]; if (!wB) continue; const wF = total - wB; if (!wF) break;
+        sB += i * h[i]; const mB = sB / wB, mF = (sum - sB) / wF, v = wB * wF * (mB - mF) * (mB - mF);
+        if (v > best) { best = v; th = i; }
+      }
+      return (th + 0.5) / sc;
+    }
+    function convexHull(pts) {
+      pts = pts.slice().sort((a, b) => a.x - b.x || a.y - b.y);
+      const cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+      const lo = [], up = [];
+      for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+      for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+      return lo.slice(0, -1).concat(up.slice(0, -1));
+    }
+    function polyArea(P) { let a = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; a += p.x * q.y - q.x * p.y; } return Math.abs(a) / 2; }
+    function minAreaRect(hull) {
+      let best = null;
+      for (let i = 0; i < hull.length; i++) {
+        const p = hull[i], q = hull[(i + 1) % hull.length], L = Math.hypot(q.x - p.x, q.y - p.y); if (L < 1e-6) continue;
+        const ux = (q.x - p.x) / L, uy = (q.y - p.y) / L;
+        let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+        for (const h of hull) { const a = h.x * ux + h.y * uy, b = -h.x * uy + h.y * ux; a0 = Math.min(a0, a); a1 = Math.max(a1, a); b0 = Math.min(b0, b); b1 = Math.max(b1, b); }
+        const area = (a1 - a0) * (b1 - b0);
+        if (!best || area < best.area) best = { area, w: a1 - a0, h: b1 - b0, corners: [[a0, b0], [a1, b0], [a1, b1], [a0, b1]].map(([a, b]) => ({ x: a * ux - b * uy, y: a * uy + b * ux })) };
+      }
+      return best;
+    }
+    function fitLine(pts) {
+      // 주성분으로 직선 맞춤 (중심점 + 방향)
+      let cx = 0, cy = 0; for (const p of pts) { cx += p.x; cy += p.y; } cx /= pts.length; cy /= pts.length;
+      let sxx = 0, syy = 0, sxy = 0; for (const p of pts) { const dx = p.x - cx, dy = p.y - cy; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+      const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+      return { cx, cy, dx: Math.cos(ang), dy: Math.sin(ang) };
+    }
+    function intersect(l1, l2) {
+      const det = l1.dx * l2.dy - l1.dy * l2.dx; if (Math.abs(det) < 1e-9) return null;
+      const t = ((l2.cx - l1.cx) * l2.dy - (l2.cy - l1.cy) * l2.dx) / det;
+      return { x: l1.cx + t * l1.dx, y: l1.cy + t * l1.dy };
+    }
+    function clockwise(q) {
+      const cx = q.reduce((s, p) => s + p.x, 0) / 4, cy = q.reduce((s, p) => s + p.y, 0) / 4;
+      return q.slice().sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+    }
+
+    function evalComponents(mask, W, H, cands, tag) {
+      const N = W * H, lab = new Int32Array(N), stack = new Int32Array(N);
+      let nl = 0;
+      for (let s0 = 0; s0 < N; s0++) {
+        if (!mask[s0] || lab[s0]) continue;
+        nl++; let sp = 0, area = 0, minx = W, maxx = 0, miny = H, maxy = 0; const bnd = [];
+        stack[sp++] = s0; lab[s0] = nl;
+        while (sp) {
+          const i = stack[--sp], x = i % W, y = (i / W) | 0; area++;
+          if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+          let edge = false;
+          for (const [nx, ny] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+            if (nx < 0 || ny < 0 || nx >= W || ny >= H) { edge = true; continue; }
+            const j = ny * W + nx;
+            if (!mask[j]) { edge = true; continue; }
+            if (!lab[j]) { lab[j] = nl; stack[sp++] = j; }
+          }
+          if (edge) bnd.push({ x: x + 0.5, y: y + 0.5 });
+        }
+        if (area < N * 0.03 || area > N * 0.97 || bnd.length < 20) continue;
+        const hull = convexHull(bnd); if (hull.length < 4) continue;
+        const rect = minAreaRect(hull); if (!rect || rect.area < 1) continue;
+        const ratio = Math.max(rect.w, rect.h) / Math.max(1, Math.min(rect.w, rect.h));
+        const rectFill = area / rect.area, solidity = area / Math.max(1, polyArea(hull));
+        const ratioScore = Math.exp(-Math.pow((ratio - 1.586) / 0.28, 2));
+        const touch = (minx <= 1) + (miny <= 1) + (maxx >= W - 2) + (maxy >= H - 2);
+        const score = Math.sqrt(area / N) * ratioScore * Math.pow(rectFill, 3) * solidity * (touch ? Math.pow(0.35, touch) : 1);
+        if (rectFill < 0.78 || ratioScore < 0.15) continue;
+        cands.push({ score, rect, bnd, hull, tag });
+      }
+    }
+
+    function refineQuad(c) {
+      // 사각형 모서리 → 각 변을 직선으로 다시 맞춰 둥근 모서리까지 보정
+      let q = clockwise(c.rect.corners.map(rc => c.hull.reduce((b, h) => (Math.hypot(h.x - rc.x, h.y - rc.y) < Math.hypot(b.x - rc.x, b.y - rc.y) ? h : b), c.hull[0])));
+      const lines = [];
+      for (let i = 0; i < 4; i++) {
+        const a = q[i], b = q[(i + 1) % 4], L = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+        const sel = c.bnd.filter(p => { const t = ((p.x - a.x) * ux + (p.y - a.y) * uy) / L, d = Math.abs(-(p.x - a.x) * uy + (p.y - a.y) * ux); return t > 0.12 && t < 0.88 && d < Math.max(3, L * 0.03); });
+        lines.push(sel.length >= 8 ? fitLine(sel) : { cx: a.x, cy: a.y, dx: ux, dy: uy });
+      }
+      const out = [];
+      for (let i = 0; i < 4; i++) {
+        const p = intersect(lines[(i + 3) % 4], lines[i]);
+        out.push(p && Math.hypot(p.x - q[i].x, p.y - q[i].y) < Math.max(c.rect.w, c.rect.h) * 0.12 ? p : q[i]);
+      }
+      return out;
+    }
+
+    function refineFullRes(q) {
+      // 원본 해상도에서 각 변의 실제 경계(밝기 변화가 가장 큰 곳)로 미세 보정
+      const W = srcCanvas.width, H = srcCanvas.height;
+      const d = srcCanvas.getContext('2d').getImageData(0, 0, W, H).data;
+      const g = (x, y) => { x = Math.max(0, Math.min(W - 1, x | 0)); y = Math.max(0, Math.min(H - 1, y | 0)); const i = (y * W + x) * 4; return d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114; };
+      const cx = q.reduce((s, p) => s + p.x, 0) / 4, cy = q.reduce((s, p) => s + p.y, 0) / 4;
+      const base = Math.max(4, Math.round(Math.max(W, H) / 640 * 2.5));
+      const lines = [];
+      for (let i = 0; i < 4; i++) {
+        const a = q[i], b = q[(i + 1) % 4], L = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+        let nx = -uy, ny = ux; if (((a.x + b.x) / 2 - cx) * nx + ((a.y + b.y) / 2 - cy) * ny < 0) { nx = -nx; ny = -ny; }  // 바깥 방향
+        const range = Math.max(base, Math.round(L * 0.02));
+        const pts = [];
+        for (let k = 1; k < 40; k++) {
+          const t = 0.1 + 0.8 * k / 40, px = a.x + (b.x - a.x) * t, py = a.y + (b.y - a.y) * t;
+          const prof = [];
+          for (let s = -range; s <= range; s++) prof.push(Math.abs(g(px + nx * (s + 1), py + ny * (s + 1)) - g(px + nx * (s - 1), py + ny * (s - 1))));
+          const mx = Math.max(...prof); if (mx <= 6) continue;
+          // 안쪽부터 보며 충분히 강한 첫 경계 = 카드 테두리 (바깥 그림자는 무시)
+          let bestS = null;
+          for (let j = 1; j < prof.length - 1; j++) if (prof[j] >= mx * 0.55 && prof[j] >= prof[j - 1] && prof[j] >= prof[j + 1]) { bestS = j - range; break; }
+          if (bestS !== null) pts.push({ x: px + nx * bestS, y: py + ny * bestS });
+        }
+        if (pts.length < 10) { lines.push({ cx: a.x, cy: a.y, dx: ux, dy: uy }); continue; }
+        let l = fitLine(pts);
+        const dist = p => Math.abs(-(p.x - l.cx) * l.dy + (p.y - l.cy) * l.dx);
+        const keep = pts.filter(p => dist(p) < 1.5 + range * 0.3);
+        if (keep.length >= 8) l = fitLine(keep);
+        lines.push(l);
+      }
+      const out = [];
+      for (let i = 0; i < 4; i++) {
+        const p = intersect(lines[(i + 3) % 4], lines[i]);
+        const L = Math.hypot(q[(i + 1) % 4].x - q[i].x, q[(i + 1) % 4].y - q[i].y);
+        out.push(p && Math.hypot(p.x - q[i].x, p.y - q[i].y) < Math.max(base * 2, L * 0.05) ? p : q[i]);
+      }
+      return out;
+    }
+
+    function orientQuad(q) {
+      // 시계방향 4점 → 긴 변이 위가 되도록, 지난번에 고른 방향(가로/세로 각각) 기억
+      q = clockwise(q);
+      const cx = q.reduce((s, p) => s + p.x, 0) / 4, cy = q.reduce((s, p) => s + p.y, 0) / 4;
+      const len = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      const e01 = len(q[0], q[1]) + len(q[2], q[3]), e12 = len(q[1], q[2]) + len(q[3], q[0]);
+      const longDx = e01 >= e12 ? Math.abs(q[1].x - q[0].x) : Math.abs(q[2].x - q[1].x);
+      const longDy = e01 >= e12 ? Math.abs(q[1].y - q[0].y) : Math.abs(q[2].y - q[1].y);
+      const portrait = longDy > longDx;
+      const pref = portrait ? settings.topDirPortrait : settings.topDirLandscape;
+      let fallback = null;
+      for (let r = 0; r < 4; r++) {
+        const c = [0, 1, 2, 3].map(i => q[(i + r) % 4]);
+        if (len(c[0], c[1]) + len(c[2], c[3]) < len(c[1], c[2]) + len(c[3], c[0])) continue;
+        fallback = fallback || c;
+        if (topDir(c, cx, cy) === pref) return c;
+      }
+      return fallback || q;
+    }
+    function topDir(c, cx, cy) {
+      const mx = (c[0].x + c[1].x) / 2 - cx, my = (c[0].y + c[1].y) / 2 - cy;
+      return Math.abs(mx) > Math.abs(my) ? (mx > 0 ? 'right' : 'left') : (my > 0 ? 'down' : 'up');
+    }
+    function rememberOrientation() {
+      const cx = points.reduce((s, p) => s + p.x, 0) / 4, cy = points.reduce((s, p) => s + p.y, 0) / 4;
+      const dir = topDir(points, cx, cy);
+      if (dir === 'left' || dir === 'right') settings.topDirPortrait = dir; else settings.topDirLandscape = dir;
+      saveSettings();
+    }
+
+    function detectCard() {
+      const S = 640, k = Math.min(1, S / Math.max(srcCanvas.width, srcCanvas.height));
+      const W = Math.round(srcCanvas.width * k), H = Math.round(srcCanvas.height * k), N = W * H;
+      const sm = document.createElement('canvas'); sm.width = W; sm.height = H;
+      const sctx = sm.getContext('2d'); sctx.drawImage(srcCanvas, 0, 0, W, H);
+      const px = sctx.getImageData(0, 0, W, H).data;
+      let R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N);
+      for (let i = 0; i < N; i++) { R[i] = px[i * 4]; G[i] = px[i * 4 + 1]; B[i] = px[i * 4 + 2]; }
+      R = boxBlur(R, W, H, 1); G = boxBlur(G, W, H, 1); B = boxBlur(B, W, H, 1);
+      const cands = [];
+
+      // 방법 A: 바탕색(사진 테두리 색)과 얼마나 다른지
+      const band = Math.max(3, Math.round(Math.min(W, H) * 0.03)), br = [], bgc = [], bb = [];
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        if (x >= band && y >= band && x < W - band && y < H - band) continue;
+        const i = y * W + x; br.push(R[i]); bgc.push(G[i]); bb.push(B[i]);
+      }
+      // 바탕색 후보: 테두리 색을 2묶음으로 나눠 각각 (예: 종이 + 책상)
+      const nb = br.length;
+      let c1 = [br[0], bgc[0], bb[0]], c2 = [br[nb >> 1], bgc[nb >> 1], bb[nb >> 1]];
+      let n1 = 0, n2 = 0;
+      for (let it = 0; it < 8; it++) {
+        const s1 = [0, 0, 0], s2 = [0, 0, 0]; n1 = n2 = 0;
+        for (let i = 0; i < nb; i++) {
+          const d1 = Math.hypot(br[i] - c1[0], bgc[i] - c1[1], bb[i] - c1[2]), d2 = Math.hypot(br[i] - c2[0], bgc[i] - c2[1], bb[i] - c2[2]);
+          if (d1 <= d2) { s1[0] += br[i]; s1[1] += bgc[i]; s1[2] += bb[i]; n1++; } else { s2[0] += br[i]; s2[1] += bgc[i]; s2[2] += bb[i]; n2++; }
+        }
+        if (n1) c1 = s1.map(v => v / n1); if (n2) c2 = s2.map(v => v / n2);
+      }
+      const bgs = [c1];
+      if (n2 > nb * 0.12 && Math.hypot(c1[0] - c2[0], c1[1] - c2[1], c1[2] - c2[2]) > 18) bgs.push(c2);
+      for (const [bR, bG, bB] of bgs) {
+        const dist = new Float32Array(N);
+        for (let i = 0; i < N; i++) dist[i] = Math.hypot(R[i] - bR, G[i] - bG, B[i] - bB);
+        const tA = otsu(dist, 442);
+        for (const t of [tA, tA * 0.6, tA * 0.35, 14]) {
+          if (t < 8) continue;
+          let m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = dist[i] > t ? 1 : 0;
+          m = morph(morph(m, W, H, 3, true), W, H, 3, false);        // 구멍 메우기
+          m = morph(morph(m, W, H, 2, false), W, H, 2, true);        // 잡티 제거
+          evalComponents(m, W, H, cands, 'color');
+        }
+      }
+
+      // 방법 B: 테두리선 → 바깥에서 채워서 닫힌 영역 찾기
+      const gray = new Float32Array(N); for (let i = 0; i < N; i++) gray[i] = R[i] * 0.299 + G[i] * 0.587 + B[i] * 0.114;
+      const mag = new Float32Array(N);
+      for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) {
+        const i = y * W + x;
+        const gx = gray[i - W + 1] + 2 * gray[i + 1] + gray[i + W + 1] - gray[i - W - 1] - 2 * gray[i - 1] - gray[i + W - 1];
+        const gy = gray[i + W - 1] + 2 * gray[i + W] + gray[i + W + 1] - gray[i - W - 1] - 2 * gray[i - W] - gray[i - W + 1];
+        mag[i] = Math.hypot(gx, gy);
+      }
+      const tB = otsu(mag, 1443);
+      for (const [t, rr] of [[tB * 0.5, 2], [tB * 0.3, 2], [tB * 0.18, 3]]) {
+        let e = new Uint8Array(N); for (let i = 0; i < N; i++) e[i] = mag[i] > t ? 1 : 0;
+        e = morph(e, W, H, rr, true);
+        const out = new Uint8Array(N), st = []; // 바깥에서 채우기
+        for (let x = 0; x < W; x++) { st.push(x, (H - 1) * W + x); }
+        for (let y = 0; y < H; y++) { st.push(y * W, y * W + W - 1); }
+        while (st.length) {
+          const i = st.pop(); if (out[i] || e[i]) continue; out[i] = 1;
+          const x = i % W, y = (i / W) | 0;
+          if (x > 0) st.push(i - 1); if (x < W - 1) st.push(i + 1); if (y > 0) st.push(i - W); if (y < H - 1) st.push(i + W);
+        }
+        let m = new Uint8Array(N); for (let i = 0; i < N; i++) m[i] = out[i] ? 0 : 1;
+        m = morph(m, W, H, rr, false);
+        evalComponents(m, W, H, cands, 'edge');
+      }
+
+      if (!cands.length) return null;
+      cands.sort((a, b) => b.score - a.score);
+      const best = cands[0];
+      let q = refineQuad(best).map(p => ({ x: p.x / k, y: p.y / k }));
+      try { q = refineFullRes(clockwise(q)); } catch (e) { console.warn(e); }
+      return orientQuad(q.map(p => ({ x: Math.max(0, Math.min(srcCanvas.width, p.x)), y: Math.max(0, Math.min(srcCanvas.height, p.y)) })));
+    }
+
+    function autoDetect(silent) {
+      if (!srcCanvas) return false;
+      let q = null;
+      try { q = detectCard(); } catch (e) { console.error(e); }
+      if (!q) { toast('테두리를 못 찾았어요. 모서리를 직접 끌어 맞춰주세요.', true, 2600); return false; }
+      points = q; requestRender();
+      toast('🔍 테두리 자동 맞춤 완료 · 노란 선(▲ 위)이 윗면이에요');
+      return true;
+    }
+
+    // ---------- 원근 보정 ----------
+    function solveHomography(from, to) {
+      const A = [], b = [];
+      for (let i = 0; i < 4; i++) {
+        const { x, y } = from[i], { x: u, y: v } = to[i];
+        A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+        A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+      }
+      for (let c = 0; c < 8; c++) {
+        let p = c; for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+        [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+        for (let r = 0; r < 8; r++) if (r !== c) {
+          const f = A[r][c] / A[c][c];
+          for (let k = c; k < 8; k++) A[r][k] -= f * A[c][k];
+          b[r] -= f * b[c];
+        }
+      }
+      return b.map((v, i) => v / A[i][i]).concat(1);
+    }
+
+    function warpJS() {
+      // OpenCV 없이도 동작하는 원근 보정 (2×2 슈퍼샘플링)
+      const sw = srcCanvas.width, sh = srcCanvas.height;
+      const sd = srcCanvas.getContext('2d').getImageData(0, 0, sw, sh).data;
+      const H = solveHomography([{ x: 0, y: 0 }, { x: CARD_W, y: 0 }, { x: CARD_W, y: CARD_H }, { x: 0, y: CARD_H }], points);
+      const out = document.createElement('canvas'); out.width = CARD_W; out.height = CARD_H;
+      const oc = out.getContext('2d'), od = oc.createImageData(CARD_W, CARD_H), o = od.data;
+      const offs = [0.25, 0.75];
+      for (let y = 0; y < CARD_H; y++) for (let x = 0; x < CARD_W; x++) {
+        let r = 0, g = 0, bl = 0;
+        for (const oy of offs) for (const ox of offs) {
+          const X = x + ox, Y = y + oy, w = H[6] * X + H[7] * Y + 1;
+          let sx = (H[0] * X + H[1] * Y + H[2]) / w - 0.5, sy = (H[3] * X + H[4] * Y + H[5]) / w - 0.5;
+          sx = Math.max(0, Math.min(sw - 1.001, sx)); sy = Math.max(0, Math.min(sh - 1.001, sy));
+          const x0 = sx | 0, y0 = sy | 0, fx = sx - x0, fy = sy - y0;
+          const i00 = (y0 * sw + x0) * 4, i10 = i00 + 4, i01 = i00 + sw * 4, i11 = i01 + 4;
+          const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+          r += sd[i00] * w00 + sd[i10] * w10 + sd[i01] * w01 + sd[i11] * w11;
+          g += sd[i00 + 1] * w00 + sd[i10 + 1] * w10 + sd[i01 + 1] * w01 + sd[i11 + 1] * w11;
+          bl += sd[i00 + 2] * w00 + sd[i10 + 2] * w10 + sd[i01 + 2] * w01 + sd[i11 + 2] * w11;
+        }
+        const i = (y * CARD_W + x) * 4;
+        o[i] = r / 4; o[i + 1] = g / 4; o[i + 2] = bl / 4; o[i + 3] = 255;
+      }
+      oc.putImageData(od, 0, 0);
+      return out;
+    }
+
+    function sharpen(cnv) {
+      // 살짝 선명하게 (언샤프 마스크)
+      const ctx = cnv.getContext('2d'), W = cnv.width, H = cnv.height, img = ctx.getImageData(0, 0, W, H), d = img.data;
+      for (let c = 0; c < 3; c++) {
+        const a = new Float32Array(W * H); for (let i = 0; i < W * H; i++) a[i] = d[i * 4 + c];
+        const bl = boxBlur(boxBlur(a, W, H, 1), W, H, 1);
+        for (let i = 0; i < W * H; i++) d[i * 4 + c] = a[i] * 1.35 - bl[i] * 0.35;
+      }
+      ctx.putImageData(img, 0, 0);
+      return cnv;
+    }
+
+    function applyCrop() {
+      toast('✂️ 펴는 중...', false, 1200);
+      setTimeout(() => {
+        try { flatCanvas = sharpen(warpJS()); }
+        catch (e) { console.error(e); toast('처리 중 오류가 났어요. 모서리를 다시 확인해주세요.', true); return; }
+        rememberOrientation();
+        dirty = true;
+        applyPreset(settings.preset || 'orig', true);
+        setStep(3);
+      }, 40);
+    }
+
+    // ================= 3단계: 보정 =================
+    function applyPreset(name, silent) {
+      if (!PRESETS[name]) name = 'orig';
+      const [b, c, g] = PRESETS[name];
+      $('val-b').value = b; $('val-c').value = c; $('val-g').value = g;
+      settings.preset = name; saveSettings();
+      onAdjust(true);
+    }
+    let adjRaf = null;
+    function onAdjust(fromPreset) {
+      const b = +$('val-b').value, c = +$('val-c').value, g = +$('val-g').value;
+      $('txt-b').textContent = b + '%'; $('txt-c').textContent = c + '%'; $('txt-g').textContent = g + '%';
+      if (fromPreset !== true) { settings.preset = 'custom'; saveSettings(); }
+      document.querySelectorAll('[data-preset]').forEach(el => el.classList.toggle('active', el.dataset.preset === settings.preset));
+      $('chip-custom').classList.toggle('active', settings.preset === 'custom');
+      if (adjRaf) cancelAnimationFrame(adjRaf);
+      adjRaf = requestAnimationFrame(() => { adjRaf = null; buildAdjusted(b, c, g); renderPreview(); });
+    }
+    function buildAdjusted(b, c, g) {
+      if (!flatCanvas) return;
+      adjustedCanvas = adjustedCanvas || document.createElement('canvas');
+      adjustedCanvas.width = CARD_W; adjustedCanvas.height = CARD_H;
+      const ctx = adjustedCanvas.getContext('2d');
+      ctx.drawImage(flatCanvas, 0, 0);
+      if (b === 100 && c === 100 && g === 0) return;
+      const img = ctx.getImageData(0, 0, CARD_W, CARD_H), d = img.data;
+      const lut = new Uint8ClampedArray(256), bm = b / 100, cm = c / 100, gm = g / 100;
+      for (let i = 0; i < 256; i++) lut[i] = ((i * bm) - 127.5) * cm + 127.5;
+      for (let i = 0; i < d.length; i += 4) {
+        let r = lut[d[i]], gg = lut[d[i + 1]], bb = lut[d[i + 2]];
+        if (gm > 0) { const y = 0.2126 * r + 0.7152 * gg + 0.0722 * bb; r += (y - r) * gm; gg += (y - gg) * gm; bb += (y - bb) * gm; }
+        d[i] = r; d[i + 1] = gg; d[i + 2] = bb;
+      }
+      ctx.putImageData(img, 0, 0);
+    }
+
+    // ================= 합성 =================
+    function roundRectPath(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+    }
+    function todayStr() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`; }
+    function wmText() { return [settings.wmStore, settings.wmPurpose, settings.wmDate ? todayStr() : ''].map(s => (s || '').trim()).filter(Boolean).join(' · '); }
+
+    function drawWatermark(ctx, w, h) {
+      const text = wmText(); if (!text) return;
+      ctx.save();
+      const fs = Math.round(h * 0.05 * settings.wmSize / 100);
+      ctx.font = `bold ${fs}px -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif`;
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = `rgba(${settings.wmColor},${settings.wmOpacity / 100})`;
+      ctx.translate(w / 2, h / 2); ctx.rotate(-18 * Math.PI / 180);
+      const tw = ctx.measureText(text).width + fs * 2.5, lh = fs * 3.2, reach = Math.hypot(w, h) / 2 + tw;
+      let row = 0;
+      for (let y = -reach; y <= reach; y += lh, row++) {
+        const off = (row % 2) * tw / 2;
+        for (let x = -reach - off; x <= reach; x += tw) ctx.fillText(text, x, y);
+      }
+      ctx.restore();
+    }
+
+    function composeFinal() {
+      const out = document.createElement('canvas'); out.width = CARD_W; out.height = CARD_H;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, CARD_W, CARD_H);
+      ctx.save(); roundRectPath(ctx, 0, 0, CARD_W, CARD_H, 36); ctx.clip();
+      ctx.drawImage(adjustedCanvas || flatCanvas, 0, 0);
+      if (settings.maskOn) {
+        ctx.fillStyle = '#111';
+        settings.masks.forEach(m => { roundRectPath(ctx, m.x * CARD_W, m.y * CARD_H, m.w * CARD_W, m.h * CARD_H, 6); ctx.fill(); });
+      }
+      if (settings.wmOn) drawWatermark(ctx, CARD_W, CARD_H);
+      ctx.restore();
+      return out;
+    }
+
+    function renderPreview() {
+      if (!flatCanvas || step() !== 3) return;
+      const pc = $('preview-canvas');
+      if (pc.width !== CARD_W) { pc.width = CARD_W; pc.height = CARD_H; }
+      const ctx = pc.getContext('2d');
+      ctx.clearRect(0, 0, CARD_W, CARD_H);
+      ctx.drawImage(composeFinal(), 0, 0);
+      if (maskEdit) {
+        const k = prevScale();
+        settings.masks.forEach((m, i) => {
+          const x = m.x * CARD_W, y = m.y * CARD_H, w = m.w * CARD_W, h = m.h * CARD_H;
+          ctx.save();
+          ctx.setLineDash([6 * k, 4 * k]); ctx.lineWidth = (i === selMask ? 2.5 : 1.5) * k; ctx.strokeStyle = '#ffea00';
+          ctx.strokeRect(x, y, w, h); ctx.setLineDash([]);
+          ctx.beginPath(); ctx.arc(x + w, y + h, 9 * k, 0, Math.PI * 2);
+          ctx.fillStyle = i === selMask ? '#ffea00' : 'rgba(255,234,0,.55)'; ctx.fill();
+          ctx.lineWidth = 1.5 * k; ctx.strokeStyle = '#000'; ctx.stroke();
+          ctx.restore();
+        });
+      }
+    }
+    function prevScale() { const r = $('preview-canvas').getBoundingClientRect(); return r.width ? CARD_W / r.width : 1; }
+
+    // ================= 3단계: 옵션 UI =================
+    function syncUI() {
+      document.querySelectorAll('[data-type]').forEach(el => el.classList.toggle('active', el.dataset.type === settings.cardType));
+      $('tgl-mask').classList.toggle('on', settings.maskOn);
+      $('pill-mask').textContent = settings.maskOn ? 'ON' : 'OFF';
+      $('mask-desc').textContent = settings.maskOn ? `${settings.masks.length}곳 가림` : '가리지 않음';
+      $('tgl-wm').classList.toggle('on', settings.wmOn);
+      $('pill-wm').textContent = settings.wmOn ? 'ON' : 'OFF';
+      $('wm-desc').textContent = settings.wmOn ? (!String(settings.wmStore || '').trim() ? '✏️ 매장명을 넣어 주세요' : (settings.wmPurpose || settings.wmStore || '문구 없음')) : '넣지 않음';
+      document.querySelectorAll('[data-preset]').forEach(el => el.classList.toggle('active', el.dataset.preset === settings.preset));
+      $('chip-custom').classList.toggle('active', settings.preset === 'custom');
+      const n = pending.length;
+      $('pages').classList.toggle('show', n > 0);
+      $('pages-txt').textContent = `📄 A4에 ${n + 1}장 들어가요 (이전 ${n}장 + 지금)`;
+      $('save-sub').textContent = `JPG · 300dpi · 실물 85.6×54mm${n ? ` · ${n + 1}장` : ''}`;
+    }
+
+    function setCardType(t) {
+      if (t === settings.cardType) return;
+      settings.masksByType[settings.cardType] = settings.masks;
+      settings.cardType = t;
+      settings.masks = (settings.masksByType[t] && settings.masksByType[t].length) ? settings.masksByType[t] : typeDefaults(t);
+      selMask = 0; saveSettings(); syncUI(); renderPreview();
+      toast(`🪪 ${CARD_TYPES[t].name} · 가리는 위치는 종류별로 따로 기억돼요`);
+    }
+
+    function toggleMask() {
+      settings.maskOn = !settings.maskOn;
+      if (settings.maskOn && !settings.masks.length) settings.masks = typeDefaults(settings.cardType);
+      if (!settings.maskOn) exitMaskEdit(true);
+      saveSettings(); syncUI(); renderPreview();
+      toast(settings.maskOn ? '⬛ 뒷자리 가리기 켜짐' : '뒷자리 가리기 꺼짐', !settings.maskOn);
+    }
+    function toggleWm() {
+      settings.wmOn = !settings.wmOn;
+      saveSettings(); syncUI(); renderPreview();
+      toast(settings.wmOn ? '💧 워터마크 켜짐' : '워터마크 꺼짐', !settings.wmOn);
+    }
+
+    function enterMaskEdit() {
+      if (!settings.maskOn) { settings.maskOn = true; if (!settings.masks.length) settings.masks = typeDefaults(settings.cardType); saveSettings(); syncUI(); }
+      maskEdit = true; selMask = Math.min(selMask, settings.masks.length - 1);
+      $('mask-bar').classList.add('show');
+      renderPreview();
+    }
+    function exitMaskEdit(silent) {
+      if (!maskEdit) return;
+      maskEdit = false; $('mask-bar').classList.remove('show');
+      saveSettings(); syncUI(); renderPreview();
+      if (silent !== true) toast('✅ 위치 저장됨 (다음 손님도 같은 위치)');
+    }
+    function addMask() { settings.masks.push({ x: 0.36, y: 0.44, w: 0.24, h: 0.11 }); selMask = settings.masks.length - 1; saveSettings(); syncUI(); renderPreview(); }
+    function deleteMask() {
+      if (selMask < 0 || !settings.masks.length) return;
+      settings.masks.splice(selMask, 1); selMask = settings.masks.length - 1;
+      if (!settings.masks.length) { settings.maskOn = false; exitMaskEdit(true); toast('박스를 모두 지워 가리기가 꺼졌어요', true); }
+      saveSettings(); syncUI(); renderPreview();
+    }
+    function resetMasks() { settings.masks = typeDefaults(settings.cardType); settings.masksByType[settings.cardType] = settings.masks; selMask = 0; saveSettings(); syncUI(); renderPreview(); }
+
+    const pv = $('preview-canvas');
+    pv.addEventListener('pointerdown', e => {
+      if (!maskEdit) return;
+      e.preventDefault();
+      const pt = canvasPt(pv, e), k = prevScale();
+      let hit = -1, mode = null;
+      for (let i = settings.masks.length - 1; i >= 0; i--) {
+        const m = settings.masks[i], x = m.x * CARD_W, y = m.y * CARD_H, w = m.w * CARD_W, h = m.h * CARD_H;
+        if (Math.hypot(pt.x - (x + w), pt.y - (y + h)) < 26 * k) { hit = i; mode = 'resize'; break; }
+        if (pt.x >= x - 8 * k && pt.x <= x + w + 8 * k && pt.y >= y - 8 * k && pt.y <= y + h + 8 * k) { hit = i; mode = 'move'; break; }
+      }
+      if (hit >= 0) { selMask = hit; maskDrag = { mode, sx: pt.x, sy: pt.y, o: { ...settings.masks[hit] } }; pv.setPointerCapture(e.pointerId); }
+      renderPreview();
+    });
+    pv.addEventListener('pointermove', e => {
+      if (!maskDrag) return;
+      e.preventDefault();
+      const pt = canvasPt(pv, e), m = settings.masks[selMask], o = maskDrag.o;
+      const dx = (pt.x - maskDrag.sx) / CARD_W, dy = (pt.y - maskDrag.sy) / CARD_H;
+      if (maskDrag.mode === 'move') { m.x = Math.max(0, Math.min(1 - o.w, o.x + dx)); m.y = Math.max(0, Math.min(1 - o.h, o.y + dy)); }
+      else { m.w = Math.max(0.03, Math.min(1 - o.x, o.w + dx)); m.h = Math.max(0.03, Math.min(1 - o.y, o.h + dy)); }
+      renderPreview();
+    });
+    ['pointerup', 'pointercancel'].forEach(ev => pv.addEventListener(ev, () => { if (maskDrag) { maskDrag = null; saveSettings(); } }));
+
+    // 워터마크 시트
+    function buildPurposeChips() {
+      $('purpose-chips').innerHTML = PURPOSES.map(p => `<button class="chip${settings.wmPurpose === p ? ' active' : ''}" onclick="setPurpose('${p}')">${p.replace(' 용도 외 사용금지', '')}</button>`).join('');
+    }
+    function setPurpose(p) { $('wm-purpose').value = p; onWmChange(); }
+    function onWmChange() {
+      settings.wmStore = $('wm-store').value;
+      settings.wmPurpose = $('wm-purpose').value;
+      settings.wmDate = $('wm-date').checked;
+      settings.wmOpacity = +$('wm-opacity').value;
+      settings.wmSize = +$('wm-size').value;
+      $('txt-wm-opacity').textContent = settings.wmOpacity + '%';
+      $('txt-wm-size').textContent = settings.wmSize + '%';
+      $('wm-preview').textContent = '미리보기: ' + (wmText() || '(문구 없음)');
+      if (!settings.wmOn) { settings.wmOn = true; }
+      buildPurposeChips(); saveSettings(); syncUI(); renderPreview();
+    }
+    function setWmColor(c) { settings.wmColor = c; document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.color === c)); onWmChange(); }
+
+    function openSheet(name) {
+      exitMaskEdit(true);
+      if (name === 'wm') {
+        $('wm-store').value = settings.wmStore; $('wm-purpose').value = settings.wmPurpose; $('wm-date').checked = settings.wmDate;
+        $('wm-opacity').value = settings.wmOpacity; $('wm-size').value = settings.wmSize;
+        $('txt-wm-opacity').textContent = settings.wmOpacity + '%'; $('txt-wm-size').textContent = settings.wmSize + '%';
+        $('wm-preview').textContent = '미리보기: ' + (wmText() || '(문구 없음)');
+        document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.color === settings.wmColor));
+        buildPurposeChips();
+      }
+      $('sheet-wrap').classList.add('show');
+      document.querySelectorAll('.sheet').forEach(s => s.classList.toggle('show', s.id === 'sheet-' + name));
+    }
+    function closeSheet() { $('sheet-wrap').classList.remove('show'); }
+
+    // ================= 여러 장 (뒷면) =================
+    function addAnother() {
+      if (pending.length + 1 >= MAX_CARDS) { toast(`A4 한 장에 최대 ${MAX_CARDS}장까지예요`, true); return; }
+      pending.push(composeFinal());
+      flatCanvas = null; adjustedCanvas = null; srcCanvas = null;
+      setStep(1);
+      toast(`📄 ${pending.length}장 담았어요. 다음 장을 찍어주세요`);
+    }
+    function clearPending() {
+      if (!confirm(`대기 중인 ${pending.length}장을 비울까요? (지금 화면의 카드는 남아요)`)) return;
+      pending = []; syncUI(); toast('대기 중인 장을 비웠어요');
+    }
+    const allCards = () => [...pending, composeFinal()];
+
+    // ================= 출력 (JPG 300dpi) =================
+    function canvasToJpeg300(canvas, q = 0.95) {
+      return new Promise(res => canvas.toBlob(async blob => {
+        const u = new Uint8Array(await blob.arrayBuffer());
+        const hi = DPI >> 8, lo = DPI & 255;
+        // JFIF 헤더가 있으면 해상도만 300dpi로 바꾸고, 없으면 새로 넣음
+        if (u[2] === 0xFF && u[3] === 0xE0 && u[6] === 0x4A && u[7] === 0x46 && u[8] === 0x49 && u[9] === 0x46 && u[10] === 0) {
+          u[13] = 1; u[14] = hi; u[15] = lo; u[16] = hi; u[17] = lo;
+          res(new Blob([u], { type: 'image/jpeg' }));
+        } else {
+          const app0 = new Uint8Array([0xFF, 0xE0, 0, 16, 0x4A, 0x46, 0x49, 0x46, 0, 1, 1, 1, hi, lo, hi, lo, 0, 0]);
+          const out = new Uint8Array(u.length + app0.length);
+          out.set(u.subarray(0, 2), 0); out.set(app0, 2); out.set(u.subarray(2), 2 + app0.length);
+          res(new Blob([out], { type: 'image/jpeg' }));
+        }
+      }, 'image/jpeg', q));
+    }
+    function stamp() { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`; }
+    function download(blob, name) {
+      const url = URL.createObjectURL(blob), a = document.createElement('a');
+      a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+    function guard() {
+      if (!flatCanvas) return false;
+      if (!settings.maskOn && !settings.wmOn) toast('⚠️ 가리기·워터마크 없이 원본 그대로 나가요', true, 2600);
+      return true;
+    }
+
+    const fname = () => CARD_TYPES[settings.cardType].name;
+
+    // A4 PDF: 인쇄 시 "실제 크기"로 85.6×54mm 정확히 나오게
+    async function savePdf() {
+      if (!guard()) return;
+      const cards = allCards();
+      const jpgs = [];
+      for (const c of cards) jpgs.push(new Uint8Array(await (await canvasToJpeg300(c)).arrayBuffer()));
+      const enc = new TextEncoder(), parts = [], offs = [];
+      let len = 0;
+      const push = b => { if (typeof b === 'string') b = enc.encode(b); parts.push(b); len += b.length; };
+      const mm = v => (v * 72 / 25.4).toFixed(3);
+      const PW = 595.276, PH = 841.890;
+      push(new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52, 10, 37, 226, 227, 207, 211, 10]));   // %PDF-1.4
+      const obj = (id, body) => { offs[id] = len; push(`${id} 0 obj\n${body}\nendobj\n`); };
+      obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+      obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+      const xo = jpgs.map((_, i) => `/Im${i} ${5 + i} 0 R`).join(' ');
+      obj(3, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << ${xo} >> >> /Contents 4 0 R >>`);
+      let content = '';
+      jpgs.forEach((_, i) => {
+        const x = (PW - 85.6 * 72 / 25.4) / 2, y = PH - (15 + i * (54 + 8) + 54) * 72 / 25.4;
+        content += `q ${mm(85.6)} 0 0 ${mm(54)} ${x.toFixed(3)} ${y.toFixed(3)} cm /Im${i} Do Q\n`;
+      });
+      obj(4, `<< /Length ${content.length} >>\nstream\n${content}endstream`);
+      jpgs.forEach((j, i) => {
+        offs[5 + i] = len;
+        push(`${5 + i} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${CARD_W} /Height ${CARD_H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${j.length} >>\nstream\n`);
+        push(j); push('\nendstream\nendobj\n');
+      });
+      const total = 5 + jpgs.length, xref = len;
+      let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+      for (let i = 1; i < total; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+      push(x + `trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+      download(new Blob(parts, { type: 'application/pdf' }), `${fname()}_A4_${stamp()}.pdf`);
+      dirty = false; toast('📄 PDF 저장 완료 · 인쇄 시 "실제 크기(100%)"로');
+    }
+
+    function buildA4() {
+      const cards = allCards();
+      const a4 = document.createElement('canvas'); a4.width = A4_W; a4.height = A4_H;
+      const ctx = a4.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, A4_W, A4_H);
+      const gap = 94;   // 8mm
+      cards.forEach((c, i) => ctx.drawImage(c, (A4_W - CARD_W) / 2, 177 + i * (CARD_H + gap), CARD_W, CARD_H));   // 위 15mm
+      return a4;
+    }
+
+    async function saveA4() {
+      if (!guard()) return;
+      download(await canvasToJpeg300(buildA4()), `${fname()}_A4_${stamp()}.jpg`);
+      dirty = false; toast('💾 A4 저장 완료 (JPG · 300dpi)');
+    }
+    async function saveCardOnly() {
+      if (!guard()) return;
+      const cards = allCards(), s = stamp();
+      for (let i = 0; i < cards.length; i++) {
+        if (i) await new Promise(r => setTimeout(r, 900));   // 폰이 연속 다운로드를 막지 않게 사이를 둠
+        download(await canvasToJpeg300(cards[i]), cards.length > 1 ? `${fname()}_${s}_${i + 1}.jpg` : `${fname()}_${s}.jpg`);
+      }
+      dirty = false; toast(cards.length > 1 ? `🪪 카드 이미지 ${cards.length}장 저장 · "여러 파일 다운로드" 허용을 물으면 [허용]` : '🪪 카드 이미지 저장 (300dpi)', cards.length > 1, 3200);
+    }
+    async function shareImage() {
+      if (!guard()) return;
+      const cards = allCards(), s = stamp();
+      const files = [];
+      for (let i = 0; i < cards.length; i++) files.push(new File([await canvasToJpeg300(cards[i])], `${fname()}_${s}${cards.length > 1 ? '_' + (i + 1) : ''}.jpg`, { type: 'image/jpeg' }));
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try { await navigator.share({ files, title: '신분증 사본' }); dirty = false; }
+        catch (e) { if (e.name !== 'AbortError') toast('공유를 못 했어요', true); }
+      } else {
+        toast('이 기기는 공유가 안 돼서 저장으로 대신해요', true);
+        files.forEach(f => download(f, f.name)); dirty = false;
+      }
+    }
+    function printRealSize() {
+      if (!guard()) return;
+      const area = $('print-area'); area.innerHTML = '';
+      const cards = allCards(); let loaded = 0;
+      toast('🖨️ 인쇄 배율은 꼭 "실제 크기 / 100%"로!', true, 3500);
+      cards.forEach(c => {
+        const img = new Image();
+        img.onload = () => { if (++loaded === cards.length) setTimeout(() => { window.print(); dirty = false; }, 80); };
+        img.src = c.toDataURL('image/jpeg', 0.95);
+        area.appendChild(img);
+      });
+    }
+
+    // ================= 새 손님 =================
+    function newCustomer() {
+      if ((dirty || pending.length) && !confirm('저장 안 한 스캔이 있어요. 지우고 새 손님을 시작할까요?')) return;
+      [flatCanvas, adjustedCanvas, srcCanvas, ...pending].forEach(c => { if (c) { c.width = 0; c.height = 0; } });
+      flatCanvas = adjustedCanvas = srcCanvas = null; pending = []; points = []; dirty = false;
+      ['editor-canvas', 'preview-canvas'].forEach(id => { const c = $(id); c.width = 0; c.height = 0; });
+      $('print-area').innerHTML = '';
+      setStep(1);
+      toast('🔄 이전 손님 이미지를 모두 지웠어요');
+    }
+    window.addEventListener('beforeunload', e => { if (dirty || pending.length) { e.preventDefault(); e.returnValue = ''; } });
+
+    // ================= ☁️ 강CRM 연결 =================
+    // 강CRM 고객카드 [🪪 신분증 스캔] → idscan.html?c=고객번호&n=이름 → 다 찍으면 A4 한 장(JPG)을
+    // 이 폰 브라우저 안(IndexedDB, 같은 사이트만 읽음)에 잠깐 넣고 강CRM으로 → 강CRM이 서류로 올리고 바로 지움
+    const CRM_Q = new URLSearchParams(location.search), CRM_CUST = CRM_Q.get('c') || '', CRM_NAME = CRM_Q.get('n') || '';
+    if (CRM_NAME || CRM_CUST) { const el = $('crm-cust'); el.textContent = `👤 ${CRM_NAME || '고객'} 님 서류로 보내요`; el.style.display = 'block'; }
+    function scanIdb() { return new Promise((res, rej) => { const r = indexedDB.open('kcrm-scan', 1); r.onupgradeneeded = () => r.result.createObjectStore('h'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+    async function sendToCrm() {
+      if (!guard()) return;
+      try {
+        toast('☁️ 강CRM으로 넘기는 중…', false, 4000);
+        const blob = await canvasToJpeg300(buildA4()), n = allCards().length;
+        const db = await scanIdb();
+        await new Promise((res, rej) => { const tx = db.transaction('h', 'readwrite'); tx.objectStore('h').put({ blob, name: `신분증사본_${fname()}_${stamp()}.jpg`, cust: CRM_CUST, custName: CRM_NAME, kind: fname(), pages: n, at: Date.now() }, 'last'); tx.oncomplete = res; tx.onerror = () => rej(tx.error); });
+        dirty = false; pending = [];
+        [flatCanvas, adjustedCanvas, srcCanvas].forEach(c => { if (c) { c.width = 0; c.height = 0; } });
+        location.href = 'db.html?scanIn=1';
+      } catch (e) { console.error(e); toast('강CRM으로 넘기지 못했어요. [이 폰에 A4로 저장]으로 해 주세요.', true, 3500); }
+    }
+    function backToCrm() {
+      if ((dirty || pending.length) && !confirm('보내지 않은 스캔이 있어요. 지우고 강CRM으로 돌아갈까요?')) return;
+      dirty = false; pending = [];
+      location.href = CRM_CUST ? 'db.html?cust=' + encodeURIComponent(CRM_CUST) : 'db.html';
+    }
+
+    setStep(1);
+    // 📴 오프라인: 한 번 열어 두면 인터넷이 끊겨도 열림 (https에서만)
+  </script>
+</body>
+</html>
