@@ -17774,10 +17774,12 @@ familyStr + `\n` +
                 return `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900 whitespace-nowrap">${escapeHtml(r.model)}</td>${['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].map(f => `<td class="px-1 py-1">${cell(r, x, f)}</td>`).join('')}</tr>`; }).join('')}</tbody></table></div>`;
         }
         /* 🖼 V276 시세표 이미지 — 통신사마다 거래처 · 요금제 구간을 고르고, 같은 기종을 한 줄로 묶어 MNP · 기변 현금가 → 그림 → 💾 저장 · 📣 명함 알림 (문자는 안 보냄) */
+        // 📛 V296 모델 코드 이름: 대표가 붙인 이름(calcData.qtNames) → 기본 이름표 (재고 · 시세표 · 견적 같이)
+        function qtNameOf(code) { try { return String(((calcData && calcData.qtNames) || {})[code] || QT_CODE_NAMES[code] || '').trim(); } catch (e) { return QT_CODE_NAMES[code] || ''; } }
         function siseKey(model) {
             const m = String(model || '').toUpperCase().replace(/\s|_/g, ''), st = /1T(B)?\b|1TB|_1T|-1T/.test(m) || /1T$/.test(m) ? '1T' : (/512/.test(m) ? '512' : '');
             const sam = m.match(/(?:SM-?)?([SFAMLXZ]\d{3})/);
-            if (sam && !/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD/.test(m)) return { key: sam[1] + (st ? '_' + st : ''), name: (QT_CODE_NAMES[sam[1]] || sam[1]) + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+            if (sam && !/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD/.test(m)) return { key: sam[1] + (st ? '_' + st : ''), name: (qtNameOf(sam[1]) || sam[1]) + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
             if (/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD|DUO|에어/.test(m)) {
                 if (/DUO|IPD|폴드|FOLD/.test(m)) return { key: 'IPDUO' + (st ? '_' + st : ''), name: '아이폰 듀오' + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
                 const n = (m.match(/(?:아이폰|IPHONE|IP|UIP|AIP)(\d{2})/) || [])[1] || '';
@@ -19988,7 +19990,7 @@ familyStr + `\n` +
                 g.dev.forEach(x => { const m = models.find(y => stockKey(y.m) === stockKey(x.model)); if (m) m.list.push(x); else models.push({ m: x.model, list: [x] }); });
                 return `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                     <div class="flex items-center justify-between gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200"><h3 class="text-[16px] font-extrabold text-gray-900 truncate">${escapeHtml(g.n)}${car ? ` <span class="ml-1 align-middle text-[11px] font-bold border rounded-full px-2 py-0.5 ${STOCK_CAR_TONE[car] || 'bg-gray-50 text-gray-600 border-gray-200'}">${escapeHtml(car)}</span>` : ''}</h3><span class="flex-shrink-0 text-[13px] font-bold text-gray-600">${g.dev.length}대${g.usim.length ? ` · 유심 ${g.usim.reduce((t, u) => t + (Number(u.qty) || 0), 0)}` : ''}</span></div>
-                    ${models.map(m => `<div class="border-b border-gray-100 last:border-b-0"><div class="flex items-center justify-between px-3 pt-2.5 pb-0.5"><span class="text-[15px] font-extrabold text-gray-900">${escapeHtml(m.m || '모델 없음')}${stockModelName(m.m) ? ` <span class="text-[13px] font-bold text-indigo-700">${escapeHtml(stockModelName(m.m))}</span>` : ''}</span><span class="text-xs font-bold text-gray-500">${m.list.length}대</span></div>
+                    ${models.map(m => `<div class="border-b border-gray-100 last:border-b-0"><div class="flex items-center justify-between px-3 pt-2.5 pb-0.5"><span class="text-[15px] font-extrabold text-gray-900">${escapeHtml(m.m || '모델 없음')}${stockModelName(m.m) ? ` <span class="text-[13px] font-bold text-indigo-700">${escapeHtml(stockModelName(m.m))}</span>` : (m.m && can('editPolicy') ? ` <button type="button" data-stk-mname="${escapeHtml(m.m)}" class="ml-1 h-7 px-2 rounded-lg border border-dashed border-indigo-300 text-[12px] font-bold text-indigo-700 align-middle">✏️ 이름 붙이기</button>` : '')}</span><span class="text-xs font-bold text-gray-500">${m.list.length}대</span></div>
                         ${m.list.map(x => `<button type="button" data-stk="${escapeHtml(x.id)}" class="w-full flex items-center gap-2 pl-5 pr-3 min-h-[44px] text-left hover:bg-gray-50"><span class="w-[72px] flex-shrink-0 text-[14px] text-gray-700 truncate">${escapeHtml(x.color || '-')}</span><span class="flex-1 min-w-0 font-mono text-[15px] font-bold text-gray-900 truncate">${escapeHtml(x.serial || '(일련번호 없음)')}</span>${ageOf(x) >= stockOldDays() ? `<span class="flex-shrink-0 text-[11px] font-bold text-orange-800 bg-orange-50 border border-orange-200 rounded px-1.5 py-0.5" title="들어온 지 ${ageOf(x)}일">⏳${ageOf(x)}일</span>` : ''}${x.memo ? `<span class="flex-shrink-0 max-w-[96px] truncate text-[11px] font-bold text-red-700 bg-red-50 border border-red-100 rounded px-1.5 py-0.5">${escapeHtml(x.memo)}</span>` : ''}<i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`).join('')}
                     ${g.usim.length ? `<div class="px-3 py-2.5 bg-gray-50/70 border-t border-gray-100"><p class="text-xs font-bold text-gray-500 mb-1.5">💳 유심</p><div class="flex flex-wrap gap-1.5">${g.usim.map(u => `<button type="button" data-stk="${escapeHtml(u.id)}" class="min-h-[36px] px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-800">${escapeHtml(u.model || '유심')} <span class="text-indigo-700">${Number(u.qty) || 0}개</span>${(u.serials || []).length ? `<span class="text-teal-700 text-[11px]"> · 번호 ${u.serials.length}</span>` : ''}${u.memo ? ` <span class="font-medium text-gray-500">· ${escapeHtml(u.memo)}</span>` : ''}</button>`).join('')}</div></div>` : ''}
                     ${!q && stockNotesOf(g.n).length ? `<div class="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100"><p class="flex-1 min-w-0 text-xs text-gray-600">📝 ${stockNotesOf(g.n).map(escapeHtml).join(' · ')}</p><button type="button" data-stk-notes="${escapeHtml(g.n)}" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-700">✏️ 고치기</button></div>` : ''}
@@ -20344,6 +20346,24 @@ familyStr + `\n` +
         document.getElementById('stockList').addEventListener('click', async (e) => {
             const cu = e.target.closest('[data-stk-cust]'); if (cu) { window.openProfileCard(cu.dataset.stkCust); return; }
             if (e.target.closest('[data-stk-alertset]')) { stockAlertSet(); return; }   // 📦 V208
+            const mn = e.target.closest('[data-stk-mname]');
+            if (mn) {   // 📛 V296 모델 코드에 이름 붙이기 (예: M176 → 갤럭시 ○○) → 재고 · 시세표 · 명함 견적에 같이
+                const model = mn.dataset.stkMname, k = siseKey(model), code = String(k.key || '').replace(/_(512|1T)$/, '') || model;
+                const sh = document.createElement('div'); sh.className = 'fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-black/50';
+                sh.innerHTML = `<div class="sheet-in w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl p-4 space-y-3" role="dialog" aria-modal="true"><div class="flex items-center justify-between"><h2 class="text-[17px] font-bold text-gray-900">📛 ${escapeHtml(code)} 이름</h2><button type="button" data-mn-x class="w-11 h-11 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                    <p class="text-[12px] text-gray-500">한 번 붙이면 재고 · 시세표 · 명함 견적에서 같이 보여요 (설정 → 명함 견적 → 모델 코드 이름에서도 고칠 수 있어요).</p>
+                    <input id="mnName" placeholder="예) 갤럭시 버디5" class="${stCls} font-bold">
+                    <button type="button" data-mn-save class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button></div>`;
+                document.body.appendChild(sh); setTimeout(() => { const i = document.getElementById('mnName'); if (i) i.focus(); }, 50);
+                sh.addEventListener('click', async (ev) => {
+                    if (ev.target === sh || ev.target.closest('[data-mn-x]')) { sh.remove(); return; }
+                    if (!ev.target.closest('[data-mn-save]')) return;
+                    const v = String(document.getElementById('mnName').value || '').replace(/[<>"]/g, '').trim().slice(0, 30); if (!v) return customAlert('이름을 넣어 주세요.');
+                    const next = calcNormalize(calcData); next.qtNames = { ...(next.qtNames || {}), [code]: v };
+                    if (await calcSave(next, true)) { sh.remove(); renderStock(); stockToast(`📛 ${code} → ${v}`); }
+                });
+                return;
+            }
             const nb = e.target.closest('[data-stk-notes]');
             if (nb) {   // ✏️ V293 거래처 메모 (재고표에서 읽은 '리셋 후 사용가능' 같은 글) 고치기 · 지우기 — 예전엔 다음 재고표를 올릴 때까지 계속 남았음
                 const d = nb.dataset.stkNotes, cur0 = stockNotesOf(d);
@@ -26561,7 +26581,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V295';
+        const APP_VER = 'V296';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26569,6 +26589,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V296', d: '2026-11-03', items: [
+                ['📛 재고에서 이름 없는 모델 코드(M176 · A576 · L345 …) 옆 [✏️ 이름 붙이기] → 재고 · 시세표 · 명함 견적에 같이 보여요 (대표가 붙인 이름이 기본 이름표보다 먼저)', 'a']] },
             { v: 'V295', d: '2026-11-03', items: [
                 ['🔎 고객 검색칸: 단말 일련번호 · 유심 번호로 찾기 더 넓게 (띄어쓰기 · 하이픈 섞여도 · 끝자리뿐 아니라 중간 6자리 이상도 · 개통 기록의 유심 번호까지)', 'a']] },
             { v: 'V294', d: '2026-11-03', items: [
