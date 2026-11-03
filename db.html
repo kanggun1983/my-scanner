@@ -13845,7 +13845,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const body = document.getElementById('pushBody').value.trim();
             if (!body) return;
             const at = atIso || new Date().toISOString();
-            const until = new Date(new Date(at).getTime() + 14 * 86400000).toISOString();
+            const until = new Date(new Date(at).getTime() + (/시세표/.test(heading) ? 2 : 14) * 86400000).toISOString();   // 📊 V276 시세표는 금방 바뀌어서 2일만
             try {
                 await saveDoc(doc(db, 'card_public', 'notice'), { id: pid || Date.now().toString(36), heading: heading.slice(0, 40), body: body.slice(0, 200), image: /^https:\/\//.test(pushImage || '') ? pushImage : '', at, until, by: getStaffName() || '' });
             } catch (e) {
@@ -17720,7 +17720,7 @@ familyStr + `\n` +
                         return `<div class="grid grid-cols-2 gap-1.5 items-center"><select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
                     <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><div class="mt-2 grid grid-cols-2 gap-1">${rows.map(r => `<label class="flex items-center gap-1.5 text-[12px]"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600">${escapeHtml(r.name)} <span class="text-gray-400">${Object.keys(r.c).length}사</span></label>`).join('')}</div></details>
                     <img src="${cv.toDataURL('image/png')}" alt="시세표 미리보기" class="w-full rounded-xl border border-gray-200">`;
-            }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><p class="text-[11px] text-gray-500 text-center">명함 알림을 켠 고객에게만 가요 · 문자는 보내지 않아요</p>`);
+            }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><button type="button" data-ss="notice" class="w-full h-11 rounded-2xl border border-pink-300 bg-pink-50 text-[13px] font-bold text-pink-800">📌 명함 열 때 한 번만 띄우기 (알림 없이 · 2일)</button><p class="text-[11px] text-gray-500 text-center">📣 알림은 켠 고객에게만 가고, 보내면 명함 열 때도 한 번 떠요 · 문자는 보내지 않아요</p>`);
             S.sh.addEventListener('change', (e) => {
                 const dd = e.target.closest('[data-sx-d]'), tt = e.target.closest('[data-sx-t]'), on = e.target.closest('[data-sx-on]');
                 if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: ((it && it.P.tiers || [])[0] || {}).id }; }
@@ -17734,6 +17734,20 @@ familyStr + `\n` +
                 if (a.ss === 'close') return S.close();
                 const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92)), name = `시세표_${getTodayStr()}.jpg`;
                 if (a.ss === 'save') { const u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); return; }
+                if (a.ss === 'notice') {   // 📌 알림 없이 명함 공지 창만 (명함을 열면 한 번 · 2일 동안)
+                    if (!can('pushAll')) return noPerm('홍보 문자 · 고객 전체 푸시');
+                    if (!pushRelayReady()) return customAlert('사진을 올리려면 명함 알림 중계 서버 연결이 필요해요. 설정 → 연결 관리에서 먼저 연결해 주세요.');
+                    if (!(await customConfirm('이 시세표를 명함을 여는 고객에게 한 번씩 보여줄까요?\n(알림은 안 가요 · 2일 동안 · 고객마다 한 번)'))) return;
+                    try {
+                        showUploadToast('📌 시세표를 명함에 올리는 중…');
+                        const dataUrl = await compressPushImage(new File([blob], name, { type: 'image/jpeg' }));
+                        const up = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' } });
+                        const at = new Date().toISOString(), until = new Date(Date.now() + 2 * 86400000).toISOString();
+                        await saveDoc(doc(db, 'card_public', 'notice'), { id: 'sise' + Date.now().toString(36), heading: `📊 ${getTodayStr().slice(5).replace('-', '/')} 오늘의 휴대폰 시세표`, body: '오늘 매장 시세표예요 😊 궁금한 기종은 견적요청 · 상담 남겨 주세요!', image: up.url, at, until, by: getStaffName() || '' });
+                        hideUploadToast(); stockToast('📌 명함을 열면 시세표가 한 번 떠요 (2일)');
+                    } catch (err) { hideUploadToast(); customAlert(`명함에 올리지 못했어요.\n${err.message || ''}`); }
+                    return;
+                }
                 if (a.ss === 'push') {
                     if (!can('pushAll')) return noPerm('홍보 문자 · 고객 전체 푸시');
                     if (!pushRelayReady()) return customAlert('명함 알림 중계 서버 연결이 필요해요. 설정 → 연결 관리에서 먼저 연결해 주세요.');
@@ -26187,6 +26201,7 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V276', d: '2026-11-03', items: [
+                ['📌 시세표를 명함 열 때 한 번만 띄우기 (알림 없이 · 2일) · 📣 알림으로 보낸 시세표도 명함 공지 창은 2일만 (가격이 금방 바뀌어서)', 'a'],
                 ['🖼 시세표 이미지 만들기: 통신사마다 거래처 · 요금제 구간 고르고 기종 체크 → 그림 → 💾 저장 · 📣 명함 알림으로 보내기 (문자는 안 보냄)', 'a'],
                 ['💰 시세표: 순마진(통신사별 · 기종별) · 할부 추가 · 반올림 설정 → 정책표 [보기]에서 현금가 · 할부가 시세 미리보기 (거래처 조건의 부가 · 보험 추가/차감 · 그레이드 그대로 반영 · 부가 미가입 시 + 따로 표시)', 'a'],
                 ['📊 설정 → 시세표 (준비 중): 거래처(SK상상 · SK라온 · KT성원 · LG태성 · LG뉴에이스)마다 정책표를 📷 사진 · 📄 엑셀로 올리면 AI가 모델 · 요금제 구간 · 010/MNP/기변 · 공통/선약 금액을 표로 읽어 보관 (아직 고객 화면엔 안 나가요)', 'a']] },
