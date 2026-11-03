@@ -6749,7 +6749,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 💰 총매출 = 판매마진 + 중고폰 · 실마진 = 실판매마진 + 중고폰 (중고폰은 부가세 X) · 사람은 그 개통의 개통자
            ===================================================================== */
         const ACT_KEEP = 30;
-        const ACT_SETTLE_KEYS = ['기본정책', '추가정책', '수수료', '할인금액', '유통망지원금', '정산금액', '판매마진', '정산부가세', '실판매마진', '중고폰', '정책금액', '유통지원', '정책번호'];
+        const ACT_SETTLE_KEYS = ['기본정책', '추가정책', '구두추가1', '구두추가2', '수수료', '할인금액', '유통망지원금', '정산금액', '판매마진', '정산부가세', '실판매마진', '중고폰', '정책금액', '유통지원', '정책번호'];
         function actHasSettle(P) { return !!P && typeof P === 'object' && !P.미입력 && ['정산금액', '판매마진', '실판매마진', '기본정책', '추가정책', '중고폰', '정책금액'].some(k => P[k] !== undefined && P[k] !== null && P[k] !== ''); }
         function actSettleClean(P) { const o = {}; ACT_SETTLE_KEYS.forEach(k => { if (P && P[k] !== undefined && P[k] !== null && P[k] !== '') o[k] = k === '정책번호' ? String(P[k]) : (Number(P[k]) || 0); }); return o; }
         function salesOfPoncle(P) {
@@ -7948,7 +7948,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const items = W ? [] : (Array.isArray(a.policyItems) ? a.policyItems.map(it => ({ ...it, amount: Number(it.amount) || 0, neg: (Number(it.amount) || 0) < 0 })) : []);   // ➕➖ V205: 부가·보험·추가정책 줄도 여기서 고침
             const itemSumOf = () => items.reduce((t, it) => t + (Number(it.amount) || 0), 0);
             const fields = W ? [['정책금액', '정책금액'], ['추가정책', '추가정책'], ['유통지원', '유통지원 (사은품 등)'], ['할인금액', '할인금액']]
-                : [['기본정책', '기본정책'], ['추가정책', '추가정책 (기타)'], ['수수료', '수수료 (MNP 대납 등)'], ['할인금액', '할인금액'], ['유통망지원금', '유통망지원금'], ['중고폰', '📱 중고폰 판매금액 (세금 X)']];
+                : [['기본정책', '기본정책'], ['추가정책', '추가정책 (기타)'], ['구두추가1', '🗣 구두추가 1'], ['구두추가2', '🗣 구두추가 2'], ['수수료', '수수료 (MNP 대납 등)'], ['할인금액', '할인금액'], ['유통망지원금', '유통망지원금'], ['중고폰', '📱 중고폰 판매금액 (세금 X)']];
             const v0 = (k) => (k === '중고폰' ? (S.중고폰 ?? (a.used && a.used.amount)) : (k === '유통망지원금' ? (S.유통망지원금 ?? a.dist) : S[k]));
             let sh = document.getElementById('actSettleSheet');
             if (sh) sh.remove();
@@ -7965,7 +7965,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.body.appendChild(sh);
             const num = (k) => { const el = sh.querySelector(`[data-as="${k}"]`); return el ? (Number(String(el.value).replace(/[^\d-]/g, '')) || 0) : 0; };
             const calc = () => {
-                const settle = W ? num('정책금액') + num('추가정책') - num('유통지원') : num('기본정책') + itemSumOf() + num('추가정책') - num('유통망지원금') - num('수수료');
+                const settle = W ? num('정책금액') + num('추가정책') - num('유통지원') : num('기본정책') + itemSumOf() + num('추가정책') + num('구두추가1') + num('구두추가2') - num('유통망지원금') - num('수수료');   // 🗣 V297
                 const margin = settle - num('할인금액'), vat = Math.round(settle / 11), real = margin - vat, used = W ? 0 : num('중고폰');
                 return { settle, margin, vat, real, used, gross: margin + used, realTotal: real + used };
             };
@@ -8013,7 +8013,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!e.target.closest('[data-as-save]')) return;
                 const r = calc();
                 const settle = W ? { 정책금액: num('정책금액'), 추가정책: num('추가정책'), 유통지원: num('유통지원'), 할인금액: num('할인금액'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real }
-                    : { 기본정책: num('기본정책'), 추가정책: num('추가정책'), 수수료: num('수수료'), 할인금액: num('할인금액'), 유통망지원금: num('유통망지원금'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 중고폰: r.used };
+                    : { 기본정책: num('기본정책'), 추가정책: num('추가정책'), ...(num('구두추가1') ? { 구두추가1: num('구두추가1') } : {}), ...(num('구두추가2') ? { 구두추가2: num('구두추가2') } : {}), 수수료: num('수수료'), 할인금액: num('할인금액'), 유통망지원금: num('유통망지원금'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 중고폰: r.used };
                 try {
                     await txCustomerUpdate(cid, (cur) => {
                         const list = storableActs(actsOf(cur));
@@ -19266,14 +19266,18 @@ familyStr + `\n` +
                 if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">
                     ${arMoney('ar-base', '기본정책')}${arMoney('ar-add', '추가정책 (기타)')}
                     ${arMoney('ar-fee', '수수료 (MNP 대납 등)')}${arMoney('ar-disc', '할인금액')}
+                    ${arMoney('ar-oral1', '🗣 구두추가 1')}${arMoney('ar-oral2', '🗣 구두추가 2')}
                     </div>
+                    <div id="ar-pol-box" class="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[13px] text-amber-950"><div id="ar-pol-sum"></div>
+                        <div class="grid grid-cols-5 gap-1 mt-2">${[['그레이드', '+ 그레이드'], ['부가', '+ 부가 ±'], ['보험', '+ 보험 ±'], ['제휴카드', '+ 카드'], ['기타', '+ 기타']].map(([k, l]) => `<button type="button" data-ar-poladd="${k}" class="h-9 rounded-lg border border-amber-300 bg-white text-[11px] font-bold text-amber-900">${l}</button>`).join('')}</div>
+                        <p class="mt-1 text-[11px] text-amber-900/70">줄을 더하면 위 '부가 · 보험 · 추가정책' 칸에 생겨요 · 차감은 금액에 −를 붙여요 (예: −20000)</p></div>
                     <p id="ar-fee-note" class="hidden text-[12px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5"></p>
                     <p id="ar-used-note" class="hidden text-[13px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5"></p>
                     <div class="grid grid-cols-2 gap-2 text-sm">
                         ${[['정산금액', 'ar-settle'], ['판매마진', 'ar-margin'], ['정산부가세', 'ar-vat'], ['실판매마진', 'ar-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-3 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[17px] text-gray-900">0</b>원</div>`).join('')}
                     </div>
                     <div class="grid grid-cols-2 gap-2"><div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2"><span class="block text-xs font-bold text-emerald-800">💰 총매출</span><b id="ar-total" class="text-[19px] text-emerald-900">0</b><span class="text-sm text-emerald-900">원</span></div><div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2"><span class="block text-xs font-bold text-emerald-800">실마진 (세금 제외)</span><b id="ar-realtotal" class="text-[19px] text-emerald-900">0</b><span class="text-sm text-emerald-900">원</span></div></div>
-                    <p class="text-xs text-gray-500 leading-relaxed">정산금액 = 기본정책 + 부가·추가정책 줄 금액 + 추가정책(기타) − 유통망지원금 − 수수료 · 판매마진 = 정산금액 − 할인금액 · 부가세 = 정산금액 ÷ 11 · <b class="text-emerald-800">총매출 = 판매마진 + 중고폰 · 실마진 = 실판매마진 + 중고폰</b> (중고폰은 부가세 계산에 안 들어가요)</p>`,
+                    <p class="text-xs text-gray-500 leading-relaxed">정산금액 = 기본정책 + 부가·추가정책 줄 금액 + 추가정책(기타) + 구두추가 − 유통망지원금 − 수수료 · 판매마진 = 정산금액 − 할인금액 · 부가세 = 정산금액 ÷ 11 · <b class="text-emerald-800">총매출 = 판매마진 + 중고폰 · 실마진 = 실판매마진 + 중고폰</b> (중고폰은 부가세 계산에 안 들어가요)</p>`,
                     isSuperAdmin && appSettings.hideSettleFromStaff ? '<span class="text-xs font-bold text-amber-700">🔒 직원에게 숨김</span>' : '');
                 const accOpen = !!(c.promAccDate && !c.promAccChk && c.promAccMemo), driveOn = driveMode() !== 'off';
                 html += arSec('기타정보', `<div data-tg="ar-tg-acc" class="${accOpen ? '' : 'hidden'} rounded-xl border border-pink-200 bg-pink-50/50 p-2.5 space-y-2">
@@ -19487,7 +19491,7 @@ familyStr + `\n` +
                 const price = arNum('ar-price');
                 const loan = Math.max(0, price - (sup === '공시' ? arNum('ar-pub') : 0) - arNum('ar-switch') - arNum('ar-dist') - arNum('ar-tradein') - arNum('ar-etcdisc') - arNum('ar-icard') - arNum('ar-prepay') - arNum('ar-cash') - arNum('ar-cardpay'));   // V202: 중고보상할인 · 기타 할인도 · V204: 할부카드 할인도
                 const itemSum = arItems.reduce((t, it) => t + (Number(it.amount) || 0), 0);
-                const settle = arNum('ar-base') + itemSum + arNum('ar-add') - arNum('ar-dist') - arNum('ar-fee');
+                const settle = arNum('ar-base') + itemSum + arNum('ar-add') + arNum('ar-oral1') + arNum('ar-oral2') - arNum('ar-dist') - arNum('ar-fee');   // 🗣 V297 구두추가 1 · 2
                 const margin = settle - arNum('ar-disc');
                 const vat = Math.round(settle / 11);
                 const used = (document.getElementById('ar-tg-used') || {}).checked ? arNum('ar-used') : 0;   // 📱 중고폰 판매금액: 부가세 X → 총매출·실마진에만 더함 (V190 · V191 중고폰 칸)
@@ -19507,6 +19511,15 @@ familyStr + `\n` +
                 const n = parseInt(arVal('ar-inst'), 10);
                 const sub = document.getElementById('ar-loan-sub');
                 if (sub) sub.textContent = r.loan > 0 && n > 0 ? `월 할부금 약 ${arWon(r.loan * (0.059 / 12) / (1 - Math.pow(1 + 0.059 / 12, -n)))}원 (${n}개월 · 연 5.9%)` : (r.price ? '할부 없음 (완납)' : '');
+                { const ps = document.getElementById('ar-pol-sum'); if (ps) {   // 📋 V297 정산에 들어간 정책 줄 (그레이드 · 부가 · 보험 · 제휴카드 · 기타) 합계
+                    const sumK = (k) => arItems.filter(it => it.kind === k).reduce((t, it) => t + (Number(it.amount) || 0), 0), sg = (n) => `${n > 0 ? '+' : (n < 0 ? '−' : '')}${arWon(Math.abs(n))}원`;
+                    const rows = [['⭐ 그레이드', '그레이드'], ['📦 부가', '부가'], ['🛡 보험', '보험'], ['💳 제휴카드', '제휴카드'], ['🏷 기타', '기타']].map(([l, k]) => [l, k, sumK(k), arItems.some(it => it.kind === k)]);
+                    ps.innerHTML = `<div class="flex items-center justify-between mb-1"><b>정산에 들어간 정책 줄</b><span class="font-bold">${sg(r.itemSum || 0)}</span></div><div class="grid grid-cols-2 gap-x-3 gap-y-0.5">${rows.map(([l, k, n, has]) => `<div class="flex justify-between ${has ? '' : 'text-amber-900/40'}"><span>${l}</span><span class="font-bold">${has ? sg(n) : '-'}</span></div>`).join('')}</div>`;
+                    const box = document.getElementById('ar-pol-box');
+                    if (box && !box.dataset.on) { box.dataset.on = '1'; box.addEventListener('click', (ev) => { const bt = ev.target.closest('[data-ar-poladd]'); if (!bt) return; const k = bt.dataset.arPoladd;
+                        arItems.push({ kind: k, name: k === '그레이드' ? '그레이드' : '', amount: 0, code: '', days: 0, autoDate: true, touched: true }); renderArItems(); arRecalc();
+                        const fs = document.querySelectorAll(`#arItemsBox [data-f="${k === '그레이드' ? 'amount' : 'name'}"]`), f = fs[fs.length - 1]; if (f) { f.scrollIntoView({ block: 'center' }); setTimeout(() => f.focus(), 250); } }); }
+                } }
                 set('ar-settle', r.settle); set('ar-margin', r.margin); set('ar-vat', r.vat); set('ar-real', r.real); set('ar-total', r.total); set('ar-realtotal', r.realTotal);
                 { const un = document.getElementById('ar-used-note'); if (un) { un.classList.toggle('hidden', !r.used); un.textContent = r.used ? `📱 중고폰 판매금액 +${arWon(r.used)}원 → 총매출 · 실마진에 더함 (부가세 X)` : ''; } }
                 const d = arVal('ar-date');
@@ -19671,7 +19684,7 @@ familyStr + `\n` +
                 const sameAct = actTarget && actTarget !== 'new' ? dayActs.find(a => a.id === actTarget) || null : null;
                 freshAct = !sameAct;   // 새 개통 → 그 개통 칸(부가·보험·미비서류·중고폰·월요금…)은 이번 값으로 (V195)
                 if (freshAct) { if (!(arNum('ar-planfee') > 0)) upd.planFee = ''; if (!(arNum('ar-targetfee') > 0)) upd.targetPlanFee = ''; if (!arUsedPhone()) upd.usedPhone = null; }
-                const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
+                const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc', 'ar-oral1', 'ar-oral2'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
                 const usimHit = stockUsimBySerial(arVal('ar-usimserial')) || (arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null);   // 💳 V292 찍은 번호가 재고에 있으면 그 유심부터
                 if (usimHit && !(sameAct && sameAct.usimStockId)) usimNewId = usimHit.id;
                 const actRec = { date: d, kind: '무선', staff: arVal('ar-manager') || getStaffName() || '', store: arVal('ar-store'), shop: arVal('ar-shop'), carrier: arVal('ar-carrier'), mvno: (isMvno(arVal('ar-carrier')) && arVal('ar-mvno').slice(0, 30)) || undefined, actType: arVal('ar-type'), plan: arVal('ar-plan'), model: model || undefined, color: model ? arVal('ar-color') || undefined : undefined,
@@ -19679,7 +19692,7 @@ familyStr + `\n` +
                     used: arUsedPhone() || undefined, promKeys: arKeepPlan().map(k => k.key), dist: arNum('ar-dist') || undefined,
                     stockId: arStockHit && !usimOnly && stockSerialMatch(arStockHit.serial, arVal('ar-serial')) ? arStockHit.id : undefined,
                     usimStockId: (sameAct && sameAct.usimStockId) || (usimHit ? usimHit.id : undefined), src: '개통등록', at: now, by: getStaffName() || '' };
-                if (canSeeSettle() && !settleBlank) actRec.settle = { 기본정책: arNum('ar-base'), 추가정책: arNum('ar-add'), 수수료: arNum('ar-fee'), 할인금액: arNum('ar-disc'), 유통망지원금: arNum('ar-dist'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 중고폰: r.used };
+                if (canSeeSettle() && !settleBlank) actRec.settle = { 기본정책: arNum('ar-base'), 추가정책: arNum('ar-add'), ...(arNum('ar-oral1') ? { 구두추가1: arNum('ar-oral1') } : {}), ...(arNum('ar-oral2') ? { 구두추가2: arNum('ar-oral2') } : {}), 수수료: arNum('ar-fee'), 할인금액: arNum('ar-disc'), 유통망지원금: arNum('ar-dist'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real, 중고폰: r.used };
                 // 최근 개통보다 예전 날짜면: 개통 기록에만 넣고 고객 정보(기종·요금제·약속)는 최근 개통 그대로
                 const newerLive = prevActs.filter(a => !a.canceled && a.kind !== '유선' && a.date > d).map(a => a.date).sort().pop();   // (같은 날 다른 기종은 '최근'과 같은 날이라 여기 안 걸림)
                 if (newerLive && await customConfirm(`이 개통일(${stockMD(d)})은 최근 개통(${stockMD(newerLive)})보다 예전이에요.\n\n개통 기록에만 추가하고, 고객 정보(기종·요금제·약속)는 최근 개통 그대로 둘까요?\n(취소를 누르면 이 개통으로 고객 정보를 바꿔요)`)) keepLatest = true;
@@ -26581,7 +26594,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V296';
+        const APP_VER = 'V297';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26589,6 +26602,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V297', d: '2026-11-03', items: [
+                ['🗣 개통등록 정산정보에 [구두추가 1 · 2] 칸 (정산금액에 더해요) · 정산에 들어간 정책 줄 합계(⭐ 그레이드 · 📦 부가 ± · 🛡 보험 ± · 💳 제휴카드 · 기타)를 정산정보에서 바로 보고 [+ 줄] 더하기', 'a']] },
             { v: 'V296', d: '2026-11-03', items: [
                 ['📛 재고에서 이름 없는 모델 코드(M176 · A576 · L345 …) 옆 [✏️ 이름 붙이기] → 재고 · 시세표 · 명함 견적에 같이 보여요 (대표가 붙인 이름이 기본 이름표보다 먼저)', 'a']] },
             { v: 'V295', d: '2026-11-03', items: [
