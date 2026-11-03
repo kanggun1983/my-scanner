@@ -9187,6 +9187,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try { renderCalcSettings(); } catch (e) { /* 준비 전 */ }   // V187: 고객 명함·상담 알림 서버 칸이 설정 화면으로 나와서
             try { secSubRender(); } catch (e) { /* 준비 전 */ }   // 🔒 V263 보안 점검 칸
             try { mvnoRulesRender(); } catch (e) { /* 준비 전 */ }   // 📶 V271 알뜰폰 브랜드별 유지기간
+            try { siseRender(); } catch (e) { /* 준비 전 */ }   // 📊 V276 시세표 (거래처 정책표)
             setTimeout(() => { try { renderSetSums(); } catch (e) { /* 준비 전 */ } }, 0);
             { const hs = document.getElementById('hideSettleChk'); if (hs) { hs.checked = appSettings.hideSettleFromStaff === true; } }
             { const ol = document.getElementById('ownerLockChk'); if (ol) ol.checked = ownerLockOn(); }
@@ -17537,6 +17538,268 @@ familyStr + `\n` +
                 sh.remove(); stockToast(`📶 알뜰폰 유지기간 ${rows.length}곳을 확인해서 적용했어요`);
             });
             document.body.appendChild(sh);
+        }
+        /* =====================================================================
+           📊 V276 시세표 (준비 중) — 거래처마다 정책표(사진 · 엑셀)를 AI가 읽어 sise_policy/{거래처id} 에 보관
+           · 정책표 = 모델 × 요금제 구간 × (010 · MNP · 기변) × (공통지원금 · 선택약정) 판매점 정책 금액 (만원으로 맞춰 저장)
+           · 다음 단계: 마진 · 시세 계산 → 시세표 이미지 · 명함 폰값계산 · 강CRM 견적에 같이
+           ===================================================================== */
+        const SISE_ORDER = ['SK상상', 'SK라온', 'KT성원', 'LG태성', 'LG뉴에이스'];
+        let siseCache = null, siseLoading = false;
+        function siseDealers() {
+            const key = (v) => String(v || '').replace(/\s+/g, '').toUpperCase(), ord = SISE_ORDER.map(key);
+            const L = dealerList().filter(d => d.name && !isMvno(d.carrier));
+            return L.sort((a, b) => { const ia = ord.indexOf(key(a.name)), ib = ord.indexOf(key(b.name)); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
+        }
+        async function siseLoad(force) {
+            if (siseLoading || (siseCache && !force) || !db) return;
+            siseLoading = true;
+            try { const snap = await getDocs(collection(db, 'sise_policy')); siseCache = {}; snap.forEach(d => { siseCache[d.id] = d.data(); }); }
+            catch (e) { console.warn('정책표 불러오기 실패', e); siseCache = siseCache || {}; }
+            finally { siseLoading = false; siseRender(); }
+        }
+        function siseRender() {
+            const box = document.getElementById('siseBox'); if (!box) return;
+            if (!siseCache) { box.innerHTML = '<p class="text-xs text-gray-500 py-2">불러오는 중…</p>'; siseLoad(); return; }
+            const L = siseDealers(), lock = !can('editPolicy'), C = siseCfg();
+            const mIn = (k, v, ph) => `<input type="number" inputmode="decimal" step="0.5" data-sc="${k}" value="${v === undefined || v === null || v === '' ? '' : v}" placeholder="${ph || '0'}" ${lock ? 'disabled' : ''} class="w-full h-10 px-2 border border-gray-300 rounded-lg text-[15px] text-right disabled:bg-gray-50">`;
+            box.innerHTML = `<details class="rounded-2xl bg-white border border-amber-200 p-3" ${box.dataset.cfgOpen ? 'open' : ''} data-sise-cfg><summary class="cursor-pointer text-[15px] font-bold text-gray-900">💰 마진 · 시세 계산 <span class="text-[12px] font-medium text-amber-800">SK ${C.margin.SKT}만 · KT ${C.margin.KT}만 · LG ${C.margin.LGU}만 · 할부 +${C.installAdd}만</span></summary>
+                <div class="mt-2 space-y-2.5">
+                <p class="text-[12px] text-gray-600 leading-relaxed"><b>현금가</b>(완납) = 출고가 − 공통지원금(공시일 때) − (정책 + 거래처 그레이드 + 부가·보험 추가 − <b>순마진</b>) · <b>할부가</b> = 현금가 + 할부 추가 · 단위 만원</p>
+                <div class="grid grid-cols-3 gap-1.5 text-[12px] font-bold text-gray-600"><label>SK 순마진${mIn('m_SKT', C.margin.SKT)}</label><label>KT 순마진${mIn('m_KT', C.margin.KT)}</label><label>LG 순마진${mIn('m_LGU', C.margin.LGU)}</label></div>
+                <div class="grid grid-cols-2 gap-1.5 text-[12px] font-bold text-gray-600"><label>할부가 = 현금가 +${mIn('installAdd', C.installAdd)}</label><label>시세 반올림 단위 (만원)${mIn('round', C.round, '1')}</label></div>
+                <div class="space-y-1.5 text-[13px] font-bold text-gray-800">
+                    <label class="flex items-center gap-2"><input type="checkbox" data-sc="addonWith" ${C.addonWith ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">부가 · 보험 <b>가입 기준</b>으로 시세 (거래처 조건의 추가(+)는 더하고, 차감(−)은 '미가입 시 +' 로 따로 보여 줘요)</label>
+                    <label class="flex items-center gap-2"><input type="checkbox" data-sc="grade" ${C.grade ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">거래처 그레이드(+) 금액도 정책에 더하기</label></div>
+                <label class="block text-[12px] font-bold text-gray-600">기종별 순마진 (한 줄에 하나 · 예: S942=15 · 비우면 위 통신사 마진)<textarea data-sc="modelMargin" rows="3" ${lock ? 'disabled' : ''} placeholder="S942=15&#10;F776=20" class="mt-1 w-full p-2 border border-gray-300 rounded-lg text-[14px] font-mono disabled:bg-gray-50">${escapeHtml(Object.entries(C.modelMargin).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></label>
+                <p class="text-[11px] text-gray-500">부가 · 보험 · 그레이드 금액은 <b>설정 → 유지 조건 · 거래처</b>에 거래처마다 넣은 정책 금액을 그대로 써요.</p>
+                ${lock ? '' : '<button type="button" data-sc-save class="w-full h-10 rounded-xl bg-indigo-600 text-white text-[13px] font-bold">저장</button>'}</div></details>
+            <div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
+                <p class="text-xs text-gray-600 leading-relaxed">거래처마다 오늘 정책표를 <b>📷 사진</b>이나 <b>📄 엑셀</b>로 올려 두면 AI가 모델 · 요금제 구간 · 010/MNP/기변 · 공통/선약 금액을 표로 읽어 보관해요. 나중에 마진만 정하면 시세표 이미지 · 명함 폰값계산 · 강CRM 견적에 같이 쓰여요.</p>
+                ${L.length ? L.map(d => { const P = siseCache[d.id];
+                    return `<div class="rounded-xl border border-gray-200 px-3 py-2.5 space-y-2"><div class="flex items-center justify-between gap-2"><p class="text-[15px] font-bold text-gray-900">🏢 ${escapeHtml(d.name)} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(d.carrier || '')}</span></p><span class="text-[12px] font-bold ${P ? 'text-emerald-700' : 'text-gray-400'}">${P ? `${escapeHtml(String(P.date || '').slice(0, 16) || String(P.at || '').slice(5, 16).replace('T', ' '))} · 모델 ${(P.rows || []).length}개` : '아직 없음'}</span></div>
+                        <div class="grid grid-cols-3 gap-1.5"><button type="button" data-sise-photo="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800 disabled:opacity-40">📷 사진</button><button type="button" data-sise-xlsx="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-800 disabled:opacity-40">📄 엑셀</button><button type="button" data-sise-view="${escapeHtml(d.id)}" ${P ? '' : 'disabled'} class="h-10 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-800 disabled:opacity-40">👀 보기</button></div></div>`; }).join('')
+                : '<p class="text-xs text-gray-500">거래처가 없어요. 설정 → 유지 조건 · 거래처에서 먼저 넣어 주세요.</p>'}
+                ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 올릴 수 있어요.</p>' : ''}</div>
+            <button type="button" data-sise-make ${Object.keys(siseCache).some(k => k !== 'config') ? '' : 'disabled'} class="w-full h-12 rounded-2xl bg-gray-900 text-white text-[15px] font-bold disabled:opacity-40">🖼 시세표 이미지 만들기 · 📣 명함 알림으로 보내기</button>`;
+            { const dt = box.querySelector('[data-sise-cfg]'); if (dt) dt.addEventListener('toggle', () => { box.dataset.cfgOpen = dt.open ? '1' : ''; }); }
+            box.onclick = async (e) => {
+                if (e.target.closest('[data-sc-save]')) {
+                    if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
+                    const v = (k) => (box.querySelector(`[data-sc="${k}"]`) || {}), num = (k, def) => { const n = parseFloat(v(k).value); return Number.isFinite(n) ? n : def; };
+                    const mm = {}; String(v('modelMargin').value || '').split(/\n/).forEach(l => { const m = l.match(/^\s*([^=]+?)\s*=\s*(-?\d+(?:\.\d+)?)\s*$/); if (m) mm[m[1].trim().slice(0, 40)] = parseFloat(m[2]); });
+                    const cfg = { margin: { SKT: num('m_SKT', 0), KT: num('m_KT', 0), LGU: num('m_LGU', 0) }, installAdd: num('installAdd', 0), round: Math.max(0.1, num('round', 1)), addonWith: !!v('addonWith').checked, grade: !!v('grade').checked, modelMargin: mm, at: new Date().toISOString(), by: getStaffName() || '' };
+                    try { await setDoc(doc(db, 'sise_policy', 'config'), cfg); siseCache.config = cfg; siseRender(); stockToast('💰 마진 · 시세 계산을 저장했어요'); } catch (err) { customAlert(koreanError(err, '저장')); }
+                    return;
+                }
+                if (e.target.closest('[data-sise-make]')) return siseMake();
+                const ph = e.target.closest('[data-sise-photo]'), xl = e.target.closest('[data-sise-xlsx]'), vw = e.target.closest('[data-sise-view]');
+                const id = (ph || xl || vw || {}).dataset; if (!id) return;
+                const d = dealerList().find(x => x.id === (id.sisePhoto || id.siseXlsx || id.siseView)); if (!d) return;
+                if (vw) return siseView(d, siseCache[d.id]);
+                if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
+                if (!geminiApiKey) return customAlert('정책표 읽기는 AI 키가 필요해요. 설정 → 연결 관리 → AI 키를 먼저 넣어주세요.');
+                if (ph) mvrPick('image/*', (f) => siseRead(d, f, 'photo')); else mvrPick('.xlsx,.xls,.csv', (f) => siseRead(d, f, 'xlsx'));
+            };
+        }
+        const SISE_SCHEMA = { type: 'OBJECT', properties: {
+            date: { type: 'STRING' }, unit: { type: 'STRING' },
+            tiers: { type: 'ARRAY', items: { type: 'OBJECT', properties: { id: { type: 'STRING' }, name: { type: 'STRING' } }, required: ['id', 'name'] } },
+            rows: { type: 'ARRAY', items: { type: 'OBJECT', properties: { model: { type: 'STRING' }, price: { type: 'NUMBER' }, pub: { type: 'NUMBER' },
+                v: { type: 'ARRAY', items: { type: 'OBJECT', properties: { tier: { type: 'STRING' }, nP: { type: 'NUMBER' }, nS: { type: 'NUMBER' }, mP: { type: 'NUMBER' }, mS: { type: 'NUMBER' }, cP: { type: 'NUMBER' }, cS: { type: 'NUMBER' } }, required: ['tier'] } } }, required: ['model'] } },
+            notes: { type: 'ARRAY', items: { type: 'STRING' } } }, required: ['tiers', 'rows'] };
+        const SISE_PROMPT = `한국 휴대폰 판매점이 받는 통신사 대리점 "정책표(단가표)"야. 판매점 정책 금액만 표로 JSON으로 줘.
+- date: 정책 적용 시작 (예: "11월 3일 10시", 표 위에 있으면)
+- unit: 표 숫자 단위 "만원" 또는 "천원" 또는 "원" (예: 43 · 67 같은 두 자리면 보통 "만원", 430 · 760 같은 세 자리면 보통 "천원")
+- tiers: 요금제 구간 열 묶음을 왼쪽부터 [{id:"t1", name:"P_119 베스트Max/Pro/109"}...] (구간 이름 + 그 구간 대표 요금제)
+- rows: 모델 줄마다 {model: 모델명 또는 모델코드 그대로, price: 출고가(원), pub: 공통지원금(원, 여러 개면 가장 큰 요금제 기준), v:[구간마다 {tier, nP: 010신규 공통지원금 정책, nS: 010신규 선택약정 정책, mP: MNP 공통, mS: MNP 선약, cP: 기변 공통, cS: 기변 선약}]}
+  · 공통/선약이 한 칸이면 둘 다 같은 숫자 · 빈칸 · X · "-"는 넣지 말 것 · 음수는 음수 그대로 · 숫자는 표에 보이는 그대로(단위 바꾸지 말 것)
+- notes: 부가서비스 추가/차감, 추가지원금, 유지기간 같은 아래쪽 조건을 한 줄씩 (최대 15줄)
+표에 있는 모델은 빠짐없이.`;
+        async function siseRead(d, file, kind) {
+            try {
+                showUploadToast(`📊 ${d.name} 정책표를 AI가 읽는 중… (1분쯤)`);
+                let parts;
+                if (kind === 'photo') parts = [{ text: SISE_PROMPT }, { inlineData: { mimeType: 'image/jpeg', data: await photoToB64(file, 3200) } }];
+                else { const X = await loadSheetJS(), wb = X.read(await file.arrayBuffer(), { type: 'array' }); const csv = wb.SheetNames.slice(0, 3).map(n => `### ${n}\n` + X.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false })).join('\n').slice(0, 120000); parts = [{ text: SISE_PROMPT + '\n\n아래는 엑셀을 CSV로 바꾼 거야:\n' + csv }]; }
+                const { text } = await callGemini({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SISE_SCHEMA, temperature: 0 } }, { timeoutMs: 180000, onRetry: (l) => showUploadToast(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
+                hideUploadToast();
+                const j = JSON.parse(text);
+                if (!Array.isArray(j.rows) || !j.rows.length) return customAlert('정책표에서 모델을 읽지 못했어요. 표가 잘 보이게 다시 올려 주세요.');
+                siseReview(d, j, kind === 'photo' ? '📷 사진' : '📄 엑셀');
+            } catch (err) { hideUploadToast(); console.error(err); customAlert(`정책표를 읽지 못했어요.\n${err.reason || err.message || ''}`); }
+        }
+        function siseCfg() {
+            const c = (siseCache && siseCache.config) || {}, m = c.margin || {};
+            return { margin: { SKT: Number(m.SKT) || 0, KT: Number(m.KT) || 0, LGU: Number(m.LGU) || 0 }, installAdd: Number(c.installAdd) || 0, round: Number(c.round) > 0 ? Number(c.round) : 1, addonWith: c.addonWith !== false, grade: c.grade !== false, modelMargin: c.modelMargin && typeof c.modelMargin === 'object' ? c.modelMargin : {} };
+        }
+        function siseDealerExtra(d) {   // 거래처 조건(설정 → 유지 조건 · 거래처)의 부가 · 보험 · 그레이드 → 만원
+            const am = [...(d.addons || []).filter(a => a.name || a.amount).map(a => Number(a.amount) || 0), Number((d.ins || {}).amount) || 0];
+            return { plus: am.filter(n => n > 0).reduce((a, b) => a + b, 0) / 10000, minus: -am.filter(n => n < 0).reduce((a, b) => a + b, 0) / 10000, grade: (Number(d.grade) || 0) / 10000 };
+        }
+        function siseMargin(C, d, model) {
+            const key = mvnoNorm(model), hit = Object.keys(C.modelMargin).find(k => { const n = mvnoNorm(k); return n && (key === n || key.includes(n)); });
+            if (hit !== undefined) return Number(C.modelMargin[hit]) || 0;
+            const ck = carrierKeepKey(d.carrier || ''); return C.margin[ck] || 0;
+        }
+        function siseCalc(C, d, row, x, f) {   // f: nP nS mP mS cP cS → { cash, inst } 만원
+            const pol = x[f]; if (pol === undefined || pol === null || !row.price) return null;
+            const E = siseDealerExtra(d), isPub = f.endsWith('P');
+            if (isPub && !row.pub) return null;
+            const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0);
+            const rd = (n) => Math.round(n / C.round) * C.round, cash = rd(base - (pol + extra - siseMargin(C, d, row.model)));
+            return { cash: Math.round(cash * 10) / 10, inst: Math.round((cash + C.installAdd) * 10) / 10 };
+        }
+        function siseQuoteTable(d, P, tierId) {
+            const C = siseCfg(), E = siseDealerExtra(d), t = tierId || ((P.tiers || [])[0] || {}).id;
+            const cell = (r, x, f) => { const v = siseCalc(C, d, r, x, f); return v ? `<span class="font-bold ${v.cash < 0 ? 'text-red-600' : 'text-gray-900'}">${v.cash}</span>${C.installAdd ? `<span class="block text-[10px] text-gray-500">할부 ${v.inst}</span>` : ''}` : '<span class="text-gray-300">·</span>'; };
+            return `<p class="text-[12px] text-gray-600">현금가(만원) · 공시 / 선약 · 순마진 ${siseMargin(C, d, '')}만${C.grade && E.grade ? ` · 그레이드 +${E.grade}` : ''}${C.addonWith && E.plus ? ` · 부가 추가 +${E.plus}` : ''}${C.addonWith && E.minus ? ` · <b class="text-red-700">부가 · 보험 미가입 시 +${E.minus}만</b>` : ''}</p>
+                <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1" colspan="2">010 공 / 선</th><th class="px-1" colspan="2">MNP 공 / 선</th><th class="px-1" colspan="2">기변 공 / 선</th></tr></thead><tbody>${(P.rows || []).map(r => { const x = (r.v || []).find(y => y.tier === t) || {};
+                return `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900 whitespace-nowrap">${escapeHtml(r.model)}</td>${['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].map(f => `<td class="px-1 py-1">${cell(r, x, f)}</td>`).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+        }
+        /* 🖼 V276 시세표 이미지 — 통신사마다 거래처 · 요금제 구간을 고르고, 같은 기종을 한 줄로 묶어 MNP · 기변 현금가 → 그림 → 💾 저장 · 📣 명함 알림 (문자는 안 보냄) */
+        function siseKey(model) {
+            const m = String(model || '').toUpperCase().replace(/\s|_/g, ''), st = /1T(B)?\b|1TB|_1T|-1T/.test(m) || /1T$/.test(m) ? '1T' : (/512/.test(m) ? '512' : '');
+            const sam = m.match(/(?:SM-?)?([SFAMLXZ]\d{3})/);
+            if (sam && !/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD/.test(m)) return { key: sam[1] + (st ? '_' + st : ''), name: (QT_CODE_NAMES[sam[1]] || sam[1]) + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+            if (/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD|DUO|에어/.test(m)) {
+                if (/DUO|IPD|폴드|FOLD/.test(m)) return { key: 'IPDUO' + (st ? '_' + st : ''), name: '아이폰 듀오' + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+                const n = (m.match(/(?:아이폰|IPHONE|IP|UIP|AIP)(\d{2})/) || [])[1] || '';
+                if (!n && /IPA|에어|AIR/.test(m)) return { key: 'IPAIR' + (st ? '_' + st : ''), name: '아이폰 에어' + (st ? ` ${st}G` : '') };
+                const v = /프로맥스|PROMAX|PM\b|PM-|PM\d|PM$|MAX/.test(m) ? 'PM' : (/프로|PRO|\d{2}PR|\d{2}P-|\d{2}P$|\d{2}P\d/.test(m) ? 'P' : (/\d{2}E|E$/.test(m) ? 'E' : ''));
+                const lab = { PM: ' 프로맥스', P: ' 프로', E: 'e', '': '' }[v];
+                return { key: 'IP' + n + v + (st ? '_' + st : ''), name: `아이폰${n}${lab}` + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+            }
+            return { key: m.slice(0, 20), name: String(model).slice(0, 20) };
+        }
+        const SISE_CARS = [['SKT', 'SK', '#e60012'], ['KT', 'KT', '#1d3f94'], ['LGU', 'LG', '#a50034']];
+        function siseMake() {
+            const C = siseCfg(), byCar = {};
+            Object.entries(siseCache).forEach(([id, P]) => { if (id === 'config' || !P || !P.rows) return; const d = dealerList().find(x => x.id === id); if (!d) return; const ck = carrierKeepKey(d.carrier || ''); (byCar[ck] = byCar[ck] || []).push({ d, P }); });
+            const st = { sup: 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null };
+            SISE_CARS.forEach(([ck]) => { const f = (byCar[ck] || [])[0]; if (f) st.pick[ck] = { id: f.d.id, tier: ((f.P.tiers || [])[0] || {}).id }; });
+            const rowsOf = () => {   // 기종 키 → 통신사별 { mnp, chg }
+                const map = new Map();
+                SISE_CARS.forEach(([ck]) => { const pk = st.pick[ck]; if (!pk) return; const it = (byCar[ck] || []).find(x => x.d.id === pk.id); if (!it) return;
+                    it.P.rows.forEach(r => { const k = siseKey(r.model), x = (r.v || []).find(y => y.tier === pk.tier) || {};
+                        const pickV = (a, b) => { const A = siseCalc(C, it.d, r, x, a), B = siseCalc(C, it.d, r, x, b); if (st.sup === 'P') return A || B; if (st.sup === 'S') return B; return A && B ? (A.cash <= B.cash ? A : B) : (A || B); };
+                        const o = map.get(k.key) || { key: k.key, name: k.name, price: r.price, c: {} };
+                        if (!o.c[ck]) o.c[ck] = { mnp: pickV('mP', 'mS'), chg: pickV('cP', 'cS') };
+                        map.set(k.key, o); }); });
+                return [...map.values()].sort((a, b) => (b.price || 0) - (a.price || 0));
+            };
+            const draw = (rows) => {   // 1080px 그림
+                const W = 1080, rowH = 64, head = 300, foot = 190, H = head + rows.length * rowH + foot, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+                const g = cv.getContext('2d'), F = (w, sz) => `${w} ${sz}px "Pretendard","Apple SD Gothic Neo","Noto Sans KR",sans-serif`;
+                g.fillStyle = '#fffbea'; g.fillRect(0, 0, W, H);
+                g.fillStyle = '#111'; g.font = F(800, 54); g.textAlign = 'center'; g.fillText(st.title, W / 2, 86);
+                g.fillStyle = '#b91c1c'; g.font = F(700, 26); g.fillText(`${getTodayStr().replace(/-/g, '.')} · 현금완납 기준 · 단위 만원 · ${st.sup === 'S' ? '선택약정' : (st.sup === 'P' ? '공통지원금' : '공시·선약 중 싼 쪽')}`, W / 2, 132);
+                const x0 = 40, nameW = 300, colW = (W - x0 * 2 - nameW) / 6;
+                SISE_CARS.forEach(([ck, lab, col], i) => { const x = x0 + nameW + i * colW * 2; g.fillStyle = col; g.fillRect(x, 160, colW * 2, 60); g.fillStyle = '#fff'; g.font = F(800, 32); g.fillText(lab, x + colW, 202);
+                    const pk = st.pick[ck], it = pk && (byCar[ck] || []).find(y => y.d.id === pk.id), tn = it ? (((it.P.tiers || []).find(t => t.id === pk.tier) || {}).name || '') : '';
+                    g.fillStyle = '#fde2e4'; g.fillRect(x, 220, colW * 2, 40); g.fillStyle = '#374151'; g.font = F(600, 18); g.fillText(tn.slice(0, 22) || '-', x + colW, 247);
+                    g.fillStyle = '#fff'; g.fillRect(x, 260, colW * 2, 36); g.fillStyle = '#111'; g.font = F(700, 20); g.fillText('번호이동', x + colW / 2, 285); g.fillText('기기변경', x + colW * 1.5, 285); });
+                g.fillStyle = '#fff'; g.fillRect(x0, 160, nameW, 136); g.fillStyle = '#111'; g.font = F(800, 26); g.fillText('모델', x0 + nameW / 2, 236);
+                rows.forEach((r, i) => { const y = head + i * rowH; g.fillStyle = i % 2 ? '#fff7d6' : '#ffffff'; g.fillRect(x0, y, W - x0 * 2, rowH); g.fillStyle = '#f59e0b'; g.fillRect(x0, y, nameW, rowH);
+                    g.fillStyle = '#111'; g.font = F(800, 25); g.fillText(r.name.slice(0, 16), x0 + nameW / 2, y + 41);
+                    SISE_CARS.forEach(([ck], ci) => { const v = r.c[ck] || {}; [v.mnp, v.chg].forEach((q, k) => { const cx = x0 + nameW + (ci * 2 + k) * colW + colW / 2; g.fillStyle = q ? (q.cash < 0 ? '#1d4ed8' : '#dc2626') : '#9ca3af'; g.font = F(800, 30); g.fillText(q ? String(q.cash) : '-', cx, y + 43); }); });
+                    g.strokeStyle = '#e5e7eb'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y + rowH); g.lineTo(W - x0, y + rowH); g.stroke(); });
+                g.strokeStyle = '#374151'; g.lineWidth = 3; g.strokeRect(x0, 160, W - x0 * 2, head - 160 + rows.length * rowH);
+                let fy = head + rows.length * rowH + 50; g.textAlign = 'left'; g.fillStyle = '#374151'; g.font = F(600, 22);
+                const ex = SISE_CARS.map(([ck, lab]) => { const pk = st.pick[ck], it = pk && (byCar[ck] || []).find(y => y.d.id === pk.id); if (!it) return ''; const E = siseDealerExtra(it.d); return C.addonWith && E.minus ? `${lab} 부가·보험 미가입 시 +${E.minus}만` : ''; }).filter(Boolean);
+                [`· 할부 시 +${C.installAdd}만 · 파란색(마이너스) 금액은 매장에 문의해 주세요`, ex.length ? '· ' + ex.join(' · ') : '', '· 정책 변동으로 가격이 바뀔 수 있어요 · 시세표 이외 모델은 문의'].filter(Boolean).forEach(t => { g.fillText(t, x0, fy); fy += 36; });
+                g.textAlign = 'right'; g.fillStyle = '#111'; g.font = F(800, 26); g.fillText(gdStoreDefault().name || msgStoreName() || '', W - x0, H - 30);
+                return cv;
+            };
+            let cv = null;
+            const S = siseSheet('🖼 시세표 이미지', '통신사마다 거래처 · 요금제 구간을 고르고 넣을 기종을 체크해요 · 문자는 안 보내요', () => {
+                const rows = rowsOf(); if (!st.on) st.on = new Set(rows.filter(r => Object.keys(r.c).length >= 2).slice(0, 10).map(r => r.key).concat(rows.length && !rows.some(r => Object.keys(r.c).length >= 2) ? rows.slice(0, 10).map(r => r.key) : []));
+                const use = rows.filter(r => st.on.has(r.key)); cv = draw(use);
+                return `<div class="grid grid-cols-3 gap-1.5">${[['P', '공시 기준'], ['S', '선약 기준'], ['B', '싼 쪽']].map(([k, l]) => `<button type="button" data-sx-sup="${k}" class="h-9 rounded-lg text-[12px] font-bold border ${st.sup === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
+                    ${SISE_CARS.map(([ck, lab]) => { const L = byCar[ck] || [], pk = st.pick[ck]; if (!L.length) return `<p class="text-[12px] text-gray-400">${lab}: 정책표 없음</p>`; const it = L.find(x => x.d.id === (pk || {}).id) || L[0];
+                        return `<div class="grid grid-cols-2 gap-1.5 items-center"><select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
+                    <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><div class="mt-2 grid grid-cols-2 gap-1">${rows.map(r => `<label class="flex items-center gap-1.5 text-[12px]"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600">${escapeHtml(r.name)} <span class="text-gray-400">${Object.keys(r.c).length}사</span></label>`).join('')}</div></details>
+                    <img src="${cv.toDataURL('image/png')}" alt="시세표 미리보기" class="w-full rounded-xl border border-gray-200">`;
+            }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><p class="text-[11px] text-gray-500 text-center">명함 알림을 켠 고객에게만 가요 · 문자는 보내지 않아요</p>`);
+            S.sh.addEventListener('change', (e) => {
+                const dd = e.target.closest('[data-sx-d]'), tt = e.target.closest('[data-sx-t]'), on = e.target.closest('[data-sx-on]');
+                if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: ((it && it.P.tiers || [])[0] || {}).id }; }
+                if (tt) st.pick[tt.dataset.sxT] = { ...(st.pick[tt.dataset.sxT] || {}), tier: tt.value };
+                if (on) { if (on.checked) st.on.add(on.dataset.sxOn); else st.on.delete(on.dataset.sxOn); }
+                const open = !!S.sh.querySelector('details[open]'); S.draw(); if (open) { const d2 = S.sh.querySelector('details'); if (d2) d2.open = true; }
+            });
+            S.sh.addEventListener('click', async (e) => {
+                const sp = e.target.closest('[data-sx-sup]'); if (sp) { st.sup = sp.dataset.sxSup; S.draw(); return; }
+                const a = (e.target.closest('[data-ss]') || {}).dataset; if (!a || !a.ss) return;
+                if (a.ss === 'close') return S.close();
+                const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92)), name = `시세표_${getTodayStr()}.jpg`;
+                if (a.ss === 'save') { const u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); return; }
+                if (a.ss === 'push') {
+                    if (!can('pushAll')) return noPerm('홍보 문자 · 고객 전체 푸시');
+                    if (!pushRelayReady()) return customAlert('명함 알림 중계 서버 연결이 필요해요. 설정 → 연결 관리에서 먼저 연결해 주세요.');
+                    S.close(); openPushSheet();
+                    const hd = document.getElementById('pushHeading'), bd = document.getElementById('pushBody');
+                    if (hd) { hd.value = `📊 ${getTodayStr().slice(5).replace('-', '/')} 오늘의 휴대폰 시세표`; hd.dispatchEvent(new Event('input', { bubbles: true })); }
+                    if (bd) { bd.value = '오늘 매장 시세표예요 😊 궁금한 기종은 명함에서 견적요청 · 상담 남겨 주세요!'; bd.dispatchEvent(new Event('input', { bubbles: true })); }
+                    await uploadPushImage(new File([blob], name, { type: 'image/jpeg' }));
+                }
+            });
+        }
+        const siseNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+        function siseNormalize(j, unit) {   // 표 숫자 → 만원
+            const k = unit === '천원' ? 0.1 : (unit === '원' ? 0.0001 : 1), r1 = (n) => n === null ? null : Math.round(n * k * 10) / 10;
+            const tiers = (j.tiers || []).filter(t => t && t.id).map(t => ({ id: String(t.id).slice(0, 12), name: String(t.name || t.id).slice(0, 60) })).slice(0, 12);
+            const rows = (j.rows || []).filter(r => r && String(r.model || '').trim()).slice(0, 200).map(r => ({ model: String(r.model).trim().slice(0, 40), price: Math.round(siseNum(r.price) || 0), pub: Math.round(siseNum(r.pub) || 0),
+                v: (r.v || []).filter(x => x && x.tier).map(x => { const o = { tier: String(x.tier).slice(0, 12) }; ['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].forEach(f => { const n = r1(siseNum(x[f])); if (n !== null) o[f] = n; }); return o; }) }));
+            return { tiers, rows, notes: (j.notes || []).map(x => String(x).slice(0, 160)).slice(0, 15) };
+        }
+        function siseTable(P, tierId, max) {
+            const t = tierId || ((P.tiers || [])[0] || {}).id, c = (v) => v === undefined || v === null ? '<span class="text-gray-300">·</span>' : `<span class="${v < 0 ? 'text-red-600' : ''}">${v}</span>`;
+            const rows = (P.rows || []).slice(0, max || 999);
+            return `<div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1">출고가</th><th class="px-1">010 공/선</th><th class="px-1">MNP 공/선</th><th class="px-1">기변 공/선</th></tr></thead><tbody>${rows.map(r => { const x = (r.v || []).find(y => y.tier === t) || {};
+                return `<tr class="border-t border-gray-100"><td class="text-left px-1 py-1 font-bold text-gray-900 whitespace-nowrap">${escapeHtml(r.model)}</td><td class="px-1 text-gray-600">${r.price ? arWon(Math.round(r.price / 1000) / 10) + '만' : ''}</td><td class="px-1">${c(x.nP)} / ${c(x.nS)}</td><td class="px-1 font-bold">${c(x.mP)} / ${c(x.mS)}</td><td class="px-1">${c(x.cP)} / ${c(x.cS)}</td></tr>`; }).join('')}</tbody></table></div>`;
+        }
+        function siseSheet(title, sub, bodyFn, foot) {
+            const sh = document.createElement('div'); sh.className = 'fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center'; sh.style.zIndex = 76;
+            const draw = () => { sh.innerHTML = `<div class="w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3" role="dialog" aria-label="${escapeHtml(title)}"><div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">${title}</p><p class="text-xs text-gray-600">${sub}</p></div><button type="button" data-ss="close" class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>${bodyFn()}${foot || ''}</div>`; };
+            draw(); document.body.appendChild(sh); return { sh, draw, close: () => sh.remove() };
+        }
+        function siseView(d, P) {
+            if (!P) return;
+            let tier = ((P.tiers || [])[0] || {}).id, mode = 'quote';
+            const S = siseSheet(`📊 ${escapeHtml(d.name)} 정책표`, `${escapeHtml(P.date || '')} · ${escapeHtml(P.src || '')} · 단위 만원`, () => `
+                <div class="grid grid-cols-2 gap-1.5">${[['quote', '💰 시세 (현금가 · 할부가)'], ['policy', '📋 정책 금액']].map(([k, l]) => `<button type="button" data-sm="${k}" class="h-10 rounded-xl text-[13px] font-bold border ${k === mode ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
+                <div class="flex flex-wrap gap-1.5">${(P.tiers || []).map(t => `<button type="button" data-st="${escapeHtml(t.id)}" class="h-9 px-2.5 rounded-lg text-[12px] font-bold border ${t.id === tier ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}">${escapeHtml(t.name)}</button>`).join('')}</div>
+                ${mode === 'quote' ? siseQuoteTable(d, P, tier) : siseTable(P, tier)}
+                ${(P.notes || []).length ? `<details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-700 cursor-pointer">조건 · 추가/차감 ${P.notes.length}줄</summary><ul class="mt-1 text-[12px] text-gray-700 list-disc pl-4 space-y-0.5">${P.notes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></details>` : ''}`,
+                can('editPolicy') ? '<button type="button" data-ss="del" class="w-full h-10 rounded-xl border border-red-200 bg-white text-[13px] font-bold text-red-700">이 정책표 지우기</button>' : '');
+            S.sh.addEventListener('click', async (e) => {
+                const t = e.target.closest('[data-st]'); if (t) { tier = t.dataset.st; S.draw(); return; }
+                const sm = e.target.closest('[data-sm]'); if (sm) { mode = sm.dataset.sm; S.draw(); return; }
+                const a = (e.target.closest('[data-ss]') || {}).dataset; if (!a || !a.ss) return;
+                if (a.ss === 'close') return S.close();
+                if (a.ss === 'del') { if (!(await customConfirm(`${d.name} 정책표를 지울까요?`))) return; try { await deleteDoc(doc(db, 'sise_policy', d.id)); delete siseCache[d.id]; S.close(); siseRender(); stockToast('🗑 지웠어요'); } catch (err) { customAlert(koreanError(err, '삭제')); } }
+            });
+        }
+        function siseReview(d, j, src) {
+            let unit = ['만원', '천원', '원'].includes(j.unit) ? j.unit : '만원', P = siseNormalize(j, unit), tier = (P.tiers[0] || {}).id;
+            const S = siseSheet(`📊 ${escapeHtml(d.name)} 정책표 확인`, `${src}에서 모델 ${P.rows.length}개 · 구간 ${P.tiers.length}개 읽었어요 · 원본과 몇 개 맞춰 보고 [저장]`, () => `
+                <p class="text-[12px] font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-xl px-3 py-2">AI가 읽은 값이에요. 단위가 맞는지 꼭 보세요 (43 → 43만원이 맞으면 '만원', 430 → 43만원이면 '천원').</p>
+                <div class="flex items-center gap-1.5 flex-wrap"><span class="text-[12px] font-bold text-gray-600">표 숫자 단위</span>${['만원', '천원', '원'].map(u => `<button type="button" data-su="${u}" class="h-9 px-3 rounded-lg text-[12px] font-bold border ${u === unit ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${u}</button>`).join('')}<span class="text-[12px] text-gray-500">${escapeHtml(j.date || '')}</span></div>
+                <div class="flex flex-wrap gap-1.5">${P.tiers.map(t => `<button type="button" data-st="${escapeHtml(t.id)}" class="h-9 px-2.5 rounded-lg text-[12px] font-bold border ${t.id === tier ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}">${escapeHtml(t.name)}</button>`).join('')}</div>
+                ${siseTable(P, tier)}`,
+                '<button type="button" data-ss="save" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">저장 (만원으로 보관)</button>');
+            S.sh.addEventListener('click', async (e) => {
+                const u = e.target.closest('[data-su]'); if (u) { unit = u.dataset.su; P = siseNormalize(j, unit); S.draw(); return; }
+                const t = e.target.closest('[data-st]'); if (t) { tier = t.dataset.st; S.draw(); return; }
+                const a = (e.target.closest('[data-ss]') || {}).dataset; if (!a || !a.ss) return;
+                if (a.ss === 'close') return S.close();
+                if (a.ss === 'save') {
+                    const data = { ...P, dealerId: d.id, dealer: d.name, carrier: d.carrier || '', date: String(j.date || '').slice(0, 40), src, at: new Date().toISOString(), by: getStaffName() || '' };
+                    try { await setDoc(doc(db, 'sise_policy', d.id), data); siseCache = siseCache || {}; siseCache[d.id] = data; S.close(); siseRender(); stockToast(`📊 ${d.name} 정책표를 보관했어요`); }
+                    catch (err) { customAlert(koreanError(err, '저장')); }
+                }
+            });
         }
         function secSubRender() {
             const sec = document.getElementById('secCheckSec'); if (!sec) return;
@@ -25915,7 +26178,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V275';
+        const APP_VER = 'V276';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -25923,6 +26186,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V276', d: '2026-11-03', items: [
+                ['🖼 시세표 이미지 만들기: 통신사마다 거래처 · 요금제 구간 고르고 기종 체크 → 그림 → 💾 저장 · 📣 명함 알림으로 보내기 (문자는 안 보냄)', 'a'],
+                ['💰 시세표: 순마진(통신사별 · 기종별) · 할부 추가 · 반올림 설정 → 정책표 [보기]에서 현금가 · 할부가 시세 미리보기 (거래처 조건의 부가 · 보험 추가/차감 · 그레이드 그대로 반영 · 부가 미가입 시 + 따로 표시)', 'a'],
+                ['📊 설정 → 시세표 (준비 중): 거래처(SK상상 · SK라온 · KT성원 · LG태성 · LG뉴에이스)마다 정책표를 📷 사진 · 📄 엑셀로 올리면 AI가 모델 · 요금제 구간 · 010/MNP/기변 · 공통/선약 금액을 표로 읽어 보관 (아직 고객 화면엔 안 나가요)', 'a']] },
             { v: 'V275', d: '2026-11-03', items: [
                 ['🔐 매장 설정을 Firebase 보안 규칙에서도 직급 · 권한대로 잠글 준비: 👑 대표 폰이 직급마다 권한표를 따로 적어 둬요 (정책 · 거래처 = 정책 권한 · 자동 안내 = 자동 안내 권한 · 홍보 = 홍보 권한 · 목표/급여 = 목표 권한 · 직급 · 보안 · 드라이브 등은 대표만)', 'a']] },
             { v: 'V274', d: '2026-11-03', items: [
@@ -26607,6 +26874,7 @@ familyStr + `\n` +
             { id: 'policy', grp: '매장', title: '정책 · 지원금', icon: 'fa-file-invoice-dollar', tone: 'indigo' },
             { id: 'dealer', grp: '매장', title: '유지 조건 · 거래처', icon: 'fa-building', tone: 'indigo' },   // 🧭 V274 개통 후 자동 약속(통신사 기본)도 여기로
             { id: 'card', grp: '매장', title: '고객 명함', icon: 'fa-id-card', tone: 'indigo' },
+            { id: 'sise', grp: '매장', title: '시세표 (준비 중)', icon: 'fa-tags', tone: 'amber' },   // 📊 V276 거래처 정책표 → 시세표 (지금은 정책 올려 두기까지)
             { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
             { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
             { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' }
@@ -26624,7 +26892,7 @@ familyStr + `\n` +
             T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn'].filter(k => smsSetting(k)).length, ch = [autoSmsOn() ? '문자' : '', autoPushOn() ? '푸시' : ''].filter(Boolean).join('·'); st('auto', n ? `${n}개 켜짐${ch ? ' · ' + ch : ''}` : '모두 꺼짐', n ? 'ok' : ''); });
             T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '홍보 꺼짐 · 전체 푸시', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
             T(() => { try { renderAutoRows(); } catch (e) { /* 준비 전 */ } });
-            st('policy', '지원금표 · 폰값계산', ''); st('dealer', '통신사 기본 · 거래처별', '');
+            st('policy', '지원금표 · 폰값계산', ''); st('sise', '거래처 정책표 올려 두기', ''); st('dealer', '통신사 기본 · 거래처별', '');
             T(() => st('staff', isSuperAdmin ? `직급 ${roleList().length}개 · 계정 · 담당` : `내 직급: ${myRoleName()}`, ''));
             T(() => renderRoleBox());
             const warns = [];
@@ -26752,7 +27020,8 @@ familyStr + `\n` +
             put('auto', autoRowsSec(), secOf('grpAutoTitle'), cardSec, missSec); hideH('grpAutoTitle');   // V246 문자 · 푸시 · 명함 링크 · 부재 연락을 한 화면에
             put('promo', secOf('grpPromoTitle'), secOf('subPushAllTitle')); hideH('grpPromoTitle');
             put('policy', secOf('grpSubsidyTitle')); hideH('grpSubsidyTitle');
-            put('dealer', secOf('setAutoTitle'), dealerSec);   // 🧭 V274 통신사 기본 + 거래처별 조건을 한 화면에
+            put('dealer', secOf('setAutoTitle'), dealerSec);
+            put('sise', mk(`<section class="space-y-2" aria-labelledby="siseTitle"><h3 id="siseTitle" class="text-[13px] font-bold text-gray-600 pl-1">📊 거래처 정책표 <span class="font-normal">(시세표 만들 준비 · 아직 고객 화면에는 안 나가요)</span></h3><div id="siseBox"></div></section>`));   // 🧭 V274 통신사 기본 + 거래처별 조건을 한 화면에
             const roleSec = mk(`<section class="space-y-2" aria-labelledby="setRoleTitle"><h3 id="setRoleTitle" class="text-[13px] font-bold text-gray-600 pl-1">🎖 직급 · 권한 <span class="font-normal">(점장 · 매니저 · 직급 추가 · 할 수 있는 것)</span></h3><div id="roleBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"></div></section>`);
             put('staff', secOf('setStaffTitle'), roleSec);   // 🎖 V247
             const secChkSec = secOf('secCheckTitle'), driveSec = secOf('setDriveTitle');   // 🧭 V274 연결 묶음 안에 있어서 옮기기 전에 잡아 둠
