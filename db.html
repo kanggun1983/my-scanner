@@ -17627,7 +17627,7 @@ familyStr + `\n` +
                 let parts;
                 if (kind === 'photo') parts = [{ text: SISE_PROMPT }, { inlineData: { mimeType: 'image/jpeg', data: await photoToB64(file, 3200) } }];
                 else { const X = await loadSheetJS(), wb = X.read(await file.arrayBuffer(), { type: 'array' }); const csv = wb.SheetNames.slice(0, 3).map(n => `### ${n}\n` + X.utils.sheet_to_csv(wb.Sheets[n], { blankrows: false })).join('\n').slice(0, 120000); parts = [{ text: SISE_PROMPT + '\n\n아래는 엑셀을 CSV로 바꾼 거야:\n' + csv }]; }
-                const { text } = await callGemini({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SISE_SCHEMA, temperature: 0 } }, { timeoutMs: 180000, onRetry: (l) => showUploadToast(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
+                const { text } = await callGemini({ contents: [{ role: 'user', parts }], generationConfig: { responseMimeType: 'application/json', responseSchema: SISE_SCHEMA, temperature: 0, maxOutputTokens: 32768 } }, { timeoutMs: 240000, onRetry: (l) => showUploadToast(`AI가 바빠서 ${l}(으)로 다시 읽는 중…`) });
                 hideUploadToast();
                 const j = JSON.parse(text);
                 if (!Array.isArray(j.rows) || !j.rows.length) return customAlert('정책표에서 모델을 읽지 못했어요. 표가 잘 보이게 다시 올려 주세요.');
@@ -17692,20 +17692,21 @@ familyStr + `\n` +
         function siseMake() {
             const C = siseCfg(), byCar = {};
             Object.entries(siseCache).forEach(([id, P]) => { if (id === 'config' || !P || !P.rows) return; const d = dealerList().find(x => x.id === id); if (!d) return; const ck = carrierKeepKey(d.carrier || ''); (byCar[ck] = byCar[ck] || []).push({ d, P }); });
-            const st = { sup: 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null };
+            const st = { sup: 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null, supBy: {} };   // supBy: 기종 키 → 'P' 공시 · 'S' 선약 · 'B' 싼 쪽
             SISE_CARS.forEach(([ck]) => { const f = (byCar[ck] || [])[0]; if (f) st.pick[ck] = { id: f.d.id, tier: ((f.P.tiers || [])[0] || {}).id }; });
             const rowsOf = () => {   // 기종 키 → 통신사별 { mnp, chg }
                 const map = new Map();
                 SISE_CARS.forEach(([ck]) => { const pk = st.pick[ck]; if (!pk) return; const it = (byCar[ck] || []).find(x => x.d.id === pk.id); if (!it) return;
                     it.P.rows.forEach(r => { const k = siseKey(r.model), x = siseV(it.P, r, pk.tier);
-                        const pickV = (a, b) => { const A = siseCalc(C, it.d, r, x, a), B = siseCalc(C, it.d, r, x, b); if (st.sup === 'P') return A || B; if (st.sup === 'S') return B; return A && B ? (A.cash <= B.cash ? A : B) : (A || B); };
+                        const md = st.supBy[k.key] || st.sup, tag = (q, w) => q ? { ...q, w } : null;
+                        const pickV = (a, b) => { const A = tag(siseCalc(C, it.d, r, x, a), 'P'), B = tag(siseCalc(C, it.d, r, x, b), 'S'); if (md === 'P') return A || B; if (md === 'S') return B || A; return A && B ? (A.cash <= B.cash ? A : B) : (A || B); };
                         const o = map.get(k.key) || { key: k.key, name: k.name, price: r.price, c: {} };
                         if (!o.c[ck]) o.c[ck] = { mnp: pickV('mP', 'mS'), chg: pickV('cP', 'cS') };
                         map.set(k.key, o); }); });
                 return [...map.values()].sort((a, b) => (b.price || 0) - (a.price || 0));
             };
             const draw = (rows) => {   // 1080px 그림
-                const W = 1080, rowH = 64, head = 300, foot = 190, H = head + rows.length * rowH + foot, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+                const W = 1080, rowH = 64, head = 300, foot = 150, H = head + rows.length * rowH + foot, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
                 const g = cv.getContext('2d'), F = (w, sz) => `${w} ${sz}px "Pretendard","Apple SD Gothic Neo","Noto Sans KR",sans-serif`;
                 g.fillStyle = '#fffbea'; g.fillRect(0, 0, W, H);
                 g.fillStyle = '#111'; g.font = F(800, 54); g.textAlign = 'center'; g.fillText(st.title, W / 2, 86);
@@ -17718,13 +17719,14 @@ familyStr + `\n` +
                 g.fillStyle = '#fff'; g.fillRect(x0, 160, nameW, 136); g.fillStyle = '#111'; g.font = F(800, 26); g.fillText('모델', x0 + nameW / 2, 236);
                 rows.forEach((r, i) => { const y = head + i * rowH; g.fillStyle = i % 2 ? '#fff7d6' : '#ffffff'; g.fillRect(x0, y, W - x0 * 2, rowH); g.fillStyle = '#f59e0b'; g.fillRect(x0, y, nameW, rowH);
                     g.fillStyle = '#111'; g.font = F(800, 25); g.fillText(r.name.slice(0, 16), x0 + nameW / 2, y + 41);
-                    SISE_CARS.forEach(([ck], ci) => { const v = r.c[ck] || {}; [v.mnp, v.chg].forEach((q, k) => { const cx = x0 + nameW + (ci * 2 + k) * colW + colW / 2; g.fillStyle = q ? (q.cash < 0 ? '#1d4ed8' : '#dc2626') : '#9ca3af'; g.font = F(800, 30); g.fillText(q ? String(q.cash) : '-', cx, y + 43); }); });
+                    SISE_CARS.forEach(([ck], ci) => { const v = r.c[ck] || {}; [v.mnp, v.chg].forEach((q, k) => { const cx = x0 + nameW + (ci * 2 + k) * colW + colW / 2; g.fillStyle = q ? (q.cash < 0 ? '#1d4ed8' : '#dc2626') : '#9ca3af'; const odd = q && q.w !== (st.sup === 'S' ? 'S' : 'P'); g.font = F(800, 30); g.fillText(q ? String(q.cash) : '-', cx, y + (odd ? 36 : 43));
+                        if (odd) { g.fillStyle = '#6b7280'; g.font = F(700, 15); g.fillText(q.w === 'S' ? '선약' : '공시', cx, y + 56); } }); });
                     g.strokeStyle = '#e5e7eb'; g.lineWidth = 2; g.beginPath(); g.moveTo(x0, y + rowH); g.lineTo(W - x0, y + rowH); g.stroke(); });
                 g.strokeStyle = '#374151'; g.lineWidth = 3; g.strokeRect(x0, 160, W - x0 * 2, head - 160 + rows.length * rowH);
                 let fy = head + rows.length * rowH + 50; g.textAlign = 'left'; g.fillStyle = '#374151'; g.font = F(600, 22);
                 const ex = SISE_CARS.map(([ck, lab]) => { const pk = st.pick[ck], it = pk && (byCar[ck] || []).find(y => y.d.id === pk.id); if (!it) return ''; const E = siseDealerExtra(it.d); return C.addonWith && E.minus ? `${lab} 부가·보험 미가입 시 +${E.minus}만` : ''; }).filter(Boolean);
-                [`· 할부 시 +${C.installAdd}만 · 파란색(마이너스) 금액은 매장에 문의해 주세요`, ex.length ? '· ' + ex.join(' · ') : '', '· 정책 변동으로 가격이 바뀔 수 있어요 · 시세표 이외 모델은 문의'].filter(Boolean).forEach(t => { g.fillText(t, x0, fy); fy += 36; });
-                g.textAlign = 'right'; g.fillStyle = '#111'; g.font = F(800, 26); g.fillText(gdStoreDefault().name || msgStoreName() || '', W - x0, H - 30);
+                [`· 할부 시 +${C.installAdd}만 · 파란색(마이너스) 금액은 매장에 문의해 주세요${rows.some(r => SISE_CARS.some(([ck]) => { const v = r.c[ck] || {}; return [v.mnp, v.chg].some(q => q && q.w !== (st.sup === 'S' ? 'S' : 'P')); })) ? ` · 작은 글씨 = ${st.sup === 'S' ? '공시' : '선약'} 기준` : ''}`, ex.length ? '· ' + ex.join(' · ') : '', '· 정책 변동으로 가격이 바뀔 수 있어요 · 시세표 이외 모델은 문의'].filter(Boolean).forEach(t => { g.fillText(t, x0, fy); fy += 36; });
+                // 🏷 V278 매장명은 안 넣음 (사장님 요청)
                 return cv;
             };
             let cv = null;
@@ -17733,8 +17735,10 @@ familyStr + `\n` +
                 const use = rows.filter(r => st.on.has(r.key)); cv = draw(use);
                 return `<div class="grid grid-cols-3 gap-1.5">${[['P', '공시 기준'], ['S', '선약 기준'], ['B', '싼 쪽']].map(([k, l]) => `<button type="button" data-sx-sup="${k}" class="h-9 rounded-lg text-[12px] font-bold border ${st.sup === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
                     ${SISE_CARS.map(([ck, lab]) => { const L = byCar[ck] || [], pk = st.pick[ck]; if (!L.length) return `<p class="text-[12px] text-gray-400">${lab}: 정책표 없음</p>`; const it = L.find(x => x.d.id === (pk || {}).id) || L[0];
-                        return `<div class="grid grid-cols-2 gap-1.5 items-center"><select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
-                    <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><div class="mt-2 grid grid-cols-2 gap-1">${rows.map(r => `<label class="flex items-center gap-1.5 text-[12px]"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600">${escapeHtml(r.name)} <span class="text-gray-400">${Object.keys(r.c).length}사</span></label>`).join('')}</div></details>
+                        const tid = (pk || {}).tier || ((it.P.tiers || [])[0] || {}).id, R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS', 'nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null); }).length;
+                        const diag = `<p class="col-span-2 text-[11px] ${nVal && nPrice ? 'text-gray-500' : 'text-red-700 font-bold'}" style="grid-column:1/-1">모델 ${R0.length} · 출고가 ${nPrice} · 공시 ${nPub} · 이 구간 정책 금액 ${nVal}${!nVal ? ' → 이 구간 금액을 못 읽었어요 (다른 구간을 골라 보거나 다시 올려 주세요)' : (!nPrice ? ' → 출고가를 못 읽었어요' : (!nPub && st.sup === 'P' ? ' → 공시를 못 읽어서 공시 기준은 못 내요 · 선약 기준을 눌러 보세요' : ''))}</p>`;
+                        return `<div class="grid grid-cols-2 gap-1.5 items-center">${diag}<select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
+                    <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><p class="text-[11px] text-gray-500 mt-1">기종마다 공시 · 선약을 따로 고를 수 있어요 (공시가 적으면 선약, 많으면 공시가 유리 · '싼 쪽'은 알아서)</p><div class="mt-1.5 space-y-1">${rows.map(r => { const md = st.supBy[r.key] || ''; return `<div class="flex items-center gap-1.5 text-[12px]"><label class="flex-1 min-w-0 flex items-center gap-1.5"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600 flex-shrink-0"><span class="truncate">${escapeHtml(r.name)}</span> <span class="text-gray-400 flex-shrink-0">${Object.keys(r.c).length}사</span></label><select data-sx-sb="${escapeHtml(r.key)}" class="h-8 px-1 border border-gray-300 rounded-md text-[12px] bg-white flex-shrink-0"><option value="" ${md ? '' : 'selected'}>위와 같게</option><option value="P" ${md === 'P' ? 'selected' : ''}>공시</option><option value="S" ${md === 'S' ? 'selected' : ''}>선약</option><option value="B" ${md === 'B' ? 'selected' : ''}>싼 쪽</option></select></div>`; }).join('')}</div></details>
                     <img src="${cv.toDataURL('image/png')}" alt="시세표 미리보기" class="w-full rounded-xl border border-gray-200">`;
             }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><button type="button" data-ss="notice" class="w-full h-11 rounded-2xl border border-pink-300 bg-pink-50 text-[13px] font-bold text-pink-800">📌 명함 열 때 한 번만 띄우기 (알림 없이 · 2일)</button><p class="text-[11px] text-gray-500 text-center">📣 알림은 켠 고객에게만 가고, 보내면 명함 열 때도 한 번 떠요 · 문자는 보내지 않아요</p>`);
             S.sh.addEventListener('change', (e) => {
@@ -17742,6 +17746,7 @@ familyStr + `\n` +
                 if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: ((it && it.P.tiers || [])[0] || {}).id }; }
                 if (tt) st.pick[tt.dataset.sxT] = { ...(st.pick[tt.dataset.sxT] || {}), tier: tt.value };
                 if (on) { if (on.checked) st.on.add(on.dataset.sxOn); else st.on.delete(on.dataset.sxOn); }
+                const sb = e.target.closest('[data-sx-sb]'); if (sb) { if (sb.value) st.supBy[sb.dataset.sxSb] = sb.value; else delete st.supBy[sb.dataset.sxSb]; }
                 const open = !!S.sh.querySelector('details[open]'); S.draw(); if (open) { const d2 = S.sh.querySelector('details'); if (d2) d2.open = true; }
             });
             S.sh.addEventListener('click', async (e) => {
@@ -26209,7 +26214,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V277';
+        const APP_VER = 'V278';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26217,6 +26222,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V278', d: '2026-11-03', items: [
+                ['📊 시세표 이미지: 기종마다 공시 · 선약 · 싼 쪽 따로 고르기 (공시가 적으면 선약, 많으면 공시) · 기준과 다른 칸은 숫자 밑에 작게 \'선약/공시\'', 'a'],
+                ['🏷 시세표 이미지에서 매장명 뺌', 'a'],
+                ['🔍 시세표 이미지: 통신사마다 읽은 것 한 줄 (모델 · 출고가 · 공시 · 이 구간 정책 금액 수) → 어디가 비어서 \'-\'인지 바로 보여요', 'a']] },
             { v: 'V277', d: '2026-11-03', items: [
                 ['🗣 시세표: 거래처별 구두 정책 · 추가정책(010 · MNP · 기변)도 넣어서 "정책표 + 그레이드 + 구두 + 부가 · 보험 + 추가정책을 다 했을 때 순마진 얼마 남길지"로 계산', 'a'],
                 ['🛠 시세표: AI가 요금제 구간을 다른 이름 · 번호로 적은 정책표도 금액이 나오게 (전부 \'-\'로 나오던 것) · 이미 올린 정책표도 다시 안 올려도 돼요', 'a']] },
