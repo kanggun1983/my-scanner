@@ -7907,6 +7907,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (e.target.closest('[data-st-wired-all]')) { sh.remove(); openWiredReview(); return; }
                     if (e.target.closest('[data-st-rec]')) { sh.remove(); openRecSheet(); return; }   // 📑 V210
                     const w = e.target.closest('[data-st-wired]'); if (w) { const [cid, date] = w.dataset.stWired.split('|'); wiredReviewOne(cid, date, true, () => openSettleSheet()); return; }
+                    const xc = e.target.closest('[data-st-cancel]'); if (xc) { const [cid, aid] = xc.dataset.stCancel.split('|'); (async () => { await cancelAct(cid, aid); const re = () => { renderGoalRow(); if (document.getElementById('settleSheet')) openSettleSheet(); }; re(); setTimeout(re, 1200); })(); return; }   // ❌ V283
                     const b = e.target.closest('[data-st-act]'); if (b) openActSettle(b.dataset.stCid, b.dataset.stAct, true);
                 });
                 document.body.appendChild(sh);
@@ -7914,9 +7915,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const ym = goalYm(), cut = settleCutoff(), list = missingActs(cut, '9999-12-31');
             const old = missingActs(`${ym}-01`, addDaysStr(cut, -1)).length;   // 이번 달 중 10일 지난 미입력 (목록에선 빠짐)
             const susp = isSuperAdmin ? wiredSuspects() : [], suspKey = new Set(susp.map(x => `${x.c.id}|${x.a.date}`));
-            const sec = (label, list) => `<p class="text-xs font-bold text-gray-500 pt-1">${label} · ${list.length}건</p>${list.length ? list.map(({ c, a }) => `<div class="flex items-stretch gap-1.5"><button type="button" data-st-cid="${escapeHtml(c.id)}" data-st-act="${escapeHtml(a.id)}" class="flex-1 min-w-0 text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><b class="block text-[15px] text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')} <span class="text-[13px] font-medium text-gray-500">${stockMD(a.date)} · ${a.kind}</span></b><span class="block text-xs text-gray-600 truncate">${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</span></span><span class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center">입력</span></button>${a.kind === '유선' && suspKey.has(`${c.id}|${a.date}`) ? `<button type="button" data-st-wired="${escapeHtml(c.id)}|${a.date}" class="flex-shrink-0 w-[68px] rounded-xl border border-sky-300 bg-sky-50 text-[12px] font-bold text-sky-800 leading-tight">📺<br>개통 아님</button>` : ''}</div>`).join('') : '<p class="text-sm text-gray-500 py-2">없어요 👍</p>'}`;
+            const sec = (label, list) => `<p class="text-xs font-bold text-gray-500 pt-1">${label} · ${list.length}건</p>${list.length ? list.map(({ c, a }) => `<div class="flex items-stretch gap-1.5"><button type="button" data-st-cid="${escapeHtml(c.id)}" data-st-act="${escapeHtml(a.id)}" class="flex-1 min-w-0 text-left rounded-xl border border-gray-200 bg-white px-3 py-2.5 flex items-center gap-2 hover:bg-gray-50"><span class="min-w-0 flex-1"><b class="block text-[15px] text-gray-900 truncate">${escapeHtml(c.name || '이름 없음')} <span class="text-[13px] font-medium text-gray-500">${stockMD(a.date)} · ${a.kind}</span></b><span class="block text-xs text-gray-600 truncate">${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</span></span><span class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold flex items-center">입력</span></button>${a.kind === '유선' && suspKey.has(`${c.id}|${a.date}`) ? `<button type="button" data-st-wired="${escapeHtml(c.id)}|${a.date}" class="flex-shrink-0 w-[68px] rounded-xl border border-sky-300 bg-sky-50 text-[12px] font-bold text-sky-800 leading-tight">📺<br>개통 아님</button>` : `<button type="button" data-st-cancel="${escapeHtml(c.id)}|${escapeHtml(a.id)}" aria-label="${escapeHtml(c.name || '')} 개통 취소" class="flex-shrink-0 w-[64px] rounded-xl border border-red-200 bg-red-50 text-[11px] font-bold text-red-700 leading-tight">❌<br>개통<br>취소</button>`}</div>`).join('') : '<p class="text-sm text-gray-500 py-2">없어요 👍</p>'}`;   // ❌ V283 테스트 · 잘못 넣은 개통은 여기서 바로 취소
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-2">
-                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">💰 정산 미입력</p><p class="text-xs text-gray-600">직원 폰(정산 숨김)에서 등록했거나 정산 칸을 비워 둔 개통이에요. 넣어야 매출 목표에 들어가요. 개통 ${SETTLE_LIST_DAYS}일이 지나면 목록에서 빠져요.</p></div><button type="button" data-st-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                <div class="flex items-start justify-between gap-2"><div><p class="text-[17px] font-bold text-gray-900">💰 정산 미입력</p><p class="text-xs text-gray-600">직원 폰(정산 숨김)에서 등록했거나 정산 칸을 비워 둔 개통이에요. 넣어야 매출 목표에 들어가요. 개통 ${SETTLE_LIST_DAYS}일이 지나면 목록에서 빠져요. 테스트 · 잘못 넣은 개통은 [❌ 개통 취소] (안내서를 지워도 개통 기록은 남아요).</p></div><button type="button" data-st-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
                 ${isSuperAdmin ? '<button type="button" data-st-rec class="w-full text-left rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[13px] font-bold text-indigo-900">📑 거래처 정산서와 맞춰보기 (엑셀 · 사진)</button>' : ''}
                 ${susp.length ? `<button type="button" data-st-wired-all class="w-full text-left rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-[13px] font-bold text-sky-900">📺 인터넷+TV 칸 때문에 잡힌 것 같은 유선 개통 ${susp.length}건 → 점검</button>` : ''}
                 ${sec(`최근 ${SETTLE_LIST_DAYS}일 (${stockMD(cut)}~)`, list)}
@@ -26247,7 +26248,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V282';
+        const APP_VER = 'V283';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26255,6 +26256,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V283', d: '2026-11-03', items: [
+                ['❌ 정산 미입력 목록에서 바로 [개통 취소]: 테스트 · 잘못 넣은 개통을 고객카드까지 안 가고 정리 (기록은 \'취소됨\'으로 남고 개통 수 · 매출에서 빠짐)', 'a']] },
             { v: 'V282', d: '2026-11-03', items: [
                 ['🔎 시세표 이미지: 기준과 다른 칸의 \'선약 · 공시\' 표시를 크게 (보라 · 초록 색 상자)', 'a']] },
             { v: 'V281', d: '2026-11-03', items: [
