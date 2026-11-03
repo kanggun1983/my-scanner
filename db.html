@@ -17565,19 +17565,23 @@ familyStr + `\n` +
             const mIn = (k, v, ph) => `<input type="number" inputmode="decimal" step="0.5" data-sc="${k}" value="${v === undefined || v === null || v === '' ? '' : v}" placeholder="${ph || '0'}" ${lock ? 'disabled' : ''} class="w-full h-10 px-2 border border-gray-300 rounded-lg text-[15px] text-right disabled:bg-gray-50">`;
             box.innerHTML = `<details class="rounded-2xl bg-white border border-amber-200 p-3" ${box.dataset.cfgOpen ? 'open' : ''} data-sise-cfg><summary class="cursor-pointer text-[15px] font-bold text-gray-900">💰 마진 · 시세 계산 <span class="text-[12px] font-medium text-amber-800">SK ${C.margin.SKT}만 · KT ${C.margin.KT}만 · LG ${C.margin.LGU}만 · 할부 +${C.installAdd}만</span></summary>
                 <div class="mt-2 space-y-2.5">
-                <p class="text-[12px] text-gray-600 leading-relaxed"><b>현금가</b>(완납) = 출고가 − 공통지원금(공시일 때) − (정책 + 거래처 그레이드 + 부가·보험 추가 − <b>순마진</b>) · <b>할부가</b> = 현금가 + 할부 추가 · 단위 만원</p>
+                <p class="text-[12px] text-gray-600 leading-relaxed"><b>현금가</b>(완납) = 출고가 − 공통지원금(공시일 때) − (정책표 + 그레이드 + 구두 + 부가·보험 추가 + 추가정책 − <b>순마진</b>) · <b>할부가</b> = 현금가 + 할부 추가 · 단위 만원</p>
                 <div class="grid grid-cols-3 gap-1.5 text-[12px] font-bold text-gray-600"><label>SK 순마진${mIn('m_SKT', C.margin.SKT)}</label><label>KT 순마진${mIn('m_KT', C.margin.KT)}</label><label>LG 순마진${mIn('m_LGU', C.margin.LGU)}</label></div>
                 <div class="grid grid-cols-2 gap-1.5 text-[12px] font-bold text-gray-600"><label>할부가 = 현금가 +${mIn('installAdd', C.installAdd)}</label><label>시세 반올림 단위 (만원)${mIn('round', C.round, '1')}</label></div>
                 <div class="space-y-1.5 text-[13px] font-bold text-gray-800">
                     <label class="flex items-center gap-2"><input type="checkbox" data-sc="addonWith" ${C.addonWith ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">부가 · 보험 <b>가입 기준</b>으로 시세 (거래처 조건의 추가(+)는 더하고, 차감(−)은 '미가입 시 +' 로 따로 보여 줘요)</label>
                     <label class="flex items-center gap-2"><input type="checkbox" data-sc="grade" ${C.grade ? 'checked' : ''} ${lock ? 'disabled' : ''} class="w-5 h-5 accent-indigo-600">거래처 그레이드(+) 금액도 정책에 더하기</label></div>
                 <label class="block text-[12px] font-bold text-gray-600">기종별 순마진 (한 줄에 하나 · 예: S942=15 · 비우면 위 통신사 마진)<textarea data-sc="modelMargin" rows="3" ${lock ? 'disabled' : ''} placeholder="S942=15&#10;F776=20" class="mt-1 w-full p-2 border border-gray-300 rounded-lg text-[14px] font-mono disabled:bg-gray-50">${escapeHtml(Object.entries(C.modelMargin).map(([k, v]) => `${k}=${v}`).join('\n'))}</textarea></label>
-                <p class="text-[11px] text-gray-500">부가 · 보험 · 그레이드 금액은 <b>설정 → 유지 조건 · 거래처</b>에 거래처마다 넣은 정책 금액을 그대로 써요.</p>
+                <div class="rounded-xl border border-gray-200 p-2 space-y-1.5"><p class="text-[13px] font-bold text-gray-900">🗣 거래처별 구두 · 추가정책 <span class="text-[11px] font-medium text-gray-500">(만원 · 다 했을 때 기준 · 비우면 0)</span></p>
+                    <div class="grid gap-1 items-center text-[11px] font-bold text-gray-500" style="grid-template-columns:1fr 54px 54px 54px 54px"><span>거래처</span><span class="text-right">구두</span><span class="text-right">추가 010</span><span class="text-right">추가 MNP</span><span class="text-right">추가 기변</span>
+                    ${siseDealers().map(d => { const e = C.ext[d.id] || {}, q = (k) => `<input type="number" inputmode="decimal" step="0.5" data-sx-ext="${escapeHtml(d.id)}|${k}" value="${e[k] === undefined || e[k] === '' || e[k] === null ? '' : e[k]}" ${lock ? 'disabled' : ''} class="w-full h-9 px-1 border border-gray-300 rounded-lg text-[13px] text-right disabled:bg-gray-50">`; return `<span class="text-[13px] text-gray-900 truncate">${escapeHtml(d.name)}</span>${q('oral')}${q('n')}${q('m')}${q('c')}`; }).join('')}</div>
+                    <p class="text-[11px] text-gray-500">예: 구두로 받은 +3만, 정책표 아래 '120K 이상 MNP 9만 / 기변 6만' 같은 추가정책</p></div>
+                <p class="text-[11px] text-gray-500">부가 · 보험 · 그레이드 금액은 <b>설정 → 유지 조건 · 거래처</b>에 거래처마다 넣은 정책 금액을 그대로 써요. <b>순마진</b> = 이 모든 정책을 다 받았을 때 매장에 남길 금액이에요.</p>
                 ${lock ? '' : '<button type="button" data-sc-save class="w-full h-10 rounded-xl bg-indigo-600 text-white text-[13px] font-bold">저장</button>'}</div></details>
             <div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-2">
                 <p class="text-xs text-gray-600 leading-relaxed">거래처마다 오늘 정책표를 <b>📷 사진</b>이나 <b>📄 엑셀</b>로 올려 두면 AI가 모델 · 요금제 구간 · 010/MNP/기변 · 공통/선약 금액을 표로 읽어 보관해요. 나중에 마진만 정하면 시세표 이미지 · 명함 폰값계산 · 강CRM 견적에 같이 쓰여요.</p>
                 ${L.length ? L.map(d => { const P = siseCache[d.id];
-                    return `<div class="rounded-xl border border-gray-200 px-3 py-2.5 space-y-2"><div class="flex items-center justify-between gap-2"><p class="text-[15px] font-bold text-gray-900">🏢 ${escapeHtml(d.name)} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(d.carrier || '')}</span></p><span class="text-[12px] font-bold ${P ? 'text-emerald-700' : 'text-gray-400'}">${P ? `${escapeHtml(String(P.date || '').slice(0, 16) || String(P.at || '').slice(5, 16).replace('T', ' '))} · 모델 ${(P.rows || []).length}개` : '아직 없음'}</span></div>
+                    return `<div class="rounded-xl border border-gray-200 px-3 py-2.5 space-y-2"><div class="flex items-center justify-between gap-2"><p class="text-[15px] font-bold text-gray-900">🏢 ${escapeHtml(d.name)} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(d.carrier || '')}</span></p><span class="text-[12px] font-bold ${P ? 'text-emerald-700' : 'text-gray-400'}">${P ? `${escapeHtml(String(P.date || '').slice(0, 16) || String(P.at || '').slice(5, 16).replace('T', ' '))} · 모델 ${(P.rows || []).length}개` : '아직 없음'}</span></div>${P && !(P.rows || []).some(r => (P.tiers || []).some(t => Object.keys(siseV(P, r, t.id)).some(k => k !== 'tier'))) ? '<p class="text-[12px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1.5">⚠️ 모델은 읽었는데 금액을 못 읽었어요 · 엑셀로 올리거나 표가 잘 보이게 다시 찍어 주세요</p>' : ''}
                         <div class="grid grid-cols-3 gap-1.5"><button type="button" data-sise-photo="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800 disabled:opacity-40">📷 사진</button><button type="button" data-sise-xlsx="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-800 disabled:opacity-40">📄 엑셀</button><button type="button" data-sise-view="${escapeHtml(d.id)}" ${P ? '' : 'disabled'} class="h-10 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-800 disabled:opacity-40">👀 보기</button></div></div>`; }).join('')
                 : '<p class="text-xs text-gray-500">거래처가 없어요. 설정 → 유지 조건 · 거래처에서 먼저 넣어 주세요.</p>'}
                 ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 올릴 수 있어요.</p>' : ''}</div>
@@ -17588,7 +17592,8 @@ familyStr + `\n` +
                     if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
                     const v = (k) => (box.querySelector(`[data-sc="${k}"]`) || {}), num = (k, def) => { const n = parseFloat(v(k).value); return Number.isFinite(n) ? n : def; };
                     const mm = {}; String(v('modelMargin').value || '').split(/\n/).forEach(l => { const m = l.match(/^\s*([^=]+?)\s*=\s*(-?\d+(?:\.\d+)?)\s*$/); if (m) mm[m[1].trim().slice(0, 40)] = parseFloat(m[2]); });
-                    const cfg = { margin: { SKT: num('m_SKT', 0), KT: num('m_KT', 0), LGU: num('m_LGU', 0) }, installAdd: num('installAdd', 0), round: Math.max(0.1, num('round', 1)), addonWith: !!v('addonWith').checked, grade: !!v('grade').checked, modelMargin: mm, at: new Date().toISOString(), by: getStaffName() || '' };
+                    const ext = {}; box.querySelectorAll('[data-sx-ext]').forEach(el => { const [id, k] = el.dataset.sxExt.split('|'), n = parseFloat(el.value); if (Number.isFinite(n) && n !== 0) (ext[id] = ext[id] || {})[k] = n; });
+                    const cfg = { ext, margin: { SKT: num('m_SKT', 0), KT: num('m_KT', 0), LGU: num('m_LGU', 0) }, installAdd: num('installAdd', 0), round: Math.max(0.1, num('round', 1)), addonWith: !!v('addonWith').checked, grade: !!v('grade').checked, modelMargin: mm, at: new Date().toISOString(), by: getStaffName() || '' };
                     try { await setDoc(doc(db, 'sise_policy', 'config'), cfg); siseCache.config = cfg; siseRender(); stockToast('💰 마진 · 시세 계산을 저장했어요'); } catch (err) { customAlert(koreanError(err, '저장')); }
                     return;
                 }
@@ -17629,10 +17634,21 @@ familyStr + `\n` +
                 siseReview(d, j, kind === 'photo' ? '📷 사진' : '📄 엑셀');
             } catch (err) { hideUploadToast(); console.error(err); customAlert(`정책표를 읽지 못했어요.\n${err.reason || err.message || ''}`); }
         }
+        // 📊 V277 모델 줄에서 그 요금제 구간 값 찾기 — AI가 구간을 id 대신 이름 · 번호로 적어도 맞춰 줌 (예전엔 안 맞으면 전부 '-')
+        function siseV(P, r, tierId) {
+            const v = (r && r.v) || []; if (!v.length) return {};
+            const hit = v.find(y => y.tier === tierId); if (hit) return hit;
+            const tiers = (P && P.tiers) || [], idx = tiers.findIndex(t => t.id === tierId), T = tiers[idx] || {}, nm = mvnoNorm(T.name || '');
+            const byName = nm && v.find(y => { const n = mvnoNorm(y.tier); return n && (n === nm || nm.includes(n) || n.includes(nm)); }); if (byName) return byName;
+            const num = v.find(y => String(y.tier).replace(/\D/g, '') === String(idx + 1)); if (num && tiers.length > 1) return num;
+            if (v.length === tiers.length && idx >= 0) return v[idx];   // 순서대로
+            return tiers.length <= 1 ? v[0] : {};
+        }
         function siseCfg() {
             const c = (siseCache && siseCache.config) || {}, m = c.margin || {};
-            return { margin: { SKT: Number(m.SKT) || 0, KT: Number(m.KT) || 0, LGU: Number(m.LGU) || 0 }, installAdd: Number(c.installAdd) || 0, round: Number(c.round) > 0 ? Number(c.round) : 1, addonWith: c.addonWith !== false, grade: c.grade !== false, modelMargin: c.modelMargin && typeof c.modelMargin === 'object' ? c.modelMargin : {} };
+            return { margin: { SKT: Number(m.SKT) || 0, KT: Number(m.KT) || 0, LGU: Number(m.LGU) || 0 }, installAdd: Number(c.installAdd) || 0, round: Number(c.round) > 0 ? Number(c.round) : 1, addonWith: c.addonWith !== false, grade: c.grade !== false, modelMargin: c.modelMargin && typeof c.modelMargin === 'object' ? c.modelMargin : {}, ext: c.ext && typeof c.ext === 'object' ? c.ext : {} };   // 🗣 V277 ext: { 거래처id: { oral 구두, n · m · c 추가정책(010 · MNP · 기변) } 만원 }
         }
+        function siseExt(C, d, f) { const e = (C.ext || {})[d.id] || {}; return (Number(e.oral) || 0) + (Number(e[f ? f[0] : 'm']) || 0); }
         function siseDealerExtra(d) {   // 거래처 조건(설정 → 유지 조건 · 거래처)의 부가 · 보험 · 그레이드 → 만원
             const am = [...(d.addons || []).filter(a => a.name || a.amount).map(a => Number(a.amount) || 0), Number((d.ins || {}).amount) || 0];
             return { plus: am.filter(n => n > 0).reduce((a, b) => a + b, 0) / 10000, minus: -am.filter(n => n < 0).reduce((a, b) => a + b, 0) / 10000, grade: (Number(d.grade) || 0) / 10000 };
@@ -17646,15 +17662,15 @@ familyStr + `\n` +
             const pol = x[f]; if (pol === undefined || pol === null || !row.price) return null;
             const E = siseDealerExtra(d), isPub = f.endsWith('P');
             if (isPub && !row.pub) return null;
-            const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0);
+            const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0) + siseExt(C, d, f);   // 🗣 V277 구두 · 추가정책까지 다 했을 때
             const rd = (n) => Math.round(n / C.round) * C.round, cash = rd(base - (pol + extra - siseMargin(C, d, row.model)));
             return { cash: Math.round(cash * 10) / 10, inst: Math.round((cash + C.installAdd) * 10) / 10 };
         }
         function siseQuoteTable(d, P, tierId) {
             const C = siseCfg(), E = siseDealerExtra(d), t = tierId || ((P.tiers || [])[0] || {}).id;
             const cell = (r, x, f) => { const v = siseCalc(C, d, r, x, f); return v ? `<span class="font-bold ${v.cash < 0 ? 'text-red-600' : 'text-gray-900'}">${v.cash}</span>${C.installAdd ? `<span class="block text-[10px] text-gray-500">할부 ${v.inst}</span>` : ''}` : '<span class="text-gray-300">·</span>'; };
-            return `<p class="text-[12px] text-gray-600">현금가(만원) · 공시 / 선약 · 순마진 ${siseMargin(C, d, '')}만${C.grade && E.grade ? ` · 그레이드 +${E.grade}` : ''}${C.addonWith && E.plus ? ` · 부가 추가 +${E.plus}` : ''}${C.addonWith && E.minus ? ` · <b class="text-red-700">부가 · 보험 미가입 시 +${E.minus}만</b>` : ''}</p>
-                <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1" colspan="2">010 공 / 선</th><th class="px-1" colspan="2">MNP 공 / 선</th><th class="px-1" colspan="2">기변 공 / 선</th></tr></thead><tbody>${(P.rows || []).map(r => { const x = (r.v || []).find(y => y.tier === t) || {};
+            return `<p class="text-[12px] text-gray-600">현금가(만원) · 공시 / 선약 · 순마진 ${siseMargin(C, d, '')}만${C.grade && E.grade ? ` · 그레이드 +${E.grade}` : ''}${C.addonWith && E.plus ? ` · 부가 추가 +${E.plus}` : ''}${(() => { const e = C.ext[d.id] || {}; return [e.oral ? ` · 구두 +${e.oral}` : '', e.n || e.m || e.c ? ` · 추가정책 010 +${e.n || 0} / MNP +${e.m || 0} / 기변 +${e.c || 0}` : ''].join(''); })()}${C.addonWith && E.minus ? ` · <b class="text-red-700">부가 · 보험 미가입 시 +${E.minus}만</b>` : ''}</p>
+                <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1" colspan="2">010 공 / 선</th><th class="px-1" colspan="2">MNP 공 / 선</th><th class="px-1" colspan="2">기변 공 / 선</th></tr></thead><tbody>${(P.rows || []).map(r => { const x = siseV(P, r, t);
                 return `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900 whitespace-nowrap">${escapeHtml(r.model)}</td>${['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].map(f => `<td class="px-1 py-1">${cell(r, x, f)}</td>`).join('')}</tr>`; }).join('')}</tbody></table></div>`;
         }
         /* 🖼 V276 시세표 이미지 — 통신사마다 거래처 · 요금제 구간을 고르고, 같은 기종을 한 줄로 묶어 MNP · 기변 현금가 → 그림 → 💾 저장 · 📣 명함 알림 (문자는 안 보냄) */
@@ -17681,7 +17697,7 @@ familyStr + `\n` +
             const rowsOf = () => {   // 기종 키 → 통신사별 { mnp, chg }
                 const map = new Map();
                 SISE_CARS.forEach(([ck]) => { const pk = st.pick[ck]; if (!pk) return; const it = (byCar[ck] || []).find(x => x.d.id === pk.id); if (!it) return;
-                    it.P.rows.forEach(r => { const k = siseKey(r.model), x = (r.v || []).find(y => y.tier === pk.tier) || {};
+                    it.P.rows.forEach(r => { const k = siseKey(r.model), x = siseV(it.P, r, pk.tier);
                         const pickV = (a, b) => { const A = siseCalc(C, it.d, r, x, a), B = siseCalc(C, it.d, r, x, b); if (st.sup === 'P') return A || B; if (st.sup === 'S') return B; return A && B ? (A.cash <= B.cash ? A : B) : (A || B); };
                         const o = map.get(k.key) || { key: k.key, name: k.name, price: r.price, c: {} };
                         if (!o.c[ck]) o.c[ck] = { mnp: pickV('mP', 'mS'), chg: pickV('cP', 'cS') };
@@ -17763,14 +17779,15 @@ familyStr + `\n` +
         function siseNormalize(j, unit) {   // 표 숫자 → 만원
             const k = unit === '천원' ? 0.1 : (unit === '원' ? 0.0001 : 1), r1 = (n) => n === null ? null : Math.round(n * k * 10) / 10;
             const tiers = (j.tiers || []).filter(t => t && t.id).map(t => ({ id: String(t.id).slice(0, 12), name: String(t.name || t.id).slice(0, 60) })).slice(0, 12);
+            const fixT = (r, x, i) => { const P0 = { tiers }, cand = String(x.tier || ''); if (tiers.some(t => t.id === cand)) return cand; for (const t of tiers) { if (siseV(P0, { v: [x] }, t.id) === x && mvnoNorm(cand) && (mvnoNorm(t.name).includes(mvnoNorm(cand)) || mvnoNorm(cand).includes(mvnoNorm(t.name)))) return t.id; } const nn = cand.replace(/\D/g, ''); if (nn && tiers[Number(nn) - 1]) return tiers[Number(nn) - 1].id; return (r.v || []).length === tiers.length && tiers[i] ? tiers[i].id : cand.slice(0, 12); };
             const rows = (j.rows || []).filter(r => r && String(r.model || '').trim()).slice(0, 200).map(r => ({ model: String(r.model).trim().slice(0, 40), price: Math.round(siseNum(r.price) || 0), pub: Math.round(siseNum(r.pub) || 0),
-                v: (r.v || []).filter(x => x && x.tier).map(x => { const o = { tier: String(x.tier).slice(0, 12) }; ['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].forEach(f => { const n = r1(siseNum(x[f])); if (n !== null) o[f] = n; }); return o; }) }));
+                v: (r.v || []).filter(x => x && (x.tier || x.tier === 0)).map((x, i) => { const o = { tier: fixT(r, x, i) }; ['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].forEach(f => { const n = r1(siseNum(x[f])); if (n !== null) o[f] = n; }); return o; }) }));
             return { tiers, rows, notes: (j.notes || []).map(x => String(x).slice(0, 160)).slice(0, 15) };
         }
         function siseTable(P, tierId, max) {
             const t = tierId || ((P.tiers || [])[0] || {}).id, c = (v) => v === undefined || v === null ? '<span class="text-gray-300">·</span>' : `<span class="${v < 0 ? 'text-red-600' : ''}">${v}</span>`;
             const rows = (P.rows || []).slice(0, max || 999);
-            return `<div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1">출고가</th><th class="px-1">010 공/선</th><th class="px-1">MNP 공/선</th><th class="px-1">기변 공/선</th></tr></thead><tbody>${rows.map(r => { const x = (r.v || []).find(y => y.tier === t) || {};
+            return `<div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">모델</th><th class="px-1">출고가</th><th class="px-1">010 공/선</th><th class="px-1">MNP 공/선</th><th class="px-1">기변 공/선</th></tr></thead><tbody>${rows.map(r => { const x = siseV(P, r, t);
                 return `<tr class="border-t border-gray-100"><td class="text-left px-1 py-1 font-bold text-gray-900 whitespace-nowrap">${escapeHtml(r.model)}</td><td class="px-1 text-gray-600">${r.price ? arWon(Math.round(r.price / 1000) / 10) + '만' : ''}</td><td class="px-1">${c(x.nP)} / ${c(x.nS)}</td><td class="px-1 font-bold">${c(x.mP)} / ${c(x.mS)}</td><td class="px-1">${c(x.cP)} / ${c(x.cS)}</td></tr>`; }).join('')}</tbody></table></div>`;
         }
         function siseSheet(title, sub, bodyFn, foot) {
@@ -26192,7 +26209,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V276';
+        const APP_VER = 'V277';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26200,6 +26217,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V277', d: '2026-11-03', items: [
+                ['🗣 시세표: 거래처별 구두 정책 · 추가정책(010 · MNP · 기변)도 넣어서 "정책표 + 그레이드 + 구두 + 부가 · 보험 + 추가정책을 다 했을 때 순마진 얼마 남길지"로 계산', 'a'],
+                ['🛠 시세표: AI가 요금제 구간을 다른 이름 · 번호로 적은 정책표도 금액이 나오게 (전부 \'-\'로 나오던 것) · 이미 올린 정책표도 다시 안 올려도 돼요', 'a']] },
             { v: 'V276', d: '2026-11-03', items: [
                 ['📌 시세표를 명함 열 때 한 번만 띄우기 (알림 없이 · 2일) · 📣 알림으로 보낸 시세표도 명함 공지 창은 2일만 (가격이 금방 바뀌어서)', 'a'],
                 ['🖼 시세표 이미지 만들기: 통신사마다 거래처 · 요금제 구간 고르고 기종 체크 → 그림 → 💾 저장 · 📣 명함 알림으로 보내기 (문자는 안 보냄)', 'a'],
