@@ -20426,6 +20426,7 @@ familyStr + `\n` +
                         <div data-st-dev class="min-w-0">${lbl('색상', `<input id="st-color" list="stColors" value="${escapeHtml(it ? it.color : '')}" placeholder="예) 블랙" class="${stCls}">`)}</div>
                         <div data-st-usim class="min-w-0 hidden">${lbl('수량', `<input id="st-qty" inputmode="numeric" value="${it && it.kind === '유심' ? Number(it.qty) || 0 : ''}" placeholder="0" class="${stCls} text-right">`)}</div>
                     </div>
+                    <div data-st-usim class="hidden space-y-1"><label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">유심 번호 <span class="font-medium text-gray-500">${it && it.kind === '유심' ? '(한 줄에 하나씩 · 지우면 재고에서 빠지고 수량도 줄어요)' : '(선택 · 한 줄에 하나씩 · 적은 만큼 수량에 더해요 · 수량 칸은 비워도 돼요)'}</span></span><textarea id="st-usimsn" rows="3" placeholder="예) 2404614470047F&#10;01924095" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white font-mono">${it && it.kind === '유심' ? escapeHtml((it.serials || []).join('\n')) : ''}</textarea></label></div>
                     <div data-st-usim class="hidden"><button type="button" id="stUsimScan" class="w-full h-12 rounded-xl border border-teal-300 bg-teal-50 text-[14px] font-bold text-teal-800">💳 바코드로 유심 한 장씩 찍기 (수량 · 번호 자동)</button><p class="mt-1 text-[12px] text-gray-500 leading-relaxed">위 거래처 · 모델로 넣어요 (LG 유심은 바코드에 적힌 모델로 · SK · KT는 한 번 넣은 모델을 기억). 수량 칸은 바코드 없이 넣을 때만 써요.</p></div>
                     <div data-st-dev>${it ? lbl('일련번호', `<span class="flex gap-1.5"><input id="st-serial" value="${escapeHtml(it.serial)}" class="${stCls} font-mono flex-1 min-w-0">${bcBtn('st-serial', '일련번호')}</span>`) : lbl('일련번호 <span class="font-normal text-gray-500">(같은 모델·색상 여러 대면 한 줄에 하나씩)</span>', `<textarea id="st-serials" rows="4" placeholder="325581&#10;305371" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] font-mono text-gray-900 bg-white"></textarea>`) + `<button type="button" id="stScanMulti" class="mt-1.5 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-[14px] font-bold text-indigo-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-barcode" aria-hidden="true"></i>바코드로 여러 대 연속 찍기</button>`}</div>
                     ${lbl('메모', `<input id="st-memo" value="${escapeHtml(it ? it.memo : '')}" placeholder="예) 개통취소 · 고품 · 사용중" class="${stCls}">`)}
@@ -20473,14 +20474,29 @@ familyStr + `\n` +
             if (!v('st-model')) return customAlert(kind === '유심' ? '유심 모델(예: C4920)을 넣어주세요.' : '모델명을 넣어주세요.');
             const base = { dealer, kind, model: v('st-model'), color: kind === '유심' ? '' : v('st-color'), memo: v('st-memo'), ...(kind === '유심' ? { qty: parseInt(v('st-qty').replace(/[^0-9]/g, ''), 10) || 0, serial: '' } : {}) };
             try {
+                const snL = kind === '유심' ? [...new Set(v('st-usimsn').split(/[\n,]+/).map(usimSn).filter(x => x.length >= 8))] : [];   // ✍️ V294 유심 번호 손으로
                 if (stEditId) {
+                    if (kind === '유심') {   // 번호를 고치면 수량도 그만큼 (수량 칸을 직접 바꿨으면 그 숫자)
+                        const it0 = stockItems().find(x => x.id === stEditId) || {}, old = it0.serials || [], q0 = Number(it0.qty) || 0, qIn = base.qty;
+                        const others = new Set(stockItems().filter(x => !stockIsDev(x) && x.id !== stEditId).flatMap(x => x.serials || [])), dupU = snL.filter(x => others.has(x)), keep = snL.filter(x => !others.has(x));
+                        base.serials = keep; base.qty = Math.max(qIn !== q0 ? qIn : q0 + keep.length - old.length, 0);
+                        if (dupU.length) customAlert(`다른 유심 재고에 이미 있는 번호는 뺐어요: ${dupU.slice(0, 5).join(', ')}`);
+                    }
                     await stockTx(cur => ({ ...cur, items: cur.items.map(x => x.id === stEditId ? { ...x, ...base, ...(kind === '단말' ? { serial: v('st-serial') } : {}) } : x) }));
                     closeStockModal(); renderStock(); stockToast('저장했어요');
                     return;
                 }
                 let added = 0, dup = [];
                 if (kind === '유심') {
-                    await stockTx(cur => { const items = cur.items.slice(); const ex = items.find(x => !stockIsDev(x) && stockSt(x) === '재고' && stockKey(x.dealer) === stockKey(dealer) && stockKey(x.model) === stockKey(base.model) && stockKey(x.memo) === stockKey(base.memo)); if (ex) Object.assign(ex, { qty: base.qty }); else items.push({ ...base, o: Date.now() }); added = 1; return { ...cur, items }; });
+                    let snAdd = 0, snDup = [];
+                    await stockTx(cur => { const items = cur.items.slice(); const ex = items.find(x => !stockIsDev(x) && stockSt(x) === '재고' && stockKey(x.dealer) === stockKey(dealer) && stockKey(x.model) === stockKey(base.model) && stockKey(x.memo) === stockKey(base.memo));
+                        const have = new Set(items.filter(x => !stockIsDev(x)).flatMap(x => x.serials || [])), add = snL.filter(x => !have.has(x)); snDup = snL.filter(x => have.has(x)); snAdd = add.length;
+                        if (snL.length) {   // ✍️ V294 번호를 적었으면 적은 만큼 수량 +
+                            if (ex) { const i = items.indexOf(ex); items[i] = { ...ex, qty: (Number(ex.qty) || 0) + Math.max(add.length, base.qty || 0), serials: [...(ex.serials || []), ...add] }; }
+                            else items.push({ ...base, qty: Math.max(add.length, base.qty || 0), serials: add, o: Date.now() });
+                        } else if (ex) Object.assign(ex, { qty: base.qty }); else items.push({ ...base, o: Date.now() });
+                        added = 1; return { ...cur, items }; });
+                    if (snL.length) { closeStockModal(); renderStock(); if (snDup.length) customAlert(`💳 유심 ${snAdd}장 넣었어요.\n이미 재고에 있는 번호는 뺐어요: ${snDup.slice(0, 5).join(', ')}`); else stockToast(`💳 유심 ${snAdd}장 넣었어요 (번호 ${snAdd}개)`); return; }
                 } else {
                     const serials = v('st-serials').split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
                     if (!serials.length) return customAlert('일련번호를 넣어주세요.\n(같은 모델 여러 대면 한 줄에 하나씩)');
@@ -26554,6 +26570,7 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V294', d: '2026-11-03', items: [
+                ['✍️ [직접 입력] 💳 유심에 [유심 번호] 칸: 바코드 없이도 한 줄에 하나씩 적으면 그만큼 수량 + 번호 저장 · 고치기 화면에서 번호를 지우면 수량도 줄어요', 'a'],
                 ['💳 유심 입고 바코드를 [직접 입력] 화면 안으로: 💳 유심 고르고 모델 넣고 → [바코드로 유심 한 장씩 찍기] (재고 탭 위 큰 버튼은 뺌)', 'a'],
                 ['📋 재고 확인(실사)에 유심도: 번호를 넣어 둔 유심은 찍으면 ✓ · 결과에 거래처 · 모델별 찍음/안 찍힘 · 안 찍힌 번호 한 번에 빼기 · 번호 없는 유심은 수량 직접 세기 안내', 'a']] },
             { v: 'V293', d: '2026-11-03', items: [
