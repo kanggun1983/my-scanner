@@ -20858,10 +20858,13 @@ familyStr + `\n` +
         }
         // 이 칸에서 전에 고른 모양 (이 폰에만) · 유심은 유심 번호 · 중고폰은 IMEI가 기본
         const BC_PAT_DEFAULT = { usim: { cls: 'iccid', len: 0, tail: 0 }, used: { cls: 'imei', len: 15, tail: 0 } };
+        // 📦 V291 재고 바코드 = 상자 S/N(예: SMF971AV1165047) 끝 7자리 → 1165047 (앞자리가 0이어도 글자 그대로 · 길이 상관없이)
+        const BC_STOCK_KINDS = ['stockadd', 'stockedit', 'stock'];
+        BC_STOCK_KINDS.forEach(k => { BC_PAT_DEFAULT[k] = { cls: 'sn', len: 0, tail: BC_TAIL, any: 1 }; });
         function bcPatStored(field) { try { const p = JSON.parse(localStorage.getItem('bcPat:' + field) || 'null'); return p && p.cls ? p : null; } catch (e) { return null; } }
-        function bcPatGet(field, kind) { return bcPatStored(field) || BC_PAT_DEFAULT[kind] || null; }
-        function bcPatSet(field, c, tail) { if (!field || !c) return; try { localStorage.setItem('bcPat:' + field, JSON.stringify({ cls: c.cls, len: c.len, tail: tail || 0 })); } catch (e) { /* 저장 못 해도 OK */ } }
-        const bcPatFits = (p, c) => !!p && !!c && c.cls === p.cls && c.cls !== 'etc' && (['imei', 'iccid'].includes(c.cls) || c.len === p.len);
+        function bcPatGet(field, kind) { if (BC_STOCK_KINDS.includes(kind)) { const st = bcPatStored(field); return st && st.manual ? st : BC_PAT_DEFAULT[kind]; } return bcPatStored(field) || BC_PAT_DEFAULT[kind] || null; }   // 📦 V291 재고는 S/N 끝 7자리가 기본 (직접 다른 모양을 고르면 그걸로)
+        function bcPatSet(field, c, tail) { if (!field || !c) return; try { const stk = ['st-serials', 'st-serial', 'stockSearch'].includes(field), def = stk && c.cls === 'sn' && tail === BC_TAIL; localStorage.setItem('bcPat:' + field, JSON.stringify({ cls: c.cls, len: c.len, tail: tail || 0, ...(stk && !def ? { manual: 1 } : {}), ...(def ? { any: 1 } : {}) })); } catch (e) { /* 저장 못 해도 OK */ } }
+        const bcPatFits = (p, c) => !!p && !!c && c.cls === p.cls && c.cls !== 'etc' && (['imei', 'iccid'].includes(c.cls) || !!p.any || c.len === p.len);
         const bcTailOf = (c, tail) => (tail && c.text.length > tail ? c.text.slice(-tail) : c.text);
         function bcPatLabel(p) { return p.tail ? `${p.cls === 'imei' ? 'IMEI' : '번호'} 끝 ${p.tail}자리` : ({ imei: 'IMEI', iccid: '유심 번호', sn: 'S/N', ean: '상품 코드' }[p.cls] || `숫자 ${p.len}자리`); }
         function bcBeep() {
@@ -21069,7 +21072,7 @@ familyStr + `\n` +
                     : c.state === 'sib' ? '<span class="text-[11px] font-bold text-gray-500">같은 상자</span>'
                     : c.state === 'dup' ? `<span class="text-[11px] font-bold text-amber-700">${escapeHtml(c.why || '이미 있어요')}</span>`
                     : (fit(c) ? '<span class="text-[11px] font-bold text-indigo-700">추천</span>' : '');
-                const tailBtn = !o.autoMulti && c.cls !== 'ean' && c.state !== 'on' && c.state !== 'sib' && /^\d{11,}$/.test(c.text) ? `<button type="button" data-bc-tail="${i}" class="flex-shrink-0 w-[78px] rounded-xl border ${fit(c) && S.pat.tail === BC_TAIL ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'} text-[11px] font-bold text-gray-700 leading-tight px-1">끝 ${BC_TAIL}자리<br><span class="font-mono text-[13px] text-gray-900">${escapeHtml(c.text.slice(-BC_TAIL))}</span></button>` : '';
+                const tailBtn = !o.autoMulti && c.cls !== 'ean' && c.state !== 'on' && c.state !== 'sib' && (/^\d{11,}$/.test(c.text) || (c.cls === 'sn' && c.text.length > BC_TAIL)) ? `<button type="button" data-bc-tail="${i}" class="flex-shrink-0 w-[78px] rounded-xl border ${fit(c) && S.pat.tail === BC_TAIL ? 'border-indigo-400 bg-indigo-50' : 'border-gray-300 bg-white'} text-[11px] font-bold text-gray-700 leading-tight px-1">끝 ${BC_TAIL}자리<br><span class="font-mono text-[13px] text-gray-900">${escapeHtml(c.text.slice(-BC_TAIL))}</span></button>` : '';
                 return `<div class="flex items-stretch gap-1.5"><button type="button" data-bc-pick="${i}" class="flex-1 min-w-0 min-h-[50px] px-3 py-1.5 rounded-xl border text-left ${c.state === 'on' ? 'border-indigo-500 bg-indigo-50' : fit(c) ? 'border-indigo-300 bg-white' : 'border-gray-300 bg-white'} ${c.cls === 'ean' || c.state === 'sib' ? 'opacity-60' : ''}">
                     <span class="flex items-center gap-1.5 flex-wrap"><span class="text-[11px] font-bold rounded px-1.5 py-0.5 ${BC_TONE[c.cls] || BC_TONE.etc}">${escapeHtml(c.label)}</span>${st}</span>
                     <span class="block font-mono text-[15px] font-bold text-gray-900 break-all leading-snug">${escapeHtml(c.value && c.value !== c.text && !o.autoMulti ? c.value : c.text)}</span>${note ? `<span class="block text-[12px] font-bold leading-snug">${note}</span>` : ''}</button>${tailBtn}</div>`;
@@ -26440,7 +26443,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V290';
+        const APP_VER = 'V291';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26448,6 +26451,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V291', d: '2026-11-03', items: [
+                ['📦 재고 바코드: 상자 S/N(예: SMF971AV1165047)의 끝 7자리(1165047)로 바로 담아요 · 앞자리가 0이어도 그대로 · 다른 모양을 직접 고르면 그걸 기억', 'a']] },
             { v: 'V290', d: '2026-11-03', items: [
                 ['💳 개통등록 제휴카드 옆에 [카드 월 할인] 칸 · 안내서의 요금DC카드 월 할인 금액이 [안내서로 채우기] 때 같이 들어가요 · 고객카드 개통 상세에 \'제휴카드 · 월 -○원\'', 'a']] },
             { v: 'V289', d: '2026-11-03', items: [
