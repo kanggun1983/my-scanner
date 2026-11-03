@@ -17659,7 +17659,7 @@ familyStr + `\n` +
             const ck = carrierKeepKey(d.carrier || ''); return C.margin[ck] || 0;
         }
         function siseCalc(C, d, row, x, f) {   // f: nP nS mP mS cP cS → { cash, inst } 만원
-            const pol = x[f]; if (pol === undefined || pol === null || !row.price) return null;
+            const N = (v) => typeof v === 'string' ? (v.trim() === '' ? null : Number(v.replace(/[^\d.-]/g, ''))) : v, pol = N(x[f]), price = N(row.price), pub = N(row.pub); if (pol === undefined || pol === null || isNaN(pol) || !price) return null; row = { ...row, price, pub };
             const E = siseDealerExtra(d), isPub = f.endsWith('P');
             if (isPub && !row.pub) return null;
             const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0) + siseExt(C, d, f);   // 🗣 V277 구두 · 추가정책까지 다 했을 때
@@ -17735,12 +17735,12 @@ familyStr + `\n` +
                 const use = rows.filter(r => st.on.has(r.key)); cv = draw(use);
                 return `<div class="grid grid-cols-3 gap-1.5">${[['P', '공시 기준'], ['S', '선약 기준'], ['B', '싼 쪽']].map(([k, l]) => `<button type="button" data-sx-sup="${k}" class="h-9 rounded-lg text-[12px] font-bold border ${st.sup === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
                     ${SISE_CARS.map(([ck, lab]) => { const L = byCar[ck] || [], pk = st.pick[ck]; if (!L.length) return `<p class="text-[12px] text-gray-400">${lab}: 정책표 없음</p>`; const it = L.find(x => x.d.id === (pk || {}).id) || L[0];
-                        const tid = (pk || {}).tier || ((it.P.tiers || [])[0] || {}).id, R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS', 'nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null); }).length;
-                        const diag = `<p class="col-span-2 text-[11px] ${nVal && nPrice ? 'text-gray-500' : 'text-red-700 font-bold'}" style="grid-column:1/-1">모델 ${R0.length} · 출고가 ${nPrice} · 공시 ${nPub} · 이 구간 정책 금액 ${nVal}${!nVal ? ' → 이 구간 금액을 못 읽었어요 (다른 구간을 골라 보거나 다시 올려 주세요)' : (!nPrice ? ' → 출고가를 못 읽었어요' : (!nPub && st.sup === 'P' ? ' → 공시를 못 읽어서 공시 기준은 못 내요 · 선약 기준을 눌러 보세요' : ''))}</p>`;
+                        const tid = (pk || {}).tier || ((it.P.tiers || [])[0] || {}).id, R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length, nNew = R0.filter(r => { const x = siseV(it.P, r, tid); return ['nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length;
+                        const diag = `<p class="col-span-2 text-[11px] ${nVal && nPrice ? 'text-gray-500' : 'text-red-700 font-bold'}" style="grid-column:1/-1">모델 ${R0.length} · 출고가 ${nPrice} · 공시 ${nPub} · 이 구간 번호이동·기변 금액 ${nVal}${nNew ? ` (신규 ${nNew})` : ''}${!nVal ? (nNew ? ' → 신규 칸에만 금액이 있어요 (번호이동·기변 칸을 못 읽음 · 다시 올려 주세요)' : ' → 이 구간 금액을 못 읽었어요 (다른 구간을 골라 보거나 다시 올려 주세요)') : (!nPrice ? ' → 출고가를 못 읽었어요' : (!nPub && st.sup === 'P' ? ' → 공시를 못 읽어서 공시 기준은 못 내요 · 선약 기준을 눌러 보세요' : ''))}</p>`;
                         return `<div class="grid grid-cols-2 gap-1.5 items-center">${diag}<select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}</select></div>`; }).join('')}
                     <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><p class="text-[11px] text-gray-500 mt-1">기종마다 공시 · 선약을 따로 고를 수 있어요 (공시가 적으면 선약, 많으면 공시가 유리 · '싼 쪽'은 알아서)</p><div class="mt-1.5 space-y-1">${rows.map(r => { const md = st.supBy[r.key] || ''; return `<div class="flex items-center gap-1.5 text-[12px]"><label class="flex-1 min-w-0 flex items-center gap-1.5"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600 flex-shrink-0"><span class="truncate">${escapeHtml(r.name)}</span> <span class="text-gray-400 flex-shrink-0">${Object.keys(r.c).length}사</span></label><select data-sx-sb="${escapeHtml(r.key)}" class="h-8 px-1 border border-gray-300 rounded-md text-[12px] bg-white flex-shrink-0"><option value="" ${md ? '' : 'selected'}>위와 같게</option><option value="P" ${md === 'P' ? 'selected' : ''}>공시</option><option value="S" ${md === 'S' ? 'selected' : ''}>선약</option><option value="B" ${md === 'B' ? 'selected' : ''}>싼 쪽</option></select></div>`; }).join('')}</div></details>
                     <img src="${cv.toDataURL('image/png')}" alt="시세표 미리보기" class="w-full rounded-xl border border-gray-200">`;
-            }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><button type="button" data-ss="notice" class="w-full h-11 rounded-2xl border border-pink-300 bg-pink-50 text-[13px] font-bold text-pink-800">📌 명함 열 때 한 번만 띄우기 (알림 없이 · 2일)</button><p class="text-[11px] text-gray-500 text-center">📣 알림은 켠 고객에게만 가고, 보내면 명함 열 때도 한 번 떠요 · 문자는 보내지 않아요</p>`);
+            }, `<div class="grid grid-cols-2 gap-2"><button type="button" data-ss="save" class="h-12 rounded-2xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">💾 이미지 저장</button><button type="button" data-ss="push" class="h-12 rounded-2xl bg-indigo-600 text-white text-[14px] font-bold">📣 명함 알림으로</button></div><button type="button" data-ss="notice" class="w-full h-11 rounded-2xl border border-pink-300 bg-pink-50 text-[13px] font-bold text-pink-800">📌 명함 열 때 한 번만 띄우기 (알림 없이 · 2일)</button><button type="button" data-ss="diag" class="w-full h-9 rounded-xl border border-gray-200 bg-white text-[12px] font-bold text-gray-500">🔍 진단 복사 (금액이 '-'일 때 이걸 복사해서 보내 주세요)</button><p class="text-[11px] text-gray-500 text-center">📣 알림은 켠 고객에게만 가고, 보내면 명함 열 때도 한 번 떠요 · 문자는 보내지 않아요</p>`);
             S.sh.addEventListener('change', (e) => {
                 const dd = e.target.closest('[data-sx-d]'), tt = e.target.closest('[data-sx-t]'), on = e.target.closest('[data-sx-on]');
                 if (dd) { const L = byCar[dd.dataset.sxD] || [], it = L.find(x => x.d.id === dd.value); st.pick[dd.dataset.sxD] = { id: dd.value, tier: ((it && it.P.tiers || [])[0] || {}).id }; }
@@ -17753,6 +17753,15 @@ familyStr + `\n` +
                 const sp = e.target.closest('[data-sx-sup]'); if (sp) { st.sup = sp.dataset.sxSup; S.draw(); return; }
                 const a = (e.target.closest('[data-ss]') || {}).dataset; if (!a || !a.ss) return;
                 if (a.ss === 'close') return S.close();
+                if (a.ss === 'diag') {   // 🔍 V279 계산에 쓰인 값 (고객 정보 없음 · 정책 숫자만)
+                    const out = { v: APP_VER, cfg: siseCfg(), sup: st.sup, cars: {} };
+                    SISE_CARS.forEach(([ck]) => { const pk = st.pick[ck], it = pk && (byCar[ck] || []).find(x => x.d.id === pk.id); if (!it) return;
+                        out.cars[ck] = { dealer: it.d.name, carrier: it.d.carrier, pick: pk, tiers: (it.P.tiers || []).slice(0, 6), extra: siseDealerExtra(it.d),
+                            rows: (it.P.rows || []).slice(0, 4).map(r => { const x = siseV(it.P, r, pk.tier); return { model: r.model, key: siseKey(r.model).key, price: r.price, pub: r.pub, vTiers: (r.v || []).map(y => y.tier), x, mP: siseCalc(siseCfg(), it.d, r, x, 'mP'), mS: siseCalc(siseCfg(), it.d, r, x, 'mS') }; }) }; });
+                    const txt = JSON.stringify(out);
+                    try { await navigator.clipboard.writeText(txt); stockToast('🔍 진단을 복사했어요 · 채팅에 붙여 주세요'); } catch (e) { customAlert(txt.slice(0, 3000)); }
+                    return;
+                }
                 const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.92)), name = `시세표_${getTodayStr()}.jpg`;
                 if (a.ss === 'save') { const u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); return; }
                 if (a.ss === 'notice') {   // 📌 알림 없이 명함 공지 창만 (명함을 열면 한 번 · 2일 동안)
@@ -17780,12 +17789,13 @@ familyStr + `\n` +
                 }
             });
         }
-        const siseNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+        const siseNum = (v) => { if (typeof v === 'string') { v = v.replace(/[^\d.-]/g, ''); if (!v) return null; } const n = Number(v); return Number.isFinite(n) ? n : null; };   // 🧮 V279 '1,683,000' · '27만' 같은 글자도 숫자로
+        const siseWon = (v) => { const n = siseNum(v) || 0; return Math.round(n > 0 && n < 10000 ? n * 10000 : n); };   // 출고가 · 공시를 만원(125.4)으로 적어도 원으로
         function siseNormalize(j, unit) {   // 표 숫자 → 만원
             const k = unit === '천원' ? 0.1 : (unit === '원' ? 0.0001 : 1), r1 = (n) => n === null ? null : Math.round(n * k * 10) / 10;
             const tiers = (j.tiers || []).filter(t => t && t.id).map(t => ({ id: String(t.id).slice(0, 12), name: String(t.name || t.id).slice(0, 60) })).slice(0, 12);
             const fixT = (r, x, i) => { const P0 = { tiers }, cand = String(x.tier || ''); if (tiers.some(t => t.id === cand)) return cand; for (const t of tiers) { if (siseV(P0, { v: [x] }, t.id) === x && mvnoNorm(cand) && (mvnoNorm(t.name).includes(mvnoNorm(cand)) || mvnoNorm(cand).includes(mvnoNorm(t.name)))) return t.id; } const nn = cand.replace(/\D/g, ''); if (nn && tiers[Number(nn) - 1]) return tiers[Number(nn) - 1].id; return (r.v || []).length === tiers.length && tiers[i] ? tiers[i].id : cand.slice(0, 12); };
-            const rows = (j.rows || []).filter(r => r && String(r.model || '').trim()).slice(0, 200).map(r => ({ model: String(r.model).trim().slice(0, 40), price: Math.round(siseNum(r.price) || 0), pub: Math.round(siseNum(r.pub) || 0),
+            const rows = (j.rows || []).filter(r => r && String(r.model || '').trim()).slice(0, 200).map(r => ({ model: String(r.model).trim().slice(0, 40), price: siseWon(r.price), pub: siseWon(r.pub),
                 v: (r.v || []).filter(x => x && (x.tier || x.tier === 0)).map((x, i) => { const o = { tier: fixT(r, x, i) }; ['nP', 'nS', 'mP', 'mS', 'cP', 'cS'].forEach(f => { const n = r1(siseNum(x[f])); if (n !== null) o[f] = n; }); return o; }) }));
             return { tiers, rows, notes: (j.notes || []).map(x => String(x).slice(0, 160)).slice(0, 15) };
         }
@@ -26214,7 +26224,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V278';
+        const APP_VER = 'V279';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26222,6 +26232,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V279', d: '2026-11-03', items: [
+                ['🔍 시세표 이미지 창에 [진단 복사]: 금액이 \'-\'로 나올 때 계산에 쓰인 정책 숫자를 복사 (고객 정보 없음)', 'a'],
+                ['🧮 정책 금액이 글자(\'27\', \'2.7만\')로 읽혀도 숫자로 바꿔 계산 · 진단 줄은 번호이동·기변 칸만 세고, 신규 칸에만 금액이 있으면 그렇다고 알려 줘요', 'a']] },
             { v: 'V278', d: '2026-11-03', items: [
                 ['📊 시세표 이미지: 기종마다 공시 · 선약 · 싼 쪽 따로 고르기 (공시가 적으면 선약, 많으면 공시) · 기준과 다른 칸은 숫자 밑에 작게 \'선약/공시\'', 'a'],
                 ['🏷 시세표 이미지에서 매장명 뺌', 'a'],
