@@ -21757,6 +21757,7 @@ familyStr + `\n` +
         }
         function gdValidate(g) {
             if (!/^01\d{8,9}$/.test(phoneDigits(g.phone))) return ['고객 휴대폰 번호를 넣어주세요. (010-0000-0000)', 'phone'];
+            if (!String(g.name || '').trim() && !gdFindCust(g.phone) && !trashDB.some(x => phoneDigits(x.phone) === phoneDigits(g.phone))) return ['처음 오신 고객이에요. 고객 이름을 넣어주세요. (서명하면 고객카드가 새로 만들어져요)', 'name'];   // 🛠 V289 이름 없는 고객카드 막기
             if (!g.carrier) return ['통신사를 골라주세요.'];
             if (!g.actType) return ['개통종류를 골라주세요.'];
             if (g.kind !== 'usim' && !(g.dev.name || g.dev.code)) return ['기종을 넣어주세요.', 'dev.name'];
@@ -21824,7 +21825,7 @@ familyStr + `\n` +
             T(g.store.name || '', L, y + 14, 14, 700, '#4338CA');
             T('구매 안내서', L, y + 46, 27, 800, '#111827');
             T(gdDateKo(g.date), R, y + 18, 13, 500, '#374151', 'right');
-            if (g.store.tel) T(g.store.tel, R, y + 38, 13, 500, '#374151', 'right');
+            if (g.store.tel) T(/^0\d{8,10}$/.test(phoneDigits(g.store.tel)) ? formatPhone(phoneDigits(g.store.tel)) : g.store.tel, R, y + 38, 13, 500, '#374151', 'right');   // 🛠 V289 010-0000-0000 모양으로
             y += 58; x.fillStyle = '#111827'; x.fillRect(L, y, IW, 2); y += 22;
             // ② 기종 + 통신사 · 개통종류 · 개통일
             const chips = [gdCarLabel(g), g.actType, g.date ? `개통일 ${gdMD(g.date)}` : ''].filter(Boolean), chipW = chips.map(s => tw(s, 13, 700) + 24);
@@ -22448,7 +22449,7 @@ familyStr + `\n` +
         // 서명 완료 → 녹음을 고객 서류로 (안내서 날짜 폴더) · 안내서 · 고객카드에 기록
         async function gdRecUpload(g) {
             const m = gdRecMem.get(g.id); if (!m || !g.custId || driveMode() === 'off') return '';
-            if (driveMode() === 'self' && !driveTokenValid()) return '⚠️ 구글 드라이브 연결이 끊겨서 녹음을 못 올렸어요. 안내서를 다시 열면 이 폰에 남아 있는 동안 다시 올릴 수 있어요.';
+            if (driveMode() === 'self' && !driveTokenValid()) return '⚠️ 구글 드라이브 연결이 끊겨서 녹음을 못 올렸어요. 연결한 뒤 [☁️ 다시 올리기]를 누르거나 [📥 이 폰에 저장]해 주세요 (앱을 닫으면 사라져요).';
             const ext = /mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm');
             const f = new File([m.blob], `녹음_구매확인_${String(g.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || getTodayStr()).replace(/-/g, '')}_확인${m.ok}of${m.total}${m.down ? '_하향안내' : ''}.${ext}`, { type: m.mime });
             try {
@@ -22557,7 +22558,8 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
-                g.notes = gdNotesFor(g); g.notesV = 2; g.down = gdDownLines(g); g.pi = gdPiSnap(g);   // ⚠️ V267 하향 제한 문구도 그때 것 그대로 if (g.plan) g.plan.welV = 4;   // 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
+                g.notes = gdNotesFor(g); g.notesV = 2; g.down = gdDownLines(g); g.pi = gdPiSnap(g);   // ⚠️ V267 하향 제한 문구도 그때 것 그대로
+                if (g.plan) g.plan.welV = 4;   // 🛠 V289 이 줄이 주석 안에 들어가 있었음 (예전 임시저장 안내서는 서명 뒤 복지할인이 옛 계산으로 바뀔 수 있었음) · 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -22565,7 +22567,7 @@ familyStr + `\n` +
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서 서명 · ${gdTitle(g)} (담당: ${me || '-'})`;
                 txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), contactHistory: appendLine(cur.contactHistory, line), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
                 gdDirty = false; gdStage = 'done'; gdRender();
-                if (gdRecMem.has(g.id)) gdRecUpload(g).then(msg => { if (msg) stockToast(msg); });   // 🎙 V267
+                if (gdRecMem.has(g.id)) gdRecUpload(g).then(msg => { if (msg) stockToast(msg); if (gd && gd.id === g.id && gdStage === 'done') gdRender(); });   // 🎙 V267 · V289 못 올리면 [다시 올리기 · 폰에 저장]
             } catch (err) {
                 if (g.st === 'signed' && !gdList.some(x => x.id === g.id && x.st !== 'draft')) { g.st = 'draft'; delete g.signed; delete g.pi; }   // V238 저장 못 했으면 서명 전으로
                 console.error('안내서 서명 저장 실패', err);
@@ -22655,6 +22657,7 @@ familyStr + `\n` +
             gdInner.innerHTML = `<section class="rounded-2xl border ${gdStage === 'done' ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} px-4 py-3">
                     <p class="text-[16px] font-extrabold ${gdStage === 'done' ? 'text-emerald-900' : 'text-gray-900'}">${gdStage === 'done' ? '✅ 서명 받았어요 · 저장했어요' : `✍ ${escapeHtml(gdTitle(g))}`}</p>
                     <p class="text-[13px] text-gray-700 mt-0.5 leading-relaxed">${escapeHtml(g.name || '이름 없음')} · ${escapeHtml(formatPhone(phoneDigits(g.phone)))}<br>${g.signed ? `${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명 · ${escapeHtml(g.signed.by || '')}` : ''}${sentTxt ? ` · ${sentTxt}` : ''}<br>${g.act ? `<span class="font-bold text-emerald-800">✅ ${gdMD(g.act.date)} 개통등록 됨</span>` : '<span class="font-bold text-amber-800">⏳ 아직 개통등록 전</span>'}</p></section>
+                ${gdRecMem.has(g.id) && !g.rec ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 p-3 space-y-2"><p class="text-[13px] font-bold text-amber-900">🎙 구매 확인 녹음이 아직 고객 서류에 안 올라갔어요${driveMode() === 'off' ? ' (서류 보관(구글 드라이브)이 꺼져 있어요)' : ''} · 앱을 닫으면 사라져요</p><div class="grid grid-cols-2 gap-2">${driveMode() !== 'off' ? '<button type="button" data-gd-recup class="h-11 rounded-xl bg-amber-500 text-white text-[13px] font-bold">☁️ 다시 올리기</button>' : ''}<button type="button" data-gd-recdl class="h-11 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900 ${driveMode() === 'off' ? 'col-span-2' : ''}">📥 이 폰에 파일로 저장</button></div></section>` : ''}
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
                     <h3 class="text-[15px] font-bold text-gray-900">고객에게 보내기</h3>
@@ -22678,6 +22681,8 @@ familyStr + `\n` +
             gdImage(g).then(url => { const img = document.getElementById('gdDoneImg'); if (!img || !gd || gd.id !== g.id) return; img.src = url; img.classList.remove('hidden'); const w = document.getElementById('gdDoneWait'); if (w) w.remove(); }).catch(err => { console.warn(err); const w = document.getElementById('gdDoneWait'); if (w) w.textContent = '안내서 그림을 못 만들었어요.'; });
         }
         gdInner.addEventListener('click', async (e) => {
+            if (e.target.closest('[data-gd-recup]') && gd) { const msg = await gdRecUpload(gd); if (msg) stockToast(msg); gdRender(); return; }   // 🎙 V289 녹음 다시 올리기
+            if (e.target.closest('[data-gd-recdl]') && gd) { const m = gdRecMem.get(gd.id); if (!m) return; const a = document.createElement('a'); a.href = m.url || URL.createObjectURL(m.blob); a.download = `녹음_구매확인_${String(gd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(gd.date || getTodayStr()).replace(/-/g, '')}.${/mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm')}`; document.body.appendChild(a); a.click(); a.remove(); stockToast('📥 녹음 파일을 이 폰에 저장했어요'); return; }
             if (gdStage !== 'done' && gdStage !== 'view') return;
             const s = e.target.closest('[data-gd-send]'); if (s) { gdSend(s.dataset.gdSend, s); return; }
             const ok = e.target.closest('[data-gd-sentok]'); if (ok && gd) { ok.disabled = true; await gdMarkSent(gd, '문자앱', ok.dataset.gdSentok === '1'); gdRender(); return; }   // 7️⃣
@@ -26434,7 +26439,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V288';
+        const APP_VER = 'V289';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26442,6 +26447,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V289', d: '2026-11-03', items: [
+                ['🛠 안내서: 서명할 때 복지할인 계산 버전이 저장 안 되던 것 고침 (예전 임시저장본은 서명 뒤 복지할인 금액이 바뀔 수 있었음)', 'a'],
+                ['🛠 안내서: 처음 오신 고객은 이름을 넣어야 서명으로 (이름 없는 고객카드가 생기던 것)', 'a'],
+                ['🛠 안내서 그림의 매장 전화번호를 010-0000-0000 모양으로', 'a'],
+                ['🎙 안내서 녹음을 못 올렸거나 서류 보관이 꺼져 있으면 서명 완료 화면에 [☁️ 다시 올리기 · 📥 이 폰에 저장] (예전엔 조용히 사라짐)', 'a']] },
             { v: 'V288', d: '2026-11-03', items: [
                 ['🧹 재고에서 빼기: 이유 고르기 (📦 거래처 반납 · 🔁 다른 매장 이동 · ⚠️ 불량 · 교품 · ❓ 분실) + 받는 곳 · 정리됨 목록에 이유 표시', 'a'],
                 ['🏷 재고 목록에 모델 이름 같이 (S948 → 갤럭시 S26 울트라)', 'a'],
