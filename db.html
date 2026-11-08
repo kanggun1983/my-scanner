@@ -872,7 +872,7 @@
                                 <label class="block text-xs font-bold text-gray-600">단어 직접 입력 <span class="font-normal text-gray-500">(단말기·요금제·메모에 이 단어가 있는 고객 · 쉼표로 여러 개 = 하나라도 있으면)</span><input id="smsPromoWord" autocomplete="off" placeholder="예) S23, 플립, 노트20" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
                                 <p id="promoFilterNote" class="hidden text-xs text-gray-600 leading-relaxed"></p>
                             </div>
-                            <label class="col-span-2 text-xs font-bold text-gray-600">수신거부 안내 (맨 끝에 자동)<input id="smsPromoOptout" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white font-normal" placeholder="수신거부: 이 번호로 '거부'라고 답장 주세요"></label>
+                            <label class="col-span-2 text-xs font-bold text-gray-600">수신거부 안내 (맨 끝에 자동 · 명함이 있는 고객은 아래에 '바로 수신거부' 링크도)<input id="smsPromoOptout" class="mt-1 w-full h-11 px-3 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white font-normal" placeholder="수신거부: 이 번호로 '거부'라고 답장 주세요"></label>
                         </div>
                         <div class="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
                             <p class="text-[13px] font-bold text-gray-800">홍보 문자에 사진 넣기 <span id="smsPromoImgMode" class="font-normal text-gray-500">(선택 · 링크로 들어가요)</span></p>
@@ -11986,6 +11986,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (sid) base = TEAM_CARD_URL + sid + '/';   // 🔗 V261 공용 명함은 직원 미리보기 주소 /team/직원번호/ (문자 미리보기에 직원 이름 · 사진 · & 없음)
             return c && c.cardId ? `${base}?c=${encodeURIComponent(c.cardId)}` : base;
         }
+        // 🙅 V324 수신거부 링크: 명함 '?c=명함번호&mr=no' → 명함 맨 위 [수신 거부하기] 하나만 → 강CRM 마케팅 수신 거부 자동 (개인 문자는 안 읽어요)
+        function optoutLink(c) { return c && c.cardId ? `${autoCardLink(c)}&mr=no` : ''; }
+        function optoutLines(c) {
+            const t = String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim(), u = optoutLink(c);
+            return u ? `${t}\n또는 링크에서 바로 수신거부 👉 ${u}` : t;
+        }
         function withAutoCard(text, c, kind) {
             const t = String(text || '').trim();
             if (!smsCardOn(kind) || !t || /kanggun1983\.github\.io\/(team\/([a-z0-9]{3,12}\/)?)?(\?|$|\s)/.test(t)) return t;   // 명함 링크가 이미 있으면 또 안 붙임
@@ -12002,7 +12008,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 's.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
                 's.visit': h([smsSetting('smsTplVisit'), smsCardOn('visit')]),
                 's.act': h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays')]),
-                's.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo')]),
+                's.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', smsSetting('smsPromoOptout'), mmsActive(), smsCardOn('promo'), 'ol1']),   // ol1 = V324 수신거부 링크
                 's.miss': h([smsSetting('smsTplMiss'), smsCardOn('miss'), smsSetting('smsPromoOptout'), smsSetting('smsMissAdMark') !== false, smsSetting('smsMissAdToggle') === true, 'v229']),
                 'p.task': h([smsSetting('smsTplProm'), 'pn1']),
                 'p.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', 'pn1']),
@@ -12258,7 +12264,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const tpl = smsSetting('smsTplPromo'), img = opt.noLink ? '' : String(appSettings.smsPromoImage || '').trim();   // noLink: 📷 사진 문자(MMS)는 링크 없이
             const body = fillSmsTemplate(!forPush && img && !/\{사진\}/.test(tpl) ? `${tpl}\n👉 {사진}` : tpl, c, { '사진': forPush ? '' : img });
             if (forPush) return `${body}\n${PUSH_AD_FOOTER}`;
-            return `${withAutoCard(body, c, 'promo')}\n${String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim()}`;   // 📇 명함 링크는 수신거부 안내 앞에
+            return `${withAutoCard(body, c, 'promo')}\n${optoutLines(c)}`;   // 📇 명함 링크는 수신거부 안내 앞에
         }
         // 시작할 때 대상 명단을 고정 (나중에 고객이 늘거나 상태가 바뀌어도 순서가 밀려 두 번 가거나 빠지지 않게)
         function promoPlan() {
@@ -12367,7 +12373,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (!to || m.deletedAt || !m.famAlert || !m.famConsent || m.famOf !== c.id || m.marketingDeny || m.salesStatus === '고객거부') return;
                         const id = `af-${safeId}-${String(m.id).replace(/[^A-Za-z0-9_-]/g, '')}-${ad.replace(/-/g, '')}`;
                         const fText = `[${msgStoreName()}] ${msgName(m)}님, ${msgName(c)}님 가족분께 안내드려요 😊\n${msgName(c)}님 휴대폰이 개통 ${N}개월째예요. 바꾸실 때가 되면 편하게 연락 주세요.${custStaffName(c) ? '\n담당 ' + custStaffName(c) : ''}`;
-                        const it = { id, to, name: m.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: `${withAutoCard(fText, m, 'promo')}\n${String(smsSetting('smsPromoOptout') || SMS_AUTO_DEFAULTS.smsPromoOptout).trim()}` };
+                        const it = { id, to, name: m.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: `${withAutoCard(fText, m, 'promo')}\n${optoutLines(m)}` };
                         if (!skip.has(it.id)) items.push(it);
                     });
                 }
@@ -27245,7 +27251,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V323';
+        const APP_VER = 'V324';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27253,6 +27259,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V324', d: '2026-11-08', items: [
+                ['🙅 홍보 · 가족 안내 문자 맨 끝에 \'링크에서 바로 수신거부\' 👉 명함 링크 → 고객이 [수신 거부하기]를 누르면 마케팅 수신 거부로 자동 (답장 문자는 읽지 않아요)', 'a']] },
             { v: 'V323', d: '2026-11-08', items: [
                 ['📢 홍보 문자 \'조건 더 걸기\'에 상태(개통완료 빼기 · 개통완료만 · 진행중만 · 미정만) · 담당자 · 최근 개통 빼기 · 최근 연락 빼기 · 유선(인터넷·TV) · 성별 추가', 'a'],
                 ['✂️ 자동 문자 · 푸시에서 (광고) 표시를 뺐어요 — 맨 끝 수신거부 안내만 붙어요 (홍보 · 가족 안내 · 부재 재연락 · 직접 보내는 푸시)', 'a'],
