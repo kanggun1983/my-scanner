@@ -52,19 +52,22 @@
   function parse(html) {   // 구간마다: [구간] [요금제 월 39,000원 ×3] → 선택약정 · 기기변경 · 번호이동 · 공시일 (웹: 전 구간 한 화면 · 모바일: 고른 구간만)
     const doc = new DOMParser().parseFromString(html, 'text/html');
     const rows = [...doc.querySelectorAll('tr')].map(tr => [...tr.children].map(td => clean(td.textContent)));
-    const last3 = (cs) => cs.slice(-3), isWon = (c) => /월\s*[\d,]+\s*원/.test(c);
+    const last3 = (cs) => cs.slice(-3), isWon = (c) => /월\s*[\d,]+\s*원/.test(c), isNo = (c) => /해당사항\s*없음/.test(c);   // 안 파는 통신사 칸 = '해당사항 없음' (아래 줄은 그 칸이 빠져서 짧아짐)
     let price = ['', '', ''];
     const pi = rows.findIndex(cs => cs.some(c => /^출고가$/.test(c)));
     if (pi >= 0) { let v = last3(rows[pi].filter(c => !/^출고가$/.test(c))); if (!v.some(c => /\d/.test(c)) && rows[pi + 1]) v = last3(rows[pi + 1]); price = v; }
+    price = price.map(c => isNo(c) ? '' : c);
     const out = {}; let cur = null;
     const flush = () => { if (!cur || !cur.chg) return; CARS.forEach((ck, j) => { const c = num(cur.chg[j]), m = num((cur.mnp || [])[j]); if (!c && !m) return;
       (out[ck] = out[ck] || []).push([cur.name[j].slice(0, 30), cur.pp[j], num(price[j]), num((cur.sel || [])[j]), c, m, (String((cur.date || [])[j] || '').match(/\d{4}-\d{2}-\d{2}/) || [''])[0], cur.tl]); }); };
     rows.forEach((cs, i) => {
-      if (cs.filter(isWon).length >= 2) { flush(); const v = last3(cs.filter(isWon)), prev = rows[i - 1] ? last3(rows[i - 1]) : ['', '', ''];
-        cur = { tl: (cs.find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || (rows[i - 1] || []).find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || '').replace(/\s/g, ''), pp: v.map(c => num((c.match(/월\s*([\d,]+)\s*원/) || [])[1])), name: v.map((c, j) => { const n = clean(c.replace(/월\s*[\d,]+\s*원.*/, '')); return n || clean(prev[j] || ''); }) }; return; }
+      const l3 = last3(cs);
+      if (l3.length === 3 && l3.some(isWon) && l3.every(c => isWon(c) || isNo(c))) { flush(); const v = l3, prev = rows[i - 1] ? last3(rows[i - 1]) : ['', '', ''];
+        cur = { tl: (cs.find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || (rows[i - 1] || []).find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || '').replace(/\s/g, ''), pp: v.map(c => num((c.match(/월\s*([\d,]+)\s*원/) || [])[1])), name: v.map((c, j) => { if (isNo(c)) return ''; const n = clean(c.replace(/월\s*[\d,]+\s*원.*/, '')); return n || clean(prev[j] || ''); }), av: [0, 1, 2].filter(j => isWon(v[j])) }; return; }
       if (!cur) return;
       const lab = cs.find(c => /^(선택약정할인|기기\s*변경|번호\s*이동|공시일)/.test(c)); if (!lab) return;
-      const v = last3(cs.filter(c => c !== lab && !/^공통\s*지원금$/.test(c))); if (v.length < 3) return;
+      const vv = cs.filter(c => c !== lab && !/^공통\s*지원금$/.test(c) && !isNo(c)).slice(-cur.av.length); if (vv.length < cur.av.length) return;
+      const v = ['', '', '']; cur.av.forEach((j, k) => { v[j] = vv[k]; });
       if (/^선택약정/.test(lab)) cur.sel = v; else if (/^기기/.test(lab)) cur.chg = v; else if (/^번호/.test(lab)) cur.mnp = v; else cur.date = v;
     });
     flush();
