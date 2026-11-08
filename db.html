@@ -6643,10 +6643,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             // 🪪 V270 신분증 스캐너(…github.io/Public) 바로가기는 강CRM 연결판으로 (같은 창 · 다 찍으면 고객 골라서 서류로)
             const qlIdScan = (u) => /^https?:\/\/kanggun1983\.github\.io\/public(\/|\/index\.html)?([?#].*)?$/i.test(String(u || ''));
             const chip = (x, mine) => `<a ${qlIdScan(x.url) ? 'href="idscan.html"' : scLinkAttrs(x.url)} data-ql-go="1" class="h-9 px-2.5 rounded-full border ${mine ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-gray-200 bg-white text-gray-800'} text-[13px] font-bold flex items-center gap-1 whitespace-nowrap hover:bg-gray-50" title="${escapeHtml(x.url)}">${escapeHtml(x.name || qlHost(x.url))}</a>`;
-            row.innerHTML = `<span class="text-xs font-bold text-gray-500 pl-0.5">🔗 바로가기</span>${qlStore().map(x => chip(x, false)).join('')}${qlMine().map(x => chip(x, true)).join('')}<button type="button" data-ql-edit class="h-9 px-2.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700 whitespace-nowrap">＋ 추가·편집</button>`;
+            const scA = (() => { try { return scAge(); } catch (e) { return -1; } })();   // 🏷 V309 공통지원금 가져오기 (스마트초이스 → 크롬)
+            const scChip = `<button type="button" data-sc-go class="h-9 px-2.5 rounded-full border ${scA >= 7 || scA < 0 ? 'border-red-300 bg-red-50 text-red-800' : 'border-sky-300 bg-sky-50 text-sky-900'} text-[13px] font-bold whitespace-nowrap">🏷 공통지원금 가져오기 <span class="font-medium">${scA < 0 ? '' : (scA ? scA + '일 전' : '오늘')}</span></button>`;
+            row.innerHTML = `<span class="text-xs font-bold text-gray-500 pl-0.5">🔗 바로가기</span>${scChip}${qlStore().map(x => chip(x, false)).join('')}${qlMine().map(x => chip(x, true)).join('')}<button type="button" data-ql-edit class="h-9 px-2.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700 whitespace-nowrap">＋ 추가·편집</button>`;
             row.classList.remove('hidden'); row.classList.add('flex');
         }
-        document.getElementById('quickLinksRow').addEventListener('click', (e) => { if (e.target.closest('[data-ql-edit]')) openQuickLinks(); });
+        document.getElementById('quickLinksRow').addEventListener('click', (e) => { if (e.target.closest('[data-ql-edit]')) openQuickLinks(); if (e.target.closest('[data-sc-go]')) scGoSheet(); });
         let qlEditing = null;   // { scope: 'store'|'mine', id }
         function openQuickLinks() {
             let sh = document.getElementById('quickLinksSheet');
@@ -17686,7 +17688,7 @@ familyStr + `\n` +
             siseLoading = true;
             try { const snap = await getDocs(collection(db, 'sise_policy')); siseCache = {}; snap.forEach(d => { siseCache[d.id] = d.data(); }); }
             catch (e) { console.warn('정책표 불러오기 실패', e); siseCache = siseCache || {}; }
-            finally { siseLoading = false; siseRender(); }
+            finally { siseLoading = false; siseRender(); try { renderQuickLinks(); } catch (e) { /* 무시 */ } }
         }
         function siseRender() {
             const box = document.getElementById('siseBox'); if (!box) return;
@@ -17896,7 +17898,7 @@ familyStr + `\n` +
                 if (a.scx === 'all') { showAll = !showAll; S.draw(); return; }
                 if (a.scx === 'save') {
                     const data = { m, at: String(pay.at || new Date().toISOString()).slice(0, 30), src: String(pay.src || 'smartchoice').slice(0, 40), savedAt: new Date().toISOString(), by: getStaffName() || '', n: Object.keys(m).length };
-                    try { await setDoc(doc(db, 'sise_policy', 'pubsc'), data); siseCache = siseCache || {}; siseCache.pubsc = data; S.close(); siseRender(); stockToast(`📊 공통지원금 ${data.n}개 기종을 저장했어요`); }
+                    try { await setDoc(doc(db, 'sise_policy', 'pubsc'), data); siseCache = siseCache || {}; siseCache.pubsc = data; S.close(); siseRender(); try { renderQuickLinks(); } catch (e) { /* 무시 */ } stockToast(`📊 공통지원금 ${data.n}개 기종을 저장했어요`); }
                     catch (err) { customAlert(koreanError(err, '저장')); }
                 }
             });
@@ -17915,6 +17917,23 @@ familyStr + `\n` +
                     <button type="button" data-sc-copy class="mt-1 w-full h-10 rounded-xl bg-gray-900 text-white text-[13px] font-bold">📋 코드 복사</button></details>
                 ${P ? '<button type="button" data-sc-view class="w-full h-10 rounded-xl border border-sky-300 bg-sky-50 text-[13px] font-bold text-sky-800">저장된 공시 보기</button>' : ''}
                 ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 저장할 수 있어요.</p>' : ''}</div></details>`;
+        }
+        function scGoSheet() {   // 🏷 V309 바로가기 [공통지원금 가져오기] — 앱 안 창에선 북마크를 못 써서 크롬으로 옮기는 순서까지 안내
+            const a = scAge();
+            const S = siseSheet('🏷 공통지원금 가져오기', a < 0 ? '아직 한 번도 안 가져왔어요' : `마지막 ${escapeHtml(scKst(siseCache.pubsc.at))} (${a ? a + '일 전' : '오늘'})${a >= 7 ? ' · 새로 가져오세요' : ''}`, () => `
+                <ol class="list-decimal pl-5 space-y-2 text-[15px] text-gray-800 leading-relaxed">
+                    <li>아래 <b>[스마트초이스 열기]</b></li>
+                    <li>보라색 줄 창으로 열리면 오른쪽 위 <b>⋮ → Chrome 브라우저에서 열기</b></li>
+                    <li>크롬 주소창에 <b>CRM공시</b> → 아래 ⭐ 북마크 누르기 (엔터 X) → <b>[▶ 시작]</b></li>
+                    <li>다 모이면 <b>[강CRM으로 보내기] → 저장</b></li></ol>
+                <a ${scLinkAttrs(SC_URL)} class="flex items-center justify-center w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">📱 스마트초이스 열기</a>
+                <div class="grid grid-cols-2 gap-2">${scPub() ? '<button type="button" data-scg="view" class="h-10 rounded-xl border border-sky-300 bg-sky-50 text-[13px] font-bold text-sky-800">저장된 공시 보기</button>' : '<span></span>'}<button type="button" data-scg="setup" class="h-10 rounded-xl border border-gray-300 text-[13px] font-bold text-gray-700">⭐ 북마크 처음 만들기</button></div>`, '');
+            S.sh.addEventListener('click', (e) => {
+                if (e.target.closest('[data-ss="close"]')) return S.close();
+                const g = (e.target.closest('[data-scg]') || {}).dataset || {};
+                if (g.scg === 'view') { S.close(); scView(); }
+                if (g.scg === 'setup') { S.close(); try { switchTab('settings'); const b = document.querySelector('[data-set-go="sise"]'); if (b) b.click(); setTimeout(() => { const d = document.querySelector('[data-sc-box]'); if (d) { d.open = true; const x = d.querySelector('details'); if (x) x.open = true; d.scrollIntoView({ block: 'start' }); } }, 600); } catch (err) { console.warn(err); } }
+            });
         }
         function scView() {   // 📊 V306 요금 구간마다 (~3.9만 ~ ~13만) 공시 보기
             const P = siseCache && siseCache.pubsc; if (!P) return; const W = (n) => n ? `${Math.round(n / 1000) / 10}만` : '-';
@@ -26964,7 +26983,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V308';
+        const APP_VER = 'V309';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26972,6 +26991,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V309', d: '2026-11-08', items: [
+                ['🏷 바로가기 맨 앞 [공통지원금 가져오기] (○일 전 표시) → 스마트초이스 열기 + 크롬으로 옮기는 순서 안내 · 저장된 공시 보기', 'a']] },
             { v: 'V308', d: '2026-11-08', items: [
                 ['🌐 스마트초이스 바로가기: 앱 안 창 말고 크롬 앱으로 넘기기 다시 (안 되면 예전처럼 열림)', 'a']] },
             { v: 'V307', d: '2026-11-08', items: [
