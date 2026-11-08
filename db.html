@@ -4011,6 +4011,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (isSuperAdmin) setTimeout(() => { try { bkAuto(); } catch (e) { console.warn(e); } }, 60000);   // 🗄️ V237 하루 한 번 자동 백업 (켜고 1분 뒤)
                         try { startAccessLog(); } catch (e) { console.warn(e); }   // 🕒 직원 접속 기록 (V170)
                         try { pinStart(); } catch (e) { console.warn(e); }   // 🔒 화면 잠금 PIN (V208)
+                        setTimeout(() => { try { siseLoad(); scImportCheck(); } catch (e) { console.warn(e); } }, 1200);   // 🏷 V305 공통지원금 (안내서 · 시세표) + 북마크에서 넘어온 값
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
                         const errMsg = document.getElementById('loginErrorMsg');
@@ -17687,7 +17688,7 @@ familyStr + `\n` +
             if (!siseCache) { box.innerHTML = '<p class="text-xs text-gray-500 py-2">불러오는 중…</p>'; siseLoad(); return; }
             const L = siseDealers(), lock = !can('editPolicy'), C = siseCfg();
             const mIn = (k, v, ph) => `<input type="number" inputmode="decimal" step="0.5" data-sc="${k}" value="${v === undefined || v === null || v === '' ? '' : v}" placeholder="${ph || '0'}" ${lock ? 'disabled' : ''} class="w-full h-10 px-2 border border-gray-300 rounded-lg text-[15px] text-right disabled:bg-gray-50">`;
-            box.innerHTML = `<details class="rounded-2xl bg-white border border-amber-200 p-3" ${box.dataset.cfgOpen ? 'open' : ''} data-sise-cfg><summary class="cursor-pointer text-[15px] font-bold text-gray-900">💰 마진 · 시세 계산 <span class="text-[12px] font-medium text-amber-800">SK ${C.margin.SKT}만 · KT ${C.margin.KT}만 · LG ${C.margin.LGU}만 · 할부 +${C.installAdd}만</span></summary>
+            box.innerHTML = scBoxHtml() + `<details class="rounded-2xl bg-white border border-amber-200 p-3" ${box.dataset.cfgOpen ? 'open' : ''} data-sise-cfg><summary class="cursor-pointer text-[15px] font-bold text-gray-900">💰 마진 · 시세 계산 <span class="text-[12px] font-medium text-amber-800">SK ${C.margin.SKT}만 · KT ${C.margin.KT}만 · LG ${C.margin.LGU}만 · 할부 +${C.installAdd}만</span></summary>
                 <div class="mt-2 space-y-2.5">
                 <p class="text-[12px] text-gray-600 leading-relaxed"><b>현금가</b>(완납) = 출고가 − 공통지원금(공시일 때) − (정책표 + 그레이드 + 구두 + 부가·보험 추가 + 추가정책 − <b>순마진</b>) · <b>할부가</b> = 현금가 + 할부 추가 · 단위 만원</p>
                 <div class="grid grid-cols-3 gap-1.5 text-[12px] font-bold text-gray-600"><label>SK 순마진${mIn('m_SKT', C.margin.SKT)}</label><label>KT 순마진${mIn('m_KT', C.margin.KT)}</label><label>LG 순마진${mIn('m_LGU', C.margin.LGU)}</label></div>
@@ -17709,9 +17710,11 @@ familyStr + `\n` +
                         <div class="grid grid-cols-3 gap-1.5"><button type="button" data-sise-photo="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800 disabled:opacity-40">📷 사진</button><button type="button" data-sise-xlsx="${escapeHtml(d.id)}" ${lock ? 'disabled' : ''} class="h-10 rounded-lg border border-emerald-200 bg-emerald-50 text-[12px] font-bold text-emerald-800 disabled:opacity-40">📄 엑셀</button><button type="button" data-sise-view="${escapeHtml(d.id)}" ${P ? '' : 'disabled'} class="h-10 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-800 disabled:opacity-40">👀 보기</button></div></div>`; }).join('')
                 : '<p class="text-xs text-gray-500">거래처가 없어요. 설정 → 유지 조건 · 거래처에서 먼저 넣어 주세요.</p>'}
                 ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 올릴 수 있어요.</p>' : ''}</div>
-            <button type="button" data-sise-make ${Object.keys(siseCache).some(k => k !== 'config') ? '' : 'disabled'} class="w-full h-12 rounded-2xl bg-gray-900 text-white text-[15px] font-bold disabled:opacity-40">🖼 시세표 이미지 만들기 · 📣 명함 알림으로 보내기</button>`;
+            <button type="button" data-sise-make ${Object.keys(siseCache).some(k => k !== 'config' && k !== 'pubsc') ? '' : 'disabled'} class="w-full h-12 rounded-2xl bg-gray-900 text-white text-[15px] font-bold disabled:opacity-40">🖼 시세표 이미지 만들기 · 📣 명함 알림으로 보내기</button>`;
             { const dt = box.querySelector('[data-sise-cfg]'); if (dt) dt.addEventListener('toggle', () => { box.dataset.cfgOpen = dt.open ? '1' : ''; }); }
             box.onclick = async (e) => {
+                if (e.target.closest('[data-sc-copy]')) { const t = scBookmarklet(); try { await navigator.clipboard.writeText(t); stockToast('📋 북마크 코드를 복사했어요'); } catch (err) { const ta = box.querySelector('[data-sc-code]'); if (ta) { ta.select(); document.execCommand('copy'); stockToast('📋 복사했어요'); } } return; }
+                if (e.target.closest('[data-sc-view]')) return scView();
                 if (e.target.closest('[data-sc-save]')) {
                     if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
                     const v = (k) => (box.querySelector(`[data-sc="${k}"]`) || {}), num = (k, def) => { const n = parseFloat(v(k).value); return Number.isFinite(n) ? n : def; };
@@ -17785,7 +17788,7 @@ familyStr + `\n` +
             const ck = carrierKeepKey(d.carrier || ''); return C.margin[ck] || 0;
         }
         function siseCalc(C, d, row, x, f) {   // f: nP nS mP mS cP cS → { cash, inst } 만원
-            const N = (v) => typeof v === 'string' ? (v.trim() === '' ? null : Number(v.replace(/[^\d.-]/g, ''))) : v, pol = N(x[f]), price = N(row.price), pub = N(row.pub); if (pol === undefined || pol === null || isNaN(pol) || !price) return null; row = { ...row, price, pub };
+            const N = (v) => typeof v === 'string' ? (v.trim() === '' ? null : Number(v.replace(/[^\d.-]/g, ''))) : v, pol = N(x[f]); let price = N(row.price), pub = N(row.pub); if (!price) price = scPriceFor(d.carrier, row.model) || price; if (!pub && f.endsWith('P')) pub = scPubFor(d.carrier, row.model, f[0] === 'c' ? 'chg' : 'mnp', 0) || pub; /* 🏷 V305 정책표에 공시 · 출고가 없으면 스마트초이스 값 */ if (pol === undefined || pol === null || isNaN(pol) || !price) return null; row = { ...row, price, pub };
             const E = siseDealerExtra(d), isPub = f.endsWith('P');
             if (isPub && !row.pub) return null;
             const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0) + siseExt(C, d, f);   // 🗣 V277 구두 · 추가정책까지 다 했을 때
@@ -17833,12 +17836,93 @@ familyStr + `\n` +
         // 📋 V281 시세표 기본 요금제 구간: SK 109 · KT 110 · LG 115 (정책표 구간 이름에 그 숫자가 있는 구간, 없으면 첫 구간)
         const SISE_DEF_PLAN = { SKT: '109', KT: '110', LGU: '115' };
         function siseDefTier(ck, P) { const T = (P && P.tiers) || [], n = SISE_DEF_PLAN[ck], re = n ? new RegExp(`(^|\\D)${n}(\\D|$)`) : null, hit = re && T.find(t => re.test(t.name || '')); return ((hit || T[0]) || {}).id; }
+        /* 📊 V305 스마트초이스 공통지원금 — 북마크(CRM공시)가 스마트초이스 화면에서 모아 강CRM주소#scpub=… 로 넘겨줌 → 확인 → sise_policy/pubsc
+           · 기종마다 통신사별 [요금수준 ~11만 · ~13만] 결과: pn 요금제 · pp 월정액(원) · pr 출고가 · sel 선약(2년) · chg 기변 · mnp 번이 · dt 공시일
+           · 정책표에 공시가 없으면 시세표(공시 · 싼 쪽)와 안내서 · 비교 공시 칸에 이 값을 씀 */
+        const SC_TARGET = { SKT: 109000, KT: 110000, LGU: 115000 };
+        let scHashRaw = '';
+        try { if (String(location.hash).startsWith('#scpub=')) { scHashRaw = location.hash.slice(7); history.replaceState(history.state, '', location.pathname + location.search); } } catch (e) { /* 무시 */ }
+        const scKst = (iso) => { const t = new Date(iso); return isNaN(t) ? '' : new Date(t.getTime() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' '); };
+        const scPub = () => (siseCache && siseCache.pubsc && siseCache.pubsc.m) ? siseCache.pubsc : null;
+        const scNm = (s) => stockKey(String(s || '').replace(/\((?:\d+\s*(?:GB|G|TB|T))\)|\s(?:\d+\s*(?:GB|G|TB|T))\b/gi, (x) => /1\s*T/i.test(x) ? '1T' : (/512/.test(x) ? '512' : '')).replace(/갤럭시|GALAXY/gi, ''));
+        function scKeyOf(it) { const c = String(it.c || '').replace(/^-/, ''); return (/^SM-?[A-Z]\d{3}/i.test(c) ? siseKey(c) : siseKey(it.n || c)).key; }
+        function scRec(model) {
+            const P = scPub(); if (!P || !model) return null;
+            const k = siseKey(model).key; if (P.m[k]) return P.m[k];
+            const nm = scNm(model); return Object.values(P.m).find(r => r && (scNm(r.n) === nm || (r.c && stockKey(r.c).startsWith(stockKey(model)) && stockKey(model).length >= 6))) || null;
+        }
+        // 요금제 월정액(원)을 알면 그 요금 이하 구간 중 가장 비싼 것 (그보다 싼 요금제는 공시가 달라서 안 채움) · 모르면 SK109 · KT110 · LG115에 가장 가까운 것
+        function scPlan(rec, ck, fee) {
+            const L = ((rec && rec.d && rec.d[ck]) || []).filter(x => x && (x.chg || x.mnp)); if (!L.length) return null;
+            if (fee > 0) return L.filter(x => x.pp && x.pp <= fee + 500).sort((a, b) => b.pp - a.pp)[0] || null;
+            const t = SC_TARGET[ck] || 110000; return [...L].sort((a, b) => (Math.abs((a.pp || 0) - t) - Math.abs((b.pp || 0) - t)) || ((b.pp || 0) - (a.pp || 0)))[0];
+        }
+        function scPubFor(car, model, act, fee) { const ck = carrierKeepKey(car || ''), p = scPlan(scRec(model), ck, Number(fee) || 0); if (!p) return 0; return Number(act === '기기변경' || act === 'chg' ? p.chg : p.mnp) || 0; }
+        function scPriceFor(car, model) { const rec = scRec(model), ck = carrierKeepKey(car || ''), L = (rec && rec.d && rec.d[ck]) || []; return Number((L.find(x => x && x.pr) || {}).pr) || 0; }
+        function scFromPayload(pay) {   // 북마크가 넘긴 값 → 보관 형태 (Firestore는 배열 안 배열을 못 넣어서 객체로)
+            const m = {}; (pay.items || []).slice(0, 300).forEach(it => { if (!it || !it.d) return; const k = scKeyOf(it); if (!k) return;
+                const d = {}; ['SKT', 'KT', 'LGU'].forEach(ck => { const L = (it.d[ck] || []).filter(a => Array.isArray(a)).map(a => ({ pn: String(a[0] || '').slice(0, 30), pp: Number(a[1]) || 0, pr: Number(a[2]) || 0, sel: Number(a[3]) || 0, chg: Number(a[4]) || 0, mnp: Number(a[5]) || 0, dt: String(a[6] || '').slice(0, 10) }));
+                    const u = []; L.forEach(x => { if (!u.some(y => y.pp === x.pp && y.pn === x.pn)) u.push(x); }); if (u.length) d[ck] = u.slice(0, 10); });
+                if (Object.keys(d).length) m[k] = { n: String(it.n || '').slice(0, 40), c: String(it.c || '').replace(/^-/, '').slice(0, 30), r: String(it.r || '').slice(0, 12), d }; });
+            return m;
+        }
+        async function scImportCheck() {
+            if (!scHashRaw) return; const raw = scHashRaw; scHashRaw = '';
+            let pay = null; try { pay = JSON.parse(decodeURIComponent(raw)); } catch (e) { pay = null; }
+            if (!pay || !Array.isArray(pay.items)) return customAlert('스마트초이스에서 넘어온 공시 값을 읽지 못했어요.\n북마크(CRM공시)를 다시 눌러 주세요.');
+            if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
+            for (let i = 0; i < 50 && siseLoading; i++) await new Promise(r => setTimeout(r, 200));
+            if (!siseCache || !siseCache.pubsc) await siseLoad(true);
+            const m = scFromPayload(pay), old = (scPub() || {}).m || {}, W = (n) => n ? `${Math.round(n / 1000) / 10}만` : '-';
+            const rows = Object.entries(m).map(([k, r]) => { const o = old[k]; const cells = ['SKT', 'KT', 'LGU'].map(ck => { const a = scPlan(r, ck, 0), b = o ? scPlan(o, ck, 0) : null; return { ck, a, ch: !b || !a ? !!a : (a.chg !== b.chg || a.mnp !== b.mnp), b }; }); return { k, r, cells, ch: cells.some(c => c.ch) }; })
+                .sort((x, y) => (y.ch - x.ch) || String(y.r.r).localeCompare(String(x.r.r)));
+            const nCh = rows.filter(x => x.ch).length; let showAll = !Object.keys(old).length;
+            const S = siseSheet('📊 스마트초이스 공통지원금', `${Object.keys(m).length}개 기종 · ${escapeHtml(scKst(pay.at))} 조회 · 기준 요금제 SK 109 · KT 110 · LG 115 (가장 가까운 구간)`, () => `
+                <p class="text-[13px] font-bold ${nCh ? 'text-amber-900 bg-amber-50 border-amber-300' : 'text-emerald-800 bg-emerald-50 border-emerald-300'} border rounded-xl px-3 py-2">${Object.keys(old).length ? (nCh ? `지난번보다 바뀐 기종 ${nCh}개 (노란 칸)` : '지난번과 같아요') : '처음 가져온 공시예요'} · 금액은 기변 / 번이 (원 단위를 만원으로 보여 줌)</p>
+                <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">기종</th><th class="px-1">SK 기변/번이</th><th class="px-1">KT 기변/번이</th><th class="px-1">LG 기변/번이</th></tr></thead><tbody>
+                ${rows.filter(x => showAll || x.ch).map(x => `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900">${escapeHtml(x.r.n)}<span class="block text-[10px] font-normal text-gray-500">${escapeHtml(x.k)}</span></td>${x.cells.map(c => `<td class="px-1 py-1 ${c.ch ? 'bg-amber-50' : ''}">${c.a ? `<b>${W(c.a.chg)} / ${W(c.a.mnp)}</b><span class="block text-[10px] text-gray-500">${escapeHtml(c.a.pn || '')}${c.b && c.ch ? ` · 전 ${W(c.b.chg)}/${W(c.b.mnp)}` : ''}</span>` : '<span class="text-gray-300">·</span>'}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="4" class="py-3 text-center text-gray-500">바뀐 기종이 없어요</td></tr>'}</tbody></table></div>
+                ${Object.keys(old).length ? `<button type="button" data-scx="all" class="w-full h-9 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700">${showAll ? '바뀐 것만 보기' : `전체 ${rows.length}개 보기`}</button>` : ''}
+                <p class="text-[11px] text-gray-500 leading-relaxed">정책표에 공시 금액이 없으면 시세표(공시 · 싼 쪽)와 구매 안내서 · 비교의 공시지원금 칸에 이 값을 써요. 안내서는 고른 요금제 월정액에 맞는 구간(~3.9만 ~ ~13만) 값으로 채워요.</p>`,
+                '<button type="button" data-scx="save" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">저장</button>');
+            S.sh.addEventListener('click', async (e) => {
+                const a = (e.target.closest('[data-scx],[data-ss]') || {}).dataset || {};
+                if (a.ss === 'close') return S.close();
+                if (a.scx === 'all') { showAll = !showAll; S.draw(); return; }
+                if (a.scx === 'save') {
+                    const data = { m, at: String(pay.at || new Date().toISOString()).slice(0, 30), src: String(pay.src || 'smartchoice').slice(0, 40), savedAt: new Date().toISOString(), by: getStaffName() || '', n: Object.keys(m).length };
+                    try { await setDoc(doc(db, 'sise_policy', 'pubsc'), data); siseCache = siseCache || {}; siseCache.pubsc = data; S.close(); siseRender(); stockToast(`📊 공통지원금 ${data.n}개 기종을 저장했어요`); }
+                    catch (err) { customAlert(koreanError(err, '저장')); }
+                }
+            });
+        }
+        // 북마크 설치용 코드 (이 강CRM 주소에서 scpub.js를 불러 스마트초이스 화면에서 실행)
+        function scBookmarklet() { const crm = location.origin + location.pathname, js = new URL('scpub.js', location.href).href; return `javascript:(function(){window.__crm=${JSON.stringify(crm)};var s=document.createElement('script');s.charset='utf-8';s.src=${JSON.stringify(js)}+'?t='+Date.now();document.body.appendChild(s);})();`; }
+        const SC_URL = 'https://m.smartchoice.or.kr/smc/mobile/dantongList.do?type=m';
+        function scBoxHtml() {
+            const P = siseCache && siseCache.pubsc, lock = !can('editPolicy');
+            return `<details class="rounded-2xl bg-white border border-sky-200 p-3" data-sc-box><summary class="cursor-pointer text-[15px] font-bold text-gray-900">🏷 공통지원금 (스마트초이스) <span class="text-[12px] font-medium ${P ? 'text-emerald-700' : 'text-gray-400'}">${P ? `${P.n || Object.keys(P.m || {}).length}개 기종 · ${escapeHtml(scKst(P.at).slice(5))}` : '아직 없음'}</span></summary>
+                <div class="mt-2 space-y-2 text-[13px] text-gray-700 leading-relaxed">
+                <ol class="list-decimal pl-5 space-y-1"><li><a href="${SC_URL}" target="_blank" rel="noopener" class="font-bold text-indigo-700 underline">스마트초이스 단말기 지원금 조회</a> 열기 (폰: ⋮ → <b>Chrome 브라우저에서 열기</b>)</li><li>크롬 주소창에 <b>CRM공시</b> 치고 ⭐ 북마크 누르기 → [▶ 시작]</li><li>다 모이면 [강CRM으로 보내기] → 바뀐 값 확인 → 저장</li></ol>
+                <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">⭐ 처음 한 번: 북마크 만들기</summary>
+                    <ol class="list-decimal pl-5 mt-1 space-y-1 text-[12px]"><li>아래 [코드 복사]</li><li>크롬에서 아무 페이지나 ☆ 눌러 북마크 → ⋮ → 북마크 → 그 북마크 길게 눌러 <b>수정</b></li><li>이름: <b>CRM공시</b> · 주소(URL): 다 지우고 붙여넣기 → 저장</li></ol>
+                    <textarea readonly rows="3" class="mt-1 w-full p-2 border border-gray-300 rounded-lg text-[11px] font-mono bg-gray-50" data-sc-code>${escapeHtml(scBookmarklet())}</textarea>
+                    <button type="button" data-sc-copy class="mt-1 w-full h-10 rounded-xl bg-gray-900 text-white text-[13px] font-bold">📋 코드 복사</button></details>
+                ${P ? '<button type="button" data-sc-view class="w-full h-10 rounded-xl border border-sky-300 bg-sky-50 text-[13px] font-bold text-sky-800">저장된 공시 보기</button>' : ''}
+                ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 저장할 수 있어요.</p>' : ''}</div></details>`;
+        }
+        function scView() {
+            const P = siseCache && siseCache.pubsc; if (!P) return; const W = (n) => n ? `${Math.round(n / 1000) / 10}만` : '-';
+            const rows = Object.entries(P.m || {}).sort((a, b) => String(b[1].r).localeCompare(String(a[1].r)));
+            const S = siseSheet('🏷 저장된 공통지원금', `${rows.length}개 기종 · ${escapeHtml(scKst(P.at))} 조회 · ${escapeHtml(P.by || '')} 저장 · 기변 / 번이`, () => `<div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">기종</th><th class="px-1">출고가</th><th class="px-1">SK</th><th class="px-1">KT</th><th class="px-1">LG</th></tr></thead><tbody>
+                ${rows.map(([k, r]) => `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900">${escapeHtml(r.n)}<span class="block text-[10px] font-normal text-gray-500">${escapeHtml(k)}</span></td><td class="px-1 py-1">${W(scPriceFor('SKT', k) || scPriceFor('KT', k) || scPriceFor('LG U+', k))}</td>${['SKT', 'KT', 'LGU'].map(ck => { const a = scPlan(r, ck, 0); return `<td class="px-1 py-1">${a ? `<b>${W(a.chg)}/${W(a.mnp)}</b><span class="block text-[10px] text-gray-500">${escapeHtml(a.pn || '')}${a.dt ? ' · ' + escapeHtml(a.dt.slice(5)) : ''}</span>` : '<span class="text-gray-300">·</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`, '');
+            S.sh.addEventListener('click', (e) => { if (e.target.closest('[data-ss="close"]')) S.close(); });
+        }
         const SISE_TIER_LAB = ['🔥 플래그십 (갤럭시 S · Z · 아이폰)', '💚 중저가 (갤럭시 A · M 등)'];
         const SISE_CARS = [['SKT', 'SK', '#e60012'], ['KT', 'KT', '#1d3f94'], ['LGU', 'LG', '#a50034']];
         function siseMake() {
             const C = siseCfg(), byCar = {};
             Object.entries(siseCache).forEach(([id, P]) => { if (id === 'config' || !P || !P.rows) return; const d = dealerList().find(x => x.id === id); if (!d) return; const ck = carrierKeepKey(d.carrier || ''); (byCar[ck] = byCar[ck] || []).push({ d, P }); });
-            const st = { sup: 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null, supBy: {} };   // supBy: 기종 키 → 'P' 공시 · 'S' 선약 · 'B' 싼 쪽
+            const st = { sup: scPub() ? 'B' : 'P', title: '오늘의 휴대폰 시세표', pick: {}, on: null, supBy: {} };   // supBy: 기종 키 → 'P' 공시 · 'S' 선약 · 'B' 싼 쪽
             SISE_CARS.forEach(([ck]) => { const f = (byCar[ck] || [])[0]; if (f) st.pick[ck] = { id: f.d.id, tier: siseDefTier(ck, f.P) }; });
             const rowsOf = () => {   // 기종 키 → 통신사별 { mnp, chg }
                 const map = new Map();
@@ -17883,7 +17967,7 @@ familyStr + `\n` +
                 const use = rows.filter(r => st.on.has(r.key)); cv = draw(use);
                 return `<div class="grid grid-cols-3 gap-1.5">${[['P', '공시 기준'], ['S', '선약 기준'], ['B', '싼 쪽']].map(([k, l]) => `<button type="button" data-sx-sup="${k}" class="h-9 rounded-lg text-[12px] font-bold border ${st.sup === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-800 border-gray-300'}">${l}</button>`).join('')}</div>
                     ${SISE_CARS.map(([ck, lab]) => { const L = byCar[ck] || [], pk = st.pick[ck]; if (!L.length) return `<p class="text-[12px] text-gray-400">${lab}: 정책표 없음</p>`; const it = L.find(x => x.d.id === (pk || {}).id) || L[0];
-                        const tid = (pk || {}).tier || siseDefTier(ck, it.P), R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub).length, nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length, nNew = R0.filter(r => { const x = siseV(it.P, r, tid); return ['nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length;
+                        const tid = (pk || {}).tier || siseDefTier(ck, it.P), R0 = it.P.rows || [], nPrice = R0.filter(r => r.price).length, nPub = R0.filter(r => r.pub || scPubFor(it.d.carrier, r.model, 'mnp', 0)).length,   /* 🏷 V305 스마트초이스 공시 포함 */ nVal = R0.filter(r => { const x = siseV(it.P, r, tid); return ['mP', 'mS', 'cP', 'cS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length, nNew = R0.filter(r => { const x = siseV(it.P, r, tid); return ['nP', 'nS'].some(f => x[f] !== undefined && x[f] !== null && x[f] !== ''); }).length;
                         const diag = `<p class="col-span-2 text-[11px] ${nVal && nPrice ? 'text-gray-500' : 'text-red-700 font-bold'}" style="grid-column:1/-1">모델 ${R0.length} · 출고가 ${nPrice} · 공시 ${nPub} · 이 구간 번호이동·기변 금액 ${nVal}${nNew ? ` (신규 ${nNew})` : ''}${!nVal ? (nNew ? ' → 신규 칸에만 금액이 있어요 (번호이동·기변 칸을 못 읽음 · 다시 올려 주세요)' : ' → 이 구간 금액을 못 읽었어요 (다른 구간을 골라 보거나 다시 올려 주세요)') : (!nPrice ? ' → 출고가를 못 읽었어요' : (!nPub && st.sup === 'P' ? ' → 공시를 못 읽어서 공시 기준은 못 내요 · 선약 기준을 눌러 보세요' : ''))}</p>`;
                         return `<div class="grid grid-cols-2 gap-1.5 items-center">${diag}<select data-sx-d="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${L.map(x => `<option value="${escapeHtml(x.d.id)}" ${x.d.id === it.d.id ? 'selected' : ''}>${lab} · ${escapeHtml(x.d.name)}</option>`).join('')}</select><select data-sx-t="${ck}" class="h-10 px-2 border border-gray-300 rounded-lg text-[13px] bg-white">${(it.P.tiers || []).map(t => `<option value="${escapeHtml(t.id)}" ${t.id === (pk || {}).tier ? 'selected' : ''}>${escapeHtml(siseFixName(t.name))}</option>`).join('')}</select></div>`; }).join('')}
                     <details class="rounded-xl border border-gray-200 px-3 py-2"><summary class="text-[13px] font-bold text-gray-800 cursor-pointer">넣을 기종 ${use.length} / ${rows.length}</summary><p class="text-[11px] text-gray-500 mt-1">기종마다 공시 · 선약을 따로 고를 수 있어요 (공시가 적으면 선약, 많으면 공시가 유리 · '싼 쪽'은 알아서)</p><div class="mt-1.5 space-y-1">${rows.map(r => { const md = st.supBy[r.key] || ''; return `<div class="flex items-center gap-1.5 text-[12px]"><label class="flex-1 min-w-0 flex items-center gap-1.5"><input type="checkbox" data-sx-on="${escapeHtml(r.key)}" ${st.on.has(r.key) ? 'checked' : ''} class="w-4 h-4 accent-indigo-600 flex-shrink-0"><span class="truncate">${escapeHtml(r.name)}</span> <span class="text-gray-400 flex-shrink-0">${Object.keys(r.c).length}사</span></label><select data-sx-sb="${escapeHtml(r.key)}" class="h-8 px-1 border border-gray-300 rounded-md text-[12px] bg-white flex-shrink-0"><option value="" ${md ? '' : 'selected'}>위와 같게</option><option value="P" ${md === 'P' ? 'selected' : ''}>공시</option><option value="S" ${md === 'S' ? 'selected' : ''}>선약</option><option value="B" ${md === 'B' ? 'selected' : ''}>싼 쪽</option></select></div>`; }).join('')}</div></details>
@@ -21988,10 +22072,12 @@ familyStr + `\n` +
             if (m) {
                 const j = (C.plans || []).findIndex(p => p && stockKey(p.name) === stockKey(g.plan.name));
                 const key = g.actType === '번호이동' ? 'mnp' : (g.actType === '기기변경' ? 'chg' : 'new');
-                return { price: Number(m.price) || 0, pub: j >= 0 && m.sup && Array.isArray(m.sup[key]) ? Number(m.sup[key][j]) || 0 : 0 };
+                const pub = j >= 0 && m.sup && Array.isArray(m.sup[key]) ? Number(m.sup[key][j]) || 0 : 0;
+                return { price: Number(m.price) || scPriceFor(g.carrier, g.dev.name) || 0, pub: pub || scPubFor(g.carrier, g.dev.name, g.actType, gdNum(g.plan.fee)) };
             }
             const r = (gdLS('gdModels', []) || []).find(x => x && stockKey(x.n) === k);
-            return r ? { price: Number(r.p) || 0, pub: 0 } : null;
+            const sp = scPubFor(g.carrier, g.dev.name, g.actType, gdNum(g.plan.fee)), pr = scPriceFor(g.carrier, g.dev.name);   // 🏷 V305 지원금표에 없으면 스마트초이스 공통지원금
+            return r ? { price: Number(r.p) || pr || 0, pub: sp } : ((sp || pr) ? { price: pr, pub: sp } : null);
         }
         function gdRemember(g) {
             if (g && g.kind === 'wired') { gdLSSet('gdLastW', { ck: (g.w || {}).ck }); return; }   // 📺 V301
@@ -22585,10 +22671,11 @@ familyStr + `\n` +
             }
             if (path === 'plan.name') { const f = gdPlanFee(gd.carrier, gd.plan.name); if (f && (!gd.plan.fee || gd.plan.feeAuto)) { gd.plan.fee = f; gd.plan.feeAuto = true; gdPutInput('plan.fee', f); } }
             if (path === 'keep.target') { const f = gdPlanFee(gd.carrier, gd.keep.target); if (f && (!gd.keep.targetFee || gd.keep.feeAuto)) { gd.keep.targetFee = f; gd.keep.feeAuto = true; gdPutInput('keep.targetFee', f); } }
-            if (path === 'dev.name' || path === 'plan.name') {
+            if (path === 'dev.name' || path === 'plan.name' || path === 'plan.fee') {   // 🏷 V305 월정액을 바꿔도 공시 다시 (스마트초이스 구간)
                 const m = gd.kind !== 'usim' ? gdModelInfo(gd) : null;
                 if (m && m.price && (!gd.dev.price || gd.dev.priceAuto)) { gd.dev.price = m.price; gd.dev.priceAuto = true; gdPutInput('dev.price', m.price); }
                 if (m && gd.sup === '공시' && m.pub && (!gd.dev.pub || gd.dev.pubAuto)) { gd.dev.pub = m.pub; gd.dev.pubAuto = true; gdPutInput('dev.pub', m.pub); }
+                else if (gd.sup === '공시' && gd.dev.pubAuto && gd.dev.pub && !(m && m.pub)) { gd.dev.pub = 0; gdPutInput('dev.pub', 0); }   // 자동으로 넣은 값인데 이제 안 맞으면 비움
             }
             if (path.startsWith('store.') && document.getElementById('gdRemember') && document.getElementById('gdRemember').checked) gdSaveStoreDefault();
             gdRecalcView();
@@ -23512,11 +23599,12 @@ familyStr + `\n` +
             }
         }
         function cmpSave() { try { localStorage.setItem('gdCmp', JSON.stringify({ ...cmp, at: Date.now() })); } catch (e) { /* 무시 */ } }
-        function cmpModelInfo(car, actType, planName, name) {   // 지원금표: 출고가 · 공시지원금 (개통종류 · 요금제별) → 이 폰에서 전에 쓴 출고가
+        function cmpModelInfo(car, actType, planName, name, fee) {   // 지원금표: 출고가 · 공시지원금 (개통종류 · 요금제별) → 이 폰에서 전에 쓴 출고가
             const k = stockKey(name); if (!k) return null;
             const C = gdCalcCar(car), m = ((C && C.models) || []).find(x => x && stockKey(x.name) === k);
-            if (m) { const j = (C.plans || []).findIndex(p => p && stockKey(p.name) === stockKey(planName)), key = actType === '번호이동' ? 'mnp' : (actType === '기기변경' ? 'chg' : 'new'); return { price: Number(m.price) || 0, pub: j >= 0 && m.sup && Array.isArray(m.sup[key]) ? Number(m.sup[key][j]) || 0 : 0 }; }
-            const r = (gdLS('gdModels', []) || []).find(x => x && stockKey(x.n) === k); return r ? { price: Number(r.p) || 0, pub: 0 } : null;
+            if (m) { const j = (C.plans || []).findIndex(p => p && stockKey(p.name) === stockKey(planName)), key = actType === '번호이동' ? 'mnp' : (actType === '기기변경' ? 'chg' : 'new'); const pub = j >= 0 && m.sup && Array.isArray(m.sup[key]) ? Number(m.sup[key][j]) || 0 : 0; return { price: Number(m.price) || scPriceFor(car, name) || 0, pub: pub || scPubFor(car, name, actType, fee) }; }
+            const r = (gdLS('gdModels', []) || []).find(x => x && stockKey(x.n) === k), sp = scPubFor(car, name, actType, fee), pr = scPriceFor(car, name);   // 🏷 V305 스마트초이스 공통지원금
+            return r ? { price: Number(r.p) || pr || 0, pub: sp } : ((sp || pr) ? { price: pr, pub: sp } : null);
         }
         function cmpKeepCode(cm, dv, mode) {   // 요금제 유지: 직접 고른 것 → 거래처(공시 · 선약 · 유통망지원금) → 통신사 기본
             if (cm.keep.code) return cm.keep.code === 'NONE' ? '' : cm.keep.code;
@@ -23674,7 +23762,7 @@ familyStr + `\n` +
         function cmpPut(path, v) { const el = cmpInner.querySelector(`[data-cm="${path}"]`); if (el && document.activeElement !== el) el.value = el.getAttribute('inputmode') === 'numeric' ? (gdNum(v) ? arWon(v) : '') : v; }
         function cmpAutoDev(i, force) {
             const dv = cmp.devs[i]; if (!dv) return;
-            const info = cmpModelInfo(cmp.carrier, cmp.actType, cmp.plan.name, dv.name); if (!info) return;
+            const info = cmpModelInfo(cmp.carrier, cmp.actType, cmp.plan.name, dv.name, gdNum(cmp.plan.fee)); if (!info) return;
             if (info.price && (force ? (!gdNum(dv.price) || dv.priceAuto) : dv.priceAuto)) { dv.price = info.price; dv.priceAuto = true; cmpPut(`d.${i}.price`, info.price); }
             if (info.pub && (!gdNum(dv.pub) || dv.pubAuto)) { dv.pub = info.pub; dv.pubAuto = true; cmpPut(`d.${i}.pub`, info.pub); }
         }
@@ -26864,7 +26952,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V304';
+        const APP_VER = 'V305';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26872,6 +26960,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V305', d: '2026-11-08', items: [
+                ['🏷 공통지원금 자동: 스마트초이스 화면에서 크롬 북마크 [CRM공시] → 기종별 SK · KT · LG 공시를 모아 강CRM에 저장 (설정 → 시세표)', 'a'],
+                ['📊 시세표: 정책표에 공시가 없으면 스마트초이스 값으로 공시 · 선약 중 싼 쪽을 기종마다 자동으로', 'a'],
+                ['🧾 안내서 · 비교: 공시지원금 칸 자동 채움 (고른 요금제 월정액 구간 값)', 'a']] },
             { v: 'V304', d: '2026-11-08', items: [
                 ['↩ 개통 고치기 되돌리기: [개통 정보 고치기]로 저장하면 고치기 전 기록이 남아요 → 고객카드 개통 기록 [↩ 고치기 전으로] (바뀐 칸 보여주고 확인)', 'a']] },
             { v: 'V303', d: '2026-11-08', items: [
