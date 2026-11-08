@@ -580,9 +580,10 @@
         <!-- 📝 안내서 (V202) -->
         <div id="guideView" class="hidden max-w-2xl w-full mx-auto px-1 lg:px-0 space-y-3 pb-4">
             <div class="flex items-end justify-between gap-2"><h2 class="text-[22px] font-bold text-gray-900 tracking-tight">안내서</h2><p class="text-xs font-medium text-gray-500 text-right pb-1">고객 앞에서 쓰고 → 서명 → 문자</p></div>
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-3 gap-2">
                 <button type="button" data-gd-new="dev" class="min-h-[84px] rounded-2xl border border-indigo-200 bg-indigo-50 flex flex-col items-center justify-center gap-0.5 text-center px-2"><i class="fa-solid fa-mobile-screen-button text-2xl text-indigo-600" aria-hidden="true"></i><b class="text-[15px] text-indigo-900">단말 구매 안내서</b><span class="text-[12px] text-indigo-700">휴대폰 + 요금제</span></button>
                 <button type="button" data-gd-new="usim" class="min-h-[84px] rounded-2xl border border-emerald-200 bg-emerald-50 flex flex-col items-center justify-center gap-0.5 text-center px-2"><i class="fa-solid fa-sim-card text-2xl text-emerald-600" aria-hidden="true"></i><b class="text-[15px] text-emerald-900">유심단독 안내서</b><span class="text-[12px] text-emerald-700">유심만 개통</span></button>
+                <button type="button" data-gd-new="wired" class="min-h-[84px] rounded-2xl border border-sky-200 bg-sky-50 flex flex-col items-center justify-center gap-0.5 text-center px-2"><i class="fa-solid fa-tv text-2xl text-sky-600" aria-hidden="true"></i><b class="text-[15px] text-sky-900">인터넷·TV 안내서</b><span class="text-[12px] text-sky-700">홈상품 가입</span></button>
             </div>
             <button type="button" data-cmp-open class="w-full min-h-[56px] rounded-2xl border border-amber-200 bg-amber-50 flex items-center justify-center gap-2 px-3"><i class="fa-solid fa-scale-balanced text-xl text-amber-600" aria-hidden="true"></i><b class="text-[15px] text-amber-900">비교 안내서</b><span class="text-[12px] text-amber-800">기종별 · 선택약정/공시 비교</span></button>
             <div id="gdPendBox"></div>
@@ -21480,7 +21481,7 @@ familyStr + `\n` +
         };
         const GD_RATE = 0.059;
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
-        const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee']);
+        const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash']);
         let gdList = [], gdListReady = false, gdUnsub = null, gdFilter = '', gdQuery = '';
         let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '', gdArG = null;   // gdArG: [안내서로 채우기]한 안내서 (저장할 때 번호 확인)
         const gdSignCache = new Map(), gdImgCache = new Map();
@@ -21558,6 +21559,7 @@ familyStr + `\n` +
             return { kd, dd, date: useDist ? dd : kd, code: useDist ? dc : (keep ? g.keep.code : ''), dist: useDist };
         }
         function gdDownLines(g) {
+            if (g && g.kind === 'wired') return [];
             const dev = g.kind !== 'usim', dv = g.dev || {}, pl = g.plan || {}, out = [], W = (n) => `${arWon(n)}원`;
             let R = null; try { R = (calcNormalize(calcData).rules || {})[g.carrier] || CALC_RULE_DEFAULTS[g.carrier] || null; } catch (e) { R = CALC_RULE_DEFAULTS[g.carrier] || null; }
             const lte = /LTE/i.test(String(pl.name || '')), lim = R ? Number(lte ? R.limLTE : R.lim5G) || 0 : 0;
@@ -21582,13 +21584,14 @@ familyStr + `\n` +
             return out;
         }
         function gdNotesFor(g) {
+            if (g && g.kind === 'wired') return GDW_NOTES.slice();   // 📺 V301
             const common = gdNotes(), out = common.filter(line => { const gt = GD_NOTE_GATES.find(([re]) => re.test(line)); return !gt || gdNoteApplies(g, gt[1]); });
             gdNoteRules().forEach(r => { if (!r.on || !gdNoteApplies(g, r.k) || common.some(l => r.gate.test(l))) return; r.text.split('\n').map(x => x.trim()).filter(Boolean).forEach(x => out.push(gdNoteFill(x, g))); });
             return [...new Set(out)].slice(0, 18);
         }
         function gdStoreDefault() { const m = gdLS('gdStore', {}) || {}; return { name: String(m.name || appSettings.guideStoreName || msgStoreName() || '').trim().slice(0, 40), tel: String(m.tel || appSettings.guideStoreTel || '').trim().slice(0, 30) }; }
         function gdCarLabel(g) { if (!g || g.carrier !== '알뜰폰') return (g && g.carrier) || ''; const b = String(g.mvnoName || '').trim(); return `알뜰폰${g.mvnoNet ? `(${g.mvnoNet})` : ''}${b ? ` ${b}` : ''}`; }   // 📶 알뜰폰(SK) 세븐모바일
-        function gdTitle(g) { return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
+        function gdTitle(g) { if (g && g.kind === 'wired') { const w = g.w || {}; return ['인터넷', w.intName, w.tvName ? '+ ' + w.tvName : ''].filter(Boolean).join(' ').slice(0, 80); } return (g.kind === 'usim' ? '유심단독' : (g.dev.name || g.dev.code || '단말기')) + (g.plan && g.plan.name ? ` · ${g.plan.name}` : ''); }
         function gdFindCust(phone) { const d = phoneDigits(phone); if (!/^01\d{8,9}$/.test(d)) return null; return customerDB.find(c => c.id === d || phoneDigits(c.phone) === d) || null; }
         function gdCarOf(v) { return /^알뜰/.test(String(v || '')) ? '알뜰폰' : (GD_CARRIERS.includes(v) ? v : ''); }
         /* =====================================================================
@@ -21697,6 +21700,7 @@ familyStr + `\n` +
         // 서명할 때 그때 혜택 그대로 남김 (나중에 대표가 고쳐도 서명한 안내서는 그대로)
         //  · V238: Firestore는 '배열 안의 배열'을 못 저장해요 → 연령 혜택은 [{a: 이름, t: 내용}]으로 (V236~V237은 이것 때문에 서명 저장이 막혔음)
         function gdPiSnap(g) {
+            if (g && g.kind === 'wired') return null;
             const snap = (p) => { if (!p) return null; const { age, ...rest } = p; return { ...rest, ages: planInfoAges(g.carrier, p).map(([a, t]) => ({ a: String(a || ''), t: String(t || '') })) }; };
             const cur = planInfoFind(g.carrier, g.plan && g.plan.name), kp = g.keep && g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null;
             return { cur: snap(cur), keep: snap(kp) };
@@ -21803,7 +21807,44 @@ familyStr + `\n` +
             }
             if (!g.keepTouched) g.keep.code = gdKeepDefault(g);
         }
+        /* =====================================================================
+           📺 V301 인터넷 · TV 안내서 (kind 'wired') — 위약금 계산기 상품표(wired-core.js)로 금액 자동 · 서명 · 녹음 · 보내기 · 홈상품 등록
+           ===================================================================== */
+        const GDW_CK = { SKT: 'SK', KT: 'KT', 'LG U+': 'LG' }, GDW_CAR = { SK: 'SKT', KT: 'KT', LG: 'LG U+' };
+        const GDW_TERMS = ['3년 약정', '2년 약정', '1년 약정', '무약정'];
+        function gdwData(ck) { try { return window.WiredCalc && window.WiredCalc.CARRIER_DATA[ck] || null; } catch (e) { return null; } }
+        function gdwLists(g) { const d = gdwData(g.w.ck); if (!d) return null; const tab = g.w.tab || ((d.tabs || [])[0] || {}).id; return { d, tab, ints: ((d.internet || {})[tab] || []), wifis: ((d.wifiHw || {})[tab] || []), tvs: d.tv || [], stbs: d.stb || [], bundles: d.bundles || [] }; }
+        const gdwDef = (l) => (l || []).find(x => x.default) || (l || [])[0] || null;
+        function gdwApply(g, reset) {   // 고른 상품 → 이름 · 월 금액 (직접 고친 금액은 다시 고르기 전까지 그대로)
+            const L = gdwLists(g); if (!L) return; const w = g.w;
+            if (reset || !L.d.tabs.some(t => t.id === w.tab)) w.tab = L.tab;
+            const L2 = gdwLists(g);
+            const pick = (list, id, dflt) => (list.find(x => x.id === id) || dflt);
+            const it = pick(L2.ints, w.intId, gdwDef(L2.ints)), wf = L2.wifis.length ? pick(L2.wifis, w.wifiId, gdwDef(L2.wifis)) : null;
+            const tv = pick(L2.tvs, w.tvId, L2.tvs.find(x => x.id === 'none') || gdwDef(L2.tvs)), st = pick(L2.stbs, w.stbId, L2.stbs.find(x => x.id === 'none') || gdwDef(L2.stbs)), bd = L2.bundles.find(x => x.id === w.bundleId) || null;
+            Object.assign(w, { intId: it ? it.id : '', intName: it ? it.name : w.intName, intFee: it ? it.price : w.intFee,
+                wifiId: wf ? wf.id : '', wifiName: wf && wf.id !== 'none' ? wf.name : '', wifiFee: wf ? wf.price : 0,
+                tvId: tv ? tv.id : '', tvName: tv && tv.id !== 'none' ? tv.name : '', tvFee: tv && tv.id !== 'none' ? (it && tv.discountPrice != null ? tv.discountPrice : tv.price) : 0,
+                stbId: st ? st.id : '', stbName: st && st.id !== 'none' ? st.name : '', stbFee: st && st.id !== 'none' ? st.price : 0,
+                bundleName: bd ? bd.name : '' });
+            const D = bd && it && window.WiredCalc.bundleDiscounts ? window.WiredCalc.bundleDiscounts(bd, it) : { wire: 0, mobile: 0 };
+            w.wireDisc = D.wire || 0; w.mobileDisc = D.mobile || 0;
+        }
+        function gdwCalc(g) { const w = g.w || {}, base = gdNum(w.intFee) + gdNum(w.wifiFee) + gdNum(w.tvFee) + gdNum(w.stbFee), disc = gdNum(w.wireDisc) + gdNum(w.etcDisc); return { base, disc, total: Math.max(0, base - disc), mobile: gdNum(w.mobileDisc), price: 0, pub: 0, icard: 0, loan: 0, n: 0, month: 0, fee: 0, pfee: 0, sel: 0, wel: 0, comb: 0, card: 0, planRaw: 0, planNet: 0, addFee: 0 }; }
+        const GDW_NOTES = [
+            '약정 기간 안에 해지하면 그동안 받은 할인을 돌려내는 위약금(할인 반환금)이 청구돼요.',
+            '현금 · 사은품을 받고 약정 기간 안에 해지 · 명의변경하면 받은 사은품을 돌려내야 할 수 있어요.',
+            '휴대폰 결합으로 받는 할인은 결합 회선을 해지하거나 결합에서 빼면 없어져요.',
+            '설치한 달과 해지한 달 요금은 쓴 날만큼(일할) 계산돼요. 설치비 · 셋톱 · 공유기 요금은 통신사 기준에 따라 달라질 수 있어요.',
+            '이사 · 명의변경 · 상품 변경은 통신사 고객센터나 매장에 먼저 물어봐 주세요.'];
         function gdBlank(kind, c) {
+            if (kind === 'wired') {   // 📺 V301
+                const g0 = gdBlank('dev', c), mem = gdLS('gdLastW', {}) || {};
+                const ck = GDW_CAR[mem.ck] ? mem.ck : (GDW_CK[g0.carrier] || 'LG');
+                Object.assign(g0, { kind: 'wired', carrier: GDW_CAR[ck], actType: '신규', promises: [], keep: { code: '', target: '', targetFee: 0 },
+                    w: { ck, tab: '', intId: '', wifiId: '', tvId: '', stbId: '', bundleId: '', intName: '', intFee: 0, wifiName: '', wifiFee: 0, tvName: '', tvFee: 0, stbName: '', stbFee: 0, bundleName: '', wireDisc: 0, mobileDisc: 0, etcDisc: 0, cash: 0, cashDay: '', install: '', term: '3년 약정' } });
+                gdwApply(g0, true); return g0;
+            }
             const mem = gdLS('gdLast', {}) || {}, usim = kind === 'usim';
             const g = { id: gdNewId(), v: 1, st: 'draft', kind: usim ? 'usim' : 'dev', date: getTodayStr(), store: gdStoreDefault(),
                 custId: c ? c.id : '', name: c ? String(c.name || '').slice(0, 30) : '', phone: c && c.phone ? formatPhone(c.phone) : '',
@@ -21837,6 +21878,7 @@ familyStr + `\n` +
         function gdWelAutoOn(g) { return !!g.plan.welType && g.plan.welAuto !== false && gdWelAuto(g.plan.welType, 1, gdWelVer(g)) !== null; }
         function gdWelLabel(g) { const w = GD_WELFARE.find(([v]) => v === g.plan.welType); return w ? w[1] : ''; }
         function gdCalc(g) {
+            if (g && g.kind === 'wired') return gdwCalc(g);   // 📺 V301
             const d = g.dev || {}, p = g.plan || {}, dev = g.kind !== 'usim';
             const price = dev ? gdNum(d.price) : 0, pub = dev && g.sup === '공시' ? gdNum(d.pub) : 0;
             const icard = dev ? gdNum(d.card) : 0;   // 💳 할부카드 할인 (V204) — 할부원금에서 바로
@@ -21903,6 +21945,7 @@ familyStr + `\n` +
             return r ? { price: Number(r.p) || 0, pub: 0 } : null;
         }
         function gdRemember(g) {
+            if (g && g.kind === 'wired') { gdLSSet('gdLastW', { ck: (g.w || {}).ck }); return; }   // 📺 V301
             const prev = gdLS('gdLast', {}) || {};
             gdLSSet('gdLast', { carrier: g.carrier, dealer: g.dealer, inst: g.kind === 'usim' ? prev.inst : Number(g.dev.inst), usimFee: gdNum(g.usim.fee), usimPay: g.kind === 'usim' ? prev.usimPay : g.usim.pay });
             const push = (key, n, val, field) => { if (!n || !val) return; const l = (gdLS(key, []) || []).filter(x => x && stockKey(x.n) !== stockKey(n)); l.unshift({ n, [field]: val }); gdLSSet(key, l.slice(0, 40)); };
@@ -21918,6 +21961,12 @@ familyStr + `\n` +
         }
         function gdValidate(g) {
             if (!/^01\d{8,9}$/.test(phoneDigits(g.phone))) return ['고객 휴대폰 번호를 넣어주세요. (010-0000-0000)', 'phone'];
+            if (g.kind === 'wired') {   // 📺 V301
+                if (!String(g.name || '').trim() && !gdFindCust(g.phone)) return ['처음 오신 고객이에요. 고객 이름을 넣어주세요.', 'name'];
+                if (!String(g.w.intName || '').trim() && !String(g.w.tvName || '').trim()) return ['인터넷이나 TV 상품을 골라 주세요.'];
+                if (!gdwCalc(g).base) return ['월 요금을 넣어 주세요.', 'w.intFee'];
+                return null;
+            }
             if (!String(g.name || '').trim() && !gdFindCust(g.phone) && !trashDB.some(x => phoneDigits(x.phone) === phoneDigits(g.phone))) return ['처음 오신 고객이에요. 고객 이름을 넣어주세요. (서명하면 고객카드가 새로 만들어져요)', 'name'];   // 🛠 V289 이름 없는 고객카드 막기
             if (!g.carrier) return ['통신사를 골라주세요.'];
             if (!g.actType) return ['개통종류를 골라주세요.'];
@@ -21967,6 +22016,7 @@ familyStr + `\n` +
         function gdRound(x, X, Y, w, h, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r); x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath(); }
         function gdLoadImg(src) { return new Promise(res => { if (!src) return res(null); const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; }); }
         async function gdCanvas(g, signSrc, scale) {
+            if (g && g.kind === 'wired') return gdwCanvas(g, signSrc, scale);   // 📺 V301
             scale = scale || 1080 / GD_W;
             try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* 무시 */ }
             const sign = await gdLoadImg(signSrc);
@@ -22259,7 +22309,106 @@ familyStr + `\n` +
                     <div class="flex items-center gap-1.5 pl-[50px]">${paid ? `<input data-gd-pfee="${i}" inputmode="numeric" value="${gdNum(p.fee) ? arWon(p.fee) : ''}" placeholder="월 금액" aria-label="${escapeHtml(p.kind)} 월 금액" class="w-[104px] h-10 px-2.5 border border-gray-300 rounded-xl text-[14px] text-right text-gray-900 bg-white"><span class="text-[12px] text-gray-500 -ml-0.5">원</span>` : ''}<select data-gd-pcode="${i}" aria-label="유지 기간" class="w-[96px] h-10 px-1.5 border border-gray-300 rounded-xl text-[13px] text-gray-900 bg-white">${gdKeepOpts(p.code)}</select><span data-gd-pdate="${i}" class="text-[11px] text-gray-600 leading-tight">${d ? `${gdDot(d)}부터<br>해지 가능` : ''}</span></div></div>`;
             }).join('');
         }
+        // 📺 V301 인터넷 · TV 안내서 쓰기 화면
+        function gdwRenderEdit() {
+            const g = gd, w = g.w, c = gdwCalc(g), L = gdwLists(g);
+            if (!L) { try { wnLoadCore(); } catch (e) { /* 무시 */ } clearTimeout(gdwRenderEdit.t); gdwRenderEdit.t = setTimeout(() => { if (gd === g && gdStage === 'edit' && gdwLists(g)) { if (!w.intName) gdwApply(g, true); gdRender(); } }, 1200); }
+            document.getElementById('gdTitle').textContent = '인터넷 · TV 안내서';
+            document.getElementById('gdDraft').classList.remove('hidden');
+            const sel = (k, list, cur, none) => `<select data-gdw="${k}" class="${gdCls}">${(list || []).map(x => `<option value="${escapeHtml(x.id)}" ${x.id === cur ? 'selected' : ''}>${escapeHtml(x.name)}${x.price ? ` · ${arWon(x.price)}원` : ''}</option>`).join('')}${none ? `<option value="" ${!cur ? 'selected' : ''}>${none}</option>` : ''}</select>`;
+            let h = gdSec('매장 · 고객', `<div class="grid grid-cols-2 gap-2">
+                    ${gdLbl('안내서에 찍힐 매장 이름', gdInp('store.name', g.store.name, { ph: '예) 폰값연구소' }))}
+                    ${gdLbl('매장 전화 (선택)', gdInp('store.tel', g.store.tel, { type: 'tel' }))}
+                    ${gdLbl('<span class="text-red-600">*</span> 고객 휴대폰', gdInp('phone', g.phone, { type: 'tel', ph: '010-0000-0000' }))}
+                    ${gdLbl('고객 이름', gdInp('name', g.name, { ph: '홍길동' }))}
+                </div><p id="gdCustNote" class="text-[12px] font-bold">${gdCustNote(g)}</p>`);
+            h += gdSec('통신사', `<div class="grid grid-cols-3 gap-1.5">${Object.entries(GDW_CAR).map(([ck, nm]) => `<button type="button" data-gdw-ck="${ck}" class="h-11 rounded-xl border text-[14px] font-bold ${w.ck === ck ? 'bg-sky-600 border-sky-600 text-white' : 'bg-white border-gray-300 text-gray-800'}">${nm}</button>`).join('')}</div>`);
+            h += gdSec('상품 (고르면 월 금액이 자동)', L ? `<div class="grid grid-cols-2 gap-2">
+                    ${gdLbl('인터넷 종류', sel('tab', L.d.tabs, w.tab))}${gdLbl('인터넷', sel('intId', L.ints, w.intId, '인터넷 없음'))}
+                    ${L.wifis.length ? gdLbl('와이파이 공유기', sel('wifiId', L.wifis, w.wifiId)) : ''}${gdLbl('TV', sel('tvId', L.tvs, w.tvId))}
+                    ${gdLbl('셋톱', sel('stbId', L.stbs, w.stbId))}${gdLbl('결합', sel('bundleId', L.bundles.filter(b => b.group !== 'legacy'), w.bundleId, '결합 없음'))}
+                </div><p class="text-[11px] text-gray-500">위약금 계산기 상품표 (3년 약정 금액) · 금액은 아래에서 고칠 수 있어요</p>` : '<p class="text-[13px] text-gray-500">상품표 불러오는 중… (인터넷이 안 되면 아래에 직접 적어도 돼요)</p>');
+            h += gdSec('월 금액', `<div class="grid grid-cols-2 gap-2">
+                    ${gdLbl('인터넷 상품', gdInp('w.intName', w.intName))}${gdLbl('인터넷 월', gdInp('w.intFee', w.intFee, { money: true }))}
+                    ${gdLbl('와이파이', gdInp('w.wifiName', w.wifiName))}${gdLbl('와이파이 월', gdInp('w.wifiFee', w.wifiFee, { money: true }))}
+                    ${gdLbl('TV 상품', gdInp('w.tvName', w.tvName))}${gdLbl('TV 월', gdInp('w.tvFee', w.tvFee, { money: true }))}
+                    ${gdLbl('셋톱', gdInp('w.stbName', w.stbName))}${gdLbl('셋톱 월', gdInp('w.stbFee', w.stbFee, { money: true }))}
+                    ${gdLbl('결합할인 (인터넷에서 · 월)', gdInp('w.wireDisc', w.wireDisc, { money: true }))}${gdLbl('추가 할인 (월)', gdInp('w.etcDisc', w.etcDisc, { money: true }))}
+                    ${gdLbl('휴대폰 요금에서 결합할인 (월 · 안내만)', gdInp('w.mobileDisc', w.mobileDisc, { money: true }), 'col-span-2')}
+                </div><div class="rounded-xl bg-sky-50 px-3 py-2.5"><div class="flex items-baseline justify-between"><span class="text-[13px] font-bold text-sky-900">매달 내실 금액</span><b class="text-[22px] font-extrabold text-sky-950"><span id="gdWTotal">${arWon(c.total)}</span>원</b></div><p id="gdWSub" class="text-[12px] text-sky-800"></p></div>`);
+            h += gdSec('약정 · 설치', `<div class="grid grid-cols-2 gap-2">${gdLbl('약정', `<select data-gdw="term" class="${gdCls}">${GDW_TERMS.map(t => `<option ${t === w.term ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}${gdLbl('설치 희망일', `<input type="date" data-gdw="install" value="${escapeHtml(w.install || '')}" class="${gdCls}">`)}</div>`);
+            h += gdSec('매장과 한 약속', `<div class="grid grid-cols-2 gap-2">${gdLbl('현금 사은품', gdInp('w.cash', w.cash, { money: true }))}${gdLbl('지급일 · 방법', gdInp('w.cashDay', w.cashDay, { ph: '예) 설치 후 7일 안 계좌' }))}</div>${gdLbl('사은품 · 그 밖의 약속', gdInp('gift', g.gift, { ph: '예) 셋톱 1대 무료 · 설치비 면제' }))}
+                <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"><p class="text-[12px] font-bold text-gray-700 mb-1">유의사항 (안내서에 들어가요)</p><ul class="list-disc pl-4 text-[12px] text-gray-600 space-y-0.5">${GDW_NOTES.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></div>`);
+            gdInner.innerHTML = h;
+            gdFoot.innerHTML = `<div class="max-w-2xl mx-auto flex items-center gap-3"><div class="flex-shrink-0"><div class="text-xs text-gray-600">매달 내실 금액</div><div class="text-[22px] font-extrabold text-sky-900 leading-tight"><span id="gdTotal">${arWon(c.total)}</span>원</div></div><button type="button" id="gdToSign" class="flex-1 h-12 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[15px] font-bold">미리보기 · 고객 서명</button></div>`;
+            gdFoot.querySelector('#gdToSign').onclick = () => gdToSign();
+            gdRecalcView();
+        }
+        gdInner.addEventListener('click', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; const b = e.target.closest('[data-gdw-ck]'); if (!b) return; gd.w.ck = b.dataset.gdwCk; gd.carrier = GDW_CAR[gd.w.ck]; Object.assign(gd.w, { tab: '', intId: '', wifiId: '', tvId: '', stbId: '', bundleId: '' }); gdwApply(gd, true); gdDirty = true; gdLSSet('gdLastW', { ck: gd.w.ck }); gdRender(); });
+        gdInner.addEventListener('change', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; const el = e.target.closest('[data-gdw]'); if (!el) return; const k = el.dataset.gdw; gdDirty = true;
+            if (k === 'term' || k === 'install') { gd.w[k] = el.value; return; }
+            gd.w[k] = el.value; if (k === 'tab') Object.assign(gd.w, { intId: '', wifiId: '' }); gdwApply(gd, false); gdRender(); });
+        // 📺 V301 그림 (휴대폰 안내서와 같은 틀)
+        async function gdwCanvas(g, signSrc, scale) {
+            scale = scale || 1080 / GD_W;
+            try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (e) { /* 무시 */ }
+            const sign = await gdLoadImg(signSrc), H0 = 2400, cv = document.createElement('canvas');
+            cv.width = Math.round(GD_W * scale); cv.height = Math.round(H0 * scale);
+            const x = cv.getContext('2d'); x.scale(scale, scale); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, GD_W, H0); x.textBaseline = 'alphabetic';
+            const c = gdwCalc(g), w = g.w, L = GD_P, R = GD_W - GD_P, IW = R - L, W = (n) => `${arWon(n)}원`;
+            const T = (s, X, Y, size, weight, color, align) => { gdFont(x, size, weight); x.fillStyle = color || '#111827'; x.textAlign = align || 'left'; x.fillText(String(s ?? ''), X, Y); };
+            const tw = (s, size, weight) => { gdFont(x, size, weight); return x.measureText(String(s ?? '')).width; };
+            const box = (X, Y, ww, hh, o = {}) => { gdRound(x, X, Y, ww, hh, o.r ?? 10); if (o.fill) { x.fillStyle = o.fill; x.fill(); } if (o.stroke) { x.strokeStyle = o.stroke; x.lineWidth = o.lw || 1; x.stroke(); } };
+            let y = GD_P;
+            T(g.store.name || '', L, y + 14, 14, 700, '#0369A1'); T('인터넷 · TV 가입 안내서', L, y + 46, 25, 800, '#111827');
+            T(gdDateKo(g.date), R, y + 18, 13, 500, '#374151', 'right');
+            if (g.store.tel) T(/^0\d{8,10}$/.test(phoneDigits(g.store.tel)) ? formatPhone(phoneDigits(g.store.tel)) : g.store.tel, R, y + 38, 13, 500, '#374151', 'right');
+            y += 58; x.fillStyle = '#111827'; x.fillRect(L, y, IW, 2); y += 22;
+            const chips = [g.carrier, w.term, w.install ? `설치 ${gdMD(w.install)}` : ''].filter(Boolean); let cx = R;
+            for (let i = chips.length - 1; i >= 0; i--) { const cw = tw(chips[i], 13, 700) + 24; cx -= cw; box(cx, y, cw, 26, i === 0 ? { fill: '#0369A1', r: 13 } : { stroke: '#9CA3AF', r: 13 }); T(chips[i], cx + cw / 2, y + 18, 13, 700, i === 0 ? '#FFFFFF' : '#374151', 'center'); cx -= 6; }
+            T('가입 상품', L, y + 20, 20, 800, '#111827'); y += 44;
+            const rows = [['인터넷', w.intName, w.intFee], ['와이파이', w.wifiName, w.wifiFee], ['TV', w.tvName, w.tvFee], ['셋톱', w.stbName, w.stbFee]].filter(r => r[1] || gdNum(r[2]));
+            if (w.bundleName || gdNum(w.wireDisc)) rows.push(['결합', w.bundleName || '결합할인', gdNum(w.wireDisc) ? -gdNum(w.wireDisc) : null]);
+            if (gdNum(w.etcDisc)) rows.push(['추가 할인', '', -gdNum(w.etcDisc)]);
+            const rh = 34; box(L, y, IW, rows.length * rh + 16, { stroke: '#E5E7EB' }); y += 8;
+            rows.forEach(([l, n, f], i) => { T(l, L + 14, y + 22, 13, 500, '#6B7280'); let nm = String(n || ''); while (nm.length > 2 && tw(nm, 14, 700) > IW - 230) nm = nm.slice(0, -2) + '…'; T(nm, L + 100, y + 22, 14, 700, '#111827'); T(f === null ? '휴대폰 요금에서 할인' : (f < 0 ? `-${W(-f)}` : W(f)), R - 14, y + 22, f === null ? 12 : 14, 700, f === null ? '#0369A1' : (f < 0 ? '#B91C1C' : '#111827'), 'right'); if (i < rows.length - 1) { x.fillStyle = '#F3F4F6'; x.fillRect(L + 12, y + rh - 1, IW - 24, 1); } y += rh; });
+            y += 20;
+            const mh = c.mobile ? 92 : 72; box(L, y, IW, mh, { fill: '#0C4A6E', r: 14 }); T('매달 내실 금액', L + 18, y + 30, 15, 700, '#BAE6FD'); T(W(c.total), R - 18, y + 46, 30, 800, '#FFFFFF', 'right');
+            T('부가세 포함 · 첫 달은 설치일부터 일할', L + 18, y + 54, 11, 500, '#7DD3FC'); if (c.mobile) T(`+ 휴대폰 요금에서 결합할인 -${W(c.mobile)} 따로`, L + 18, y + 78, 12.5, 700, '#FDE68A');
+            y += mh + 16;
+            const panel = (title, lines, o) => { gdFont(x, o.size || 13, 500); const wl = lines.flatMap(t => gdWrapText(x, '• ' + t, IW - 28)); const ph = 34 + wl.length * ((o.size || 13) + 7) + 8; box(L, y, IW, ph, { fill: o.fill, stroke: o.stroke }); T(title, L + 14, y + 24, 14, 800, o.titleColor); wl.forEach((t, i) => T(t, L + 14, y + 48 + i * ((o.size || 13) + 7), o.size || 13, 500, o.color)); y += ph + 12; };
+            const pl = [...(gdNum(w.cash) ? [`현금 사은품 ${W(w.cash)}${w.cashDay ? ` · ${w.cashDay}` : ''}`] : []), ...(g.gift ? [g.gift] : [])];
+            if (pl.length) panel('매장과 한 약속', pl, { fill: '#FFFBEB', stroke: '#FCD34D', titleColor: '#78350F', color: '#451A03' });
+            const notes = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length ? g.notes : GDW_NOTES;
+            panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
+            const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
+            box(L, y, IW, sh, { stroke: '#1F2937', lw: 1.5 });
+            T('위 내용을 설명 듣고 확인했습니다.', L + 14, y + 33, 14.5, 800, '#111827');
+            const by = (g.signed && g.signed.by) || g.createdBy || getStaffName() || '';
+            T(`고객 ${maskName(g.name) || '-'} · ${maskPhone(g.phone)}`, L + 14, y + 66, 12, 400, '#4B5563'); T(`담당 ${by || '-'}`, L + 14, y + 86, 12, 400, '#4B5563');
+            box(sx, sy, sw, sH, { stroke: '#D1D5DB', r: 6 }); T('고객 서명', sx + 10, sy + 16, 11, 700, '#4B5563');
+            if (sign) { const aw = sw - 20, ah = sH - 42, k = Math.min(aw / sign.width, ah / sign.height), iw = sign.width * k, ih = sign.height * k; x.drawImage(sign, sx + (sw - iw) / 2, sy + 22 + (ah - ih) / 2, iw, ih); } else T('서명 전', sx + sw / 2, sy + sH / 2 + 6, 13, 500, '#9CA3AF', 'center');
+            if (g.signed && g.signed.at) T(`${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명`, sx + 10, sy + sH - 6, 10.5, 400, '#4B5563');
+            y += sh + 12; gdFont(x, 11, 400);
+            gdWrapText(x, `이 안내서는 ${g.store.name || '매장'}에서 작성한 안내서예요. 실제 청구 금액은 통신사 계산에 따라 몇 원 다를 수 있어요.`, IW).forEach((t) => { T(t, L, y + 12, 11, 400, '#6B7280'); y += 16; });
+            y += GD_P - 6;
+            const out = document.createElement('canvas'); out.width = cv.width; out.height = Math.round(y * scale);
+            const o = out.getContext('2d'); o.fillStyle = '#FFFFFF'; o.fillRect(0, 0, out.width, out.height); o.drawImage(cv, 0, 0);
+            return out;
+        }
+        // 📺 V301 서명한 인터넷 · TV 안내서 → 홈상품 등록 칸 채우기
+        function gdwApplyToHr(g) {
+            const w = g.w || {}, set = (id, v) => { const el = document.getElementById(id); if (el && v && !String(el.value || '').trim()) { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } };
+            set('hr-name', g.name); set('hr-phone', formatPhone(phoneDigits(g.phone)));
+            set('hr-internet', [w.intName, w.wifiName].filter(Boolean).join(' + ')); set('hr-tv', [w.tvName, w.stbName].filter(Boolean).join(' + ')); set('hr-comb', w.bundleName);
+            const fe = document.getElementById('hr-fee'); if (fe && !fe.value) { fe.value = arWon(gdwCalc(g).total); fe.dispatchEvent(new Event('input', { bubbles: true })); }
+            set('hr-subsidy', [gdNum(w.cash) ? `현금 ${wonMan(w.cash)}` : '', g.gift].filter(Boolean).join(' · ')); set('hr-apply', g.date);
+            gdArId = g.id; gdArG = { id: g.id, custId: g.custId || '', phone: phoneDigits(g.phone), name: g.name || '' };
+            try { arRecalc(); } catch (e) { /* 무시 */ }
+            stockToast('📺 안내서 내용을 채웠어요');
+        }
         function gdRenderEdit() {
+            if (gd && gd.kind === 'wired') return gdwRenderEdit();   // 📺 V301
             const g = gd, c = gdCalc(g), dev = g.kind !== 'usim', DL = dealerList();
             const dIn = DL.some(d => stockKey(d.name) === stockKey(g.dealer)), dd = dealerByName(g.dealer);
             document.getElementById('gdTitle').textContent = `${dev ? '단말 구매' : '유심단독'} 안내서`;
@@ -22332,6 +22481,7 @@ familyStr + `\n` +
         }
         function gdRecalcView() {
             if (gdStage !== 'edit' || !gd) return;
+            if (gd.kind === 'wired') { const c = gdwCalc(gd), el = document.getElementById('gdWTotal'), sb = document.getElementById('gdWSub'); if (el) el.textContent = arWon(c.total); if (sb) sb.textContent = `상품 ${arWon(c.base)}원${c.disc ? ` − 할인 ${arWon(c.disc)}원` : ''}${c.mobile ? ` · 휴대폰 요금에서 −${arWon(c.mobile)}원 따로` : ''}`; return; }   // 📺 V301
             const c = gdCalc(gd), set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             set('gdLoan', arWon(c.loan)); set('gdMonth', arWon(c.month)); set('gdLoanSub', gdLoanSub(c)); set('gdSel', `-${arWon(c.sel)}원`); set('gdPlanNet', arWon(c.planNet)); set('gdTotal', arWon(c.total));
             const w = document.getElementById('gdWel');
@@ -22487,6 +22637,17 @@ familyStr + `\n` +
         function gdJo(w, a, b) { const t = String(w || '').trim(), ch = t.charCodeAt(t.length - 1); const has = ch >= 0xAC00 && ch <= 0xD7A3 ? (ch - 0xAC00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(t) && !/[2459]$/.test(t); return t + (has ? a : b); }   // 받침 따라 은/는 · 을/를 · 이/가
         function gdSpeak(x) { return String(x).replace(/(\d{4})\.(\d{2})\.(\d{2})/g, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`).replace(/안 돼요\./g, '안 됩니다.').replace(/돼요\./g, '됩니다.').replace(/돼요/g, '됩니다').replace(/예요\)/g, '입니다)').replace(/이에요\./g, '입니다.').replace(/조건이에요/g, '조건입니다').replace(/주셔야 해요/g, '주셔야 합니다').replace(/주세요\./g, '주시기 바랍니다.').replace(/예요\./g, '입니다.').replace(/있어요\./g, '있습니다.').replace(/해요\./g, '합니다.'); }   // 🗣 V268 말투 자연스럽게 (주십시오 ✕)
         function gdRecScript(g) {
+            if (g && g.kind === 'wired') {   // 📺 V301 인터넷 · TV 녹음 대본
+                const c = gdwCalc(g), w = g.w, W = (n) => `${arWon(n)}원`, out = [], add = (k, title, text, must) => { if (String(text || '').trim()) out.push({ k, title, text: String(text).replace(/\s+/g, ' ').trim(), ans: '네', must: !!must }); };
+                add('start', '시작 · 녹음 동의', '지금부터 고객님의 가입 사항과 계약 조건을 확인하기 위해 녹음을 진행합니다. 개인정보는 녹음하지 않습니다. 동의하십니까?', true);
+                add('join', '가입 상품', `${g.carrier} ${[w.intName ? '인터넷 ' + w.intName : '', w.wifiName ? '와이파이 ' + w.wifiName : '', w.tvName ? 'TV ' + w.tvName : '', w.stbName ? '셋톱 ' + w.stbName : ''].filter(Boolean).join(', ')}으로 가입합니다.`);
+                add('fee', '매달 요금', `매달 내실 금액은 약 ${W(c.total)}입니다${c.disc ? ` (결합 · 추가 할인 ${W(c.disc)} 포함)` : ''}.${c.mobile ? ` 휴대폰 요금에서 결합할인 ${W(c.mobile)}이 따로 빠집니다.` : ''}`, true);
+                add('term', '약정 · 위약금', `${w.term}입니다. 약정 기간 안에 해지하시면 받은 할인을 돌려내는 위약금이 청구됩니다.`, true);
+                if (gdNum(w.cash) || g.gift) add('gift', '사은품', `${gdNum(w.cash) ? `현금 사은품 ${W(w.cash)}${w.cashDay ? `는 ${w.cashDay}` : ''} 드립니다. ` : ''}${g.gift ? g.gift + '. ' : ''}약정 기간 안에 해지하시면 사은품을 돌려내셔야 할 수 있습니다.`, true);
+                if (w.bundleName) add('bundle', '결합', `${w.bundleName} 결합입니다. 결합 회선을 해지하거나 빼면 결합할인이 없어집니다.`);
+                add('end', '끝', '위 내용을 설명 듣고 이해하셨습니까?', true);
+                return out;
+            }
             const c = gdCalc(g), W = (n) => `${arWon(n)}원`, dv = g.dev || {}, pl = g.plan || {}, dev = g.kind !== 'usim', out = [];
             const add = (k, title, text, ans, must) => { if (String(text || '').trim()) out.push({ k, title, text: String(text).replace(/\s+/g, ' ').trim(), ans: ans || '네', must: !!must }); };
             add('start', '시작 · 녹음 동의', '지금부터 고객님의 구매 사항과 계약 조건을 확인하기 위해 녹음을 진행합니다. 개인정보는 녹음하지 않습니다. 녹음에 동의하십니까?', '네, 동의합니다', true);
@@ -22640,6 +22801,15 @@ familyStr + `\n` +
 
         /* ---------- ✍ 고객 서명 (매장 폰을 고객에게 · 글씨 크게) ---------- */
         function gdSummaryHtml(g, big) {
+            if (g && g.kind === 'wired') {   // 📺 V301
+                const c = gdwCalc(g), w = g.w, fs = big ? 'text-[17px]' : 'text-[15px]';
+                const row = (l, v) => v ? `<div class="flex justify-between gap-3 px-4 py-2.5 border-b border-gray-100 ${fs}"><span class="text-gray-600 flex-shrink-0">${l}</span><b class="text-right text-gray-900">${escapeHtml(v)}</b></div>` : '';
+                const proms = [...(gdNum(w.cash) ? [`현금 사은품 <b>${arWon(w.cash)}원</b>${w.cashDay ? ` · ${escapeHtml(w.cashDay)}` : ''}`] : []), ...(g.gift ? [`사은품 · 약속: ${escapeHtml(g.gift)}`] : [])];
+                return `<section class="rounded-2xl border border-gray-200 bg-white overflow-hidden"><h3 class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[16px] font-extrabold text-gray-900">오늘 가입 내용</h3>
+                    ${row('통신사', `${g.carrier} · ${w.term}`)}${row('인터넷', w.intName)}${row('와이파이', w.wifiName)}${row('TV', w.tvName)}${row('셋톱', w.stbName)}${row('결합', w.bundleName)}${row('설치 희망일', w.install ? gdDateKo(w.install) : '')}
+                    <div class="px-4 py-3 bg-sky-50"><div class="flex items-baseline justify-between gap-3"><span class="${fs} font-bold text-sky-800">매달 내실 금액</span><b class="text-[28px] font-extrabold text-sky-950">${arWon(c.total)}원</b></div>${c.mobile ? `<p class="text-[13px] text-sky-800">+ 휴대폰 요금에서 결합할인 −${arWon(c.mobile)}원 따로</p>` : ''}</div></section>
+                    ${proms.length ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3"><h3 class="text-[16px] font-extrabold text-amber-900 mb-1">매장과 한 약속</h3><ul class="list-disc pl-5 ${fs} leading-relaxed text-amber-950">${proms.map(x => `<li>${x}</li>`).join('')}</ul></section>` : ''}`;
+            }
             const c = gdCalc(g), dev = g.kind !== 'usim', fs = big ? 'text-[17px]' : 'text-[15px]';
             const row = (l, v) => `<div class="flex justify-between gap-3 px-4 py-2.5 border-b border-gray-100 ${fs}"><span class="text-gray-600 flex-shrink-0">${l}</span><b class="text-right text-gray-900">${escapeHtml(v)}</b></div>`;
             const kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
@@ -22852,7 +23022,7 @@ familyStr + `\n` +
             if (gdStage !== 'done' && gdStage !== 'view') return;
             const s = e.target.closest('[data-gd-send]'); if (s) { gdSend(s.dataset.gdSend, s); return; }
             const ok = e.target.closest('[data-gd-sentok]'); if (ok && gd) { ok.disabled = true; await gdMarkSent(gd, '문자앱', ok.dataset.gdSentok === '1'); gdRender(); return; }   // 7️⃣
-            if (e.target.closest('[data-gd-act]')) { const g = gd, c = customerDB.find(x => x.id === g.custId) || gdFindCust(g.phone); gdClose(); setTimeout(() => { openActReg(c || null, 'mobile'); setTimeout(() => gdApplyToAr(g), 50); }, 0); return; }
+            if (e.target.closest('[data-gd-act]')) { const g = gd, c = customerDB.find(x => x.id === g.custId) || gdFindCust(g.phone); gdClose(); setTimeout(() => { openActReg(c || null, g.kind === 'wired' ? 'home' : 'mobile'); setTimeout(() => (g.kind === 'wired' ? gdwApplyToHr(g) : gdApplyToAr(g)), 50); }, 0); return; }
             if (e.target.closest('[data-gd-copy]')) { gd = gdCopyOf(gd, false); gdDirty = true; gdStage = 'edit'; gdRender(); stockToast('📄 복사했어요 · 고쳐서 새로 서명받아요'); return; }
             if (e.target.closest('[data-gd-copy2]')) { gdCopyOther(gd); return; }
             if (e.target.closest('[data-gd-del]')) {
@@ -26633,7 +26803,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V300';
+        const APP_VER = 'V301';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26641,6 +26811,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V301', d: '2026-11-08', items: [
+                ['📺 인터넷 · TV 안내서: 안내서 탭 [인터넷·TV 안내서] → 통신사 · 인터넷 · 와이파이 · TV · 셋톱 · 결합을 고르면 월 금액이 자동 (위약금 계산기 상품표) → 사은품 · 유의사항 → 고객 서명 · 녹음 · 문자 · [개통등록]은 홈상품 등록으로', 'a']] },
             { v: 'V300', d: '2026-11-08', items: [
                 ['📅 기존 고객이 새로 개통하면 방문일도 그 개통일로 바뀌어요 (예전엔 처음 방문일 그대로)', 'a'],
                 ['🎙 서명한 안내서도 나중에 녹음: 안내서 열기 → [🎙 지금 녹음하기] → 대본 읽고 [녹음 저장하기] → 고객 서류에 올라가요', 'a']] },
