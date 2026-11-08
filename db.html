@@ -21500,7 +21500,7 @@ familyStr + `\n` +
         };
         const GD_RATE = 0.059;
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
-        const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash']);
+        const GD_MONEY = new Set(['dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash', 'w.instInt', 'w.instTv']);
         let gdList = [], gdListReady = false, gdUnsub = null, gdFilter = '', gdQuery = '';
         let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '', gdArG = null;   // gdArG: [안내서로 채우기]한 안내서 (저장할 때 번호 확인)
         const gdSignCache = new Map(), gdImgCache = new Map();
@@ -21831,6 +21831,11 @@ familyStr + `\n` +
            ===================================================================== */
         const GDW_CK = { SKT: 'SK', KT: 'KT', 'LG U+': 'LG' }, GDW_CAR = { SK: 'SKT', KT: 'KT', LG: 'LG U+' };
         const GDW_TERMS = ['3년 약정', '2년 약정', '1년 약정', '무약정'];
+        // 🔧 V303 설치비 기본값 (부가세 포함 · 첫 달 요금에 한 번) — 통신사 공지 검색 결과 기준 (LG U+ 고객지원 공지 · KT Shop · SK브로드밴드) · 바뀌면 안내서에서 고쳐요
+        //   int: 인터넷만 설치 · intTv: TV와 같이 설치할 때 인터넷 · tv: TV(셋톱) 설치 · 평일 야간 · 주말 · 공휴일은 +25%
+        const GDW_INST = { LG: { int: 36300, intTv: 34100, tv: 34100 }, KT: { int: 36000, intTv: 22100, tv: 34100 }, SK: { int: 27500, intTv: 22000, tv: 34100 } };
+        function gdwInstAuto(g) { const w = g.w, T = GDW_INST[w.ck] || GDW_INST.LG, hasI = !!(w.intName || gdNum(w.intFee)), hasT = !!(w.tvName || gdNum(w.tvFee)); w.instInt = hasI ? (hasT ? T.intTv : T.int) : 0; w.instTv = hasT ? T.tv : 0; }
+        function gdwInst(g) { const w = g.w || {}, base = gdNum(w.instInt) + gdNum(w.instTv), night = w.instNight ? Math.round(base * 0.25 / 10) * 10 : 0; return { base, night, total: w.instWaive ? 0 : base + night }; }
         function gdwData(ck) { try { return window.WiredCalc && window.WiredCalc.CARRIER_DATA[ck] || null; } catch (e) { return null; } }
         function gdwLists(g) { const d = gdwData(g.w.ck); if (!d) return null; const tab = g.w.tab || ((d.tabs || [])[0] || {}).id; return { d, tab, ints: ((d.internet || {})[tab] || []), wifis: ((d.wifiHw || {})[tab] || []), tvs: d.tv || [], stbs: d.stb || [], bundles: d.bundles || [] }; }
         const gdwDef = (l) => (l || []).find(x => x.default) || (l || [])[0] || null;
@@ -21848,6 +21853,7 @@ familyStr + `\n` +
                 bundleName: bd ? bd.name : '' });
             const D = bd && it && window.WiredCalc.bundleDiscounts ? window.WiredCalc.bundleDiscounts(bd, it) : { wire: 0, mobile: 0 };
             w.wireDisc = D.wire || 0; w.mobileDisc = D.mobile || 0;
+            if (w.instAuto !== false) gdwInstAuto(g);   // 🔧 V303
         }
         function gdwCalc(g) { const w = g.w || {}, base = gdNum(w.intFee) + gdNum(w.wifiFee) + gdNum(w.tvFee) + gdNum(w.stbFee), disc = gdNum(w.wireDisc) + gdNum(w.etcDisc); return { base, disc, total: Math.max(0, base - disc), mobile: gdNum(w.mobileDisc), price: 0, pub: 0, icard: 0, loan: 0, n: 0, month: 0, fee: 0, pfee: 0, sel: 0, wel: 0, comb: 0, card: 0, planRaw: 0, planNet: 0, addFee: 0 }; }
         const GDW_NOTES = [
@@ -22355,7 +22361,12 @@ familyStr + `\n` +
                     ${gdLbl('결합할인 (인터넷에서 · 월)', gdInp('w.wireDisc', w.wireDisc, { money: true }))}${gdLbl('추가 할인 (월)', gdInp('w.etcDisc', w.etcDisc, { money: true }))}
                     ${gdLbl('휴대폰 요금에서 결합할인 (월 · 안내만)', gdInp('w.mobileDisc', w.mobileDisc, { money: true }), 'col-span-2')}
                 </div><div class="rounded-xl bg-sky-50 px-3 py-2.5"><div class="flex items-baseline justify-between"><span class="text-[13px] font-bold text-sky-900">매달 내실 금액</span><b class="text-[22px] font-extrabold text-sky-950"><span id="gdWTotal">${arWon(c.total)}</span>원</b></div><p id="gdWSub" class="text-[12px] text-sky-800"></p></div>`);
-            h += gdSec('약정 · 설치', `<div class="grid grid-cols-2 gap-2">${gdLbl('약정', `<select data-gdw="term" class="${gdCls}">${GDW_TERMS.map(t => `<option ${t === w.term ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}${gdLbl('설치 희망일', `<input type="date" data-gdw="install" value="${escapeHtml(w.install || '')}" class="${gdCls}">`)}</div>`);
+            const ins = gdwInst(g);
+            h += gdSec('약정 · 설치 · 설치비', `<div class="grid grid-cols-2 gap-2">${gdLbl('약정', `<select data-gdw="term" class="${gdCls}">${GDW_TERMS.map(t => `<option ${t === w.term ? 'selected' : ''}>${t}</option>`).join('')}</select>`)}${gdLbl('설치 희망일', `<input type="date" data-gdw="install" value="${escapeHtml(w.install || '')}" class="${gdCls}">`)}
+                    ${gdLbl('설치비 · 인터넷', gdInp('w.instInt', w.instInt, { money: true }))}${gdLbl('설치비 · TV', gdInp('w.instTv', w.instTv, { money: true }))}</div>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1"><label class="flex items-center gap-2 text-[13px] font-bold text-gray-800 min-h-[36px]"><input type="checkbox" data-gdw-chk="instNight" ${w.instNight ? 'checked' : ''} class="w-5 h-5 accent-sky-600">평일 야간 · 주말 · 공휴일 설치 (+25%)</label><label class="flex items-center gap-2 text-[13px] font-bold text-gray-800 min-h-[36px]"><input type="checkbox" data-gdw-chk="instWaive" ${w.instWaive ? 'checked' : ''} class="w-5 h-5 accent-sky-600">설치비 면제 (약정)</label></div>
+                    <p id="gdWInst" class="text-[12px] font-bold text-sky-900">${w.instWaive ? '설치비 면제 · 약정 기간 안에 해지하면 면제받은 설치비가 청구돼요' : `설치비 ${arWon(ins.total)}원 (첫 달 요금에 한 번)${ins.night ? ` · 야간 · 주말 +${arWon(ins.night)}원 포함` : ''}`}</p>
+                    <p class="text-[11px] text-gray-500">기본값: 통신사 공지 기준 (부가세 포함) · 실제와 다르면 고쳐 주세요</p>`);
             h += gdSec('매장과 한 약속', `<div class="grid grid-cols-2 gap-2">${gdLbl('현금 사은품', gdInp('w.cash', w.cash, { money: true }))}${gdLbl('지급일 · 방법', gdInp('w.cashDay', w.cashDay, { ph: '예) 설치 후 7일 안 계좌' }))}</div>${gdLbl('사은품 · 그 밖의 약속', gdInp('gift', g.gift, { ph: '예) 셋톱 1대 무료 · 설치비 면제' }))}
                 <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2"><p class="text-[12px] font-bold text-gray-700 mb-1">유의사항 (안내서에 들어가요)</p><ul class="list-disc pl-4 text-[12px] text-gray-600 space-y-0.5">${GDW_NOTES.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul></div>`);
             gdInner.innerHTML = h;
@@ -22364,7 +22375,9 @@ familyStr + `\n` +
             gdRecalcView();
         }
         gdInner.addEventListener('click', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; const b = e.target.closest('[data-gdw-ck]'); if (!b) return; gd.w.ck = b.dataset.gdwCk; gd.carrier = GDW_CAR[gd.w.ck]; Object.assign(gd.w, { tab: '', intId: '', wifiId: '', tvId: '', stbId: '', bundleId: '' }); gdwApply(gd, true); gdDirty = true; gdLSSet('gdLastW', { ck: gd.w.ck }); gdRender(); });
-        gdInner.addEventListener('change', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; const el = e.target.closest('[data-gdw]'); if (!el) return; const k = el.dataset.gdw; gdDirty = true;
+        gdInner.addEventListener('change', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return;
+            const ck = e.target.closest('[data-gdw-chk]'); if (ck) { gd.w[ck.dataset.gdwChk] = !!ck.checked; gdDirty = true; gdRender(); return; }   // 🔧 V303 설치비 야간 · 면제
+            const el = e.target.closest('[data-gdw]'); if (!el) return; const k = el.dataset.gdw; gdDirty = true;
             if (k === 'term' || k === 'install') { gd.w[k] = el.value; return; }
             gd.w[k] = el.value; if (k === 'tab') Object.assign(gd.w, { intId: '', wifiId: '' }); gdwApply(gd, false); gdRender(); });
         // 📺 V301 그림 (휴대폰 안내서와 같은 틀)
@@ -22396,6 +22409,7 @@ familyStr + `\n` +
             T('부가세 포함 · 첫 달은 설치일부터 일할', L + 18, y + 54, 11, 500, '#7DD3FC'); if (c.mobile) T(`+ 휴대폰 요금에서 결합할인 -${W(c.mobile)} 따로`, L + 18, y + 78, 12.5, 700, '#FDE68A');
             y += mh + 16;
             const panel = (title, lines, o) => { gdFont(x, o.size || 13, 500); const wl = lines.flatMap(t => gdWrapText(x, '• ' + t, IW - 28)); const ph = 34 + wl.length * ((o.size || 13) + 7) + 8; box(L, y, IW, ph, { fill: o.fill, stroke: o.stroke }); T(title, L + 14, y + 24, 14, 800, o.titleColor); wl.forEach((t, i) => T(t, L + 14, y + 48 + i * ((o.size || 13) + 7), o.size || 13, 500, o.color)); y += ph + 12; };
+            { const ins = gdwInst(g); if (ins.base || w.instWaive) panel('설치비 (첫 달 요금에 한 번)', [w.instWaive ? `설치비 면제 · 약정 기간 안에 해지하면 면제받은 설치비 ${W(ins.base + ins.night)}이 청구돼요` : `${[gdNum(w.instInt) ? `인터넷 ${W(w.instInt)}` : '', gdNum(w.instTv) ? `TV ${W(w.instTv)}` : ''].filter(Boolean).join(' + ')}${ins.night ? ` + 야간 · 주말 ${W(ins.night)}` : ''} = ${W(ins.total)} (부가세 포함)`], { fill: '#F0F9FF', stroke: '#BAE6FD', titleColor: '#075985', color: '#0C4A6E' }); }   // 🔧 V303
             const pl = [...(gdNum(w.cash) ? [`현금 사은품 ${W(w.cash)}${w.cashDay ? ` · ${w.cashDay}` : ''}`] : []), ...(g.gift ? [g.gift] : [])];
             if (pl.length) panel('매장과 한 약속', pl, { fill: '#FFFBEB', stroke: '#FCD34D', titleColor: '#78350F', color: '#451A03' });
             const notes = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length ? g.notes : GDW_NOTES;
@@ -22500,7 +22514,8 @@ familyStr + `\n` +
         }
         function gdRecalcView() {
             if (gdStage !== 'edit' || !gd) return;
-            if (gd.kind === 'wired') { const c = gdwCalc(gd), el = document.getElementById('gdWTotal'), sb = document.getElementById('gdWSub'); if (el) el.textContent = arWon(c.total); if (sb) sb.textContent = `상품 ${arWon(c.base)}원${c.disc ? ` − 할인 ${arWon(c.disc)}원` : ''}${c.mobile ? ` · 휴대폰 요금에서 −${arWon(c.mobile)}원 따로` : ''}`; return; }   // 📺 V301
+            if (gd.kind === 'wired') { const c = gdwCalc(gd), el = document.getElementById('gdWTotal'), sb = document.getElementById('gdWSub'); const ie = document.getElementById('gdWInst'); if (ie) { const ins = gdwInst(gd); ie.textContent = gd.w.instWaive ? '설치비 면제 · 약정 기간 안에 해지하면 면제받은 설치비가 청구돼요' : `설치비 ${arWon(ins.total)}원 (첫 달 요금에 한 번)${ins.night ? ` · 야간 · 주말 +${arWon(ins.night)}원 포함` : ''}`; }
+                if (el) el.textContent = arWon(c.total); if (sb) sb.textContent = `상품 ${arWon(c.base)}원${c.disc ? ` − 할인 ${arWon(c.disc)}원` : ''}${c.mobile ? ` · 휴대폰 요금에서 −${arWon(c.mobile)}원 따로` : ''}`; return; }   // 📺 V301
             const c = gdCalc(gd), set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             set('gdLoan', arWon(c.loan)); set('gdMonth', arWon(c.month)); set('gdLoanSub', gdLoanSub(c)); set('gdSel', `-${arWon(c.sel)}원`); set('gdPlanNet', arWon(c.planNet)); set('gdTotal', arWon(c.total));
             const w = document.getElementById('gdWel');
@@ -22536,6 +22551,7 @@ familyStr + `\n` +
                 if (path === 'dev.pub') gd.dev.pubAuto = false;
                 if (path === 'dev.extra' && !gd.keepTouched) { const kc = gdKeepDefault(gd); if (kc !== gd.keep.code) { gd.keep.code = kc; const ks = gdInner.querySelector('[data-gd="keep.code"]'); if (ks) { ks.innerHTML = gdKeepOpts(kc); ks.value = kc; } } }   // 📅 V212 유통망지원금 → 189일
                 if (path === 'keep.targetFee') gd.keep.feeAuto = false;
+                if (path === 'w.instInt' || path === 'w.instTv') gd.w.instAuto = false;   // 🔧 V303 설치비 직접 고침
             } else if (path === 'dealerText') gd.dealer = el.value.trim().slice(0, 30);
             else gdSetPath(path, el.value.slice(0, path === 'gift' ? 120 : 60));
             if (path === 'phone') {
@@ -22662,6 +22678,7 @@ familyStr + `\n` +
                 add('join', '가입 상품', `${g.carrier} ${[w.intName ? '인터넷 ' + w.intName : '', w.wifiName ? '와이파이 ' + w.wifiName : '', w.tvName ? 'TV ' + w.tvName : '', w.stbName ? '셋톱 ' + w.stbName : ''].filter(Boolean).join(', ')}으로 가입합니다.`);
                 add('fee', '매달 요금', `매달 내실 금액은 약 ${W(c.total)}입니다${c.disc ? ` (결합 · 추가 할인 ${W(c.disc)} 포함)` : ''}.${c.mobile ? ` 휴대폰 요금에서 결합할인 ${W(c.mobile)}이 따로 빠집니다.` : ''}`, true);
                 add('term', '약정 · 위약금', `${w.term}입니다. 약정 기간 안에 해지하시면 받은 할인을 돌려내는 위약금이 청구됩니다.`, true);
+                { const ins = gdwInst(g); if (ins.base) add('inst', '설치비', w.instWaive ? `설치비는 면제됩니다. 약정 기간 안에 해지하시면 면제받은 설치비 ${W(ins.base + ins.night)}이 청구됩니다.` : `설치비 ${W(ins.total)}이 첫 달 요금에 한 번 청구됩니다.`); }   // 🔧 V303
                 if (gdNum(w.cash) || g.gift) add('gift', '사은품', `${gdNum(w.cash) ? `현금 사은품 ${W(w.cash)}${w.cashDay ? `는 ${w.cashDay}` : ''} 드립니다. ` : ''}${g.gift ? g.gift + '. ' : ''}약정 기간 안에 해지하시면 사은품을 돌려내셔야 할 수 있습니다.`, true);
                 if (w.bundleName) add('bundle', '결합', `${w.bundleName} 결합입니다. 결합 회선을 해지하거나 빼면 결합할인이 없어집니다.`);
                 add('end', '끝', '위 내용을 설명 듣고 이해하셨습니까?', true);
@@ -22825,7 +22842,7 @@ familyStr + `\n` +
                 const row = (l, v) => v ? `<div class="flex justify-between gap-3 px-4 py-2.5 border-b border-gray-100 ${fs}"><span class="text-gray-600 flex-shrink-0">${l}</span><b class="text-right text-gray-900">${escapeHtml(v)}</b></div>` : '';
                 const proms = [...(gdNum(w.cash) ? [`현금 사은품 <b>${arWon(w.cash)}원</b>${w.cashDay ? ` · ${escapeHtml(w.cashDay)}` : ''}`] : []), ...(g.gift ? [`사은품 · 약속: ${escapeHtml(g.gift)}`] : [])];
                 return `<section class="rounded-2xl border border-gray-200 bg-white overflow-hidden"><h3 class="px-4 py-2.5 bg-gray-50 border-b border-gray-200 text-[16px] font-extrabold text-gray-900">오늘 가입 내용</h3>
-                    ${row('통신사', `${g.carrier} · ${w.term}`)}${row('인터넷', w.intName)}${row('와이파이', w.wifiName)}${row('TV', w.tvName)}${row('셋톱', w.stbName)}${row('결합', w.bundleName)}${row('설치 희망일', w.install ? gdDateKo(w.install) : '')}
+                    ${row('통신사', `${g.carrier} · ${w.term}`)}${row('인터넷', w.intName)}${row('와이파이', w.wifiName)}${row('TV', w.tvName)}${row('셋톱', w.stbName)}${row('결합', w.bundleName)}${row('설치 희망일', w.install ? gdDateKo(w.install) : '')}${row('설치비', (() => { const ins = gdwInst(g); return w.instWaive ? '면제 (약정 중 해지 시 청구)' : (ins.total ? `${arWon(ins.total)}원 · 첫 달 한 번` : ''); })())}
                     <div class="px-4 py-3 bg-sky-50"><div class="flex items-baseline justify-between gap-3"><span class="${fs} font-bold text-sky-800">매달 내실 금액</span><b class="text-[28px] font-extrabold text-sky-950">${arWon(c.total)}원</b></div>${c.mobile ? `<p class="text-[13px] text-sky-800">+ 휴대폰 요금에서 결합할인 −${arWon(c.mobile)}원 따로</p>` : ''}</div></section>
                     ${proms.length ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3"><h3 class="text-[16px] font-extrabold text-amber-900 mb-1">매장과 한 약속</h3><ul class="list-disc pl-5 ${fs} leading-relaxed text-amber-950">${proms.map(x => `<li>${x}</li>`).join('')}</ul></section>` : ''}`;
             }
@@ -26822,7 +26839,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V302';
+        const APP_VER = 'V303';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26830,6 +26847,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V303', d: '2026-11-08', items: [
+                ['🔧 인터넷 · TV 안내서에 설치비: 통신사 · 상품을 고르면 인터넷 · TV 설치비가 자동 (통신사 공지 기준 · 고칠 수 있어요) · 평일 야간 · 주말 · 공휴일 +25% · 약정 면제 · 안내서 그림 · 녹음 대본에도', 'a']] },
             { v: 'V302', d: '2026-11-08', items: [
                 ['📋 홈상품 등록 저장(복사+저장) 때 유선 개통보고를 매장 양식 그대로 복사: -개통보고 11월 2일- · 모바일 동판 U+I+T · 유형 · 요금제 · 상품 · TV(주/부) · 셋탑(주/부) · 지원금 · 계좌주 · 계좌번호 · 송금일(송금할 때만) · 개통자 · 접수처 · 비고', 'a'],
                 ['🏠 홈상품 등록에 칸 추가: 유형(신규3년 · 약정갱신3년 · 원스탑3년 + 기존 통신사) · 상품(와이파이) · 셋탑(주) · TV(부) · 셋탑(부)', 'a']] },
