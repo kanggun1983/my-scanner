@@ -10,7 +10,7 @@
   const CRM = String(window.__crm || 'https://kanggun1983.github.io/my-scanner/db.html');
   const MONTHS = 24, GAP = 1200;   // 한 번 조회하면 요금 구간 전체가 나옴
   const CARS = ['SKT', 'KT', 'LGU'];
-  if (!/smartchoice\.or\.kr$/.test(location.hostname)) { alert('스마트초이스 화면에서 눌러 주세요.\n(단말기 지원금 조회 → 단말기 기준으로 조회)'); return; }
+  if (!/smartchoice\.or\.kr$/.test(location.hostname)) { alert('스마트초이스 화면에서 눌러 주세요.\n(단말기 지원금 조회 → 단말기 기준으로 조회 · 유선은 인터넷/IPTV 요금제 비교)'); return; }
   window.__crmPubRun = true;
   const isM = /type=m/.test(location.search) || /^m\./.test(location.hostname);
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -144,5 +144,28 @@
     };
     finish();
   }
-  run().catch(e => { ui('오류: ' + (e && e.message || e) + btn('close', '닫기', '#4b5563')); });
+  // ---------- 🌐 유선 (인터넷/IPTV 요금제 비교 화면에서 누르면): 3사 인터넷 · TV 요금 (무약정 기본료 · 3년 약정 할인) → 강CRM#scwired=
+  async function runWired() {
+    ui('스마트초이스 인터넷 · IPTV 요금을 모아요. (조회 8번 · 약 15초)' + btn('go', '▶ 시작', '#2563eb') + btn('close', '취소', '#4b5563'));
+    await new Promise(r => { handlers.go = r; });
+    const rows = {}, Q = [['I', 1, 0, 200], ['I', 1, 0, 1000], ['I', 1, 0, 10000], ['I', 1, 3, 200], ['I', 1, 3, 1000], ['I', 1, 3, 10000], ['T', 10, 0, 10], ['T', 10, 3, 10]];
+    let n = 0, fail = 0;
+    for (const [k, combi, per, sp] of Q) {
+      if (stop) break; n++;
+      ui(`조회 중 ${n} / ${Q.length} · ${k === 'I' ? '인터넷' : 'IPTV'} ${per ? '3년' : '무약정'}` + btn('stop', '■ 그만', '#b91c1c'));
+      try {
+        const t = await post('/smc/plan/getPlanExtendBillNew2.do', { in_Combi_Code: combi, in_Period: per, in_Speed: sp, in_Wifi_Yn: 'N', in_Channel_List: ' ', in_Channel_Cnt: 0, in_Call: 0, in_Ratio_In_Call: 0, in_Ratio_Out_Call: 0, in_Ratio_Lcp_Call: 0, in_Ratio_Mbp_Call: 0, in_Ratio_Itp_Call: 0, in_serach: 'DIS' });
+        JSON.parse(t).forEach(x => { const I = k === 'I', code = String((I ? x.PI_CODE : x.PT_CODE) || ''), name = String((I ? x.PI_NAME : x.PT_NAME) || '').trim(); if (!name || code.length < 3) return;
+          const key = k + code.slice(0, 3) + '|' + name, r = rows[key] = rows[key] || [code.slice(0, 3), k, name, Number(I ? x.PI_SPEED : 0) || 0, 0, 0, String((I ? x.PI_DTL : x.PT_DTL) || '').slice(0, 40)];
+          r[4] = Number(I ? x.PI_AMT : x.PT_AMT) || r[4]; if (per === 3) r[5] = Number(I ? x.PI_DIS_AMT : x.PT_DIS_AMT) || 0; });
+      } catch (e) { fail++; }
+      await sleep(GAP);
+    }
+    const list = Object.values(rows);
+    if (!list.length) { ui('요금을 읽지 못했어요. 인터넷/IPTV 요금제 비교 화면에서 다시 눌러 주세요.' + btn('close', '닫기', '#4b5563')); return; }
+    const url = CRM + '#scwired=' + encodeURIComponent(JSON.stringify({ v: 1, at: new Date().toISOString(), rows: list }));
+    ui(`✅ 인터넷 · TV 요금 ${list.length}개를 모았어요${fail ? ` (못 읽은 조회 ${fail})` : ''}.<br>강CRM에서 계산기 상품표와 달라진 것만 보여줘요.` + btn('send', '강CRM으로 보내기 ▶', '#16a34a') + btn('close', '닫기', '#4b5563'));
+    handlers.send = () => { location.href = url; };
+  }
+  (/planExpantionBill/.test(location.pathname) ? runWired() : run()).catch(e => { ui('오류: ' + (e && e.message || e) + btn('close', '닫기', '#4b5563')); });
 })();
