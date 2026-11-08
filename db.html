@@ -27013,7 +27013,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V311';
+        const APP_VER = 'V312';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27021,6 +27021,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V312', d: '2026-11-08', items: [
+                ['📋 폰값계산 기종 · 지원금표: S942 → 갤럭시 S26 S942 처럼 이름 + 코드 (재고처럼)', 'a'],
+                ['⭐ 명함 견적요청 기종: 설정 → 고객 명함 → 정책 · 지원금으로 옮김', 'a'],
+                ['🕸 설정 → 내 폰 · 관리 → 시스템 연결도: 어디서 들어오고 어디로 나가는지 · 지금 상태', 'a']] },
             { v: 'V311', d: '2026-11-08', items: [
                 ['📅 주간 약속 달력: 지난주처럼 이번 주 · 다음 주도 날짜 칸 배경색', 'a']] },
             { v: 'V310', d: '2026-11-08', items: [
@@ -27813,11 +27817,51 @@ familyStr + `\n` +
             { id: 'sise', grp: '매장', title: '시세표 (준비 중)', icon: 'fa-tags', tone: 'amber' },   // 📊 V276 거래처 정책표 → 시세표 (지금은 정책 올려 두기까지)
             { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
             { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
-            { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' }
+            { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' },
+            { id: 'sysmap', grp: '내 폰 · 관리', title: '시스템 연결도', icon: 'fa-diagram-project', tone: 'cyan' }   // 🕸 V312
         ];   // 🧭 V274 앱 정보는 '내 정보 · 계정' 안으로
         const SET_TONE = { indigo: ['bg-indigo-50', 'text-indigo-700'], pink: ['bg-pink-50', 'text-pink-700'], amber: ['bg-amber-50', 'text-amber-700'], cyan: ['bg-cyan-50', 'text-cyan-700'] };
         let setPageEls = null, setPageOpen = '', setPagePushed = false;
         // 첫 화면 버튼 상태 · 확인 필요 띠 · 대표/직원에 따라 보이는 버튼
+        /* 🕸 V312 시스템 연결도 — 강CRM(Firebase)을 가운데 두고 어디로 들어오고 어디로 나가는지 + 지금 상태 */
+        function sysMapNodes() {
+            const T = (f, d) => { try { return f(); } catch (e) { return d; } };
+            const age = T(() => scAge(), -1), cd = T(() => calcData || {}, {});
+            return [
+                { side: 'in', ic: '📇', name: '고객 명함', what: '견적요청 · 방문 예약 · 폰값계산 · 명함 푸시 구독', st: cd && Object.keys(cd).length ? 'ok' : 'off', txt: cd && Object.keys(cd).length ? '연결됨' : '불러오는 중' },
+                { side: 'in', ic: '📞', name: '콜매니저 앱', what: '전화 오면 고객카드 · 통화 결과 · 녹음 백업', st: T(() => callAppOn(), false) ? 'ok' : 'off', txt: T(() => callAppOn(), false) ? '이 폰 연결' : '이 폰은 연결 전' },
+                { side: 'in', ic: '🪪', name: '신분증 스캐너', what: '찍고 고객 골라 서류로', st: 'ok', txt: '사용 가능' },
+                { side: 'in', ic: '🏷', name: '스마트초이스', what: '북마크 CRM공시 → 공통지원금', st: age < 0 ? 'warn' : (age >= 7 ? 'warn' : 'ok'), txt: age < 0 ? '아직 안 가져옴' : (age ? age + '일 전' : '오늘') + ' 가져옴' },
+                { side: 'in', ic: '📊', name: '거래처 정책표', what: '사진 · 엑셀 → AI가 표로 → 시세표', st: T(() => siseCache && Object.keys(siseCache).some(k => k !== 'config' && k !== 'pubsc'), false) ? 'ok' : 'off', txt: T(() => siseCache && Object.keys(siseCache).some(k => k !== 'config' && k !== 'pubsc'), false) ? '올려 둠' : '설정 → 시세표에서' },
+                { side: 'out', ic: '🔔', name: '알림 서버', what: 'Cloudflare 중계 · 푸시 · 상담 알림', st: T(() => pushRelayReady(), false) ? 'ok' : 'warn', txt: T(() => pushRelayReady(), false) ? '연결됨' : '연결 필요' },
+                { side: 'out', ic: '✉️', name: '자동 문자 · 푸시', sn: '자동 문자', what: '약속일 · 생일 · 방문 전날 · 개통 안부', st: T(() => autoSmsOn() || autoPushOn(), false) ? 'ok' : 'off', txt: [T(() => autoSmsOn(), false) ? '문자' : '', T(() => autoPushOn(), false) ? '푸시' : ''].filter(Boolean).join(' · ') || '꺼짐' },
+                { side: 'out', ic: '🤖', name: 'Gemini AI', what: '정책표 · 서류 읽기 · 통화 요약', st: geminiApiKey ? 'ok' : 'warn', txt: geminiApiKey ? '키 있음' : 'AI 키 없음' },
+                { side: 'out', ic: '☁️', name: '구글 드라이브', what: '서류 · 녹음 · 자동 백업', st: String((appSettings || {}).driveScriptUrl || '').trim() ? 'ok' : 'off', txt: String((appSettings || {}).driveScriptUrl || '').trim() ? '연결됨' : '설정 안 함' },
+                { side: 'out', ic: '🧮', name: '위약 · 유선 계산기', sn: '계산기', what: 'telecom-calc (유선 요금 · 위약금)', st: 'ok', txt: '바로가기' },
+                { side: 'out', ic: '💰', name: '악세 정산', what: 'acc-settle (악세 판매 · 정산)', st: 'ok', txt: '바로가기' }
+            ];
+        }
+        function renderSysMap() {
+            const box = document.getElementById('sysMapBox'); if (!box) return;
+            const L = sysMapNodes(), IN = L.filter(n => n.side === 'in'), OUT = L.filter(n => n.side === 'out');
+            const C = { ok: '#10b981', warn: '#ef4444', off: '#cbd5e1' }, rowH = 44, H = Math.max(IN.length, OUT.length) * rowH + 16, cx = 180, cy = H / 2, W = 360, bw = 118;
+            const y = (i, n) => 8 + (H - 16) / n * (i + 0.5);
+            const node = (n, i, cnt, left) => { const yy = y(i, cnt), x = left ? 2 : W - bw - 2;
+                return `<path d="M${left ? x + bw : x} ${yy} C ${left ? x + bw + 40 : x - 40} ${yy}, ${left ? cx - 50 : cx + 50} ${cy}, ${left ? cx - 34 : cx + 34} ${cy}" fill="none" stroke="${n.st === 'ok' ? '#c7d2fe' : (n.st === 'warn' ? '#fecaca' : '#e5e7eb')}" stroke-width="1.6" ${n.st === 'off' ? 'stroke-dasharray="3 3"' : ''}/>
+                    <rect x="${x}" y="${yy - 15}" width="${bw}" height="30" rx="9" fill="#fff" stroke="#e5e7eb"/>
+                    <text x="${x + 8}" y="${yy + 4}" font-size="11.5" font-weight="700" fill="${n.st === 'off' ? '#9ca3af' : '#111827'}">${n.ic} ${escapeHtml(n.sn || n.name)}</text>
+                    <circle cx="${x + bw - 9}" cy="${yy}" r="3.6" fill="${C[n.st]}"/>`; };
+            const bad = L.filter(n => n.st === 'warn');
+            box.innerHTML = `<div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-3">
+                <p class="text-[13px] text-gray-600">왼쪽은 <b>강CRM으로 들어오는 곳</b>, 오른쪽은 <b>강CRM이 내보내거나 같이 쓰는 곳</b>이에요. 점: <span style="color:${C.ok}">●</span> 연결됨 · <span style="color:${C.warn}">●</span> 확인 필요 · <span style="color:#94a3b8">●</span> 안 씀</p>
+                <svg viewBox="0 0 ${W} ${H}" class="w-full" role="img" aria-label="시스템 연결도">
+                    ${IN.map((n, i) => node(n, i, IN.length, true)).join('')}${OUT.map((n, i) => node(n, i, OUT.length, false)).join('')}
+                    <circle cx="${cx}" cy="${cy}" r="38" fill="#eef2ff" stroke="#e0e7ff" stroke-width="6"/><circle cx="${cx}" cy="${cy}" r="32" fill="#4f46e5"/>
+                    <text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="12.5" font-weight="800" fill="#fff">강CRM</text><text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="8" fill="#c7d2fe">Firebase</text></svg>
+                ${bad.length ? `<p class="text-[13px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">확인 필요: ${bad.map(n => `${n.ic} ${escapeHtml(n.name)} (${escapeHtml(n.txt)})`).join(' · ')}</p>` : '<p class="text-[13px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">✅ 확인 필요한 곳이 없어요</p>'}
+                <div class="divide-y divide-gray-100">${[['➡️ 들어오는 곳', IN], ['⬅️ 내보내는 · 같이 쓰는 곳', OUT]].map(([h, A]) => `<p class="pt-2 pb-1 text-[12px] font-bold text-gray-500">${h}</p>` + A.map(n => `<div class="flex items-center gap-2 py-2"><span class="text-lg w-7 text-center">${n.ic}</span><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900">${escapeHtml(n.name)}</span><span class="block text-[12px] text-gray-500">${escapeHtml(n.what)}</span></span><span class="text-[12px] font-bold whitespace-nowrap" style="color:${n.st === 'off' ? '#94a3b8' : C[n.st]}">● ${escapeHtml(n.txt)}</span></div>`).join('')).join('')}</div>
+                <p class="text-[11px] text-gray-500">고객 · 약속 · 개통 · 재고 · 안내서는 전부 가운데 Firebase(구글 클라우드)에 저장되고, 직원 폰 · 명함 · 콜매니저가 같은 곳을 같이 봐요. 연결을 바꾸려면 설정 → 연결 관리.</p></div>`;
+        }
         function renderSetHome() {
             if (!setPageEls) return;
             const st = (id, text, tone) => { const el = document.querySelector(`[data-set-st="${id}"]`); if (!el) return; el.textContent = text; el.className = `text-[12px] font-bold leading-snug ${tone === 'ok' ? 'text-emerald-700' : (tone === 'warn' ? 'text-amber-700' : 'text-gray-500')}`; };
@@ -27828,7 +27872,7 @@ familyStr + `\n` +
             T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn'].filter(k => smsSetting(k)).length, ch = [autoSmsOn() ? '문자' : '', autoPushOn() ? '푸시' : ''].filter(Boolean).join('·'); st('auto', n ? `${n}개 켜짐${ch ? ' · ' + ch : ''}` : '모두 꺼짐', n ? 'ok' : ''); });
             T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '홍보 꺼짐 · 전체 푸시', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
             T(() => { try { renderAutoRows(); } catch (e) { /* 준비 전 */ } });
-            st('policy', '지원금표 · 폰값계산', ''); st('sise', '거래처 정책표 올려 두기', ''); st('dealer', '통신사 기본 · 거래처별', '');
+            st('policy', '지원금표 · 폰값계산 · 견적요청 기종', ''); T(() => { const L = sysMapNodes(), bad = L.filter(n => n.st === 'warn').length; st('sysmap', bad ? `확인 ${bad}곳 · 연결 ${L.filter(n => n.st === 'ok').length}개` : `연결 ${L.filter(n => n.st === 'ok').length}개`, bad ? 'warn' : 'ok'); }); st('sise', '거래처 정책표 올려 두기', ''); st('dealer', '통신사 기본 · 거래처별', '');
             T(() => st('staff', isSuperAdmin ? `직급 ${roleList().length}개 · 계정 · 담당` : `내 직급: ${myRoleName()}`, ''));
             T(() => renderRoleBox());
             const warns = [];
@@ -27951,17 +27995,18 @@ familyStr + `\n` +
 
             const storeGrp = secOf('grpStoreTitle');
             put('me', secOf('grpMeTitle'), secOf('setAppTitle')); hideH('grpMeTitle');   // 🧭 V274 앱 정보도 여기
-            put('card', secOf('grpCardTitle'), $('qtPickBtn'), $('qtPickHome')); hideH('grpCardTitle');   // 🧭 V274 ⭐ 인기 · 🔥 특가 · 분류 · 모델 코드는 명함 화면 것이라 여기로
+            put('card', secOf('grpCardTitle')); hideH('grpCardTitle');   // 🧭 V274 ⭐ 인기 · 🔥 특가 · 분류 · 모델 코드는 명함 화면 것이라 여기로
             put('store', secOf('setSettleTitle'), secOf('setPromPushTitle'));   // V246 아침 약속 알림 · 마감 요약(직원 폰)은 매장 운영으로
             put('auto', autoRowsSec(), secOf('grpAutoTitle'), cardSec, missSec); hideH('grpAutoTitle');   // V246 문자 · 푸시 · 명함 링크 · 부재 연락을 한 화면에
             put('promo', secOf('grpPromoTitle'), secOf('subPushAllTitle')); hideH('grpPromoTitle');
-            put('policy', secOf('grpSubsidyTitle')); hideH('grpSubsidyTitle');
+            put('policy', secOf('grpSubsidyTitle'), $('qtPickBtn'), $('qtPickHome')); hideH('grpSubsidyTitle');   // ⭐ V312 명함 견적요청 기종은 정책 · 지원금으로
             put('dealer', secOf('setAutoTitle'), dealerSec);
             put('sise', mk(`<section class="space-y-2" aria-labelledby="siseTitle"><h3 id="siseTitle" class="text-[13px] font-bold text-gray-600 pl-1">📊 거래처 정책표 <span class="font-normal">(시세표 만들 준비 · 아직 고객 화면에는 안 나가요)</span></h3><div id="siseBox"></div></section>`));   // 🧭 V274 통신사 기본 + 거래처별 조건을 한 화면에
             const roleSec = mk(`<section class="space-y-2" aria-labelledby="setRoleTitle"><h3 id="setRoleTitle" class="text-[13px] font-bold text-gray-600 pl-1">🎖 직급 · 권한 <span class="font-normal">(점장 · 매니저 · 직급 추가 · 할 수 있는 것)</span></h3><div id="roleBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"></div></section>`);
             put('staff', secOf('setStaffTitle'), roleSec);   // 🎖 V247
             const secChkSec = secOf('secCheckTitle'), driveSec = secOf('setDriveTitle');   // 🧭 V274 연결 묶음 안에 있어서 옮기기 전에 잡아 둠
             put('conn', secOf('grpConnTitle')); hideH('grpConnTitle');
+            put('sysmap', mk('<section class="space-y-2"><div id="sysMapBox"></div></section>'));   // 🕸 V312 시스템 연결도
             put('data', secOf('setPrivacyTitle'), secChkSec, driveSec, secOf('setBackupTitle'), secOf('setTrashTitle'));   // 🗄️ V237 백업 · 🧭 V274 보안 점검 · 서류 클라우드 백업도
             if (storeGrp) storeGrp.classList.add('hidden');   // 다 옮기고 빈 묶음 (요약 칸만 남음)
 
@@ -27982,6 +28027,7 @@ familyStr + `\n` +
                 setPageOpen = id;
                 if (!setPagePushed) { setPagePushed = true; pushAppState({ setPage: id }); }
                 try { renderSetHome(); } catch (e) { /* 준비 전 */ }
+                if (id === 'sysmap') { try { renderSysMap(); } catch (e) { console.warn(e); } }
                 if (!o.keepScroll && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
             }
             function closePage(viaBack) {
@@ -28544,7 +28590,7 @@ familyStr + `\n` +
                     ${rows.map((m, ri) => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; const isOn = !off.has(m.name); const br = pcalBrandOf(m); const head = !pcalSt.brand && (ri === 0 || pcalBrandOf(rows[ri - 1]) !== br) ? `<div class="px-3 py-1.5 border-t border-gray-200 bg-indigo-50/60 text-[12px] font-bold text-indigo-900">${br === '삼성' ? '📱 삼성' : (br === '애플' ? '🍎 애플' : '기타')} <span class="font-medium text-indigo-700">${brandCnt[br]}개</span></div>` : ''; return `${head}<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
                         ${admin ? `<label class="w-7 h-11 flex-shrink-0 flex items-center cursor-pointer"><input type="checkbox" data-pcal-on="${escapeHtml(m.name)}" ${isOn ? 'checked' : ''} aria-label="${escapeHtml(m.name)} 명함에 보이기" class="w-6 h-6 accent-indigo-600"></label>` : ''}
                         <button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="flex-1 min-w-0 text-left ${isOn ? '' : 'opacity-50'}">
-                            <span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(m.name)}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
+                            <span class="block text-[14px] font-bold text-gray-900 truncate">${(() => { const nm = stockModelName(m.name); return nm ? `${escapeHtml(nm)} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(m.name)}</span>` : escapeHtml(m.name); })()}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
                             <span class="grid grid-cols-3 gap-1 mt-0.5 items-baseline"><span class="text-right text-[12px] text-gray-700">${arWon(m.price)}</span><span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span><span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></span>
                         </button></div>`; }).join('')}
                 </div>` : (q ? '' : '<p class="text-sm text-gray-500 text-center py-6">기종이 없어요.</p>')}
