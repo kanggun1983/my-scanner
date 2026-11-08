@@ -17806,16 +17806,16 @@ familyStr + `\n` +
         // 📛 V296 모델 코드 이름: 대표가 붙인 이름(calcData.qtNames) → 기본 이름표 (재고 · 시세표 · 견적 같이)
         function qtNameOf(code) { try { return String(((calcData && calcData.qtNames) || {})[code] || QT_CODE_NAMES[code] || '').trim(); } catch (e) { return QT_CODE_NAMES[code] || ''; } }
         function siseKey(model) {
-            const m = String(model || '').toUpperCase().replace(/\s|_/g, ''), st = /1T(B)?\b|1TB|_1T|-1T/.test(m) || /1T$/.test(m) ? '1T' : (/512/.test(m) ? '512' : '');
+            const m = String(model || '').toUpperCase().replace(/\s|_/g, ''), st = /(^|[^\d])2T(B)?(\b|$)/.test(m) ? '2T' : (/1T(B)?\b|1TB|_1T|-1T/.test(m) || /1T$/.test(m) ? '1T' : (/512/.test(m) ? '512' : ''));   /* 📦 V306 2TB */
             const sam = m.match(/(?:SM-?)?([SFAMLXZ]\d{3})/);
-            if (sam && !/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD/.test(m)) return { key: sam[1] + (st ? '_' + st : ''), name: (qtNameOf(sam[1]) || sam[1]) + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
-            if (/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD|DUO|에어/.test(m)) {
-                if (/DUO|IPD|폴드|FOLD/.test(m)) return { key: 'IPDUO' + (st ? '_' + st : ''), name: '아이폰 듀오' + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+            if (sam && !/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD/.test(m)) return { key: sam[1] + (st ? '_' + st : ''), name: (qtNameOf(sam[1]) || sam[1]) + (st ? ` ${st === '2T' ? '2TB' : (st === '1T' ? '1TB' : '512G')}` : '') };
+            if (/아이폰|IPHONE|IP\d|UIP|AIP|IPA|IPD|DUO|에어|듀오/.test(m)) {
+                if (/DUO|IPD|폴드|FOLD|듀오/.test(m)) return { key: 'IPDUO' + (st ? '_' + st : ''), name: '아이폰 듀오' + (st ? ` ${st === '2T' ? '2TB' : (st === '1T' ? '1TB' : '512G')}` : '') };
                 const n = (m.match(/(?:아이폰|IPHONE|IP|UIP|AIP)(\d{2})/) || [])[1] || '';
                 if (!n && /IPA|에어|AIR/.test(m)) return { key: 'IPAIR' + (st ? '_' + st : ''), name: '아이폰 에어' + (st ? ` ${st}G` : '') };
                 const v = /프로맥스|PROMAX|PM\b|PM-|PM\d|PM$|MAX/.test(m) ? 'PM' : (/프로|PRO|\d{2}PR|\d{2}P-|\d{2}P$|\d{2}P\d/.test(m) ? 'P' : (/\d{2}E|E$/.test(m) ? 'E' : ''));
                 const lab = { PM: ' 프로맥스', P: ' 프로', E: 'e', '': '' }[v];
-                return { key: 'IP' + n + v + (st ? '_' + st : ''), name: `아이폰${n}${lab}` + (st ? ` ${st === '1T' ? '1TB' : '512G'}` : '') };
+                return { key: 'IP' + n + v + (st ? '_' + st : ''), name: `아이폰${n}${lab}` + (st ? ` ${st === '2T' ? '2TB' : (st === '1T' ? '1TB' : '512G')}` : '') };
             }
             return { key: m.slice(0, 20), name: String(model).slice(0, 20) };
         }
@@ -17861,7 +17861,7 @@ familyStr + `\n` +
         function scPriceFor(car, model) { const rec = scRec(model), ck = carrierKeepKey(car || ''), L = (rec && rec.d && rec.d[ck]) || []; return Number((L.find(x => x && x.pr) || {}).pr) || 0; }
         function scFromPayload(pay) {   // 북마크가 넘긴 값 → 보관 형태 (Firestore는 배열 안 배열을 못 넣어서 객체로)
             const m = {}; (pay.items || []).slice(0, 300).forEach(it => { if (!it || !it.d) return; const k = scKeyOf(it); if (!k) return;
-                const d = {}; ['SKT', 'KT', 'LGU'].forEach(ck => { const L = (it.d[ck] || []).filter(a => Array.isArray(a)).map(a => ({ pn: String(a[0] || '').slice(0, 30), pp: Number(a[1]) || 0, pr: Number(a[2]) || 0, sel: Number(a[3]) || 0, chg: Number(a[4]) || 0, mnp: Number(a[5]) || 0, dt: String(a[6] || '').slice(0, 10) }));
+                const d = {}; ['SKT', 'KT', 'LGU'].forEach(ck => { const L = (it.d[ck] || []).filter(a => Array.isArray(a)).map(a => ({ pn: String(a[0] || '').slice(0, 30), pp: Number(a[1]) || 0, pr: Number(a[2]) || 0, sel: Number(a[3]) || 0, chg: Number(a[4]) || 0, mnp: Number(a[5]) || 0, dt: String(a[6] || '').slice(0, 10), tl: String(a[7] || '').slice(0, 12) }));
                     const u = []; L.forEach(x => { if (!u.some(y => y.pp === x.pp && y.pn === x.pn)) u.push(x); }); if (u.length) d[ck] = u.slice(0, 10); });
                 if (Object.keys(d).length) m[k] = { n: String(it.n || '').slice(0, 40), c: String(it.c || '').replace(/^-/, '').slice(0, 30), r: String(it.r || '').slice(0, 12), d }; });
             return m;
@@ -17910,12 +17910,18 @@ familyStr + `\n` +
                 ${P ? '<button type="button" data-sc-view class="w-full h-10 rounded-xl border border-sky-300 bg-sky-50 text-[13px] font-bold text-sky-800">저장된 공시 보기</button>' : ''}
                 ${lock ? '<p class="text-xs text-gray-500">정책 · 지원금표 · 거래처 권한이 있어야 저장할 수 있어요.</p>' : ''}</div></details>`;
         }
-        function scView() {
+        function scView() {   // 📊 V306 요금 구간마다 (~3.9만 ~ ~13만) 공시 보기
             const P = siseCache && siseCache.pubsc; if (!P) return; const W = (n) => n ? `${Math.round(n / 1000) / 10}만` : '-';
             const rows = Object.entries(P.m || {}).sort((a, b) => String(b[1].r).localeCompare(String(a[1].r)));
-            const S = siseSheet('🏷 저장된 공통지원금', `${rows.length}개 기종 · ${escapeHtml(scKst(P.at))} 조회 · ${escapeHtml(P.by || '')} 저장 · 기변 / 번이`, () => `<div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">기종</th><th class="px-1">출고가</th><th class="px-1">SK</th><th class="px-1">KT</th><th class="px-1">LG</th></tr></thead><tbody>
-                ${rows.map(([k, r]) => `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900">${escapeHtml(r.n)}<span class="block text-[10px] font-normal text-gray-500">${escapeHtml(k)}</span></td><td class="px-1 py-1">${W(scPriceFor('SKT', k) || scPriceFor('KT', k) || scPriceFor('LG U+', k))}</td>${['SKT', 'KT', 'LGU'].map(ck => { const a = scPlan(r, ck, 0); return `<td class="px-1 py-1">${a ? `<b>${W(a.chg)}/${W(a.mnp)}</b><span class="block text-[10px] text-gray-500">${escapeHtml(a.pn || '')}${a.dt ? ' · ' + escapeHtml(a.dt.slice(5)) : ''}</span>` : '<span class="text-gray-300">·</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`, '');
-            S.sh.addEventListener('click', (e) => { if (e.target.closest('[data-ss="close"]')) S.close(); });
+            const labs = []; rows.forEach(([, r]) => ['SKT', 'KT', 'LGU'].forEach(ck => ((r.d || {})[ck] || []).forEach((x, i) => { const l = x.tl || `구간${i + 1}`; if (!labs.includes(l)) labs.push(l); })));
+            const lv = (l) => { const m = String(l).match(/[\d.]+/); return m ? parseFloat(m[0]) : 99; }; labs.sort((a, b) => lv(a) - lv(b));
+            let sel = '';
+            const pick = (r, ck) => { const L = ((r.d || {})[ck] || []); if (!sel) return scPlan(r, ck, 0); return L.find((x, i) => (x.tl || `구간${i + 1}`) === sel) || null; };
+            const S = siseSheet('🏷 저장된 공통지원금', `${rows.length}개 기종 · ${escapeHtml(scKst(P.at))} 조회 · ${escapeHtml(P.by || '')} 저장 · 기변 / 번이`, () => `
+                <div class="flex flex-wrap gap-1.5">${[['', '⭐ 기준 (SK109·KT110·LG105~)'], ...labs.map(l => [l, l])].map(([v, l]) => `<button type="button" data-scv="${escapeHtml(v)}" class="h-9 px-2.5 rounded-lg text-[12px] font-bold border ${v === sel ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-800 border-gray-300'}">${escapeHtml(l)}</button>`).join('')}</div>
+                <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">기종</th><th class="px-1">출고가</th><th class="px-1">SK</th><th class="px-1">KT</th><th class="px-1">LG</th></tr></thead><tbody>
+                ${rows.map(([k, r]) => `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900">${escapeHtml(r.n)}<span class="block text-[10px] font-normal text-gray-500">${escapeHtml(k)}</span></td><td class="px-1 py-1">${W(scPriceFor('SKT', k) || scPriceFor('KT', k) || scPriceFor('LG U+', k))}</td>${['SKT', 'KT', 'LGU'].map(ck => { const a = pick(r, ck); return `<td class="px-1 py-1">${a ? `<b>${W(a.chg)}/${W(a.mnp)}</b><span class="block text-[10px] text-gray-500">${escapeHtml(a.pn || '')}${a.pp ? ' · ' + Math.round(a.pp / 100) / 10 + 'K' : ''}${a.dt ? ' · ' + escapeHtml(a.dt.slice(5)) : ''}</span>` : '<span class="text-gray-300">·</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`, '');
+            S.sh.addEventListener('click', (e) => { if (e.target.closest('[data-ss="close"]')) return S.close(); const b = e.target.closest('[data-scv]'); if (b) { sel = b.dataset.scv; S.draw(); } });
         }
         const SISE_TIER_LAB = ['🔥 플래그십 (갤럭시 S · Z · 아이폰)', '💚 중저가 (갤럭시 A · M 등)'];
         const SISE_CARS = [['SKT', 'SK', '#e60012'], ['KT', 'KT', '#1d3f94'], ['LGU', 'LG', '#a50034']];
@@ -26952,7 +26958,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V305';
+        const APP_VER = 'V306';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26960,6 +26966,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V306', d: '2026-11-08', items: [
+                ['🏷 저장된 공시 보기: 요금 구간마다 (~3.9만 · ~4.7만 … ~13만) 버튼으로 공시 확인', 'a'],
+                ['🔎 공시 수집기: 못 읽은 기종 이름 보여주고 [↻ 다시] · 아이폰 듀오 · 2TB 모델이 겹쳐 빠지던 것 고침', 'a']] },
             { v: 'V305', d: '2026-11-08', items: [
                 ['🏷 공통지원금 자동: 스마트초이스 화면에서 크롬 북마크 [CRM공시] → 기종별 SK · KT · LG 공시를 모아 강CRM에 저장 (설정 → 시세표)', 'a'],
                 ['📊 시세표: 정책표에 공시가 없으면 스마트초이스 값으로 공시 · 선약 중 싼 쪽을 기종마다 자동으로', 'a'],

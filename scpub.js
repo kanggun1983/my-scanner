@@ -8,7 +8,7 @@
   'use strict';
   if (window.__crmPubRun) { alert('공시 수집이 이미 돌고 있어요.'); return; }
   const CRM = String(window.__crm || 'https://kanggun1983.github.io/my-scanner/db.html');
-  const MONTHS = 24, GAP = 1200, TIERS = ['all'];   // 한 번 조회하면 요금 구간 전체가 나옴
+  const MONTHS = 24, GAP = 1200;   // 한 번 조회하면 요금 구간 전체가 나옴
   const CARS = ['SKT', 'KT', 'LGU'];
   if (!/smartchoice\.or\.kr$/.test(location.hostname)) { alert('스마트초이스 화면에서 눌러 주세요.\n(단말기 지원금 조회 → 단말기 기준으로 조회)'); return; }
   window.__crmPubRun = true;
@@ -58,10 +58,10 @@
     if (pi >= 0) { let v = last3(rows[pi].filter(c => !/^출고가$/.test(c))); if (!v.some(c => /\d/.test(c)) && rows[pi + 1]) v = last3(rows[pi + 1]); price = v; }
     const out = {}; let cur = null;
     const flush = () => { if (!cur || !cur.chg) return; CARS.forEach((ck, j) => { const c = num(cur.chg[j]), m = num((cur.mnp || [])[j]); if (!c && !m) return;
-      (out[ck] = out[ck] || []).push([cur.name[j].slice(0, 30), cur.pp[j], num(price[j]), num((cur.sel || [])[j]), c, m, (String((cur.date || [])[j] || '').match(/\d{4}-\d{2}-\d{2}/) || [''])[0]]); }); };
+      (out[ck] = out[ck] || []).push([cur.name[j].slice(0, 30), cur.pp[j], num(price[j]), num((cur.sel || [])[j]), c, m, (String((cur.date || [])[j] || '').match(/\d{4}-\d{2}-\d{2}/) || [''])[0], cur.tl]); }); };
     rows.forEach((cs, i) => {
       if (cs.filter(isWon).length >= 2) { flush(); const v = last3(cs.filter(isWon)), prev = rows[i - 1] ? last3(rows[i - 1]) : ['', '', ''];
-        cur = { pp: v.map(c => num((c.match(/월\s*([\d,]+)\s*원/) || [])[1])), name: v.map((c, j) => { const n = clean(c.replace(/월\s*[\d,]+\s*원.*/, '')); return n || clean(prev[j] || ''); }) }; return; }
+        cur = { tl: (cs.find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || (rows[i - 1] || []).find(c => /^~?\s*[\d.]+\s*만\s*원$/.test(c)) || '').replace(/\s/g, ''), pp: v.map(c => num((c.match(/월\s*([\d,]+)\s*원/) || [])[1])), name: v.map((c, j) => { const n = clean(c.replace(/월\s*[\d,]+\s*원.*/, '')); return n || clean(prev[j] || ''); }) }; return; }
       if (!cur) return;
       const lab = cs.find(c => /^(선택약정할인|기기\s*변경|번호\s*이동|공시일)/.test(c)); if (!lab) return;
       const v = last3(cs.filter(c => c !== lab && !/^공통\s*지원금$/.test(c))); if (v.length < 3) return;
@@ -99,40 +99,47 @@
     let list;
     try { list = await models(); } catch (e) { ui(`기종 목록을 못 불러왔어요 (${e.message}).<br>단말기 지원금 조회 화면에서 다시 눌러 주세요.` + btn('close', '닫기', '#4b5563')); return; }
     if (!list.length) { ui('최근 기종을 찾지 못했어요.' + btn('close', '닫기', '#4b5563')); return; }
-    const min = Math.ceil(list.length * TIERS.length * (GAP + 700) / 60000);
+    const min = Math.ceil(list.length * (GAP + 900) / 60000);
     ui(`최근 ${MONTHS}개월 기종 <b>${list.length}개</b> (삼성 · 애플)<br>기종마다 한 번씩 조회해요 (요금 구간 전체). 약 ${min}분 걸려요.<br><span style="color:#9ca3af;font-size:12px">조회하는 동안 이 화면을 켜 두세요.</span><br>` + btn('go', '▶ 시작', '#2563eb') + btn('close', '취소', '#4b5563'));
     await new Promise(r => { handlers.go = r; });
     const base = formBase(), items = [];
-    let n = 0, fail = 0;
-    for (const md of list) {
-      if (stop) break;
-      const rec = { n: md.name, c: md.code, r: md.rel, d: {} };
-      for (const tier of TIERS) {
+    let fail = 0, failed = [];
+    const scan = async (L, lab) => {
+      failed = []; let n = 0;
+      for (const md of L) {
         if (stop) break;
         n++;
-        ui(`조회 중 ${n} / ${list.length * TIERS.length}<br><b>${md.name}</b><div style="height:6px;background:#374151;border-radius:3px;margin-top:8px"><div style="height:6px;width:${Math.round(n / (list.length * TIERS.length) * 100)}%;background:#60a5fa;border-radius:3px"></div></div>` + btn('stop', '■ 여기까지만', '#b91c1c'));
+        ui(`${lab} ${n} / ${L.length}<br><b>${md.name}</b><div style="height:6px;background:#374151;border-radius:3px;margin-top:8px"><div style="height:6px;width:${Math.round(n / L.length * 100)}%;background:#60a5fa;border-radius:3px"></div></div>` + btn('stop', '■ 여기까지만', '#b91c1c'));
+        const rec = { n: md.name, c: md.code, r: md.rel, d: {} };
         try {
-          const html = await nf(() => post('/smc/mobile/dantongList.do', Object.assign({}, base, { dan_Service: '5G', dan_Mau: md.mau, productName: md.pn, dan_Pc_Name: md.name, plan5GChoice: tier })));
+          const html = await nf(() => post('/smc/mobile/dantongList.do', Object.assign({}, base, { dan_Service: '5G', dan_Mau: md.mau, productName: md.pn, dan_Pc_Name: md.name, plan5GChoice: 'all' })));
           const p = parse(html);
-          if (p) CARS.forEach(ck => { if (p[ck]) rec.d[ck] = (rec.d[ck] || []).concat(p[ck]); });
-          else { fail++; lastFail = html; }
+          if (p) CARS.forEach(ck => { if (p[ck]) rec.d[ck] = p[ck]; });
+          else { lastFail = html; }
         } catch (e) {
-          fail++; if (/막았/.test(e.message)) { stop = true; ui(e.message + btn('close', '닫기', '#4b5563')); }
+          if (/막았/.test(e.message)) { stop = true; }
         }
-        if (fail >= 6 && !items.length) { stop = true; break; }
+        if (Object.keys(rec.d).length) { const k = items.findIndex(x => x.n === rec.n); if (k >= 0) items[k] = rec; else items.push(rec); }
+        else failed.push(md);
+        if (failed.length >= 6 && !items.length) { stop = true; break; }
         await sleep(GAP);
       }
-      if (Object.keys(rec.d).length) items.push(rec);
-    }
-    if (!items.length) {
-      ui('결과 화면을 읽지 못했어요. 아래 [결과 화면 저장]으로 파일을 받아 보내 주시면 고칠게요.' + btn('dl', '결과 화면 저장', '#2563eb') + btn('close', '닫기', '#4b5563'));
-      handlers.dl = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lastFail || document.documentElement.outerHTML], { type: 'text/html' })); a.download = 'smartchoice-result.html'; document.body.appendChild(a); a.click(); a.remove(); };
-      return;
-    }
-    const pay = { v: 1, at: new Date().toISOString(), src: location.hostname, items };
-    const url = CRM + '#scpub=' + encodeURIComponent(JSON.stringify(pay));
-    ui(`✅ ${items.length}개 기종 공시를 모았어요${fail ? ` <span style="color:#fca5a5">(못 읽은 조회 ${fail}개)</span>` : ''}.<br>강CRM으로 넘겨서 확인 후 저장해요.` + btn('send', '강CRM으로 보내기 ▶', '#16a34a') + btn('close', '닫기', '#4b5563'));
-    handlers.send = () => { location.href = url; };
+    };
+    await scan(list, '조회 중');
+    const finish = () => {
+      if (!items.length) {
+        ui('결과 화면을 읽지 못했어요. 아래 [결과 화면 저장]으로 파일을 받아 보내 주시면 고칠게요.' + btn('dl', '결과 화면 저장', '#2563eb') + btn('close', '닫기', '#4b5563'));
+        handlers.dl = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([lastFail || document.documentElement.outerHTML], { type: 'text/html' })); a.download = 'smartchoice-result.html'; document.body.appendChild(a); a.click(); a.remove(); };
+        return;
+      }
+      const pay = { v: 2, at: new Date().toISOString(), src: location.hostname, items };
+      const url = CRM + '#scpub=' + encodeURIComponent(JSON.stringify(pay));
+      const fl = failed.length ? `<div style="margin-top:6px;font-size:12px;color:#fca5a5;max-height:120px;overflow:auto">못 읽은 기종 ${failed.length}개 (공시가 없거나 판매 끝난 기종일 수 있어요):<br>${failed.map(m => m.name).join(' · ')}</div>` : '';
+      ui(`✅ ${items.length}개 기종 공시를 모았어요 (요금 구간 전체).${fl}<br>강CRM으로 넘겨서 확인 후 저장해요.` + btn('send', '강CRM으로 보내기 ▶', '#16a34a') + (failed.length && !stop ? btn('retry', `↻ 못 읽은 ${failed.length}개 다시`, '#2563eb') : '') + btn('close', '닫기', '#4b5563'));
+      handlers.send = () => { location.href = url; };
+      handlers.retry = async () => { stop = false; await scan(failed.slice(), '다시 조회'); finish(); };
+    };
+    finish();
   }
   run().catch(e => { ui('오류: ' + (e && e.message || e) + btn('close', '닫기', '#4b5563')); });
 })();
