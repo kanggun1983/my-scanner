@@ -27020,7 +27020,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V317';
+        const APP_VER = 'V318';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27028,6 +27028,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V318', d: '2026-11-08', items: [
+                ['🧭 기능 탐색기: 점을 누르면 아래 설명칸이 보이게 자동으로 내려가요 · 폴드 접은 화면에서 글씨 · 점 크게', 'a']] },
             { v: 'V317', d: '2026-11-08', items: [
                 ['🧭 기능 탐색기: 폴드 접고 펼 때 지도 크기 바로 맞춤', 'a']] },
             { v: 'V316', d: '2026-11-08', items: [
@@ -27925,7 +27927,7 @@ familyStr + `\n` +
             { id: 'gemini', g: 'sys', n: 'Gemini AI', d: '정책표 · 서류 읽기 · 통화 요약 · 문구 다듬기', out: [['policy', '정책표 표로 읽기']] },
             { id: 'backup', g: 'sys', n: '자동 백업', d: '대표 폰 · 켜고 1분 뒤 하루 한 번', out: [['drive', '백업 파일']] }
         ];
-        let fxSel = '', fxQ = '', fxView = { x: 0, y: 0, k: 1 }, fxMode = 'map';
+        let fxScrollTo = false, fxSel = '', fxQ = '', fxView = { x: 0, y: 0, k: 1 }, fxMode = 'map';
         function fxLayout() {   // 묶음은 큰 원 위에, 기능은 묶음 안 작은 원 위에
             const gs = Object.keys(FX_G), R = 300, pos = {};
             gs.forEach((g, i) => { const a = (i / gs.length) * Math.PI * 2 - Math.PI / 2, cx = 400 + R * Math.cos(a), cy = 400 + R * Math.sin(a), L = FX_N.filter(n => n.g === g), r = L.length > 1 ? 20 + L.length * 4 : 0;
@@ -27940,13 +27942,13 @@ familyStr + `\n` +
         const fxNode = (id) => FX_N.find(n => n.id === id);
         function fxRender() {
             const box = document.getElementById('fxBox'); if (!box) return;
-            const P = fxLayout(), sel = fxNode(fxSel), q = fxQ.trim().toLowerCase(), hit = (n) => !q || (n.n + ' ' + n.d + ' ' + n.out.map(o => o[1]).join(' ')).toLowerCase().includes(q);
+            /* 📱 V318 좁은 화면(폴드 접음)이면 글씨 · 점 크게 */ const F = Math.max(1, 560 / fxSize()), P = fxLayout(), sel = fxNode(fxSel), q = fxQ.trim().toLowerCase(), hit = (n) => !q || (n.n + ' ' + n.d + ' ' + n.out.map(o => o[1]).join(' ')).toLowerCase().includes(q);
             const outIds = new Set(sel ? sel.out.map(o => o[0]) : []), inIds = new Set(sel ? fxIn(sel.id).map(o => o[0]) : []);
             const edges = []; FX_N.forEach(n => n.out.forEach(([to]) => { const a = P[n.id], b = P[to]; if (!a || !b) return; const on = sel && (n.id === sel.id || to === sel.id), col = !sel ? 'rgba(148,163,184,.18)' : (n.id === sel.id ? '#fb923c' : (to === sel.id ? '#60a5fa' : 'rgba(148,163,184,.06)'));
                 const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.15, my = (a.y + b.y) / 2 - (b.x - a.x) * 0.15; edges.push(`<path d="M${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${col}" stroke-width="${on ? 2.2 : 1}"${on ? ' marker-end="url(#fxArr' + (n.id === sel.id ? 'O' : 'B') + ')"' : ''}/>`); }));
-            const groups = Object.entries(FX_G).map(([g, [lab, col]]) => { const c = P['g:' + g]; return `<circle cx="${c.x}" cy="${c.y}" r="${c.r}" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".25"/><text x="${c.x}" y="${c.y - c.r - 6}" text-anchor="middle" font-size="13" font-weight="800" fill="${col}">${lab}</text>`; }).join('');
+            const groups = Object.entries(FX_G).map(([g, [lab, col]]) => { const c = P['g:' + g]; return `<circle cx="${c.x}" cy="${c.y}" r="${c.r}" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".25"/><text x="${c.x}" y="${c.y - c.r - 6}" text-anchor="middle" font-size="${Math.round(13 * F)}" font-weight="800" fill="${col}">${lab}</text>`; }).join('');
             const nodes = FX_N.map(n => { const p = P[n.id], col = FX_G[n.g][1], dim = (sel && n.id !== sel.id && !outIds.has(n.id) && !inIds.has(n.id)) || !hit(n), big = sel && n.id === sel.id;
-                return `<g data-fx="${n.id}" style="cursor:pointer" opacity="${dim ? 0.18 : 1}"><circle cx="${p.x}" cy="${p.y}" r="${big ? 11 : 7}" fill="${col}" ${big ? 'stroke="#fff" stroke-width="2.5"' : ''}><title>${escapeHtml(n.n)}</title></circle>${big || outIds.has(n.id) || inIds.has(n.id) || q ? `<text x="${p.x + 10}" y="${p.y + 4}" font-size="11" font-weight="700" fill="#e5e7eb" paint-order="stroke" stroke="#0b1020" stroke-width="3">${escapeHtml(n.n)}</text>` : ''}</g>`; }).join('');
+                return `<g data-fx="${n.id}" style="cursor:pointer" opacity="${dim ? 0.18 : 1}"><circle cx="${p.x}" cy="${p.y}" r="${(big ? 11 : 7) * F}" fill="${col}" ${big ? 'stroke="#fff" stroke-width="2.5"' : ''}><title>${escapeHtml(n.n)}</title></circle>${big || outIds.has(n.id) || inIds.has(n.id) || q ? `<text x="${p.x + 10}" y="${p.y + 4}" font-size="${Math.round(11 * F)}" font-weight="700" fill="#e5e7eb" paint-order="stroke" stroke="#0b1020" stroke-width="3">${escapeHtml(n.n)}</text>` : ''}</g>`; }).join('');
             const vb = `${fxView.x + 400 - 400 / fxView.k} ${fxView.y + 400 - 400 / fxView.k} ${800 / fxView.k} ${800 / fxView.k}`;
             const list = (L, col, empty) => L.length ? L.map(([id, t]) => { const m = fxNode(id); return m ? `<button type="button" data-fx="${id}" class="w-full text-left flex items-start gap-2 py-1.5"><span class="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style="background:${FX_G[m.g][1]}"></span><span class="min-w-0"><span class="block text-[14px] font-bold text-white">${escapeHtml(m.n)}</span><span class="block text-[12px]" style="color:${col}">${escapeHtml(t)}</span></span></button>` : ''; }).join('') : `<p class="text-[12px] text-slate-500 py-1">${empty}</p>`;
             const head = `<div class="flex items-center gap-1.5 p-2">
@@ -27957,21 +27959,22 @@ familyStr + `\n` +
                     <div class="absolute right-2 bottom-2 flex flex-col gap-1">${[['+', 1.4], ['−', 1 / 1.4], ['⟲', 0]].map(([l, z]) => `<button type="button" data-fxz="${z}" class="w-9 h-9 rounded-lg bg-slate-800/90 text-white text-[16px] font-bold">${l}</button>`).join('')}</div>
                     <p class="absolute left-2 bottom-2 text-[11px] text-slate-400">점을 누르면 연결 · 끌어서 이동</p></div>`
                 : `<div class="px-3 pb-3 space-y-2">${Object.entries(FX_G).map(([g, [lab, col]]) => { const L = FX_N.filter(n => n.g === g && hit(n)); return L.length ? `<p class="pt-1 text-[12px] font-bold" style="color:${col}">${lab}</p>` + L.map(n => `<button type="button" data-fx="${n.id}" class="w-full text-left rounded-xl px-3 py-2 ${fxSel === n.id ? 'bg-slate-700' : 'bg-slate-800/70'}"><span class="block text-[14px] font-bold text-white">${escapeHtml(n.n)} <span class="text-[11px] font-medium text-slate-400">→ ${n.out.length}곳</span></span><span class="block text-[12px] text-slate-400">${escapeHtml(n.d)}</span></button>`).join('') : ''; }).join('')}</div>`}
-                ${sel ? `<div class="border-t border-slate-800 p-3 space-y-2">
+                ${sel ? `<div data-fxpanel class="border-t border-slate-800 p-3 space-y-2" style="scroll-margin-bottom:84px">
                     <div class="flex items-start justify-between gap-2"><div><p class="text-[16px] font-extrabold text-white"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1" style="background:${FX_G[sel.g][1]}"></span>${escapeHtml(sel.n)}</p><p class="text-[12px] text-slate-400">${escapeHtml(FX_G[sel.g][0])} · ${escapeHtml(sel.d)}</p></div><button type="button" data-fx="" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-300">✕</button></div>
                     <p class="text-[12px] font-bold" style="color:#fb923c">➡️ 이걸 하면 자동으로</p>${list(sel.out, '#fdba74', '다른 곳으로 자동으로 넘어가는 건 없어요')}
                     <p class="text-[12px] font-bold pt-1" style="color:#60a5fa">⬅️ 여기서 들어와요</p>${list(fxIn(sel.id), '#93c5fd', '자동으로 들어오는 곳은 없어요 (직접 입력)')}</div>`
                 : `<p class="border-t border-slate-800 px-3 py-2.5 text-[12px] text-slate-400">기능 ${FX_N.length}개 · 자동 연결 ${FX_N.reduce((a, n) => a + n.out.length, 0)}개 · 예: <button type="button" data-fx="actreg" class="font-bold text-pink-300 underline">개통 등록</button> · <button type="button" data-fx="promreg" class="font-bold text-violet-300 underline">약속 등록</button> · <button type="button" data-fx="calllog" class="font-bold text-cyan-300 underline">통화 결과</button></p>`}`;
             const bodyEl = box.querySelector('[data-fxbody]');
-            if (!bodyEl || !box.querySelector('[data-fxq]')) box.innerHTML = `<div class="rounded-2xl overflow-hidden" style="background:#0b1020">${head}<div data-fxbody>${bodyHtml}</div></div>`;
+            if (!bodyEl || !box.querySelector('[data-fxq]')) box.innerHTML = `<div class="rounded-2xl overflow-hidden" style="background:#0b1020">${head}<div data-fxbody>${bodyHtml}</div></div><div aria-hidden="true" style="height:84px"></div>`;
             else { bodyEl.innerHTML = bodyHtml; box.querySelectorAll('[data-fxm]').forEach(b => { const on = b.dataset.fxm === fxMode; b.className = 'h-10 px-3 rounded-xl text-[13px] font-bold ' + (on ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-300'); }); }   // 🔤 V316 찾기 칸은 다시 안 그림 (한글이 ㄱㅐ처럼 풀리던 것)
             fxBind(box);
+            if (fxScrollTo) { fxScrollTo = false; const pn = box.querySelector('[data-fxpanel]'); if (pn) setTimeout(() => { const r = pn.getBoundingClientRect(), vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight; const room = vh - 92; if (r.bottom > room) window.scrollBy({ top: r.height > room - 80 ? r.top - 80 : r.bottom - room, behavior: 'smooth' }); }, 30); }   // 📱 V318 누르면 아래 설명칸이 보이게
         }
         function fxBind(box) {
             box.onclick = (e) => {
                 const z = e.target.closest('[data-fxz]'); if (z) { const v = Number(z.dataset.fxz); if (!v) fxView = { x: 0, y: 0, k: 1 }; else fxView.k = Math.min(4, Math.max(0.7, fxView.k * v)); fxRender(); return; }
                 const m = e.target.closest('[data-fxm]'); if (m) { fxMode = m.dataset.fxm; fxRender(); return; }
-                const f = e.target.closest('[data-fx]'); if (f && !box.__dragged) { fxSel = f.dataset.fx === fxSel ? '' : f.dataset.fx; if (fxSel && fxMode === 'map') { const p = fxLayout()[fxSel]; if (p && fxView.k > 1.01) { fxView.x = p.x - 400; fxView.y = p.y - 400; } } fxRender(); }
+                const f = e.target.closest('[data-fx]'); if (f && !box.__dragged) { fxSel = f.dataset.fx === fxSel ? '' : f.dataset.fx; fxScrollTo = !!fxSel; if (fxSel && fxMode === 'map') { const p = fxLayout()[fxSel]; if (p && fxView.k > 1.01) { fxView.x = p.x - 400; fxView.y = p.y - 400; } } fxRender(); }
             };
             const qi = box.querySelector('[data-fxq]'); if (qi) qi.oninput = (e) => { fxQ = e.target.value; fxRender(); };
             const svg = box.querySelector('[data-fxsvg]'); if (!svg) return;
