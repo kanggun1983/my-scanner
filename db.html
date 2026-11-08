@@ -19314,11 +19314,11 @@ familyStr + `\n` +
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
                     </div>${legalHtml}`);
                 html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
-                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규', '전환 (번호이동)', '재약정', '상품 변경', '이전 설치'], '신규')}${arIn('hr-welfare', '복지유형', '', { ph: '없으면 비워요' })}
+                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
                     ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
                     ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', '', { ph: '예) UHD4' })}
                     ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', '', { ph: '예) UHD3' })}
-                    ${arMoney('hr-fee', '월 요금')}<label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[44px] self-end"><input type="checkbox" id="hr-onestop" class="w-5 h-5 accent-teal-600">원스톱</label>
+                    ${arMoney('hr-fee', '월 요금')}
                     ${arIn('hr-comb', '결합', prefCombo, { span: true })}${arIn('hr-subsidy', '지원금 (보고서용)', '', { span: true, ph: '예) 현금 40만' })}</div>
                     <p class="text-xs font-bold text-gray-600 pt-1">고객 자동이체 계좌 <span class="font-normal text-gray-500">(보고서에만 들어가고 저장은 안 해요)</span></p>
                     <div class="grid grid-cols-3 gap-2">${arIn('hr-bank', '은행', '')}${arIn('hr-account', '계좌번호', '', { num: false })}${arIn('hr-owner', '예금주', '')}</div>`);
@@ -19595,7 +19595,7 @@ familyStr + `\n` +
                     `주민번호: ${arVal('ar-jumin')}\n` +
                     `연락처 : ${arVal('hr-phone')}\n` +
                     `주소 : ${arVal('hr-addr')}\n` +
-                    `유형: ${String(arVal('hr-type') || '').replace(/ \(.*\)$/, '')}\n` +
+                    `유형: ${arVal('hr-type')}${/^원스탑/.test(arVal('hr-type')) && arVal('hr-prevcar') ? `(${arVal('hr-prevcar')})` : ''}\n` +
                     `요금제: ${arVal('hr-internet')}\n` +
                     `상품: ${arVal('hr-wifi')}\n` +
                     `TV(주): ${arVal('hr-tv')}\n` +
@@ -19603,12 +19603,11 @@ familyStr + `\n` +
                     `TV(부): ${arVal('hr-extratv')}\n` +
                     `셋탑(부): ${arVal('hr-stb2')}\n` +
                     `지원금 : ${arVal('hr-subsidy')}\n` +
-                    `복지유형: ${arVal('hr-welfare')}\n` +
                     opt('결합: ', arVal('hr-comb')) + opt('월요금: ', arNum('hr-fee') ? arWon(arNum('hr-fee')) + '원' : '') +
                     opt('고객계좌: ', [arVal('hr-bank'), arVal('hr-account'), arVal('hr-owner')].filter(Boolean).join(' '));
             }
             if (legal.some(Boolean)) text += `\n법정대리인 : ${legal[0]} / ${legal[1]} / ${legal[2]}\n`;
-            if (arMode !== 'mobile') { const st = arVal('hr-status'), os = !!(document.getElementById('hr-onestop') || {}).checked; text += `개통자 : ${arVal('hr-manager')}\n접수처: ${arVal('hr-store')}\n${os ? '원스톱' : ''}${st}`; return text; }   // 📋 V302
+            if (arMode !== 'mobile') { const st = arVal('hr-status'), os = /^원스탑/.test(arVal('hr-type')); text += `개통자 : ${arVal('hr-manager')}\n접수처: ${arVal('hr-store')}\n${os ? '원스톱' : ''}${st}`; return text; }   // 📋 V302
             text += `\n개통자 : ${arMode === 'mobile' ? arVal('ar-manager') : arVal('hr-manager')}`;
             return text;
         }
@@ -26828,8 +26827,8 @@ familyStr + `\n` +
            ===================================================================== */
         const WHATS_NEW = [
             { v: 'V302', d: '2026-11-08', items: [
-                ['📋 홈상품 등록 저장(복사+저장) 때 유선 개통보고를 매장 양식 그대로 복사: -개통보고 11월 2일- · 모바일 동판 U+I+T · 유형 · 요금제 · 상품 · TV(주/부) · 셋탑(주/부) · 지원금 · 복지유형 · 개통자 · 접수처 · 원스톱완료', 'a'],
-                ['🏠 홈상품 등록에 칸 추가: 유형 · 복지유형 · 상품(와이파이) · 셋탑(주) · TV(부) · 셋탑(부) · ☑ 원스톱', 'a']] },
+                ['📋 홈상품 등록 저장(복사+저장) 때 유선 개통보고를 매장 양식 그대로 복사: -개통보고 11월 2일- · 모바일 동판 U+I+T · 유형 · 요금제 · 상품 · TV(주/부) · 셋탑(주/부) · 지원금 · 개통자 · 접수처 · (원스톱)완료', 'a'],
+                ['🏠 홈상품 등록에 칸 추가: 유형(신규3년 · 약정갱신3년 · 원스탑3년 + 기존 통신사) · 상품(와이파이) · 셋탑(주) · TV(부) · 셋탑(부)', 'a']] },
             { v: 'V301', d: '2026-11-08', items: [
                 ['📺 인터넷 · TV 안내서: 안내서 탭 [인터넷·TV 안내서] → 통신사 · 인터넷 · 와이파이 · TV · 셋톱 · 결합을 고르면 월 금액이 자동 (위약금 계산기 상품표) → 사은품 · 유의사항 → 고객 서명 · 녹음 · 문자 · [개통등록]은 홈상품 등록으로', 'a']] },
             { v: 'V300', d: '2026-11-08', items: [
