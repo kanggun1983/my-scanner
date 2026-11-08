@@ -880,6 +880,12 @@
                                 <img id="smsPromoImgPreview" alt="홍보 문자 사진 미리보기" class="w-full max-h-48 object-contain rounded-lg bg-white border border-gray-200">
                                 <button type="button" id="smsPromoImgRemove" class="absolute top-2 right-2 h-9 px-3 rounded-full bg-gray-900/80 text-white text-xs font-bold flex items-center gap-1"><i class="fa-solid fa-xmark"></i>빼기</button>
                             </div>
+                            <div id="promoPushPosBox" class="hidden rounded-xl border border-pink-200 bg-white p-2.5 space-y-2">
+                                <p class="text-[13px] font-bold text-gray-800">🔔 푸시 알림에 보일 부분 <span class="font-normal text-gray-500">(긴 사진은 알림에서 가로로 잘려요 · 문자는 그대로 다 보여요)</span></p>
+                                <div id="promoPushPosView" class="w-full rounded-lg border border-gray-200 bg-gray-100" style="aspect-ratio:2/1;background-size:100% auto;background-repeat:no-repeat;background-position:50% 0%"></div>
+                                <div class="flex items-center gap-2 text-xs font-bold text-gray-600"><span>맨 위</span><input type="range" id="promoPushPos" min="0" max="100" step="5" value="0" class="flex-1 accent-pink-600" aria-label="푸시 알림에 보일 부분 (위 ↔ 아래)"><span>맨 아래</span></div>
+                                <p id="promoPushPosNote" class="text-xs text-gray-500">밀어서 고르면 자동으로 저장돼요 · 명함 '받은 알림' 창도 같은 부분이 보이고, 사진을 누르면 전체가 크게 보여요.</p>
+                            </div>
                             <div class="grid grid-cols-2 gap-2"><button type="button" id="smsPromoImgBtn" class="w-full h-11 rounded-xl border border-indigo-200 bg-white text-sm font-bold text-indigo-700 flex items-center justify-center gap-1.5 disabled:opacity-40"><i class="fa-solid fa-camera"></i>사진 올리기</button><button type="button" data-ig-open="promo" class="w-full h-11 rounded-xl border border-violet-300 bg-violet-50 text-sm font-bold text-violet-800 flex items-center justify-center gap-1.5"><i class="fa-solid fa-wand-magic-sparkles"></i>AI로 만들기</button></div>
                             <input type="file" id="smsPromoImgFile" accept="image/*" class="hidden">
                             <p id="smsPromoImgStatus" role="status" class="hidden text-xs font-medium"></p>
@@ -11965,9 +11971,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         /* 🔔 자동 푸시를 누르면 → 고객 명함이 열리고 '🔔 받은 알림' 창으로 내용이 떠요 (V183 · 명함 공지 창과 같은 모양)
            · 주소 = 그 고객 명함 링크(?c=명함번호 · 직원 고객은 공용 명함) + #pn=알림 내용 · 개통 안부는 창에 [⭐ 리뷰 쓰기] 버튼 (명함 V4.3)
            · 중계 서버 v10이 예약 푸시에 주소를 붙여줘요 (v9면 명함만 열림) */
-        function cardPushUrl(c, id, heading, body, image, rv, ph) {
+        function cardPushUrl(c, id, heading, body, image, rv, ph, pos) {
             try {
-                const j = JSON.stringify({ id: String(id || '').slice(0, 20), h: String(heading || '').slice(0, 60), b: String(body || '').slice(0, 300), i: /^https:\/\//.test(image || '') ? image : '', ...(rv ? { rv: 1 } : {}), ...(ph ? { ph: 1 } : {}) });   // ph: 📱 내 폰 정보 창 (명함 V4.4)
+                const j = JSON.stringify({ id: String(id || '').slice(0, 20), h: String(heading || '').slice(0, 60), b: String(body || '').slice(0, 300), i: /^https:\/\//.test(image || '') ? image : '', ...(isFinite(parseInt(pos, 10)) && /^https:\/\//.test(image || '') ? { p: Math.max(0, Math.min(100, parseInt(pos, 10))) } : {}), ...(rv ? { rv: 1 } : {}), ...(ph ? { ph: 1 } : {}) });   // ph: 📱 내 폰 정보 창 (명함 V4.4)
                 const b64 = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
                 return `${autoCardLink(c)}#pn=${b64}`;
             } catch (e) { return autoCardLink(c); }
@@ -12095,7 +12101,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (autoSmsOn() && base.to) out.push(base);   // 문자는 휴대폰 번호가 있을 때만
             if (autoPushOn() && c.pushSubscribed === true && c.cardId) {
                 // 문자를 따로 보내므로 푸시에는 번호를 안 넣음 (푸시가 안 돼도 문자로 한 번 더 가지 않게)
-                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl(), url: push.url || cardPushUrl(c, base.id, push.heading, push.popBody || push.text, push.image, push.rv) });   // url: 누르면 명함 + 🔔 받은 알림 창 (중계 서버 v10)
+                out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl(), url: push.url || cardPushUrl(c, base.id, push.heading, push.popBody || push.text, push.popImage || push.image, push.rv, false, push.pos) });   // url: 누르면 명함 + 🔔 받은 알림 창 (중계 서버 v10)
             }
             return out;
         }
@@ -12304,7 +12310,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const id = `${camp}${safeId}`;
                     const pImg = String(appSettings.smsPromoImage || '').trim(), pMms = mmsActive() && !!pImg;   // 📷 사진 문자면 링크 없는 문구 + 사진 (안 되면 서버가 링크 문구로)
                     items.push(...autoItemsFor(c, { id, to: smsMobileDigits(c.phone), name: c.name || '', auto: true, sendAt: smsSendAt(day, time), text: pMms ? promoText(c, false, { noLink: true }) : promoText(c, false), ...(pMms ? { mmsImage: pImg, linkText: promoText(c, false) } : {}) },
-                        { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: String(appSettings.smsPromoImage || '') }).filter(it => !skip.has(it.id)));
+                        { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: promoPushImg(), popImage: String(appSettings.smsPromoImage || ''), pos: promoImgPos() }).filter(it => !skip.has(it.id)));   // 🔔 V325 알림 = 잘라 둔 사진 · 명함 창 = 원래 사진 + 위치
                 });
             }
             if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn && !famPhoneOn) return items;
@@ -13250,8 +13256,53 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         ['smsPromoDate', 'smsPromoTime', 'smsPromoTarget', 'smsPromoDaily', 'smsTplPromo', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk'].forEach(id => document.getElementById(id).addEventListener('input', renderPromoInfo));
         // 📢 홍보 문자 사진 (생일 사진과 같은 방식)
+        /* 🔔 V325 푸시에 보일 부분: 긴 사진은 안드로이드 알림이 가로 2:1로 가운데만 잘라서 보여줌 → 고른 위치로 2:1 사진을 따로 만들어 푸시에만 씀
+             · smsPromoImgPos(0 맨 위 ~ 100 맨 아래) · smsPromoPushImage(잘라 올린 사진) · smsPromoPushSrc(어느 사진에서 잘랐는지) · 문자는 원래 사진 그대로 */
+        const PROMO_IMG_LS = 'promoImgData';
+        function promoImgPos() { const n = parseInt(appSettings.smsPromoImgPos, 10); return isFinite(n) ? Math.max(0, Math.min(100, n)) : 0; }
+        function promoPushImg() { const full = String(appSettings.smsPromoImage || '').trim(), cut = String(appSettings.smsPromoPushImage || '').trim(); return full && cut && appSettings.smsPromoPushSrc === full ? cut : full; }
+        function loadImgEl(src, cors) { return new Promise((ok, no) => { const im = new Image(); if (cors) im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => no(new Error('사진을 못 읽었어요')); im.src = src; }); }
+        async function promoCropData(full, pos) {   // 2:1로 잘라 dataURL (긴 사진이 아니면 '')
+            let im = null;
+            try { im = await loadImgEl(full, true); const t = document.createElement('canvas'); t.width = t.height = 1; t.getContext('2d').drawImage(im, 0, 0, 1, 1); t.toDataURL(); }   // 다른 주소 사진이면 막힐 수 있어서 먼저 시험
+            catch (e) { im = null; let d = ''; try { const o = JSON.parse(localStorage.getItem(PROMO_IMG_LS) || '{}'); if (o.url === full) d = o.data; } catch (e2) { /* 무시 */ } if (!d) throw new Error('이 사진은 위치를 못 바꿔요 → [다른 사진으로 바꾸기]로 같은 사진을 한 번 더 올려주세요.'); im = await loadImgEl(d, false); }
+            const W = im.naturalWidth, H = im.naturalHeight; if (!W || !H || H / W <= 0.55) return '';
+            const w = Math.min(W, 1024), h = Math.round(w / 2), sh = W / 2, sy = Math.round((H - sh) * pos / 100);
+            const cv = document.createElement('canvas'); cv.width = w; cv.height = h; cv.getContext('2d').drawImage(im, 0, sy, W, sh, 0, 0, w, h);
+            return cv.toDataURL('image/jpeg', 0.85);
+        }
+        let promoPosTimer = null, promoPosBusy = 0;
+        async function savePromoPushCrop(pos) {
+            const full = String(appSettings.smsPromoImage || '').trim(), note = document.getElementById('promoPushPosNote'), tk = ++promoPosBusy;
+            if (!full) return;
+            try {
+                if (note) { note.textContent = '푸시용 사진 만드는 중…'; note.className = 'text-xs text-gray-600'; }
+                const d = await promoCropData(full, pos);
+                let cut = '';
+                if (d) { const up = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: d.split(',')[1] || '' }, keep: true }); cut = up.url || ''; }
+                if (tk !== promoPosBusy) return;
+                const patch = { smsPromoImgPos: pos, smsPromoPushImage: cut, smsPromoPushSrc: cut ? full : '' };
+                appSettings = { ...appSettings, ...patch };
+                await saveDoc(doc(db, 'smart_global', 'settings'), patch, { merge: true });
+                if (note) { note.textContent = d ? '✅ 저장했어요 · 푸시 알림 · 명함 받은 알림 창에 이 부분이 보여요 (사진을 누르면 전체가 크게).' : '이 사진은 가로로 넓어서 잘리지 않아요.'; note.className = 'text-xs font-bold text-green-700'; }
+                if (pushRelayReady()) syncAutoSms({ force: true });
+            } catch (e) { if (tk === promoPosBusy && note) { note.textContent = e.message || '저장하지 못했어요.'; note.className = 'text-xs font-bold text-red-700'; } }
+        }
+        function renderPromoPushPos() {
+            const full = String(appSettings.smsPromoImage || '').trim(), box = document.getElementById('promoPushPosBox'); if (!box) return;
+            box.classList.toggle('hidden', !full); if (!full) return;
+            const r = document.getElementById('promoPushPos'), v = document.getElementById('promoPushPosView');
+            if (document.activeElement !== r) r.value = promoImgPos();
+            v.style.backgroundImage = `url("${full.replace(/"/g, '%22')}")`; v.style.backgroundPosition = `50% ${r.value}%`;
+        }
+        document.getElementById('promoPushPos').addEventListener('input', (e) => {
+            const v = document.getElementById('promoPushPosView'); v.style.backgroundPosition = `50% ${e.target.value}%`;
+            clearTimeout(promoPosTimer); const pos = parseInt(e.target.value, 10) || 0;
+            promoPosTimer = setTimeout(() => savePromoPushCrop(pos), 700);
+        });
         function renderPromoImage() {
             const url = String(appSettings.smsPromoImage || '').trim();
+            try { renderPromoPushPos(); } catch (e) { console.error(e); }
             document.getElementById('smsPromoImgWrap').classList.toggle('hidden', !url);
             if (url) document.getElementById('smsPromoImgPreview').src = url;
             document.getElementById('smsPromoImgBtn').innerHTML = `<i class="fa-solid fa-camera"></i>${url ? '다른 사진으로 바꾸기' : '사진 올리기'}`;
@@ -13267,6 +13318,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             await saveDoc(doc(db, 'smart_global', 'settings'), { smsPromoImage: url }, { merge: true });
             renderPromoImage(); renderPromoInfo();
             if (pushRelayReady()) syncAutoSms({ force: true });
+            if (url) savePromoPushCrop(promoImgPos());   // 🔔 V325 새 사진 → 고른 위치로 푸시용 사진도 (사진 고르기 창에서 고른 것도)
         }
         document.getElementById('smsPromoImgBtn').addEventListener('click', () => {
             if (!pushRelayReady()) return setPromoImgStatus("먼저 설정 → 🔌 연결 → 명함 푸시 · 중계 서버를 연결해주세요. (사진은 중계 서버에 보관돼요)", 'red');
@@ -13281,6 +13333,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try {
                 const dataUrl = await compressMmsImage(f);   // 사진 문자(MMS)도 되게 300KB 아래로
                 const data = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(dataUrl).split(',')[1] || '' }, keep: true });
+                try { localStorage.setItem(PROMO_IMG_LS, JSON.stringify({ url: data.url, data: dataUrl })); } catch (e2) { /* 공간 없으면 그만 */ }   // 🔔 V325 위치 바꿀 때 다시 자르기용
                 await savePromoImage(data.url);
                 setPromoImgStatus(mmsActive() ? '올렸어요. 홍보 문자 안에 이 사진이 들어가요 (사진 문자).' : '올렸어요. 홍보 문자에 이 사진 링크가 들어가요.', 'green');
             } catch (err) { console.error(err); setPromoImgStatus(err.message || '사진을 올리지 못했어요.', 'red'); }
@@ -13400,7 +13453,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     return { warn: warns.join('\n'), sms: { text: withAutoCard(fillSmsTemplate(tpl, c, { '리뷰': reviewLine(rv), '개통기간': per }), c, 'act') }, push: actPush(c, tpl, per, rv) };
                 }
                 const pImg = String(appSettings.smsPromoImage || '').trim();
-                return { sms: mmsActive() && pImg ? { text: promoText(c, false, { noLink: true }), mmsImage: pImg, linkText: promoText(c, false) } : { text: promoText(c, false) }, push: { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: pImg } };
+                return { sms: mmsActive() && pImg ? { text: promoText(c, false, { noLink: true }), mmsImage: pImg, linkText: promoText(c, false) } : { text: promoText(c, false) }, push: { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), popImage: pImg, pos: promoImgPos(), image: promoPushImg() } };
             } finally {
                 const a = { ...appSettings }; if (had) a[K.key] = saved; else delete a[K.key]; appSettings = a;
             }
@@ -13455,7 +13508,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     <p class="text-sm font-bold text-gray-900 mb-1.5">🔔 푸시 <span class="text-xs font-medium text-gray-500">명함 알림을 켠 고객 폰 알림창 · 누르면 명함이 열리고 '🔔 받은 알림' 창${B.push.rv ? ' + [⭐ 리뷰 쓰기] 버튼' : ''}${B.push.ph ? ' + 📱 내 폰 정보 · [바꿀 폰 견적 받아보기]' : ''}</span></p>
                     <div class="rounded-2xl bg-white border border-gray-200 shadow-sm p-3 flex gap-2.5">
                         <img src="${escapeHtml(icon)}" alt="" class="w-10 h-10 rounded-full object-cover flex-shrink-0 bg-gray-100">
-                        <div class="min-w-0 flex-1"><p class="text-[11px] text-gray-500">Chrome · kanggun1983.github.io · 지금</p><p class="text-[14px] font-bold text-gray-900 truncate">${escapeHtml(B.push.heading)}</p><p class="text-[13px] text-gray-700 leading-snug whitespace-pre-wrap break-words" style="overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(B.push.text)}</p>${B.push.image ? `<img src="${escapeHtml(B.push.image)}" alt="" class="mt-2 w-full max-h-36 object-cover rounded-lg">` : ''}</div>
+                        <div class="min-w-0 flex-1"><p class="text-[11px] text-gray-500">Chrome · kanggun1983.github.io · 지금</p><p class="text-[14px] font-bold text-gray-900 truncate">${escapeHtml(B.push.heading)}</p><p class="text-[13px] text-gray-700 leading-snug whitespace-pre-wrap break-words" style="overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(B.push.text)}</p>${B.push.image ? `<img src="${escapeHtml(B.push.image)}" alt="" class="mt-2 w-full object-cover rounded-lg" style="aspect-ratio:2/1;${B.push.popImage && B.push.image === B.push.popImage ? `object-position:50% ${Number(B.push.pos) || 0}%` : ''}">` : ''}</div>
                     </div>
                     ${B.push.ph ? `<div class="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3"><p class="text-[12px] font-bold text-gray-600 mb-1">명함 창에 같이 보이는 것 (매장 기록으로 계산 · 이름·번호는 안 보여요)</p>${phRows.length ? `<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[13px]">${phRows.map(([k, v]) => `<dt class="text-gray-500 font-semibold">${k}</dt><dd class="text-right font-bold text-gray-900">${escapeHtml(v)}</dd>`).join('')}</dl>` : '<p class="text-[13px] text-gray-600">이 고객은 기종·할부·약정 기록이 없어서 견적 버튼만 보여요.</p>'}<p class="mt-2 h-10 rounded-xl border-2 border-pink-500 text-pink-600 text-[13px] font-bold flex items-center justify-center">📱 바꿀 폰 견적 받아보기</p></div>` : ''}
                 </div>
@@ -13496,7 +13549,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try {
                 await refreshStaffAlert();
                 const icon = autoPushIconUrl();
-                await callPushRelay({ pushTo: [staffOneSignalId()], heading: B.push.heading, content: B.push.text, image: B.push.image || undefined, icon: icon || undefined, url: cardPushUrl(c, 'test' + Date.now().toString(36), B.push.heading, B.push.popBody || B.push.text, B.push.image, B.push.rv, B.push.ph) });
+                await callPushRelay({ pushTo: [staffOneSignalId()], heading: B.push.heading, content: B.push.text, image: B.push.image || undefined, icon: icon || undefined, url: cardPushUrl(c, 'test' + Date.now().toString(36), B.push.heading, B.push.popBody || B.push.text, B.push.popImage || B.push.image, B.push.rv, B.push.ph, B.push.pos) });
                 setMsg('✅ 이 폰으로 보냈어요. 강CRM을 잠깐 닫고 알림창을 보세요 (고객 폰에도 이 모양으로 떠요).', 'green');
             } catch (e) { setMsg(`❌ ${/알림을 꺼두었거나/.test(e.message || '') ? "이 폰이 알림 등록이 안 돼 있어요. '이 폰으로 알림 받기'를 껐다 켜주세요." : (e.message || '보내지 못했어요.')}`, 'red'); }
             btn.disabled = false;
@@ -27251,7 +27304,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V324';
+        const APP_VER = 'V325';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27259,6 +27312,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V325', d: '2026-11-08', items: [
+                ['🔔 홍보 사진이 길면 푸시 알림에 보일 부분을 고를 수 있어요 (설정 → 홍보 → 사진 아래 \'푸시 알림에 보일 부분\' 밀기) · 문자는 사진 전체 그대로 · 명함 받은 알림 창도 같은 부분 + 누르면 크게 (명함 V5.16)', 'a']] },
             { v: 'V324', d: '2026-11-08', items: [
                 ['🙅 홍보 · 가족 안내 문자 맨 끝에 \'링크에서 바로 수신거부\' 👉 명함 링크 → 고객이 [수신 거부하기]를 누르면 마케팅 수신 거부로 자동 (답장 문자는 읽지 않아요)', 'a']] },
             { v: 'V323', d: '2026-11-08', items: [
