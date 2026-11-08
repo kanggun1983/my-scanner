@@ -4013,7 +4013,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         if (isSuperAdmin) setTimeout(() => { try { bkAuto(); } catch (e) { console.warn(e); } }, 60000);   // 🗄️ V237 하루 한 번 자동 백업 (켜고 1분 뒤)
                         try { startAccessLog(); } catch (e) { console.warn(e); }   // 🕒 직원 접속 기록 (V170)
                         try { pinStart(); } catch (e) { console.warn(e); }   // 🔒 화면 잠금 PIN (V208)
-                        setTimeout(() => { try { siseLoad(); scImportCheck(); } catch (e) { console.warn(e); } }, 1200);   // 🏷 V305 공통지원금 (안내서 · 시세표) + 북마크에서 넘어온 값
+                        setTimeout(() => { try { siseLoad(); scImportCheck(); scwImportCheck(); } catch (e) { console.warn(e); } }, 1200);   // 🏷 V305 공통지원금 (안내서 · 시세표) + 북마크에서 넘어온 값
                     } else if (user) {
                         // 로그인은 됐지만 허용 목록에 없는 계정 → 즉시 로그아웃하고 안내
                         const errMsg = document.getElementById('loginErrorMsg');
@@ -10558,6 +10558,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${wedEdit && wedEdit.path === path && wedEdit.id === '' ? form(path, { speed: 500 }, true) : (lock ? '' : `<button type="button" data-wed="add" data-p="${escapeHtml(path)}" class="mt-2 w-full h-10 rounded-xl border border-dashed border-indigo-300 text-[13px] font-bold text-indigo-700">＋ 상품 추가</button>`)}</div>`;
             };
             box.innerHTML = `<div class="space-y-2.5">
+                <details class="rounded-2xl bg-white border border-sky-200 p-3"><summary class="cursor-pointer text-[14px] font-bold text-gray-900">🌐 스마트초이스에서 요금 가져오기 <span class="text-[12px] font-medium text-gray-500">(3사 인터넷 · TV 무약정 · 3년 약정)</span></summary>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1 text-[13px] text-gray-700"><li><a ${scLinkAttrs(SCW_URL)} class="font-bold text-indigo-700 underline">스마트초이스 인터넷/IPTV 요금제 비교</a> 열기 (보라색 창이면 ⋮ → Chrome 브라우저에서 열기)</li><li>주소창에 <b>CRM공시</b> → ⭐ 북마크 (휴대폰 공시와 같은 북마크) → [▶ 시작]</li><li>[강CRM으로 보내기] → 계산기와 다른 것만 나와요 → 체크해서 저장</li></ol></details>
                 <p class="text-[13px] text-gray-600 leading-relaxed">통신사 상품이 바뀌거나 목록에 없는 상품은 여기서 <b>추가 · 고치기 · 숨기기</b> 하세요. <b>유선계산기 · 유선 안내서 · 고객카드 유선 약정 안내</b>에 같이 바뀌어요. ${nEdit ? `<span class="font-bold text-indigo-700">지금 고친 것 ${nEdit}개</span>` : ''}</p>
                 <div class="grid grid-cols-3 gap-1.5">${WED_CARS.map(([k, l]) => `<button type="button" data-wedck="${k}" class="h-10 rounded-xl text-[14px] font-bold border ${wedCk === k ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div>
                 <div class="grid grid-cols-4 gap-1.5">${WED_CATS.map(([k, l]) => `<button type="button" data-wedcat="${k}" class="h-10 rounded-xl text-[13px] font-bold border ${wedCat === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div>
@@ -10582,6 +10584,63 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 }
             };
         }
+        /* 🌐 V321 스마트초이스 유선 요금 → 유선 상품 (북마크 CRM공시를 '인터넷/IPTV 요금제 비교' 화면에서 누르면 #scwired=)
+             · 스마트초이스 이름 → 계산기 상품 (SCW_MAP) · 무약정 = 기본료 · 3년 약정 = 기본료 − 3년 할인 · 달라진 것만 보여주고 고르면 유선 상품에 '고침'으로 저장 */
+        const SCW_URL = 'https://m.smartchoice.or.kr/smc/plan/planExpantionBillNew2.do';
+        const SCW_CK = { SKB: 'SK', KTO: 'KT', LGU: 'LG' };
+        const SCW_MAP = {
+            SK: { '광랜': 'sk_100m', '광랜 와이파이': 'sk_w100m', '기가': 'sk_1g', '기가 와이파이': 'sk_w1g', '기가라이트': 'sk_500m', '기가라이트 와이파이': 'sk_w500m', '기가프리미엄X2.5G': 'sk_x2.5g', '기가프리미엄X5G': 'sk_x5g', 'B tv 스탠다드': 'std', 'B tv 이코노미': 'eco', 'B tv All': 'all' },
+            KT: { '인터넷 베이직': 'kt_b_basic', '인터넷 베이직 와이파이': 'kt_basic_wi', '인터넷 슬림': 'kt_b_slim', '인터넷 슬림 와이파이': 'kt_slim_wi', '인터넷 에센스': 'kt_b_ess', '인터넷 에센스 와이파이': 'kt_ess_wi', '인터넷 슬림플러스': 'kt_b_slimplus', '인터넷 프리미엄': 'kt_b_prem', '인터넷 프리미엄플러스': 'kt_b_premplus', '지니 tv 라이트': 'kt_lite', '지니 tv 베이직': 'kt_basic', '지니 tv 에센스': 'kt_ess' },
+            LG: { '와이파이기본_기가슬림안심 500M': 'lg_b_500', '와이파이기본_기가안심 1G': 'lg_b_1g', '광랜안심': 'lg_b_100', '와이파이기본_2.5기가': 'lg_b_2_5g', '와이파이기본_2.5기가안심': 'lg_b_2_5g_s', '와이파이기본_5기가': 'lg_b_5g', '고급형': 'lg_adv', '베이직': 'lg_tv_basic211', '일반형': 'lg_old_std', '프리미엄': 'lg_prem' }
+        };
+        let scwHashRaw = '';
+        try { if (String(location.hash).startsWith('#scwired=')) { scwHashRaw = location.hash.slice(9); history.replaceState(history.state, '', location.pathname + location.search); } } catch (e) { /* 무시 */ }
+        function scwFind(ck, id, kind) {   // 계산기 상품표에서 그 상품의 목록 경로 · 지금 값
+            const C = WiredCalc.CARRIER_DATA[ck], B = WiredCalc.BASE[ck]; if (!C) return null;
+            const paths = kind === 'T' ? ['tv'] : Object.keys(B.internet || {}).map(t => 'internet.' + t);
+            for (const p of paths) { const L = WiredCalc.listOf(C, p) || [], it = L.find(x => x.id === id); if (it) return { path: p, it }; const BL = WiredCalc.listOf(B, p) || [], b = BL.find(x => x.id === id); if (b) return { path: p, it: b, hidden: true }; }
+            return null;
+        }
+        function scwNewPath(ck, kind, name) {
+            if (kind === 'T') return 'tv';
+            const tabs = Object.keys(WiredCalc.BASE[ck].internet || {}), wifi = /와이파이|wifi/i.test(name);
+            if (ck === 'SK') return wifi ? 'internet.wifi' : 'internet.basic';
+            if (ck === 'KT') return wifi ? 'internet.kt_giga_wi' : 'internet.kt_basic';
+            return 'internet.' + (tabs[0] || 'lg_basic');
+        }
+        async function scwImportCheck() {
+            if (!scwHashRaw) return; const raw = scwHashRaw; scwHashRaw = '';
+            let pay = null; try { pay = JSON.parse(decodeURIComponent(raw)); } catch (e) { pay = null; }
+            if (!pay || !Array.isArray(pay.rows)) return customAlert('스마트초이스 유선 요금을 읽지 못했어요. 북마크를 다시 눌러 주세요.');
+            if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
+            try { wnLoadCore(); } catch (e) { /* 무시 */ }
+            for (let i = 0; i < 40 && !(window.WiredCalc && WiredCalc.applyCustom); i++) await new Promise(r => setTimeout(r, 250));
+            if (!(window.WiredCalc && WiredCalc.applyCustom)) return customAlert('유선계산기 상품표를 불러오지 못했어요. 잠시 뒤 다시 해 주세요.');
+            await wiredLoadCfg();
+            const W = (n) => `${arWon(n)}원`, items = [];
+            pay.rows.forEach(r => { const [cmp, kind, name, speed, base, d3, dtl] = r, ck = SCW_CK[cmp]; if (!ck || !base) return;
+                const price = Math.max(0, base - (d3 || 0)), id = (SCW_MAP[ck] || {})[name], f = id ? scwFind(ck, id, kind) : null;
+                if (f) { const it = f.it, ch = Number(it.price) !== price || Number(it.noContract) !== base; if (ch) items.push({ ck, kind, name, id, path: f.path, cur: it, price, nc: base, speed, on: true }); }
+                else items.push({ ck, kind, name, id: 'sc_' + (kind + name).replace(/[^0-9A-Za-z가-힣]/g, '').slice(0, 30), path: scwNewPath(ck, kind, name), cur: null, price, nc: base, speed, dtl, on: false }); });
+            const S = siseSheet('🌐 스마트초이스 유선 요금', `${escapeHtml(scKst(pay.at))} 조회 · 인터넷 · TV · 계산기 상품표와 다른 것만`, () => items.length ? `
+                <p class="text-[12px] text-gray-600">체크한 것만 <b>설정 → 유선 상품</b>에 '고침' · '추가'로 저장돼요 (기본표는 그대로 · 언제든 [기본으로]). 3년 약정 = 기본료 − 3년 약정 할인 · 무약정 = 기본료.</p>
+                ${['SK', 'KT', 'LG'].map(ck => { const L = items.filter(x => x.ck === ck); return L.length ? `<p class="text-[13px] font-bold text-gray-800 pt-1">${ck === 'LG' ? 'LG U+' : ck}</p>` + L.map(x => `<label class="flex items-start gap-2 rounded-xl border ${x.cur ? 'border-amber-200 bg-amber-50/60' : 'border-gray-200 bg-white'} px-3 py-2"><input type="checkbox" data-scwi="${items.indexOf(x)}" ${x.on ? 'checked' : ''} class="w-5 h-5 mt-0.5 accent-indigo-600"><span class="min-w-0"><span class="block text-[14px] font-bold text-gray-900">${escapeHtml(x.cur ? x.cur.name : x.name)} ${x.cur ? '' : '<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded px-1">계산기에 없음 · 추가</span>'}</span>
+                    <span class="block text-[12px] text-gray-600">${x.cur ? `3년 ${Number(x.cur.price) !== x.price ? `<s class="text-gray-400">${W(x.cur.price)}</s> → <b>${W(x.price)}</b>` : W(x.price)} · 무약정 ${Number(x.cur.noContract) !== x.nc ? `<s class="text-gray-400">${W(x.cur.noContract)}</s> → <b>${W(x.nc)}</b>` : W(x.nc)}` : `스마트초이스 '${escapeHtml(x.name)}' · 3년 ${W(x.price)} · 무약정 ${W(x.nc)}${x.speed ? ` · ${x.speed >= 1000 ? x.speed / 1000 + 'G' : x.speed + 'M'}` : ''}${x.dtl ? ` · ${escapeHtml(x.dtl)}` : ''}`}</span></span></label>`).join('') : ''; }).join('')}`
+                : '<p class="text-[14px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-3">✅ 계산기 상품표와 스마트초이스 요금이 모두 같아요.</p>',
+                items.length ? '<button type="button" data-scwx="save" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">체크한 것 유선 상품에 저장</button>' : '');
+            S.sh.addEventListener('change', (e) => { const c = e.target.closest('[data-scwi]'); if (c) items[+c.dataset.scwi].on = c.checked; });
+            S.sh.addEventListener('click', async (e) => {
+                if (e.target.closest('[data-ss="close"]')) return S.close();
+                if (!e.target.closest('[data-scwx="save"]')) return;
+                const pick = items.filter(x => x.on); if (!pick.length) return customAlert('저장할 것을 하나 이상 체크해 주세요.');
+                await wedSave(it => pick.forEach(x => { it[x.ck] = it[x.ck] || {}; const L = it[x.ck][x.path] = it[x.ck][x.path] || [], i = L.findIndex(y => y.id === x.id);
+                    const obj = { id: x.id, name: x.cur ? x.cur.name : (x.kind === 'T' ? x.name : `${x.name}${x.speed ? ` (${x.speed >= 1000 ? x.speed / 1000 + 'G' : x.speed + 'M'})` : ''}`), price: x.price, noContract: x.nc, ...(x.kind === 'T' ? { discount: x.cur ? Number(x.cur.discount) || 0 : 0 } : { speed: x.speed || (x.cur && x.cur.speed) || 500 }) };
+                    if (i >= 0) L[i] = obj; else L.push(obj); }), `🌐 유선 상품 ${pick.length}개를 저장했어요`);
+                try { const at = String(pay.at || ''); await saveDoc(doc(db, 'card_public', 'wiredsc'), { at, savedAt: new Date().toISOString(), by: getStaffName() || '', n: pick.length }); wiredScAt = at; } catch (err) { /* 무시 */ }
+                S.close();
+            });
+        }
+        let wiredScAt = '';
         function wnCarOf(c) {
             if (wnCarPick[c.id]) return { ck: wnCarPick[c.id], how: 'pick' };
             const map = (t) => { t = String(t || ''); return /LG|U\+|유플/i.test(t) ? 'LG' : (/SK|B\s*tv|브로드밴드/i.test(t) ? 'SK' : (/KT|케이티|올레|olleh|지니/i.test(t) ? 'KT' : '')); };
@@ -27109,7 +27168,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V320';
+        const APP_VER = 'V321';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27117,6 +27176,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V321', d: '2026-11-08', items: [
+                ['🌐 유선 상품도 스마트초이스 연동: 인터넷/IPTV 요금제 비교 화면에서 북마크 [CRM공시] → 3사 인터넷 · TV 무약정 · 3년 요금이 계산기와 다른 것만 골라 저장 (설정 → 유선 상품)', 'a']] },
             { v: 'V320', d: '2026-11-08', items: [
                 ['✏️ 설정 → 유선 상품: 인터넷 · 와이파이 · TV · 셋톱 상품을 직접 추가 · 고치기 · 숨기기 → 유선계산기 · 유선 안내서 · 유선 약정 안내에 같이 반영', 'a']] },
             { v: 'V319', d: '2026-11-08', items: [
