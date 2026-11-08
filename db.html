@@ -399,6 +399,8 @@
                 <button type="button" id="reassignBtn" class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap" title="체크한 고객의 담당자를 한 번에 바꿔요 (총관리자)"><i class="fa-solid fa-user-pen"></i> 담당자 바꾸기</button>
             </div>
 
+            <!-- 📅 V310 이번 주 약속 (달력 한 주 · 누르면 그 날 달력) -->
+            <div id="weekCal" class="mb-2.5"></div>
             <!-- 📇 V250 아침 전화 명단: 어제부터 명함을 열었거나 견적 · 계산을 본 고객 -->
             <div id="morningCallBox" class="hidden mb-2.5"></div>
             <!-- 오늘 챙길 고객 (타일을 누르면 해당 고객만 목록에 보여줌 · 화면이 좁으면 옆으로 넘겨서 보기) -->
@@ -6268,6 +6270,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 대시보드 4개 타일 숫자 계산 (고객 수 기준 / 필터 목록과 같은 함수 사용)
         function updateAlertDashboard() {
+            try { renderWeekCal(); } catch (e) { console.warn('주간 약속', e); }   // 📅 V310
             let cardInst = 0, cardOff = 0;
             const setTextD = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
             let promiseCount = 0, promiseToday = 0, promiseOverdue = 0;
@@ -18450,6 +18453,33 @@ familyStr + `\n` +
             });
             return out;
         }
+        /* 📅 V310 고객 화면 주간 약속 줄 — 약속 달력과 같은 약속(요금제 · 부가 · 보험 · 카드 · 악세 · 방문 · 기타 · 재연락), 담당자 필터 따라감 */
+        let weekOff = 0;
+        function renderWeekCal() {
+            const box = document.getElementById('weekCal'); if (!box) return;
+            const today = getTodayStr(), t0 = new Date(today + 'T00:00:00'); t0.setDate(t0.getDate() - t0.getDay() + weekOff * 7);
+            const days = [...Array(7)].map((_, i) => { const d = new Date(t0); d.setDate(t0.getDate() + i); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); });
+            const by = new Map(days.map(d => [d, {}])); let overdue = 0, open = 0;
+            customerDB.filter(matchesManagerFilter).forEach(c => { if (c.deletedAt) return;
+                PROMISE_DEFS.forEach(t => { const date = String(c[`prom${t.key}Date`] || '').slice(0, 10); if (date.length < 10 || c[`prom${t.key}Chk`]) return;
+                    if (date < today) overdue++;
+                    const m = by.get(date); if (m) { m[t.key] = (m[t.key] || 0) + 1; open++; } }); });
+            const md = (d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
+            box.innerHTML = `<div class="rounded-2xl bg-white border border-gray-200 p-2">
+                <div class="flex items-center gap-1 mb-1.5">
+                    <button type="button" data-wk-nav="-1" aria-label="이전 주" class="w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-chevron-left text-xs"></i></button>
+                    <button type="button" data-wk-day="${weekOff ? days[0] : today}" class="flex-1 min-w-0 text-left text-[13px] font-bold text-gray-800 truncate">📅 ${weekOff ? `${md(days[0])} ~ ${md(days[6])}` : '이번 주'} 약속 ${open}건${overdue ? ` · <span class="text-red-600">지난 미처리 ${overdue}</span>` : ''}</button>
+                    ${weekOff ? '<button type="button" data-wk-nav="0" class="h-9 px-2 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700">이번 주</button>' : ''}
+                    <button type="button" data-wk-nav="1" aria-label="다음 주" class="w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-chevron-right text-xs"></i></button></div>
+                <div class="grid grid-cols-7 gap-0.5">${days.map((d, i) => { const m = by.get(d), keys = PROMISE_DEFS.map(t => t.key).filter(k => m[k]), past = d < today, isT = d === today;
+                    const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-0.5 text-[10px] leading-[15px] font-bold ${CAL_STYLE[k].cls}">${CAL_STYLE[k].short} ${m[k]}</span>`).join('') + (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[13px]">+${keys.slice(3).reduce((a, k) => a + m[k], 0)}</span>` : '');
+                    return `<button type="button" data-wk-day="${d}" aria-label="${md(d)} 약속" class="min-h-[64px] rounded-lg p-0.5 text-left flex flex-col gap-0.5 ${isT ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-400' : (past ? 'bg-gray-50' : 'bg-white')}">
+                        <span class="flex items-baseline gap-0.5 px-0.5"><span class="text-[10px] font-bold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-400'}">${'일월화수목금토'[i]}</span><span class="text-[12px] font-bold ${isT ? 'text-indigo-700' : (i === 0 ? 'text-red-600' : i === 6 ? 'text-blue-600' : 'text-gray-800')}">${+d.slice(8, 10)}</span></span>${pills}</button>`; }).join('')}</div></div>`;
+        }
+        document.getElementById('weekCal').addEventListener('click', (e) => {
+            const n = e.target.closest('[data-wk-nav]'); if (n) { const v = Number(n.dataset.wkNav); weekOff = v === 0 ? 0 : weekOff + v; renderWeekCal(); return; }
+            const d = e.target.closest('[data-wk-day]'); if (d) { const ds = d.dataset.wkDay, x = new Date(ds + 'T00:00:00'); calY = x.getFullYear(); calM = x.getMonth(); calSel = ds; calState = 'open'; openCalcSheet('cal'); }
+        });
         function calStaffList() {
             const set = new Set();
             customerDB.forEach(c => { const k = managerKey(c.manager || c.contactManager || ''); if (k) set.add(k); });
@@ -26983,7 +27013,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V309';
+        const APP_VER = 'V310';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26991,6 +27021,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V310', d: '2026-11-08', items: [
+                ['📅 고객 화면 검색칸 아래 이번 주 약속 달력 (요금제 · 부가 · 보험 · 방문 · 악세 · 재연락 …) · ‹ › 주 넘기기 · 날짜 누르면 그 날 약속 목록', 'a']] },
             { v: 'V309', d: '2026-11-08', items: [
                 ['🏷 바로가기 맨 앞 [공통지원금 가져오기] (○일 전 표시) → 스마트초이스 열기 + 크롬으로 옮기는 순서 안내 · 저장된 공시 보기', 'a']] },
             { v: 'V308', d: '2026-11-08', items: [
