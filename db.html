@@ -11971,12 +11971,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         /* 🔔 자동 푸시를 누르면 → 고객 명함이 열리고 '🔔 받은 알림' 창으로 내용이 떠요 (V183 · 명함 공지 창과 같은 모양)
            · 주소 = 그 고객 명함 링크(?c=명함번호 · 직원 고객은 공용 명함) + #pn=알림 내용 · 개통 안부는 창에 [⭐ 리뷰 쓰기] 버튼 (명함 V4.3)
            · 중계 서버 v10이 예약 푸시에 주소를 붙여줘요 (v9면 명함만 열림) */
+        // 📲 V326 푸시 주소는 '/index.html'로: 명함 앱(설치된 앱) 범위가 /index.html이라 맨 주소(/?c=…)면 크롬으로 열렸음 (명함 V5.9)
+        function pushAppUrl(u) { return String(u || '').replace(/^(https:\/\/kanggun1983\.github\.io)\/(?=[?#]|$)/, '$1/index.html'); }
         function cardPushUrl(c, id, heading, body, image, rv, ph, pos) {
             try {
                 const j = JSON.stringify({ id: String(id || '').slice(0, 20), h: String(heading || '').slice(0, 60), b: String(body || '').slice(0, 300), i: /^https:\/\//.test(image || '') ? image : '', ...(isFinite(parseInt(pos, 10)) && /^https:\/\//.test(image || '') ? { p: Math.max(0, Math.min(100, parseInt(pos, 10))) } : {}), ...(rv ? { rv: 1 } : {}), ...(ph ? { ph: 1 } : {}) });   // ph: 📱 내 폰 정보 창 (명함 V4.4)
                 const b64 = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                return `${autoCardLink(c)}#pn=${b64}`;
-            } catch (e) { return autoCardLink(c); }
+                return pushAppUrl(`${autoCardLink(c)}#pn=${b64}`);
+            } catch (e) { return pushAppUrl(autoCardLink(c)); }
         }
         /* 📇 자동 문자에 명함 링크 (V179 · 문구마다 켜고 끄기 · 문자에만 · 푸시는 눌러도 명함이 열려서 안 붙임)
            · 어느 명함: 고객카드 담당자 기준 — 👑 대표·담당 없음 = 대표 명함 / 직원 = 👥 공용 명함(그 직원으로) / 공용 명함이 꺼져 있으면 대표 명함
@@ -14186,8 +14188,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try {
                 const j = JSON.stringify({ id, h: (t.heading || '').slice(0, 60), b: (t.body || '').slice(0, 400), i: /^https:\/\//.test(pushImage || '') ? pushImage : '' });
                 const b64 = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-                return `${DEFAULT_CARD_URL}#pn=${b64}`;
-            } catch (e) { return DEFAULT_CARD_URL; }
+                return pushAppUrl(`${DEFAULT_CARD_URL}#pn=${b64}`);
+            } catch (e) { return pushAppUrl(DEFAULT_CARD_URL); }
         }
         async function sendPushNow() {
             const t = pushFinalTexts();
@@ -27304,7 +27306,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V325';
+        const APP_VER = 'V326';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27312,6 +27314,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V326', d: '2026-11-08', items: [
+                ['📲 푸시 알림을 누르면 크롬이 아니라 설치한 명함 앱으로 열려요 (알림 주소를 명함 앱 주소 /index.html로)', 'a']] },
             { v: 'V325', d: '2026-11-08', items: [
                 ['🔔 홍보 사진이 길면 푸시 알림에 보일 부분을 고를 수 있어요 (설정 → 홍보 → 사진 아래 \'푸시 알림에 보일 부분\' 밀기) · 문자는 사진 전체 그대로 · 명함 받은 알림 창도 같은 부분 + 누르면 크게 (명함 V5.16)', 'a']] },
             { v: 'V324', d: '2026-11-08', items: [
