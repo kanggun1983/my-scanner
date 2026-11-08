@@ -11460,16 +11460,19 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const img = new Image();
                     img.onerror = () => reject(new Error('이 사진 형식은 열 수 없어요. (아이폰 HEIC 사진이면 스크린샷으로 올려주세요)'));
                     img.onload = () => {
-                        let max = 1080, q = 0.85, out = '';
-                        for (let i = 0; i < 10; i++) {
+                        // 🖼 V314 안내서처럼: 가로만 1080으로 맞추고 세로는 길게 둠 (예전엔 긴 쪽을 1080으로 줄여서 세로로 긴 사진이 작게 · 잘려 보였음)
+                        let k = 1, q = 0.85, out = '';
+                        for (let i = 0; i < 14; i++) {
                             let w = img.width, h = img.height;
-                            if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
+                            if (w > 1080) { h *= 1080 / w; w = 1080; }
+                            if (h > 4320) { w *= 4320 / h; h = 4320; }
+                            w *= k; h *= k;
                             const canvas = document.createElement('canvas');
                             canvas.width = Math.round(w); canvas.height = Math.round(h);
                             const g = canvas.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height); g.drawImage(img, 0, 0, canvas.width, canvas.height);
                             out = canvas.toDataURL('image/jpeg', q);
                             if (Math.floor((out.length - out.indexOf(',') - 1) * 3 / 4) <= maxBytes) break;
-                            if (q > 0.62) q -= 0.08; else max = Math.round(max * 0.85);
+                            if (q > 0.62) q -= 0.08; else k *= 0.85;
                         }
                         resolve(out);
                     };
@@ -27017,7 +27020,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V313';
+        const APP_VER = 'V314';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27025,6 +27028,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V314', d: '2026-11-08', items: [
+                ['🖼 자동 문자 사진(생일 · 홍보 등): 안내서처럼 세로로 긴 사진도 그대로 (가로만 1080으로 맞춤) · 다시 올려야 적용돼요', 'a']] },
             { v: 'V313', d: '2026-11-08', items: [
                 ['📛 기종 이름: 갤럭시 S26 (S942) — 견적요청 기종 칩 · 지원금표 · 명함 폰값계산 같은 모양 (코드는 작고 연하게)', 'a']] },
             { v: 'V312', d: '2026-11-08', items: [
