@@ -27020,7 +27020,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V314';
+        const APP_VER = 'V315';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27028,6 +27028,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V315', d: '2026-11-08', items: [
+                ['🧭 설정 → 기능 탐색기: 개통 등록 · 약속 · 안내서 · 재고 · 명함 · 콜매니저가 서로 어떻게 이어지는지 지도로 (누르면 \'이걸 하면 자동으로\' · \'여기서 들어와요\')', 'a']] },
             { v: 'V314', d: '2026-11-08', items: [
                 ['🖼 자동 문자 사진(생일 · 홍보 등): 안내서처럼 세로로 긴 사진도 그대로 (가로만 1080으로 맞춤) · 다시 올려야 적용돼요', 'a']] },
             { v: 'V313', d: '2026-11-08', items: [
@@ -27829,7 +27831,7 @@ familyStr + `\n` +
             { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
             { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
             { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' },
-            { id: 'sysmap', grp: '내 폰 · 관리', title: '시스템 연결도', icon: 'fa-diagram-project', tone: 'cyan' }   // 🕸 V312
+            { id: 'sysmap', grp: '내 폰 · 관리', title: '기능 탐색기 · 연결도', icon: 'fa-diagram-project', tone: 'cyan' }   // 🕸 V312
         ];   // 🧭 V274 앱 정보는 '내 정보 · 계정' 안으로
         const SET_TONE = { indigo: ['bg-indigo-50', 'text-indigo-700'], pink: ['bg-pink-50', 'text-pink-700'], amber: ['bg-amber-50', 'text-amber-700'], cyan: ['bg-cyan-50', 'text-cyan-700'] };
         let setPageEls = null, setPageOpen = '', setPagePushed = false;
@@ -27852,8 +27854,132 @@ familyStr + `\n` +
                 { side: 'out', ic: '💰', name: '악세 정산', what: 'acc-settle (악세 판매 · 정산)', st: 'ok', txt: '바로가기' }
             ];
         }
+        /* 🧭 V315 기능 탐색기 — 강CRM 기능이 서로 어떻게 이어지는지 (무엇을 하면 어디에 자동으로 들어가는지)
+             · FX_G: 묶음(색) · FX_N: 기능 { id, g, n 이름, d 설명, out: [[가는 기능 id, '무엇이 자동으로']] }
+             · 지도: 묶음끼리 원으로 · 누르면 나가는 선(주황) · 들어오는 선(파랑) 강조 + 아래에 자동 연결 목록 */
+        const FX_G = {
+            cust: ['👥 고객', '#60a5fa'], act: ['📱 개통', '#f472b6'], prom: ['📅 약속', '#a78bfa'], guide: ['🧾 안내서', '#34d399'],
+            stock: ['📦 재고', '#fbbf24'], card: ['📇 명함', '#fb7185'], call: ['📞 콜매니저', '#22d3ee'], auto: ['✉️ 자동 안내', '#f97316'],
+            price: ['💰 지원금 · 시세', '#a3e635'], sys: ['⚙️ 저장 · 연결', '#94a3b8']
+        };
+        const FX_N = [
+            // 👥 고객
+            { id: 'cust', g: 'cust', n: '고객카드', d: '고객 한 명의 모든 기록 (정보 · 개통 기록 · 안내서 · 통화 · 약속)', out: [['wk', '약속 · 개통 날짜가 달력 · 할 일에'], ['dash', '대시보드 숫자 (약속 · 만료 · 생일)']] },
+            { id: 'scan', g: 'cust', n: '신분증 스캐너', d: '찍고 고객 골라 서류로', out: [['cust', '고객카드 서류'], ['drive', '서류 클라우드 백업']] },
+            { id: 'dash', g: 'cust', n: '대시보드', d: '명함견적 · 방문약속 · 약속 · 무선/유선 만료 · 생일 · 오늘 할 일', out: [] },
+            { id: 'wk', g: 'cust', n: '주간 약속 달력', d: '검색칸 아래 한 주 약속 (V310)', out: [['cal', '날짜 누르면 그 날 약속']] },
+            { id: 'goal', g: 'cust', n: '월 목표 · 담당자별', d: '이번 달 개통 건수 · 담당자별 · 정산 금액', out: [] },
+            // 📱 개통
+            { id: 'actreg', g: 'act', n: '개통 등록 (개통보고)', d: '무선 개통을 저장하면 여러 곳에 한 번에 들어가요', out: [['actlog', '개통 기록 한 줄 추가 (기종 · 요금제 · 일련번호 · 정책)'], ['cust', '고객카드 개통일 · 기종 · 요금제 · 방문일 갱신'], ['autoprom', '유지 조건대로 약속 자동 (요금제 변경 · 부가 · 보험 해지)'], ['sold', '재고 일련번호 · 유심 판매 처리'], ['settle', '정산 입력 (안 넣으면 미입력 알림)'], ['goal', '월 목표 · 담당자별 개통 숫자'], ['acttext', '개통보고 문구 복사'], ['smsact', '개통 뒤 안부 문자 예약']] },
+            { id: 'actlog', g: 'act', n: '개통 기록', d: '고객카드 개통 기록 탭 · 이전 개통 카드 보관 (V285)', out: [['undo', '고치기 전 기록 보관 (V304)']] },
+            { id: 'undo', g: 'act', n: '고치기 · 되돌리기', d: '[개통 정보 고치기] → 잘못 고치면 [↩ 고치기 전으로]', out: [['actlog', '원래 기록으로']] },
+            { id: 'settle', g: 'act', n: '정산 입력', d: '기본정책 · 구두추가 · 부가/보험 · 카드', out: [['goal', '이번 달 정산 금액']] },
+            { id: 'acttext', g: 'act', n: '개통보고 문구', d: '-개통보고 M월 D일- 양식 (무선 · 유선)', out: [] },
+            { id: 'homereg', g: 'act', n: '유선 개통 등록', d: '인터넷 · TV 개통 저장', out: [['acttext', '유선 개통보고 자동 복사'], ['cust', '고객카드 유선 정보 · 만료일'], ['dash', '유선 만료 칸']] },
+            // 📅 약속
+            { id: 'autoprom', g: 'prom', n: '자동 약속 (유지 조건)', d: '통신사 기본 · 거래처별 유지 기간', out: [['promreg', '약속으로 등록']] },
+            { id: 'promreg', g: 'prom', n: '약속 등록', d: '요금제 · 부가 · 보험 · 카드 · 악세 · 방문 · 기타 · 재연락', out: [['cal', '약속 달력'], ['wk', '주간 약속 달력'], ['todo', '오늘 할 일 · 지연'], ['dash', '약속 칸 숫자'], ['smsprom', '약속일 아침 문자 · 푸시']] },
+            { id: 'cal', g: 'prom', n: '약속 달력', d: '월 달력 · 날짜별 고객 · 처리 체크', out: [['todo', '처리하면 할 일에서 빠짐']] },
+            { id: 'todo', g: 'prom', n: '오늘 할 일', d: '오늘 · 지연 약속 · 연락할 고객', out: [] },
+            // 🧾 안내서
+            { id: 'gd', g: 'guide', n: '구매 안내서 (무선)', d: '기종 · 요금 · 지원금 계산 → 고객 서명', out: [['gdrec', '구매 내용 확인 녹음'], ['gdsend', '안내서 사진 문자 · 공유'], ['actreg', '[개통 등록으로] 기종 · 요금제 · 정책 자동 채움'], ['cust', '고객카드 안내서 탭']] },
+            { id: 'gdw', g: 'guide', n: '유선 안내서', d: '인터넷 · TV · 결합 · 설치비 (V301~303)', out: [['homereg', '유선 개통 등록 자동 채움'], ['gdsend', '안내서 사진 문자']] },
+            { id: 'gdrec', g: 'guide', n: '녹취 (확인 녹음)', d: '서명 전 · 나중에 따로 저장 가능 (V300)', out: [['drive', '녹음 파일 드라이브 저장']] },
+            { id: 'gdsend', g: 'guide', n: '안내서 보내기', d: '매장 폰 사진 문자 · 문자앱 · 공유', out: [['relay', '중계 서버로 사진 올림 · 매장 폰 발송']] },
+            // 📦 재고
+            { id: 'stockin', g: 'stock', n: '재고 입고 (바코드)', d: '단말 일련번호 뒤 7자리 · 유심 낱개', out: [['stock', '재고 목록']] },
+            { id: 'stock', g: 'stock', n: '재고 목록 · 실사', d: '모델 이름 · 거래처 · 실사 · 정리 사유', out: [['dash', '재고 알림 (유심 부족)']] },
+            { id: 'sold', g: 'stock', n: '판매 처리', d: '개통 등록의 일련번호 · 유심번호로 자동', out: [['stock', '재고에서 판매로']] },
+            // 📇 명함
+            { id: 'card', g: 'card', n: '고객 명함 (사이트)', d: '고객 폰에 깔리는 매장 명함', out: [['quote', '견적요청'], ['visit', '방문 예약'], ['pcalc', '폰값계산'], ['cardpush', '명함 푸시 구독']] },
+            { id: 'quote', g: 'card', n: '견적요청', d: '고객이 기종 · 요금제 골라 요청', out: [['dash', '명함견적 칸'], ['staffpush', '직원 폰 알림'], ['morning', '아침 전화 명단']] },
+            { id: 'visit', g: 'card', n: '방문 예약', d: '날짜 · 시간 고르기', out: [['promreg', '방문 약속으로 등록'], ['smsvisit', '방문 전날 문자']] },
+            { id: 'pcalc', g: 'card', n: '폰값계산', d: '명함 · 강CRM 상담용 계산기', out: [['quote', '이 견적 고객에게 보내기']] },
+            { id: 'morning', g: 'card', n: '아침 전화 명단', d: '어제부터 명함 본 · 견적 확인한 고객', out: [] },
+            { id: 'cardpush', g: 'card', n: '명함 푸시', d: '시세표 · 홍보 · 약속 알림을 앱 알림으로', out: [] },
+            // 📞 콜매니저
+            { id: 'callapp', g: 'call', n: '콜매니저 앱', d: '전화 오면 고객카드 · 끊으면 결과 묻기', out: [['calllog', '통화 기록'], ['callrec', '통화 녹음 백업 · AI 요약']] },
+            { id: 'calllog', g: 'call', n: '통화 결과', d: '통화 완료 · 부재 · 다음 연락일', out: [['cust', '고객카드 연락 기록'], ['promreg', '다음 연락일 → 재연락 약속 · 완료면 약속 닫기 (V286)'], ['smsmiss', '부재면 재연락 문자']] },
+            { id: 'callrec', g: 'call', n: '녹음 백업 · AI 요약', d: '강CRM 고객 통화만', out: [['drive', '드라이브 강CRM 녹음 폴더'], ['gemini', '3줄 요약']] },
+            // ✉️ 자동 안내
+            { id: 'smsprom', g: 'auto', n: '약속일 안내', d: '약속일 아침', out: [['relay', '매장 폰 문자 · 푸시']] },
+            { id: 'smsvisit', g: 'auto', n: '방문 전날 안내', d: '전날 정한 시각', out: [['relay', '매장 폰 문자 · 푸시']] },
+            { id: 'smsact', g: 'auto', n: '개통 뒤 안부', d: '개통하고 정한 날 뒤', out: [['relay', '매장 폰 문자 · 푸시']] },
+            { id: 'smsbday', g: 'auto', n: '생일 축하', d: '생일 아침 · 쿠폰 사진', out: [['relay', '매장 폰 사진 문자']] },
+            { id: 'smsmiss', g: 'auto', n: '부재 재연락', d: '못 받은 전화', out: [['relay', '매장 폰 문자']] },
+            { id: 'staffpush', g: 'auto', n: '직원 알림', d: '견적요청 · 관심 고객 · 악세 예약', out: [] },
+            // 💰 지원금 · 시세
+            { id: 'subsidy', g: 'price', n: '지원금표 (엑셀)', d: '통신사 지원금 · 요금제 · 위약금', out: [['pcalc', '명함 폰값계산'], ['gd', '안내서 출고가 · 공시']] },
+            { id: 'pubsc', g: 'price', n: '공통지원금 (스마트초이스)', d: '북마크 CRM공시로 기종 · 요금 구간별 (V305~)', out: [['sise', '공시 · 선약 싼 쪽 자동'], ['gd', '안내서 공시 칸 자동'], ['pcmp', '비교 공시 칸']] },
+            { id: 'policy', g: 'price', n: '거래처 정책표', d: '사진 · 엑셀 → AI가 표로', out: [['sise', '기종별 현금가']] },
+            { id: 'sise', g: 'price', n: '시세표 이미지', d: '통신사 · 구간 · 기종 → 그림', out: [['cardpush', '명함 알림으로'], ['card', '명함 열 때 한 번 띄우기']] },
+            { id: 'pcmp', g: 'price', n: '기종 비교', d: '선약 vs 공시 24개월 총액', out: [] },
+            // ⚙️ 저장 · 연결
+            { id: 'fb', g: 'sys', n: 'Firebase 저장소', d: '고객 · 약속 · 개통 · 재고 · 안내서 전부 (직원 폰 · 명함 · 콜매니저가 같이 봄)', out: [['backup', '하루 한 번 자동 백업']] },
+            { id: 'relay', g: 'sys', n: '알림 서버 (Cloudflare)', d: '문자 예약 · 푸시 · 사진 보관 · 매장 폰으로 발송', out: [] },
+            { id: 'drive', g: 'sys', n: '구글 드라이브', d: '서류 · 녹음 · 백업', out: [] },
+            { id: 'gemini', g: 'sys', n: 'Gemini AI', d: '정책표 · 서류 읽기 · 통화 요약 · 문구 다듬기', out: [['policy', '정책표 표로 읽기']] },
+            { id: 'backup', g: 'sys', n: '자동 백업', d: '대표 폰 · 켜고 1분 뒤 하루 한 번', out: [['drive', '백업 파일']] }
+        ];
+        let fxSel = '', fxQ = '', fxView = { x: 0, y: 0, k: 1 }, fxMode = 'map';
+        function fxLayout() {   // 묶음은 큰 원 위에, 기능은 묶음 안 작은 원 위에
+            const gs = Object.keys(FX_G), R = 200, pos = {};
+            gs.forEach((g, i) => { const a = (i / gs.length) * Math.PI * 2 - Math.PI / 2, cx = 300 + R * Math.cos(a), cy = 300 + R * Math.sin(a), L = FX_N.filter(n => n.g === g), r = L.length > 1 ? 26 + L.length * 5 : 0;
+                L.forEach((n, j) => { const b = (j / L.length) * Math.PI * 2 + a; pos[n.id] = { x: cx + r * Math.cos(b), y: cy + r * Math.sin(b) }; }); pos['g:' + g] = { x: cx, y: cy, r: r + 22 }; });
+            return pos;
+        }
+        function fxIn(id) { const out = []; FX_N.forEach(n => n.out.forEach(([to, t]) => { if (to === id) out.push([n.id, t]); })); return out; }
+        const fxNode = (id) => FX_N.find(n => n.id === id);
+        function fxRender() {
+            const box = document.getElementById('fxBox'); if (!box) return;
+            const P = fxLayout(), sel = fxNode(fxSel), q = fxQ.trim().toLowerCase(), hit = (n) => !q || (n.n + ' ' + n.d + ' ' + n.out.map(o => o[1]).join(' ')).toLowerCase().includes(q);
+            const outIds = new Set(sel ? sel.out.map(o => o[0]) : []), inIds = new Set(sel ? fxIn(sel.id).map(o => o[0]) : []);
+            const edges = []; FX_N.forEach(n => n.out.forEach(([to]) => { const a = P[n.id], b = P[to]; if (!a || !b) return; const on = sel && (n.id === sel.id || to === sel.id), col = !sel ? 'rgba(148,163,184,.18)' : (n.id === sel.id ? '#fb923c' : (to === sel.id ? '#60a5fa' : 'rgba(148,163,184,.06)'));
+                const mx = (a.x + b.x) / 2 + (b.y - a.y) * 0.15, my = (a.y + b.y) / 2 - (b.x - a.x) * 0.15; edges.push(`<path d="M${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${col}" stroke-width="${on ? 2.2 : 1}"${on ? ' marker-end="url(#fxArr' + (n.id === sel.id ? 'O' : 'B') + ')"' : ''}/>`); }));
+            const groups = Object.entries(FX_G).map(([g, [lab, col]]) => { const c = P['g:' + g]; return `<circle cx="${c.x}" cy="${c.y}" r="${c.r}" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".25"/><text x="${c.x}" y="${c.y - c.r - 6}" text-anchor="middle" font-size="13" font-weight="800" fill="${col}">${lab}</text>`; }).join('');
+            const nodes = FX_N.map(n => { const p = P[n.id], col = FX_G[n.g][1], dim = (sel && n.id !== sel.id && !outIds.has(n.id) && !inIds.has(n.id)) || !hit(n), big = sel && n.id === sel.id;
+                return `<g data-fx="${n.id}" style="cursor:pointer" opacity="${dim ? 0.18 : 1}"><circle cx="${p.x}" cy="${p.y}" r="${big ? 11 : 7}" fill="${col}" ${big ? 'stroke="#fff" stroke-width="2.5"' : ''}><title>${escapeHtml(n.n)}</title></circle>${big || outIds.has(n.id) || inIds.has(n.id) || q ? `<text x="${p.x + 10}" y="${p.y + 4}" font-size="11" font-weight="700" fill="#e5e7eb" paint-order="stroke" stroke="#0b1020" stroke-width="3">${escapeHtml(n.n)}</text>` : ''}</g>`; }).join('');
+            const vb = `${fxView.x + 300 - 300 / fxView.k} ${fxView.y + 300 - 300 / fxView.k} ${600 / fxView.k} ${600 / fxView.k}`;
+            const list = (L, col, empty) => L.length ? L.map(([id, t]) => { const m = fxNode(id); return m ? `<button type="button" data-fx="${id}" class="w-full text-left flex items-start gap-2 py-1.5"><span class="mt-1.5 w-2 h-2 rounded-full flex-shrink-0" style="background:${FX_G[m.g][1]}"></span><span class="min-w-0"><span class="block text-[14px] font-bold text-white">${escapeHtml(m.n)}</span><span class="block text-[12px]" style="color:${col}">${escapeHtml(t)}</span></span></button>` : ''; }).join('') : `<p class="text-[12px] text-slate-500 py-1">${empty}</p>`;
+            box.innerHTML = `<div class="rounded-2xl overflow-hidden" style="background:#0b1020">
+                <div class="flex items-center gap-1.5 p-2">
+                    <input type="search" data-fxq value="${escapeHtml(fxQ)}" placeholder="기능 찾기 (예: 개통, 약속, 재고)" class="flex-1 min-w-0 h-10 px-3 rounded-xl bg-slate-800 border border-slate-700 text-[14px] text-white placeholder-slate-400">
+                    ${[['map', '지도'], ['list', '목록']].map(([m, l]) => `<button type="button" data-fxm="${m}" class="h-10 px-3 rounded-xl text-[13px] font-bold ${fxMode === m ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div>
+                ${fxMode === 'map' ? `<div class="relative"><svg data-fxsvg viewBox="${vb}" class="w-full touch-none select-none" style="aspect-ratio:1/1"><defs>${[['O', '#fb923c'], ['B', '#60a5fa']].map(([k, c]) => `<marker id="fxArr${k}" viewBox="0 0 10 10" refX="16" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('')}</defs>${groups}${edges.join('')}${nodes}</svg>
+                    <div class="absolute right-2 bottom-2 flex flex-col gap-1">${[['+', 1.4], ['−', 1 / 1.4], ['⟲', 0]].map(([l, z]) => `<button type="button" data-fxz="${z}" class="w-9 h-9 rounded-lg bg-slate-800/90 text-white text-[16px] font-bold">${l}</button>`).join('')}</div>
+                    <p class="absolute left-2 bottom-2 text-[11px] text-slate-400">점을 누르면 연결 · 끌어서 이동</p></div>`
+                : `<div class="px-3 pb-3 space-y-2">${Object.entries(FX_G).map(([g, [lab, col]]) => { const L = FX_N.filter(n => n.g === g && hit(n)); return L.length ? `<p class="pt-1 text-[12px] font-bold" style="color:${col}">${lab}</p>` + L.map(n => `<button type="button" data-fx="${n.id}" class="w-full text-left rounded-xl px-3 py-2 ${fxSel === n.id ? 'bg-slate-700' : 'bg-slate-800/70'}"><span class="block text-[14px] font-bold text-white">${escapeHtml(n.n)} <span class="text-[11px] font-medium text-slate-400">→ ${n.out.length}곳</span></span><span class="block text-[12px] text-slate-400">${escapeHtml(n.d)}</span></button>`).join('') : ''; }).join('')}</div>`}
+                ${sel ? `<div class="border-t border-slate-800 p-3 space-y-2">
+                    <div class="flex items-start justify-between gap-2"><div><p class="text-[16px] font-extrabold text-white"><span class="inline-block w-2.5 h-2.5 rounded-full mr-1" style="background:${FX_G[sel.g][1]}"></span>${escapeHtml(sel.n)}</p><p class="text-[12px] text-slate-400">${escapeHtml(FX_G[sel.g][0])} · ${escapeHtml(sel.d)}</p></div><button type="button" data-fx="" class="w-8 h-8 rounded-lg bg-slate-800 text-slate-300">✕</button></div>
+                    <p class="text-[12px] font-bold" style="color:#fb923c">➡️ 이걸 하면 자동으로</p>${list(sel.out, '#fdba74', '다른 곳으로 자동으로 넘어가는 건 없어요')}
+                    <p class="text-[12px] font-bold pt-1" style="color:#60a5fa">⬅️ 여기서 들어와요</p>${list(fxIn(sel.id), '#93c5fd', '자동으로 들어오는 곳은 없어요 (직접 입력)')}</div>`
+                : `<p class="border-t border-slate-800 px-3 py-2.5 text-[12px] text-slate-400">기능 ${FX_N.length}개 · 자동 연결 ${FX_N.reduce((a, n) => a + n.out.length, 0)}개 · 예: <button type="button" data-fx="actreg" class="font-bold text-pink-300 underline">개통 등록</button> · <button type="button" data-fx="promreg" class="font-bold text-violet-300 underline">약속 등록</button> · <button type="button" data-fx="calllog" class="font-bold text-cyan-300 underline">통화 결과</button></p>`}</div>`;
+            fxBind(box);
+        }
+        function fxBind(box) {
+            box.onclick = (e) => {
+                const z = e.target.closest('[data-fxz]'); if (z) { const v = Number(z.dataset.fxz); if (!v) fxView = { x: 0, y: 0, k: 1 }; else fxView.k = Math.min(4, Math.max(0.7, fxView.k * v)); fxRender(); return; }
+                const m = e.target.closest('[data-fxm]'); if (m) { fxMode = m.dataset.fxm; fxRender(); return; }
+                const f = e.target.closest('[data-fx]'); if (f && !box.__dragged) { fxSel = f.dataset.fx === fxSel ? '' : f.dataset.fx; if (fxSel && fxMode === 'map') { const p = fxLayout()[fxSel]; if (p && fxView.k > 1.01) { fxView.x = p.x - 300; fxView.y = p.y - 300; } } fxRender(); }
+            };
+            const qi = box.querySelector('[data-fxq]'); if (qi) qi.oninput = (e) => { fxQ = e.target.value; const pos = e.target.selectionStart; fxRender(); const n = document.querySelector('#fxBox [data-fxq]'); if (n) { n.focus(); try { n.setSelectionRange(pos, pos); } catch (x) { /* 무시 */ } } };
+            const svg = box.querySelector('[data-fxsvg]'); if (!svg) return;
+            const pts = new Map(); let start = null;
+            svg.onpointerdown = (e) => { pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); box.__dragged = false; start = { v: { ...fxView }, pts: new Map([...pts].map(([k, v]) => [k, { ...v }])) }; };
+            svg.onpointermove = (e) => { if (!pts.has(e.pointerId) || !start) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); const W = svg.getBoundingClientRect().width || 1, unit = 600 / fxView.k / W;
+                if (pts.size === 1) { const p0 = start.pts.get(e.pointerId); if (!p0) return; const dx = e.clientX - p0.x, dy = e.clientY - p0.y; if (Math.abs(dx) + Math.abs(dy) > 6) box.__dragged = true; fxView.x = start.v.x - dx * unit; fxView.y = start.v.y - dy * unit; }
+                else if (pts.size === 2) { const [a, b] = [...pts.values()], [a0, b0] = [...start.pts.values()]; if (!a0 || !b0) return; const d = Math.hypot(a.x - b.x, a.y - b.y), d0 = Math.hypot(a0.x - b0.x, a0.y - b0.y) || 1; box.__dragged = true; fxView.k = Math.min(4, Math.max(0.7, start.v.k * d / d0)); }
+                svg.setAttribute('viewBox', `${fxView.x + 300 - 300 / fxView.k} ${fxView.y + 300 - 300 / fxView.k} ${600 / fxView.k} ${600 / fxView.k}`); };
+            const up = (e) => { pts.delete(e.pointerId); if (!pts.size) { start = null; setTimeout(() => { box.__dragged = false; }, 50); } else start = { v: { ...fxView }, pts: new Map([...pts].map(([k, v]) => [k, { ...v }])) }; };
+            svg.onpointerup = up; svg.onpointercancel = up;
+        }
+        let sysTab = 'fx';
         function renderSysMap() {
-            const box = document.getElementById('sysMapBox'); if (!box) return;
+            const host = document.getElementById('sysMapBox'); if (!host) return;
+            host.innerHTML = `<div class="grid grid-cols-2 gap-1.5 mb-2">${[['fx', '🧭 기능 탐색기'], ['conn', '🔌 연결 상태']].map(([k, l]) => `<button type="button" data-systab="${k}" class="h-11 rounded-xl text-[14px] font-bold border ${sysTab === k ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div><div id="fxBox" class="${sysTab === 'fx' ? '' : 'hidden'}"></div><div id="sysConnBox" class="${sysTab === 'conn' ? '' : 'hidden'}"></div>`;
+            host.onclick = (e) => { const t = e.target.closest('[data-systab]'); if (t) { sysTab = t.dataset.systab; renderSysMap(); } };
+            try { fxRender(); } catch (e) { console.warn('기능 탐색기', e); }
+            const box = document.getElementById('sysConnBox');
             const L = sysMapNodes(), IN = L.filter(n => n.side === 'in'), OUT = L.filter(n => n.side === 'out');
             const C = { ok: '#10b981', warn: '#ef4444', off: '#cbd5e1' }, rowH = 44, H = Math.max(IN.length, OUT.length) * rowH + 16, cx = 180, cy = H / 2, W = 360, bw = 118;
             const y = (i, n) => 8 + (H - 16) / n * (i + 0.5);
