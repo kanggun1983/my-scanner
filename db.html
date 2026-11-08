@@ -19314,7 +19314,11 @@ familyStr + `\n` +
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
                     </div>${legalHtml}`);
                 html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
-                    <div class="grid grid-cols-2 gap-2">${arIn('hr-internet', '인터넷 상품', c.internetProd || '', { ph: '예) 기가 500M' })}${arIn('hr-tv', 'TV 상품', c.tvProd || '', { ph: '예) 베이직' })}${arIn('hr-extratv', '추가 TV', '', { ph: '예) 2대' })}${arMoney('hr-fee', '월 요금')}
+                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규', '전환 (번호이동)', '재약정', '상품 변경', '이전 설치'], '신규')}${arIn('hr-welfare', '복지유형', '', { ph: '없으면 비워요' })}
+                    ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
+                    ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', '', { ph: '예) UHD4' })}
+                    ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', '', { ph: '예) UHD3' })}
+                    ${arMoney('hr-fee', '월 요금')}<label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[44px] self-end"><input type="checkbox" id="hr-onestop" class="w-5 h-5 accent-teal-600">원스톱</label>
                     ${arIn('hr-comb', '결합', prefCombo, { span: true })}${arIn('hr-subsidy', '지원금 (보고서용)', '', { span: true, ph: '예) 현금 40만' })}</div>
                     <p class="text-xs font-bold text-gray-600 pt-1">고객 자동이체 계좌 <span class="font-normal text-gray-500">(보고서에만 들어가고 저장은 안 해요)</span></p>
                     <div class="grid grid-cols-3 gap-2">${arIn('hr-bank', '은행', '')}${arIn('hr-account', '계좌번호', '', { num: false })}${arIn('hr-owner', '예금주', '')}</div>`);
@@ -19579,20 +19583,32 @@ familyStr + `\n` +
                     ((() => { const cards = arCardBase(), cm = arItems.filter(it => it.kind === '제휴카드').reduce((t, it) => t + (Number(it.amount) || 0), 0); if (!cards.length && !cm) return ''; return `\n제휴카드 : ${cards.join(', ')}` + (canSeeSettle() ? `\n제휴카드 추가마진 : ${cm ? `${cm < 0 ? '-' : ''}${arWon(Math.abs(cm))}원` : ''}` : ''); })()) +   /* 💳 V211 */
                     (fam ? `\n가족정보:\n${fam}` : '') + `\n`;
             } else {
-                const typeStr = [arVal('hr-internet'), arVal('hr-tv'), arVal('hr-extratv')].filter(Boolean).join(' / ');
-                text = `-유선 개통보고 ${dateStr}-\n\n` +
+                // 📋 V302 유선 개통보고 = 매장 단톡방 양식 그대로
+                const dd = arVal('hr-date') || arVal('hr-apply') || getTodayStr(), md = /^\d{4}-\d{2}-\d{2}$/.test(dd) ? `${Number(dd.slice(5, 7))}월 ${Number(dd.slice(8, 10))}일` : dateStr;
+                const kindW = { 단품판매: '단품', 결합판매: '결합', 동시판매: '모바일 동판' }[arVal('hr-kind')] || arVal('hr-kind');
+                const dl = dealerByName(arVal('hr-store')), car = (dl && dl.carrier) || stockCarrierOf(arVal('hr-store')) || '', carS = /LG/.test(car) ? 'U+' : (/KT/.test(car) ? 'KT' : (/SK/.test(car) ? 'SK' : ''));
+                const items = [...document.querySelectorAll('input[name="hr-item"]:checked')].map(x => x.value), hasI = items.includes('인터넷') || !!arVal('hr-internet'), hasT = items.includes('TV') || !!arVal('hr-tv');
+                const pp = [hasI ? 'I' : '', hasT ? 'T' : ''].filter(Boolean).join('+'), prod = carS ? (pp ? (carS.endsWith('+') ? carS : carS + '+') + pp : carS) : pp;   // U+I+T · KT+I+T
+                const opt = (l, v) => (v ? `${l}${v}\n` : '');
+                text = `-개통보고 ${md}-\n` + `${[kindW, prod].filter(Boolean).join(' ')}\n\n` +
                     `이름: ${arVal('hr-name')}\n` +
                     `주민번호: ${arVal('ar-jumin')}\n` +
-                    `연락처: ${arVal('hr-phone')}\n` +
+                    `연락처 : ${arVal('hr-phone')}\n` +
                     `주소 : ${arVal('hr-addr')}\n` +
-                    `유형: ${typeStr}\n` +
+                    `유형: ${String(arVal('hr-type') || '').replace(/ \(.*\)$/, '')}\n` +
+                    `요금제: ${arVal('hr-internet')}\n` +
+                    `상품: ${arVal('hr-wifi')}\n` +
+                    `TV(주): ${arVal('hr-tv')}\n` +
+                    `셋탑(주): ${arVal('hr-stb')}\n` +
+                    `TV(부): ${arVal('hr-extratv')}\n` +
+                    `셋탑(부): ${arVal('hr-stb2')}\n` +
                     `지원금 : ${arVal('hr-subsidy')}\n` +
-                    `고객계좌: ${[arVal('hr-bank'), arVal('hr-account'), arVal('hr-owner')].filter(Boolean).join(' ')}\n` +
-                    `결합: ${arVal('hr-comb')}\n` +
-                    `월요금: ${arNum('hr-fee') ? arWon(arNum('hr-fee')) + '원' : ''}\n` +
-                    `접수처: ${arVal('hr-store')}\n`;
+                    `복지유형: ${arVal('hr-welfare')}\n` +
+                    opt('결합: ', arVal('hr-comb')) + opt('월요금: ', arNum('hr-fee') ? arWon(arNum('hr-fee')) + '원' : '') +
+                    opt('고객계좌: ', [arVal('hr-bank'), arVal('hr-account'), arVal('hr-owner')].filter(Boolean).join(' '));
             }
             if (legal.some(Boolean)) text += `\n법정대리인 : ${legal[0]} / ${legal[1]} / ${legal[2]}\n`;
+            if (arMode !== 'mobile') { const st = arVal('hr-status'), os = !!(document.getElementById('hr-onestop') || {}).checked; text += `개통자 : ${arVal('hr-manager')}\n접수처: ${arVal('hr-store')}\n${os ? '원스톱' : ''}${st}`; return text; }   // 📋 V302
             text += `\n개통자 : ${arMode === 'mobile' ? arVal('ar-manager') : arVal('hr-manager')}`;
             return text;
         }
@@ -22400,7 +22416,7 @@ familyStr + `\n` +
         function gdwApplyToHr(g) {
             const w = g.w || {}, set = (id, v) => { const el = document.getElementById(id); if (el && v && !String(el.value || '').trim()) { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); } };
             set('hr-name', g.name); set('hr-phone', formatPhone(phoneDigits(g.phone)));
-            set('hr-internet', [w.intName, w.wifiName].filter(Boolean).join(' + ')); set('hr-tv', [w.tvName, w.stbName].filter(Boolean).join(' + ')); set('hr-comb', w.bundleName);
+            set('hr-internet', w.intName); set('hr-wifi', w.wifiName); set('hr-tv', w.tvName); set('hr-stb', w.stbName); set('hr-comb', w.bundleName);   // 📋 V302 칸마다 따로
             const fe = document.getElementById('hr-fee'); if (fe && !fe.value) { fe.value = arWon(gdwCalc(g).total); fe.dispatchEvent(new Event('input', { bubbles: true })); }
             set('hr-subsidy', [gdNum(w.cash) ? `현금 ${wonMan(w.cash)}` : '', g.gift].filter(Boolean).join(' · ')); set('hr-apply', g.date);
             gdArId = g.id; gdArG = { id: g.id, custId: g.custId || '', phone: phoneDigits(g.phone), name: g.name || '' };
@@ -26803,7 +26819,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V301';
+        const APP_VER = 'V302';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26811,6 +26827,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V302', d: '2026-11-08', items: [
+                ['📋 홈상품 등록 저장(복사+저장) 때 유선 개통보고를 매장 양식 그대로 복사: -개통보고 11월 2일- · 모바일 동판 U+I+T · 유형 · 요금제 · 상품 · TV(주/부) · 셋탑(주/부) · 지원금 · 복지유형 · 개통자 · 접수처 · 원스톱완료', 'a'],
+                ['🏠 홈상품 등록에 칸 추가: 유형 · 복지유형 · 상품(와이파이) · 셋탑(주) · TV(부) · 셋탑(부) · ☑ 원스톱', 'a']] },
             { v: 'V301', d: '2026-11-08', items: [
                 ['📺 인터넷 · TV 안내서: 안내서 탭 [인터넷·TV 안내서] → 통신사 · 인터넷 · 와이파이 · TV · 셋톱 · 결합을 고르면 월 금액이 자동 (위약금 계산기 상품표) → 사은품 · 유의사항 → 고객 서명 · 녹음 · 문자 · [개통등록]은 홈상품 등록으로', 'a']] },
             { v: 'V300', d: '2026-11-08', items: [
