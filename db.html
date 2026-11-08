@@ -11460,16 +11460,19 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const img = new Image();
                     img.onerror = () => reject(new Error('이 사진 형식은 열 수 없어요. (아이폰 HEIC 사진이면 스크린샷으로 올려주세요)'));
                     img.onload = () => {
-                        let max = 1080, q = 0.85, out = '';
-                        for (let i = 0; i < 10; i++) {
+                        // 🖼 V314 안내서처럼: 가로만 1080으로 맞추고 세로는 길게 둠 (예전엔 긴 쪽을 1080으로 줄여서 세로로 긴 사진이 작게 · 잘려 보였음)
+                        let k = 1, q = 0.85, out = '';
+                        for (let i = 0; i < 14; i++) {
                             let w = img.width, h = img.height;
-                            if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } }
+                            if (w > 1080) { h *= 1080 / w; w = 1080; }
+                            if (h > 4320) { w *= 4320 / h; h = 4320; }
+                            w *= k; h *= k;
                             const canvas = document.createElement('canvas');
                             canvas.width = Math.round(w); canvas.height = Math.round(h);
                             const g = canvas.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, canvas.width, canvas.height); g.drawImage(img, 0, 0, canvas.width, canvas.height);
                             out = canvas.toDataURL('image/jpeg', q);
                             if (Math.floor((out.length - out.indexOf(',') - 1) * 3 / 4) <= maxBytes) break;
-                            if (q > 0.62) q -= 0.08; else max = Math.round(max * 0.85);
+                            if (q > 0.62) q -= 0.08; else k *= 0.85;
                         }
                         resolve(out);
                     };
@@ -17508,14 +17511,18 @@ familyStr + `\n` +
                 const C = d.carriers[k]; if (!C || !C.ready || C.hidden || !Array.isArray(C.models)) return;
                 C.models.forEach(m => {
                     let nm = String(m.name || '').trim(); if (!nm || /워치|watch/i.test(nm)) return;
-                    if (qtIsCodeNm(nm)) { const code = qtCodeOfNm(nm), nn = String(names[code] || QT_CODE_NAMES[code] || '').trim(); if (!nn) { if (code && !unknown.has(code)) unknown.set(code, { code, ex: nm, price: Number(m.price) || 0, car: k }); return; } nm = nn; }
+                    let code0 = '';
+                    if (qtIsCodeNm(nm)) { const code = qtCodeOfNm(nm), nn = String(names[code] || QT_CODE_NAMES[code] || '').trim(); if (!nn) { if (code && !unknown.has(code)) unknown.set(code, { code, ex: nm, price: Number(m.price) || 0, car: k }); return; } nm = nn; code0 = code; }
                     nm = nm.replace(/^(S\d{2})-$/i, '$1+').replace(/\s*\d+(?:\.\d+)?\s*(GB|TB)\b/i, ' ').replace(/[\s_-]+(\d{3}|1|2)\s*(G|T)(?=$|[\s_-])/i, ' ').replace(/\s(128|256|512)$/, ' ').replace(/\s*[-_]\s*(NP|NEW)\s*$/i, '').replace(/[\s_-]+$/, '').replace(/\s+/g, ' ').trim();
-                    const key = qtKeyOf(nm); if (!key || map.has(key)) return;
-                    map.set(key, { key, name: nm.replace(/일반$/, '') });
+                    const key = qtKeyOf(nm); if (!key) return;
+                    if (map.has(key)) { const g = map.get(key); if (code0 && !g.code) { g.code = code0; g.cname = nm.replace(/일반$/, ''); } return; }   // 📛 V313 같은 기종의 모델 코드 (S942)
+                    map.set(key, { key, name: nm.replace(/일반$/, ''), code: code0, cname: code0 ? nm.replace(/일반$/, '') : '' });
                 });
             });
             return { groups: [...map.values()], unknown: [...unknown.values()].filter(u => !names[u.code]) };
         }
+        // 📛 V313 칩 이름: '갤럭시 S26 (S942)' — 이름은 코드 이름표 쪽(갤럭시 …)으로, 코드는 작고 연하게
+        const qtLabel = (g) => g.code ? `${escapeHtml(g.cname || g.name)} <span class="text-[11px] font-medium opacity-60">(${escapeHtml(g.code)})</span>` : escapeHtml(g.name);
         // 📂 V259 분류: 효도·키즈(폴더 · 버디 · 점프 · 키즈 · 효도) → 기타(탭 · 패드) → 애플 → 삼성 · 기종마다 바꾸기 (calcData.qtCat {열쇠: 삼성|애플|효도|기타}) — 명함 V5.5와 같은 기준
         const QT_CATS = ['삼성', '애플', '효도', '기타'], QT_CAT_TXT = { 삼성: '삼성', 애플: '애플', 효도: '효도·키즈', 기타: '기타' };
         function qtCatAuto(nm) { return /폴더|버디|점프|키즈|효도|folder|buddy|jump|kids/i.test(nm) ? '효도' : (/탭|패드|\btab\b|pad/i.test(nm) ? '기타' : (/iphone|아이폰|apple/i.test(nm) ? '애플' : (/갤럭시|galaxy|삼성|samsung|플립|폴드|^S\d{2}(\s|$|[-+])|^Z\s?(flip|fold)/i.test(nm) ? '삼성' : '기타'))); }
@@ -17531,9 +17538,9 @@ familyStr + `\n` +
             document.getElementById('qtPickHelp').innerHTML = qtPickMode === 'cat' ? '기종을 누를 때마다 <b>삼성 → 애플 → 효도·키즈 → 기타</b>로 바뀌어요. 명함 견적요청의 칸(탭)이 이대로 나뉘어요. <span class="text-gray-500">처음엔 이름으로 자동 분류 (폴더 · 버디 · 점프 · 키즈 = 효도·키즈 · 탭 = 기타)</span>' : '기종을 누를 때마다 <b>⭐ 인기 → 🔥 오늘 특가 → 표시 없음</b>으로 바뀌어요. 고른 기종은 명함 견적요청 맨 위 카드에 먼저 나오고 표시가 붙어요 (🔥 특가가 맨 앞). 오늘 특가는 다음 날이 되면 저절로 꺼져요.';
             if (qtPickMode === 'cat') {
                 const cat = d.qtCat || {};
-                box.innerHTML = groups.length ? QT_CATS.map(c => { const L = groups.filter(g => (QT_CAT_TXT[cat[g.key]] ? cat[g.key] : qtCatAuto(g.name)) === c); return L.length ? `<div class="w-full text-[12px] font-bold text-gray-500 mt-1">${QT_CAT_TXT[c]} ${L.length}</div>` + L.map(g => `<button type="button" data-qtcat="${escapeHtml(g.key)}" data-qtcatnm="${escapeHtml(g.name)}" ${locked ? 'disabled' : ''} class="h-9 px-3 rounded-full border text-[13px] font-bold ${cat[g.key] ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-300 text-gray-800'} disabled:opacity-50">${escapeHtml(g.name)}</button>`).join('') : ''; }).join('') : '<p class="text-xs text-gray-500">지원금 엑셀을 올리면 기종이 나와요.</p>';
+                box.innerHTML = groups.length ? QT_CATS.map(c => { const L = groups.filter(g => (QT_CAT_TXT[cat[g.key]] ? cat[g.key] : qtCatAuto(g.name)) === c); return L.length ? `<div class="w-full text-[12px] font-bold text-gray-500 mt-1">${QT_CAT_TXT[c]} ${L.length}</div>` + L.map(g => `<button type="button" data-qtcat="${escapeHtml(g.key)}" data-qtcatnm="${escapeHtml(g.name)}" ${locked ? 'disabled' : ''} class="h-9 px-3 rounded-full border text-[13px] font-bold ${cat[g.key] ? 'bg-indigo-50 border-indigo-300 text-indigo-800' : 'bg-white border-gray-300 text-gray-800'} disabled:opacity-50">${qtLabel(g)}</button>`).join('') : ''; }).join('') : '<p class="text-xs text-gray-500">지원금 엑셀을 올리면 기종이 나와요.</p>';
             } else
-            box.innerHTML = groups.length ? groups.map(g => { const v = pick[g.key]; return `<button type="button" data-qtpick="${escapeHtml(g.key)}" ${locked ? 'disabled' : ''} class="h-9 px-3 rounded-full border text-[13px] font-bold ${v === 'deal' ? 'bg-red-50 border-red-300 text-red-700' : (v === 'hot' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-300 text-gray-800')} disabled:opacity-50">${v === 'deal' ? '🔥 ' : (v === 'hot' ? '⭐ ' : '')}${escapeHtml(g.name)}</button>`; }).join('') : '<p class="text-xs text-gray-500">지원금 엑셀을 올리면 기종이 나와요.</p>';
+            box.innerHTML = groups.length ? groups.map(g => { const v = pick[g.key]; return `<button type="button" data-qtpick="${escapeHtml(g.key)}" ${locked ? 'disabled' : ''} class="h-9 px-3 rounded-full border text-[13px] font-bold ${v === 'deal' ? 'bg-red-50 border-red-300 text-red-700' : (v === 'hot' ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-white border-gray-300 text-gray-800')} disabled:opacity-50">${v === 'deal' ? '🔥 ' : (v === 'hot' ? '⭐ ' : '')}${qtLabel(g)}</button>`; }).join('') : '<p class="text-xs text-gray-500">지원금 엑셀을 올리면 기종이 나와요.</p>';
             const cb = document.getElementById('qtCodeBox');
             cb.classList.toggle('hidden', !unknown.length);
             document.getElementById('qtCodeList').innerHTML = unknown.map(u => `<label class="flex items-center gap-2"><span class="w-28 flex-shrink-0 text-[12px] font-mono text-gray-700">${escapeHtml(u.ex)}<br><span class="font-sans text-gray-500">${escapeHtml(u.car)} · ${Math.round(u.price / 10000)}만원</span></span><input type="text" data-qtcode="${escapeHtml(u.code)}" maxlength="30" ${locked ? 'disabled' : ''} placeholder="예) 갤럭시 A37" class="flex-1 min-w-0 h-10 px-3 border border-gray-300 rounded-xl text-[14px] bg-white"></label>`).join('');
@@ -27013,7 +27020,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V312';
+        const APP_VER = 'V314';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27021,6 +27028,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V314', d: '2026-11-08', items: [
+                ['🖼 자동 문자 사진(생일 · 홍보 등): 안내서처럼 세로로 긴 사진도 그대로 (가로만 1080으로 맞춤) · 다시 올려야 적용돼요', 'a']] },
+            { v: 'V313', d: '2026-11-08', items: [
+                ['📛 기종 이름: 갤럭시 S26 (S942) — 견적요청 기종 칩 · 지원금표 · 명함 폰값계산 같은 모양 (코드는 작고 연하게)', 'a']] },
             { v: 'V312', d: '2026-11-08', items: [
                 ['📋 폰값계산 기종 · 지원금표: S942 → 갤럭시 S26 S942 처럼 이름 + 코드 (재고처럼)', 'a'],
                 ['⭐ 명함 견적요청 기종: 설정 → 고객 명함 → 정책 · 지원금으로 옮김', 'a'],
@@ -28590,7 +28601,7 @@ familyStr + `\n` +
                     ${rows.map((m, ri) => { const sup = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0; const isOn = !off.has(m.name); const br = pcalBrandOf(m); const head = !pcalSt.brand && (ri === 0 || pcalBrandOf(rows[ri - 1]) !== br) ? `<div class="px-3 py-1.5 border-t border-gray-200 bg-indigo-50/60 text-[12px] font-bold text-indigo-900">${br === '삼성' ? '📱 삼성' : (br === '애플' ? '🍎 애플' : '기타')} <span class="font-medium text-indigo-700">${brandCnt[br]}개</span></div>` : ''; return `${head}<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
                         ${admin ? `<label class="w-7 h-11 flex-shrink-0 flex items-center cursor-pointer"><input type="checkbox" data-pcal-on="${escapeHtml(m.name)}" ${isOn ? 'checked' : ''} aria-label="${escapeHtml(m.name)} 명함에 보이기" class="w-6 h-6 accent-indigo-600"></label>` : ''}
                         <button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="flex-1 min-w-0 text-left ${isOn ? '' : 'opacity-50'}">
-                            <span class="block text-[14px] font-bold text-gray-900 truncate">${(() => { const nm = stockModelName(m.name); return nm ? `${escapeHtml(nm)} <span class="text-[12px] font-medium text-gray-500">${escapeHtml(m.name)}</span>` : escapeHtml(m.name); })()}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
+                            <span class="block text-[14px] font-bold text-gray-900 truncate">${(() => { const nm = stockModelName(m.name); return nm ? `${escapeHtml(nm)} <span class="text-[11px] font-medium text-gray-400">(${escapeHtml(m.name)})</span>` : escapeHtml(m.name); })()}${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
                             <span class="grid grid-cols-3 gap-1 mt-0.5 items-baseline"><span class="text-right text-[12px] text-gray-700">${arWon(m.price)}</span><span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${arWon(sup)}</span><span class="text-right text-[13px] font-bold text-gray-900">${arWon(Math.max(0, m.price - sup))}</span></span>
                         </button></div>`; }).join('')}
                 </div>` : (q ? '' : '<p class="text-sm text-gray-500 text-center py-6">기종이 없어요.</p>')}
