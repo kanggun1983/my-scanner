@@ -10488,10 +10488,99 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (window.WiredCalc || wnLoad) return;
             wnLoad = 'loading';
             const sc = document.createElement('script');
-            sc.src = new URL('/telecom-calc/wired-core.js?v=1', location.href).href;
-            sc.onload = () => { wnLoad = 'ok'; if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } };
+            sc.src = new URL('/telecom-calc/wired-core.js?v=' + getTodayStr().replace(/-/g, ''), location.href).href;   // 🔁 V319 하루마다 새로 (계산기 상품표를 고치면 다음 날엔 CRM도 새것)
+            sc.onload = () => { wnLoad = 'ok'; wiredApplyLocal(); if (db) wiredLoadCfg().then(() => { if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } });   /* ✏️ V320 매장에서 고친 유선 상품 */ if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } };
             sc.onerror = () => { wnLoad = 'fail'; if (currentProfileId && currentProfileTab === 'wired') try { renderProfileCard(); } catch (e) { /* 무시 */ } };
             document.head.appendChild(sc);
+        }
+        /* ✏️ V320 유선 상품 직접 추가 · 수정 (설정 → 유선 상품) — card_public/wired { json: { items: { SK: { 'internet.wifi': [...] } } } }
+             · 유선계산기 · 강CRM 유선 안내서 · 유선 약정 안내가 같은 표를 씀 (wired-core.js applyCustom) · 기본표는 그대로, 고친 것만 덮어씀 */
+        let wiredCfg = null, wiredCfgLoading = null;
+        function wiredApplyLocal() { try { const raw = localStorage.getItem('wiredCustom'); if (raw && window.WiredCalc && WiredCalc.applyCustom) WiredCalc.applyCustom(JSON.parse(raw)); } catch (e) { /* 무시 */ } }
+        function wiredLoadCfg() {
+            if (wiredCfgLoading) return wiredCfgLoading;
+            wiredCfgLoading = (async () => {
+                try {
+                    const s = await getDoc(doc(db, 'card_public', 'wired')), raw = s.exists() ? String((s.data() || {}).json || '') : '';
+                    wiredCfg = raw ? JSON.parse(raw) : { items: {} }; if (!wiredCfg.items) wiredCfg.items = {};
+                    try { localStorage.setItem('wiredCustom', raw); } catch (e) { /* 무시 */ }
+                    if (window.WiredCalc && WiredCalc.applyCustom) WiredCalc.applyCustom(wiredCfg);
+                } catch (e) { console.warn('유선 상품 불러오기 실패', e); wiredCfg = wiredCfg || { items: {} }; }
+                finally { wiredCfgLoading = null; }
+            })();
+            return wiredCfgLoading;
+        }
+        const WED_CARS = [['LG', 'LG U+'], ['KT', 'KT'], ['SK', 'SK']], WED_CATS = [['internet', '🌐 인터넷'], ['wifiHw', '📶 와이파이'], ['tv', '📺 TV'], ['stb', '📦 셋톱']];
+        let wedCk = 'LG', wedCat = 'internet', wedEdit = null, wedTry = 0;
+        function wedPaths(ck, cat) { const c = WiredCalc.BASE[ck]; if (!c) return []; if (cat === 'tv' || cat === 'stb') return [[cat, '']]; return (c.tabs || []).map(t => [`${cat}.${t.id}`, t.name]).filter(([p]) => WiredCalc.listOf(c, p)); }
+        function wedEntries(ck, path) { return ((wiredCfg.items[ck] || {})[path] || []); }
+        async function wedSave(mut, msg) {
+            if (!can('editPolicy')) return noPerm('정책 · 지원금표 · 거래처');
+            const next = JSON.parse(JSON.stringify(wiredCfg || { items: {} })); mut(next.items);
+            Object.keys(next.items).forEach(ck => { Object.keys(next.items[ck]).forEach(p => { if (!next.items[ck][p].length) delete next.items[ck][p]; }); if (!Object.keys(next.items[ck]).length) delete next.items[ck]; });
+            const raw = JSON.stringify(next);
+            try {
+                await setDoc(doc(db, 'card_public', 'wired'), { json: raw, at: new Date().toISOString(), by: getStaffName() || '' });
+                wiredCfg = next; try { localStorage.setItem('wiredCustom', raw); } catch (e) { /* 무시 */ }
+                WiredCalc.applyCustom(wiredCfg); wedEdit = null; renderWiredEd(); if (msg) stockToast(msg);
+            } catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        function renderWiredEd() {
+            const box = document.getElementById('wiredEdBox'); if (!box) return;
+            if (window.WiredCalc && !WiredCalc.applyCustom) { box.innerHTML = '<p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">유선계산기가 아직 예전 버전이에요. 유선계산기 업데이트(PR)가 올라가면 여기서 고칠 수 있어요. (내일 다시 열면 새로 불러와요)</p>'; return; }
+            if (!window.WiredCalc) {
+                try { wnLoadCore(); } catch (e) { /* 무시 */ }
+                box.innerHTML = `<p class="text-sm text-gray-500 py-6 text-center">${wnLoad === 'fail' || wedTry > 20 ? '계산기 상품표를 못 불러왔어요. 인터넷 연결을 확인해 주세요.' : '계산기 상품표 불러오는 중…'}</p>`;
+                if (wnLoad !== 'fail' && wedTry++ < 20) setTimeout(renderWiredEd, 500); return;
+            }
+            if (!wiredCfg) { box.innerHTML = '<p class="text-sm text-gray-500 py-6 text-center">매장 상품 불러오는 중…</p>'; wiredLoadCfg().then(renderWiredEd); return; }
+            const lock = !can('editPolicy'), W = (n) => `${arWon(n)}원`, inp = 'h-10 px-2 border border-gray-300 rounded-lg text-[14px] w-full';
+            const C = WiredCalc.CARRIER_DATA[wedCk], B = WiredCalc.BASE[wedCk];
+            const nEdit = Object.values(wiredCfg.items || {}).reduce((a, m) => a + Object.values(m).reduce((x, L) => x + L.length, 0), 0);
+            const form = (path, it, isNew) => { const kind = path.split('.')[0];
+                return `<div class="rounded-xl border-2 border-indigo-300 bg-indigo-50/60 p-2.5 space-y-2" data-wed-form="${escapeHtml(path)}" data-wed-id="${escapeHtml(isNew ? '' : it.id)}">
+                    <label class="block text-[12px] font-bold text-gray-600">상품 이름<input data-wf="name" value="${escapeHtml(it.name || '')}" maxlength="60" class="${inp} mt-0.5" placeholder="예: 기가 슬림 와이파이 500M"></label>
+                    <div class="grid grid-cols-2 gap-2"><label class="text-[12px] font-bold text-gray-600">3년 약정 월요금<input data-wf="price" type="number" inputmode="numeric" value="${it.price || ''}" class="${inp} mt-0.5 text-right" placeholder="0"></label>
+                        <label class="text-[12px] font-bold text-gray-600">약정 없을 때 월요금<input data-wf="noContract" type="number" inputmode="numeric" value="${it.noContract || ''}" class="${inp} mt-0.5 text-right" placeholder="위약금 계산"></label></div>
+                    ${kind === 'tv' ? `<label class="block text-[12px] font-bold text-gray-600">인터넷과 같이 쓰면 TV 할인 (월)<input data-wf="discount" type="number" inputmode="numeric" value="${it.discount || ''}" class="${inp} mt-0.5 text-right" placeholder="0"></label>` : ''}
+                    ${kind === 'internet' ? `<label class="block text-[12px] font-bold text-gray-600">속도 (결합 할인 기준)<select data-wf="speed" class="${inp} mt-0.5">${[...new Set([100, 200, 500, 1000, 2500, 5000, Number(it.speed || 500)])].sort((x, y) => x - y).map(v => `<option value="${v}" ${Number(it.speed || 500) === v ? 'selected' : ''}>${v >= 1000 ? v / 1000 + 'G' : v + 'M'}</option>`).join('')}</select></label>` : ''}
+                    <p class="text-[11px] text-gray-500">약정 없을 때 월요금은 위약금(할인 반환) 계산에 써요. 모르면 비워 두세요.</p>
+                    <div class="grid grid-cols-2 gap-2"><button type="button" data-wed="cancel" class="h-10 rounded-lg border border-gray-300 bg-white text-[13px] font-bold text-gray-700">취소</button><button type="button" data-wed="save" class="h-10 rounded-lg bg-indigo-600 text-white text-[13px] font-bold">저장</button></div></div>`; };
+            const sec = ([path, tabName]) => {
+                const L = WiredCalc.listOf(C, path) || [], BL = WiredCalc.listOf(B, path) || [], E = wedEntries(wedCk, path), hidden = E.filter(x => x.hide).map(x => BL.find(b => b.id === x.id)).filter(Boolean);
+                const row = (it) => { const base = BL.find(b => b.id === it.id), e = E.find(x => x.id === it.id), tag = !base ? '<span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 rounded px-1">추가</span>' : (e ? '<span class="text-[10px] font-bold text-indigo-700 bg-indigo-50 rounded px-1">고침</span>' : '');
+                    if (wedEdit && wedEdit.path === path && wedEdit.id === it.id) return form(path, it, false);
+                    return `<div class="flex items-center gap-2 py-2 border-t border-gray-100 first:border-0"><div class="flex-1 min-w-0"><p class="text-[14px] font-bold text-gray-900 truncate">${escapeHtml(it.name)} ${tag}</p><p class="text-[12px] text-gray-500">${W(it.price)}${it.noContract ? ` · 무약정 ${W(it.noContract)}` : ''}${it.discount ? ` · 결합 할인 ${W(it.discount)}` : ''}${it.speed ? ` · ${it.speed >= 1000 ? it.speed / 1000 + 'G' : it.speed + 'M'}` : ''}</p></div>
+                        ${it.id === 'none' || lock ? '' : `<button type="button" data-wed="edit" data-p="${escapeHtml(path)}" data-id="${escapeHtml(it.id)}" class="h-9 px-2.5 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700">고치기</button>${base ? (e ? `<button type="button" data-wed="reset" data-p="${escapeHtml(path)}" data-id="${escapeHtml(it.id)}" class="h-9 px-2 rounded-lg text-[12px] font-bold text-gray-500">기본으로</button>` : (L.length > 2 && !it.default ? `<button type="button" data-wed="hide" data-p="${escapeHtml(path)}" data-id="${escapeHtml(it.id)}" class="h-9 px-2 rounded-lg text-[12px] font-bold text-gray-500">숨기기</button>` : '')) : `<button type="button" data-wed="del" data-p="${escapeHtml(path)}" data-id="${escapeHtml(it.id)}" class="h-9 px-2 rounded-lg text-[12px] font-bold text-red-600">삭제</button>`}`}</div>`; };
+                return `<div class="rounded-2xl bg-white border border-gray-200 p-3">${tabName ? `<p class="text-[12px] font-bold text-gray-500 mb-1">${escapeHtml(tabName)}</p>` : ''}
+                    ${L.map(row).join('')}
+                    ${hidden.length ? `<p class="text-[12px] font-bold text-gray-400 mt-2">숨긴 상품</p>${hidden.map(h => `<div class="flex items-center gap-2 py-1.5"><p class="flex-1 text-[13px] text-gray-400 line-through truncate">${escapeHtml(h.name)}</p>${lock ? '' : `<button type="button" data-wed="reset" data-p="${escapeHtml(path)}" data-id="${escapeHtml(h.id)}" class="h-8 px-2 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-600">다시 보이기</button>`}</div>`).join('')}` : ''}
+                    ${wedEdit && wedEdit.path === path && wedEdit.id === '' ? form(path, { speed: 500 }, true) : (lock ? '' : `<button type="button" data-wed="add" data-p="${escapeHtml(path)}" class="mt-2 w-full h-10 rounded-xl border border-dashed border-indigo-300 text-[13px] font-bold text-indigo-700">＋ 상품 추가</button>`)}</div>`;
+            };
+            box.innerHTML = `<div class="space-y-2.5">
+                <p class="text-[13px] text-gray-600 leading-relaxed">통신사 상품이 바뀌거나 목록에 없는 상품은 여기서 <b>추가 · 고치기 · 숨기기</b> 하세요. <b>유선계산기 · 유선 안내서 · 고객카드 유선 약정 안내</b>에 같이 바뀌어요. ${nEdit ? `<span class="font-bold text-indigo-700">지금 고친 것 ${nEdit}개</span>` : ''}</p>
+                <div class="grid grid-cols-3 gap-1.5">${WED_CARS.map(([k, l]) => `<button type="button" data-wedck="${k}" class="h-10 rounded-xl text-[14px] font-bold border ${wedCk === k ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div>
+                <div class="grid grid-cols-4 gap-1.5">${WED_CATS.map(([k, l]) => `<button type="button" data-wedcat="${k}" class="h-10 rounded-xl text-[13px] font-bold border ${wedCat === k ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div>
+                ${wedPaths(wedCk, wedCat).map(sec).join('')}
+                <p class="text-[11px] text-gray-500">결합 할인(가족결합 등)은 아직 여기서 못 고쳐요. 바뀌면 말씀해 주세요. ${lock ? '· 고치려면 정책 · 지원금표 · 거래처 권한이 필요해요.' : ''}</p></div>`;
+            box.onclick = (e) => {
+                const ck = e.target.closest('[data-wedck]'); if (ck) { wedCk = ck.dataset.wedck; wedEdit = null; renderWiredEd(); return; }
+                const ct = e.target.closest('[data-wedcat]'); if (ct) { wedCat = ct.dataset.wedcat; wedEdit = null; renderWiredEd(); return; }
+                const b = e.target.closest('[data-wed]'); if (!b) return; const fm = b.closest('[data-wed-form]'), a = b.dataset.wed, path = b.dataset.p || (fm ? fm.dataset.wedForm : ''), id = b.dataset.id;
+                if (a === 'add') { wedEdit = { path, id: '' }; renderWiredEd(); return; }
+                if (a === 'edit') { wedEdit = { path, id }; renderWiredEd(); return; }
+                if (a === 'cancel') { wedEdit = null; renderWiredEd(); return; }
+                const upd = (items, f) => { items[wedCk] = items[wedCk] || {}; const L = items[wedCk][path] = items[wedCk][path] || []; f(L); };
+                if (a === 'hide') return wedSave(it => upd(it, L => { const i = L.findIndex(x => x.id === id); if (i >= 0) L.splice(i, 1); L.push({ id, hide: true }); }), '숨겼어요');
+                if (a === 'reset' || a === 'del') return wedSave(it => upd(it, L => { const i = L.findIndex(x => x.id === id); if (i >= 0) L.splice(i, 1); }), a === 'del' ? '삭제했어요' : '기본으로 되돌렸어요');
+                if (a === 'save') {
+                    const f = b.closest('[data-wed-form]'), v = (k) => { const el = f.querySelector(`[data-wf="${k}"]`); return el ? el.value : ''; }, name = v('name').trim();
+                    if (!name) return customAlert('상품 이름을 넣어 주세요.');
+                    const fid = f.dataset.wedId || ('c' + Date.now().toString(36)), kind = path.split('.')[0];
+                    const obj = { id: fid, name, price: Number(v('price')) || 0, noContract: Number(v('noContract')) || 0, ...(kind === 'tv' ? { discount: Number(v('discount')) || 0 } : {}), ...(kind === 'internet' ? { speed: Number(v('speed')) || 500 } : {}) };
+                    return wedSave(it => upd(it, L => { const i = L.findIndex(x => x.id === fid); if (i >= 0) L[i] = obj; else L.push(obj); }), f.dataset.wedId ? '고쳤어요' : '추가했어요');
+                }
+            };
         }
         function wnCarOf(c) {
             if (wnCarPick[c.id]) return { ck: wnCarPick[c.id], how: 'pick' };
@@ -27020,7 +27109,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V318';
+        const APP_VER = 'V320';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27028,6 +27117,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V320', d: '2026-11-08', items: [
+                ['✏️ 설정 → 유선 상품: 인터넷 · 와이파이 · TV · 셋톱 상품을 직접 추가 · 고치기 · 숨기기 → 유선계산기 · 유선 안내서 · 유선 약정 안내에 같이 반영', 'a']] },
+            { v: 'V319', d: '2026-11-08', items: [
+                ['🧭 기능 탐색기 점검: 악세정산 앱 ↔ 악세 예약 · 지인 소개 연결 추가 · 자동 백업은 Firebase에 보관으로 바로잡음', 'a'],
+                ['🔁 유선 계산 상품표(wired-core)를 하루마다 새로 불러와요 (계산기를 고친 뒤 예전 표가 남던 것)', 'a']] },
             { v: 'V318', d: '2026-11-08', items: [
                 ['🧭 기능 탐색기: 점을 누르면 아래 설명칸이 보이게 자동으로 내려가요 · 폴드 접은 화면에서 글씨 · 점 크게', 'a']] },
             { v: 'V317', d: '2026-11-08', items: [
@@ -27834,6 +27928,7 @@ familyStr + `\n` +
             { id: 'dealer', grp: '매장', title: '유지 조건 · 거래처', icon: 'fa-building', tone: 'indigo' },   // 🧭 V274 개통 후 자동 약속(통신사 기본)도 여기로
             { id: 'card', grp: '매장', title: '고객 명함', icon: 'fa-id-card', tone: 'indigo' },
             { id: 'sise', grp: '매장', title: '시세표 (준비 중)', icon: 'fa-tags', tone: 'amber' },   // 📊 V276 거래처 정책표 → 시세표 (지금은 정책 올려 두기까지)
+            { id: 'wired', grp: '매장', title: '유선 상품', icon: 'fa-wifi', tone: 'amber' },   // ✏️ V320 유선 상품 추가 · 수정
             { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
             { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
             { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' },
@@ -27876,7 +27971,7 @@ familyStr + `\n` +
             { id: 'wk', g: 'cust', n: '주간 약속 달력', d: '검색칸 아래 한 주 약속 (V310)', out: [['cal', '날짜 누르면 그 날 약속']] },
             { id: 'goal', g: 'cust', n: '월 목표 · 담당자별', d: '이번 달 개통 건수 · 담당자별 · 정산 금액', out: [] },
             // 📱 개통
-            { id: 'actreg', g: 'act', n: '개통 등록 (개통보고)', d: '무선 개통을 저장하면 여러 곳에 한 번에 들어가요', out: [['actlog', '개통 기록 한 줄 추가 (기종 · 요금제 · 일련번호 · 정책)'], ['cust', '고객카드 개통일 · 기종 · 요금제 · 방문일 갱신'], ['autoprom', '유지 조건대로 약속 자동 (요금제 변경 · 부가 · 보험 해지)'], ['sold', '재고 일련번호 · 유심 판매 처리'], ['settle', '정산 입력 (안 넣으면 미입력 알림)'], ['goal', '월 목표 · 담당자별 개통 숫자'], ['acttext', '개통보고 문구 복사'], ['smsact', '개통 뒤 안부 문자 예약']] },
+            { id: 'actreg', g: 'act', n: '개통 등록 (개통보고)', d: '무선 개통을 저장하면 여러 곳에 한 번에 들어가요', out: [['actlog', '개통 기록 한 줄 추가 (기종 · 요금제 · 일련번호 · 정책)'], ['cust', '고객카드 개통일 · 기종 · 요금제 · 방문일 갱신'], ['autoprom', '유지 조건대로 약속 자동 (요금제 변경 · 부가 · 보험 해지)'], ['sold', '재고 일련번호 · 유심 판매 처리'], ['settle', '정산 입력 (안 넣으면 미입력 알림)'], ['goal', '월 목표 · 담당자별 개통 숫자'], ['acttext', '개통보고 문구 복사'], ['smsact', '개통 뒤 안부 문자 예약'], ['promreg', '🌸 악세 예약 켜면 악세 약속']] },
             { id: 'actlog', g: 'act', n: '개통 기록', d: '고객카드 개통 기록 탭 · 이전 개통 카드 보관 (V285)', out: [['undo', '고치기 전 기록 보관 (V304)']] },
             { id: 'undo', g: 'act', n: '고치기 · 되돌리기', d: '[개통 정보 고치기] → 잘못 고치면 [↩ 고치기 전으로]', out: [['actlog', '원래 기록으로']] },
             { id: 'settle', g: 'act', n: '정산 입력', d: '기본정책 · 구두추가 · 부가/보험 · 카드', out: [['goal', '이번 달 정산 금액']] },
@@ -27884,7 +27979,7 @@ familyStr + `\n` +
             { id: 'homereg', g: 'act', n: '유선 개통 등록', d: '인터넷 · TV 개통 저장', out: [['acttext', '유선 개통보고 자동 복사'], ['cust', '고객카드 유선 정보 · 만료일'], ['dash', '유선 만료 칸']] },
             // 📅 약속
             { id: 'autoprom', g: 'prom', n: '자동 약속 (유지 조건)', d: '통신사 기본 · 거래처별 유지 기간', out: [['promreg', '약속으로 등록']] },
-            { id: 'promreg', g: 'prom', n: '약속 등록', d: '요금제 · 부가 · 보험 · 카드 · 악세 · 방문 · 기타 · 재연락', out: [['cal', '약속 달력'], ['wk', '주간 약속 달력'], ['todo', '오늘 할 일 · 지연'], ['dash', '약속 칸 숫자'], ['smsprom', '약속일 아침 문자 · 푸시']] },
+            { id: 'promreg', g: 'prom', n: '약속 등록', d: '요금제 · 부가 · 보험 · 카드 · 악세 · 방문 · 기타 · 재연락', out: [['accapp', '악세 예약은 악세정산 앱 예약 목록에'], ['cal', '약속 달력'], ['wk', '주간 약속 달력'], ['todo', '오늘 할 일 · 지연'], ['dash', '약속 칸 숫자'], ['smsprom', '약속일 아침 문자 · 푸시']] },
             { id: 'cal', g: 'prom', n: '약속 달력', d: '월 달력 · 날짜별 고객 · 처리 체크', out: [['todo', '처리하면 할 일에서 빠짐']] },
             { id: 'todo', g: 'prom', n: '오늘 할 일', d: '오늘 · 지연 약속 · 연락할 고객', out: [] },
             // 🧾 안내서
@@ -27897,10 +27992,11 @@ familyStr + `\n` +
             { id: 'stock', g: 'stock', n: '재고 목록 · 실사', d: '모델 이름 · 거래처 · 실사 · 정리 사유', out: [['dash', '재고 알림 (유심 부족)']] },
             { id: 'sold', g: 'stock', n: '판매 처리', d: '개통 등록의 일련번호 · 유심번호로 자동', out: [['stock', '재고에서 판매로']] },
             // 📇 명함
-            { id: 'card', g: 'card', n: '고객 명함 (사이트)', d: '고객 폰에 깔리는 매장 명함', out: [['quote', '견적요청'], ['visit', '방문 예약'], ['pcalc', '폰값계산'], ['cardpush', '명함 푸시 구독']] },
+            { id: 'card', g: 'card', n: '고객 명함 (사이트)', d: '고객 폰에 깔리는 매장 명함', out: [['quote', '견적요청'], ['visit', '방문 예약'], ['pcalc', '폰값계산'], ['refer', '지인 소개'], ['cardpush', '명함 푸시 구독']] },
             { id: 'quote', g: 'card', n: '견적요청', d: '고객이 기종 · 요금제 골라 요청', out: [['dash', '명함견적 칸'], ['staffpush', '직원 폰 알림'], ['morning', '아침 전화 명단']] },
-            { id: 'visit', g: 'card', n: '방문 예약', d: '날짜 · 시간 고르기', out: [['promreg', '방문 약속으로 등록'], ['smsvisit', '방문 전날 문자']] },
+            { id: 'visit', g: 'card', n: '방문 예약', d: '날짜 · 시간 고르기 (등록 고객이면 자동)', out: [['promreg', '방문 약속으로 자동 등록'], ['smsvisit', '방문 전날 문자']] },
             { id: 'pcalc', g: 'card', n: '폰값계산', d: '명함 · 강CRM 상담용 계산기', out: [['quote', '이 견적 고객에게 보내기']] },
+            { id: 'refer', g: 'card', n: '지인 소개', d: '명함에서 소개해 준 고객', out: [['cust', '소개해 준 고객 카드에 기록 · 사은품 단계']] },
             { id: 'morning', g: 'card', n: '아침 전화 명단', d: '어제부터 명함 본 · 견적 확인한 고객', out: [] },
             { id: 'cardpush', g: 'card', n: '명함 푸시', d: '시세표 · 홍보 · 약속 알림을 앱 알림으로', out: [] },
             // 📞 콜매니저
@@ -27919,13 +28015,15 @@ familyStr + `\n` +
             { id: 'pubsc', g: 'price', n: '공통지원금 (스마트초이스)', d: '북마크 CRM공시로 기종 · 요금 구간별 (V305~)', out: [['sise', '공시 · 선약 싼 쪽 자동'], ['gd', '안내서 공시 칸 자동'], ['pcmp', '비교 공시 칸']] },
             { id: 'policy', g: 'price', n: '거래처 정책표', d: '사진 · 엑셀 → AI가 표로', out: [['sise', '기종별 현금가']] },
             { id: 'sise', g: 'price', n: '시세표 이미지', d: '통신사 · 구간 · 기종 → 그림', out: [['cardpush', '명함 알림으로'], ['card', '명함 열 때 한 번 띄우기']] },
+            { id: 'wedit', g: 'price', n: '유선 상품 편집', d: '설정 → 유선 상품 (추가 · 고치기 · 숨기기)', out: [['gdw', '유선 안내서 상품 목록'], ['homereg', '유선 약정 안내 계산']] },
             { id: 'pcmp', g: 'price', n: '기종 비교', d: '선약 vs 공시 24개월 총액', out: [] },
             // ⚙️ 저장 · 연결
-            { id: 'fb', g: 'sys', n: 'Firebase 저장소', d: '고객 · 약속 · 개통 · 재고 · 안내서 전부 (직원 폰 · 명함 · 콜매니저가 같이 봄)', out: [['backup', '하루 한 번 자동 백업']] },
+            { id: 'fb', g: 'sys', n: 'Firebase 저장소', d: '고객 · 약속 · 개통 · 재고 · 안내서 전부 (직원 폰 · 명함 · 콜매니저 · 악세정산이 같이 봄)', out: [['backup', '하루 한 번 통째로 백업 (Firebase 백업 칸 · 압축)']] },
+            { id: 'accapp', g: 'sys', n: '악세정산 앱', d: '악세 판매 · 정산 · 예약 (같은 고객 저장소)', out: [['promreg', '앱에서 받은 악세 예약 → 고객카드 악세 약속']] },
             { id: 'relay', g: 'sys', n: '알림 서버 (Cloudflare)', d: '문자 예약 · 푸시 · 사진 보관 · 매장 폰으로 발송', out: [] },
             { id: 'drive', g: 'sys', n: '구글 드라이브', d: '서류 · 녹음 · 백업', out: [] },
             { id: 'gemini', g: 'sys', n: 'Gemini AI', d: '정책표 · 서류 읽기 · 통화 요약 · 문구 다듬기', out: [['policy', '정책표 표로 읽기']] },
-            { id: 'backup', g: 'sys', n: '자동 백업', d: '대표 폰 · 켜고 1분 뒤 하루 한 번', out: [['drive', '백업 파일']] }
+            { id: 'backup', g: 'sys', n: '자동 백업', d: '대표 폰 · 켜고 1분 뒤 하루 한 번 · 설정 → 데이터 · 보안에서 되살리기', out: [] }
         ];
         let fxScrollTo = false, fxSel = '', fxQ = '', fxView = { x: 0, y: 0, k: 1 }, fxMode = 'map';
         function fxLayout() {   // 묶음은 큰 원 위에, 기능은 묶음 안 작은 원 위에
@@ -28023,7 +28121,7 @@ familyStr + `\n` +
             T(() => { const n = ['smsAutoPromOn', 'smsAutoBdayOn', 'smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn'].filter(k => smsSetting(k)).length, ch = [autoSmsOn() ? '문자' : '', autoPushOn() ? '푸시' : ''].filter(Boolean).join('·'); st('auto', n ? `${n}개 켜짐${ch ? ' · ' + ch : ''}` : '모두 꺼짐', n ? 'ok' : ''); });
             T(() => st('promo', smsSetting('smsAutoPromoOn') ? '홍보 진행 중' : '홍보 꺼짐 · 전체 푸시', smsSetting('smsAutoPromoOn') ? 'ok' : ''));
             T(() => { try { renderAutoRows(); } catch (e) { /* 준비 전 */ } });
-            st('policy', '지원금표 · 폰값계산 · 견적요청 기종', ''); T(() => { const L = sysMapNodes(), bad = L.filter(n => n.st === 'warn').length; st('sysmap', bad ? `확인 ${bad}곳 · 연결 ${L.filter(n => n.st === 'ok').length}개` : `연결 ${L.filter(n => n.st === 'ok').length}개`, bad ? 'warn' : 'ok'); }); st('sise', '거래처 정책표 올려 두기', ''); st('dealer', '통신사 기본 · 거래처별', '');
+            st('policy', '지원금표 · 폰값계산 · 견적요청 기종', ''); T(() => { const L = sysMapNodes(), bad = L.filter(n => n.st === 'warn').length; st('sysmap', bad ? `확인 ${bad}곳 · 연결 ${L.filter(n => n.st === 'ok').length}개` : `연결 ${L.filter(n => n.st === 'ok').length}개`, bad ? 'warn' : 'ok'); }); st('sise', '거래처 정책표 올려 두기', ''); T(() => { const n = wiredCfg ? Object.values(wiredCfg.items || {}).reduce((a, m) => a + Object.values(m).reduce((x, L) => x + L.length, 0), 0) : 0; st('wired', n ? `고친 상품 ${n}개 · 계산기 · 안내서` : '추가 · 고치기 · 숨기기', n ? 'ok' : ''); }); st('dealer', '통신사 기본 · 거래처별', '');
             T(() => st('staff', isSuperAdmin ? `직급 ${roleList().length}개 · 계정 · 담당` : `내 직급: ${myRoleName()}`, ''));
             T(() => renderRoleBox());
             const warns = [];
@@ -28153,6 +28251,7 @@ familyStr + `\n` +
             put('policy', secOf('grpSubsidyTitle'), $('qtPickBtn'), $('qtPickHome')); hideH('grpSubsidyTitle');   // ⭐ V312 명함 견적요청 기종은 정책 · 지원금으로
             put('dealer', secOf('setAutoTitle'), dealerSec);
             put('sise', mk(`<section class="space-y-2" aria-labelledby="siseTitle"><h3 id="siseTitle" class="text-[13px] font-bold text-gray-600 pl-1">📊 거래처 정책표 <span class="font-normal">(시세표 만들 준비 · 아직 고객 화면에는 안 나가요)</span></h3><div id="siseBox"></div></section>`));   // 🧭 V274 통신사 기본 + 거래처별 조건을 한 화면에
+            put('wired', mk('<section class="space-y-2"><div id="wiredEdBox"></div></section>'));   // ✏️ V320
             const roleSec = mk(`<section class="space-y-2" aria-labelledby="setRoleTitle"><h3 id="setRoleTitle" class="text-[13px] font-bold text-gray-600 pl-1">🎖 직급 · 권한 <span class="font-normal">(점장 · 매니저 · 직급 추가 · 할 수 있는 것)</span></h3><div id="roleBox" class="bg-white border border-gray-200 rounded-2xl p-4 space-y-2"></div></section>`);
             put('staff', secOf('setStaffTitle'), roleSec);   // 🎖 V247
             const secChkSec = secOf('secCheckTitle'), driveSec = secOf('setDriveTitle');   // 🧭 V274 연결 묶음 안에 있어서 옮기기 전에 잡아 둠
@@ -28179,6 +28278,7 @@ familyStr + `\n` +
                 if (!setPagePushed) { setPagePushed = true; pushAppState({ setPage: id }); }
                 try { renderSetHome(); } catch (e) { /* 준비 전 */ }
                 if (id === 'sysmap') { try { renderSysMap(); } catch (e) { console.warn(e); } }
+                if (id === 'wired') { try { wedTry = 0; renderWiredEd(); } catch (e) { console.warn(e); } }
                 if (!o.keepScroll && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
             }
             function closePage(viaBack) {
