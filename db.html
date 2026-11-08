@@ -22123,6 +22123,14 @@ familyStr + `\n` +
         }
         // 📄 V234 선택약정 12+12 (V236: LG U+ · SKT만): 12개월마다 위약금이 끝나고, 첫 약정이 끝나면 자동으로 12개월 연장 (두 번째 12개월도 12개월 약정 기준)
         function gd1212Ok(g) { return ['LG U+', 'SKT'].includes(g && g.carrier); }
+        // 📌 V322 약정 기간을 안내서에 크게 (무선 2년 · 유선 3년 — '몰랐다'는 고객 없게)
+        function gdTermInfo(g) {
+            if (g.kind === 'wired') { const t = String((g.w || {}).term || '3년 약정'), y = Number((t.match(/(\d)\s*년/) || [])[1]) || 3; return { chip: `약정 ${y}년`, line: `인터넷 · TV 약정 ${y}년 (${y * 12}개월)입니다. 약정 기간 안에 해지하시면 받은 할인 · 면제받은 설치비를 돌려내는 위약금(할인반환금)이 청구됩니다.` }; }
+            if (g.sup === '없음') return { chip: '무약정', line: '약정 없이 가입해요. 언제 해지해도 위약금은 없어요.' };
+            if (g.term === '12+12') return { chip: '약정 12+12개월', line: '선택약정 12개월 + 12개월 다시 약정 (모두 24개월)입니다. 약정 기간 안에 해지하시면 받은 요금 할인을 돌려내는 할인반환금이 청구됩니다.' };
+            const n = Number(g.term) || 24, yr = n % 12 ? `${n}개월` : `${n / 12}년`;
+            return { chip: `약정 ${yr}`, line: g.sup === '공시' ? `공통지원금(공시) ${yr} (${n}개월) 약정입니다. 약정 기간 안에 해지 · 번호이동 · 요금제를 낮추면 받은 지원금 일부를 돌려내는 위약금이 청구됩니다.` : `선택약정 ${yr} (${n}개월)입니다. 약정 기간 안에 해지 · 번호이동하시면 그동안 받은 요금 할인을 돌려내는 할인반환금이 청구됩니다.` };
+        }
         function gdReTermText(g) {
             const d = /^\d{4}-\d{2}-\d{2}$/.test(String(g && g.date || '')) ? g.date : getTodayStr();
             return `12개월마다 위약금이 끝나요 · ${Number(d.slice(0, 4)) + 1}년 ${Number(d.slice(5, 7))}월에 첫 약정이 끝나면 자동으로 12개월 연장돼 25% 할인이 그대로 이어져요`;
@@ -22390,7 +22398,7 @@ familyStr + `\n` +
             if (g.store.tel) T(/^0\d{8,10}$/.test(phoneDigits(g.store.tel)) ? formatPhone(phoneDigits(g.store.tel)) : g.store.tel, R, y + 38, 13, 500, '#374151', 'right');   // 🛠 V289 010-0000-0000 모양으로
             y += 58; x.fillStyle = '#111827'; x.fillRect(L, y, IW, 2); y += 22;
             // ② 기종 + 통신사 · 개통종류 · 개통일
-            const chips = [gdCarLabel(g), g.actType, g.date ? `개통일 ${gdMD(g.date)}` : ''].filter(Boolean), chipW = chips.map(s => tw(s, 13, 700) + 24);
+            const chips = [gdCarLabel(g), g.actType, gdTermInfo(g).chip, g.date ? `개통일 ${gdMD(g.date)}` : ''].filter(Boolean), chipW = chips.map(s => tw(s, 13, 700) + 24);
             let cx = R;
             for (let i = chips.length - 1; i >= 0; i--) { cx -= chipW[i]; const dark = chips[i] === g.actType; box(cx, y, chipW[i], 26, dark ? { fill: '#111827', r: 13 } : { stroke: '#9CA3AF', r: 13 }); T(chips[i], cx + chipW[i] / 2, y + 18, 13, 700, dark ? '#FFFFFF' : '#111827', 'center'); cx -= 6; }
             let head = dev ? (g.dev.name || g.dev.code || '단말기') : '유심단독', hs = 23;
@@ -22510,6 +22518,7 @@ familyStr + `\n` +
             const snap = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length;   // 서명한 안내서는 그때 문구 그대로
             const notes0 = snap ? g.notes : gdNotesFor(g);
             const notes = snap && g.notesV !== 2 && (c.icard || c.card) && !notes0.some(n => /실적/.test(n)) ? [...notes0, '카드 할인은 카드사 실적 조건이 있어요. 조건을 못 채운 달은 할인이 빠지거나 다시 청구될 수 있어요.'] : notes0;   // 💳 V204 (예전에 서명한 안내서만) · 📌 V212 조건별
+            panel('📌 약정 기간', [gdTermInfo(g).line], { fill: '#FEF2F2', stroke: '#FCA5A5', titleColor: '#B91C1C', color: '#111827', size: 14 });   // 📌 V322
             if (notes.length) panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
             // ⑥ 확인 · 서명
             const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
@@ -22738,6 +22747,7 @@ familyStr + `\n` +
             { const ins = gdwInst(g); if (ins.base || w.instWaive) panel('설치비 (첫 달 요금에 한 번)', [w.instWaive ? `설치비 면제 · 약정 기간 안에 해지하면 면제받은 설치비 ${W(ins.base + ins.night)}이 청구돼요` : `${[gdNum(w.instInt) ? `인터넷 ${W(w.instInt)}` : '', gdNum(w.instTv) ? `TV ${W(w.instTv)}` : ''].filter(Boolean).join(' + ')}${ins.night ? ` + 야간 · 주말 ${W(ins.night)}` : ''} = ${W(ins.total)} (부가세 포함)`], { fill: '#F0F9FF', stroke: '#BAE6FD', titleColor: '#075985', color: '#0C4A6E' }); }   // 🔧 V303
             const pl = [...(gdNum(w.cash) ? [`현금 사은품 ${W(w.cash)}${w.cashDay ? ` · ${w.cashDay}` : ''}`] : []), ...(g.gift ? [g.gift] : [])];
             if (pl.length) panel('매장과 한 약속', pl, { fill: '#FFFBEB', stroke: '#FCD34D', titleColor: '#78350F', color: '#451A03' });
+            panel('📌 약정 기간', [gdTermInfo(g).line], { fill: '#FEF2F2', stroke: '#FCA5A5', titleColor: '#B91C1C', color: '#111827', size: 14 });   // 📌 V322
             const notes = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length ? g.notes : GDW_NOTES;
             panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
             const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
@@ -23194,7 +23204,7 @@ familyStr + `\n` +
             gdInner.innerHTML = `<div class="px-1"><p class="text-[13px] font-bold text-indigo-700">${escapeHtml(g.store.name || '')}</p><h2 class="text-[23px] font-extrabold text-gray-900 tracking-tight">구매 안내서를 확인해 주세요</h2></div>
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="height: 250px"><img id="gdPrevImg" alt="구매 안내서" class="hidden w-full h-full object-cover object-top"><p id="gdPrevWait" class="absolute inset-0 flex items-center justify-center text-sm text-gray-500">안내서를 만드는 중…</p><button type="button" data-gd-zoom class="absolute right-2.5 bottom-2.5 h-11 px-3.5 rounded-xl bg-gray-900/90 text-white text-[15px] font-bold flex items-center gap-1.5"><i class="fa-solid fa-magnifying-glass-plus" aria-hidden="true"></i>크게 보기</button></div>
                 ${gdSummaryHtml(g, true)}
-                <label class="flex items-start gap-3 px-1 py-1 text-[16px] font-bold leading-relaxed text-gray-900"><input type="checkbox" id="gdAgree" class="w-6 h-6 mt-0.5 accent-indigo-600 flex-shrink-0">위 안내서와 약속을 설명 듣고 확인했습니다</label>
+                <label class="flex items-start gap-3 px-1 py-1 text-[16px] font-bold leading-relaxed text-gray-900"><input type="checkbox" id="gdAgree" class="w-6 h-6 mt-0.5 accent-indigo-600 flex-shrink-0"><span>위 안내서와 약속을 설명 듣고 확인했습니다<span class="block text-[14px] text-red-700">📌 ${escapeHtml(gdTermInfo(g).line)}</span></span></label>
                 <section><div class="flex items-center justify-between mb-1.5"><span class="text-[16px] font-extrabold text-gray-900">서명</span><button type="button" data-gd-clear class="h-10 px-3 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-700">지우기</button></div>
                     <div class="relative rounded-2xl border-2 border-dashed border-indigo-300 bg-white" style="height: 190px"><canvas id="gdPad" class="absolute inset-0 w-full h-full rounded-2xl" style="touch-action: none" aria-label="서명 칸"></canvas><div class="pointer-events-none absolute left-4 right-4 bottom-8 border-t border-indigo-200"></div><span id="gdPadHint" class="pointer-events-none absolute left-4 bottom-2 text-[13px] text-gray-500">손가락으로 이름을 써 주세요</span></div></section>`;
             gdFoot.innerHTML = `<div class="max-w-2xl mx-auto"><button type="button" id="gdSignDone" disabled class="w-full h-14 rounded-2xl bg-indigo-600 disabled:bg-indigo-300 text-white text-[18px] font-extrabold">서명 완료</button></div>`;
@@ -27168,7 +27178,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V321';
+        const APP_VER = 'V322';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27176,6 +27186,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V322', d: '2026-11-08', items: [
+                ['📌 구매 안내서에 약정 기간을 크게: 무선 \'약정 2년(24개월)\' · 유선 \'약정 3년(36개월)\' — 안내서 그림 위 칸 · 빨간 상자 · 서명 확인 문구에', 'a']] },
             { v: 'V321', d: '2026-11-08', items: [
                 ['🌐 유선 상품도 스마트초이스 연동: 인터넷/IPTV 요금제 비교 화면에서 북마크 [CRM공시] → 3사 인터넷 · TV 무약정 · 3년 요금이 계산기와 다른 것만 골라 저장 (설정 → 유선 상품)', 'a']] },
             { v: 'V320', d: '2026-11-08', items: [
