@@ -27020,7 +27020,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V316';
+        const APP_VER = 'V317';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27028,6 +27028,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V317', d: '2026-11-08', items: [
+                ['🧭 기능 탐색기: 폴드 접고 펼 때 지도 크기 바로 맞춤', 'a']] },
             { v: 'V316', d: '2026-11-08', items: [
                 ['🧭 기능 탐색기: 넓은 화면(폴드)에서 지도 크기 맞춤 · 묶음끼리 안 겹치게 · 찾기 칸 한글 입력 풀리던 것 고침', 'a']] },
             { v: 'V315', d: '2026-11-08', items: [
@@ -27930,6 +27932,10 @@ familyStr + `\n` +
                 L.forEach((n, j) => { const b = (j / L.length) * Math.PI * 2 + a; pos[n.id] = { x: cx + r * Math.cos(b), y: cy + r * Math.sin(b) }; }); pos['g:' + g] = { x: cx, y: cy, r: r + 18 }; });
             return pos;
         }
+        // 📐 V317 지도 크기: 그릴 때마다 지금 화면으로 (폴드 접고 펼 때 예전 크기로 남던 것) · 가로 · 세로 70% 중 작은 쪽
+        function fxSize() { const b = document.getElementById('fxBox'), w = (b && b.clientWidth) || window.innerWidth || 400, h = (window.visualViewport && window.visualViewport.height) || window.innerHeight || 800; return Math.max(260, Math.round(Math.min(w, h * 0.72))); }
+        { let t = 0; const re = () => { clearTimeout(t); t = setTimeout(() => { const b = document.getElementById('fxBox'); if (b && b.offsetParent && b.querySelector('[data-fxsvg]')) { const s = fxSize(), v = b.querySelector('[data-fxsvg]'); v.style.width = v.style.height = s + 'px'; } }, 120); };
+          window.addEventListener('resize', re); if (window.visualViewport) window.visualViewport.addEventListener('resize', re); window.addEventListener('orientationchange', re); }
         function fxIn(id) { const out = []; FX_N.forEach(n => n.out.forEach(([to, t]) => { if (to === id) out.push([n.id, t]); })); return out; }
         const fxNode = (id) => FX_N.find(n => n.id === id);
         function fxRender() {
@@ -27947,7 +27953,7 @@ familyStr + `\n` +
                     <input type="search" data-fxq value="${escapeHtml(fxQ)}" placeholder="기능 찾기 (예: 개통, 약속, 재고)" class="flex-1 min-w-0 h-10 px-3 rounded-xl bg-slate-800 border border-slate-700 text-[14px] text-white placeholder-slate-400">
                     ${[['map', '지도'], ['list', '목록']].map(([m, l]) => `<button type="button" data-fxm="${m}" class="h-10 px-3 rounded-xl text-[13px] font-bold ${fxMode === m ? 'bg-white text-slate-900' : 'bg-slate-800 text-slate-300'}">${l}</button>`).join('')}</div>
 `;
-            const bodyHtml = `                ${fxMode === 'map' ? `<div class="relative"><svg data-fxsvg viewBox="${vb}" class="w-full touch-none select-none" style="aspect-ratio:1/1;max-height:75vh;max-width:75vh;margin:0 auto;display:block"><defs>${[['O', '#fb923c'], ['B', '#60a5fa']].map(([k, c]) => `<marker id="fxArr${k}" viewBox="0 0 10 10" refX="16" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('')}</defs>${groups}${edges.join('')}${nodes}</svg>
+            const bodyHtml = `                ${fxMode === 'map' ? `<div class="relative"><svg data-fxsvg viewBox="${vb}" class="touch-none select-none" style="width:${fxSize()}px;height:${fxSize()}px;margin:0 auto;display:block"><defs>${[['O', '#fb923c'], ['B', '#60a5fa']].map(([k, c]) => `<marker id="fxArr${k}" viewBox="0 0 10 10" refX="16" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${c}"/></marker>`).join('')}</defs>${groups}${edges.join('')}${nodes}</svg>
                     <div class="absolute right-2 bottom-2 flex flex-col gap-1">${[['+', 1.4], ['−', 1 / 1.4], ['⟲', 0]].map(([l, z]) => `<button type="button" data-fxz="${z}" class="w-9 h-9 rounded-lg bg-slate-800/90 text-white text-[16px] font-bold">${l}</button>`).join('')}</div>
                     <p class="absolute left-2 bottom-2 text-[11px] text-slate-400">점을 누르면 연결 · 끌어서 이동</p></div>`
                 : `<div class="px-3 pb-3 space-y-2">${Object.entries(FX_G).map(([g, [lab, col]]) => { const L = FX_N.filter(n => n.g === g && hit(n)); return L.length ? `<p class="pt-1 text-[12px] font-bold" style="color:${col}">${lab}</p>` + L.map(n => `<button type="button" data-fx="${n.id}" class="w-full text-left rounded-xl px-3 py-2 ${fxSel === n.id ? 'bg-slate-700' : 'bg-slate-800/70'}"><span class="block text-[14px] font-bold text-white">${escapeHtml(n.n)} <span class="text-[11px] font-medium text-slate-400">→ ${n.out.length}곳</span></span><span class="block text-[12px] text-slate-400">${escapeHtml(n.d)}</span></button>`).join('') : ''; }).join('')}</div>`}
