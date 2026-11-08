@@ -9938,12 +9938,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const del = document.getElementById('modalDeleteBtn'), prn = document.getElementById('printDetailBtn'), save = document.getElementById('saveDetailBtn');
             const row = save.parentElement; row.className = 'grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1.6fr)] gap-2 relative';
             del.classList.add('hidden'); prn.classList.add('hidden');
-            row.insertAdjacentHTML('afterbegin', `<button type="button" id="dmMore" aria-label="삭제 · 출력" class="h-12 rounded-xl border border-gray-300 bg-white text-gray-600 text-xl font-bold">⋯</button><div id="dmMoreMenu" class="hidden absolute left-0 bottom-14 z-20 w-44 rounded-2xl border border-gray-200 bg-white shadow-xl p-1.5"><button type="button" data-dm-more="print" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-gray-800 hover:bg-gray-50"><i class="fa-solid fa-print w-5"></i> 고객카드 출력</button><button type="button" data-dm-more="del" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash w-5"></i> 고객 삭제</button></div>`);
+            row.insertAdjacentHTML('afterbegin', `<button type="button" id="dmMore" aria-label="삭제 · 출력" class="h-12 rounded-xl border border-gray-300 bg-white text-gray-600 text-xl font-bold">⋯</button><div id="dmMoreMenu" class="hidden absolute left-0 bottom-14 z-20 w-44 rounded-2xl border border-gray-200 bg-white shadow-xl p-1.5"><button type="button" id="dmNewAct" data-dm-more="newact" class="hidden w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-green-700 hover:bg-green-50"><i class="fa-solid fa-plus w-5"></i> 새 개통 추가</button><button type="button" data-dm-more="print" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-gray-800 hover:bg-gray-50"><i class="fa-solid fa-print w-5"></i> 고객카드 출력</button><button type="button" data-dm-more="del" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash w-5"></i> 고객 삭제</button></div>`);
             save.className = 'h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm flex flex-col items-center justify-center leading-tight';
             save.innerHTML = '<span class="text-[16px]"><i class="fa-solid fa-check"></i> 저장</span><span id="dmSaveN" class="text-[11px] font-bold opacity-90">바뀐 칸 없음</span>';
             const menu = document.getElementById('dmMoreMenu');
             document.getElementById('dmMore').onclick = (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); };
-            menu.addEventListener('click', (e) => { const b = e.target.closest('[data-dm-more]'); if (!b) return; menu.classList.add('hidden'); (b.dataset.dmMore === 'del' ? del : prn).click(); });
+            menu.addEventListener('click', (e) => { const b = e.target.closest('[data-dm-more]'); if (!b) return; menu.classList.add('hidden');
+                if (b.dataset.dmMore === 'newact') { const c = customerDB.find(x => x.id === currentDetailId) || null; openActReg(c, 'mobile'); return; }   // ✏️ V299 같은 고객 새 개통 (가족 회선 · 재개통)
+                (b.dataset.dmMore === 'del' ? del : prn).click(); });
             detailModal.addEventListener('click', (e) => { if (!e.target.closest('#dmMore, #dmMoreMenu')) menu.classList.add('hidden'); });
             // 통신사 버튼 누르기
             detailModal.addEventListener('click', (e) => {
@@ -10045,6 +10047,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const dl = document.getElementById('modalMvnoList'); if (dl) dl.innerHTML = mvnoBrandList().map(b => `<option value="${escapeHtml(b)}"></option>`).join('');
                 await orig(id);
                 if (currentDetailId !== id || detailModal.style.display !== 'flex') return;
+                { const b = document.getElementById('openReportBtn'), la = custLastAct(customerDB.find(x => x.id === id));   // ✏️ V299 개통한 고객은 [개통 정보 고치기] (새 개통은 ⋯ 메뉴)
+                  if (b) { b.dataset.editAct = la ? `${la.id}|${la.date}` : ''; b.innerHTML = la ? `<i class="fa-solid fa-pen"></i> 개통 정보 고치기 <span class="text-[12px] font-bold opacity-80">${stockMD(la.date)}</span>` : '<i class="fa-solid fa-file-signature"></i> 개통등록'; }
+                  const nb = document.getElementById('dmNewAct'); if (nb) nb.classList.toggle('hidden', !la); }
                 dmSecs.forEach(s => { s.el.open = !!s.el.dataset.open; });
                 dmCarSync();
                 dmSnap = new Map(dmFields().map(el => [el.id, dmVal(el)])); dmMarkAll();
@@ -23770,6 +23775,7 @@ familyStr + `\n` +
             }
         }
         arEl.addEventListener('click', (e) => { const b = e.target.closest('[data-ar-act]'); if (!b) return; arActTarget = b.dataset.arAct; arActSync(); try { arUsimNote(); } catch (err) { /* 무시 */ } });
+        function custLastAct(c) { return c ? actsOf(c).filter(a => !a.canceled && a.kind !== '유선').pop() || null : null; }   // ✏️ V299
         function arGoAct(aid, date) { const de = document.getElementById('ar-date'); if (!de) return; de.value = date; arActTarget = aid; de.dispatchEvent(new Event('change', { bubbles: true })); arActSync(); try { arUsimNote(); arRecalc(); } catch (err) { /* 무시 */ } stockToast(`✏️ ${stockMD(date)} 개통을 불러왔어요 · 고칠 칸만 고치고 저장`); }   // ✏️ V298
         arEl.addEventListener('click', (e) => { const g = e.target.closest('[data-ar-goact]'); if (!g) return; const [aid, date] = g.dataset.arGoact.split('|'); arGoAct(aid, date); });
         arEl.addEventListener('change', (e) => { if (['ar-date', 'ar-model', 'ar-tg-usim', 'ar-type'].includes(e.target.id) && arMode === 'mobile') arActSync(); });
@@ -23841,7 +23847,9 @@ familyStr + `\n` +
             if (opt.tab) return h;   // 📎 서류 · 📞 통화는 보기 화면(고객카드)에 그대로
             h += buildDocFilesHtml(c);
             h += buildCallLogsHtml(c);   // 📞 V221 전화 앱 통화 기록
-            h += `<button type="button" data-paction="actreg" class="mt-3 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-signature"></i>개통등록</button>`;
+            { const la = custLastAct(c);   // ✏️ V299 개통한 고객은 [개통 정보 고치기] + 작은 [새 개통]
+              h += la ? `<div class="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"><button type="button" data-paction="actregedit" data-aid="${escapeHtml(la.id)}" data-date="${la.date}" class="h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-pen"></i>개통 정보 고치기 <span class="text-[12px] opacity-80">${stockMD(la.date)}</span></button><button type="button" data-paction="actreg" class="h-11 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 text-[13px] font-bold">＋ 새 개통</button></div>`
+                : `<button type="button" data-paction="actreg" class="mt-3 w-full h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-file-signature"></i>개통등록</button>`; }
             return h;
         }
         profileModal.addEventListener('click', async (ev) => {
@@ -23866,10 +23874,11 @@ familyStr + `\n` +
             if (w && currentProfileId) wiredReviewOne(currentProfileId, w.dataset.date, true);
         });
         profileModal.addEventListener('click', (ev) => {
-            const b = ev.target.closest('[data-paction="actreg"]');
+            const b = ev.target.closest('[data-paction="actreg"], [data-paction="actregedit"]');
             if (!b || !currentProfileId) return;
             const c = customerDB.find(x => x.id === currentProfileId);
             closeProfileCard();
+            if (b.dataset.paction === 'actregedit') { setTimeout(() => { openActReg(c, 'mobile'); setTimeout(() => arGoAct(b.dataset.aid, b.dataset.date), 150); }, 0); return; }   // ✏️ V299
             setTimeout(() => openActReg(c, 'mobile'), 0);
         });
 
@@ -25561,6 +25570,7 @@ familyStr + `\n` +
             if (!b) return;
             e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
             const c = b.id === 'newReportBtn' ? null : (customerDB.find(x => x.id === currentDetailId) || trashDB.find(x => x.id === currentDetailId) || null);
+            if (b.id === 'openReportBtn' && b.dataset.editAct && c) { const [aid, date] = b.dataset.editAct.split('|'); openActReg(c, 'mobile'); setTimeout(() => arGoAct(aid, date), 150); return; }   // ✏️ V299 최근 개통 고치기
             openActReg(c, AR_REDIRECT[b.id]);
         }, true);
     
@@ -26617,7 +26627,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V298';
+        const APP_VER = 'V299';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26625,6 +26635,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V299', d: '2026-11-08', items: [
+                ['✏️ 고객카드 아래 [개통등록] → 개통한 고객은 [개통 정보 고치기 (그날)]: 최근 개통을 그대로 불러와서 고쳐요 (실수로 새 개통이 생기지 않게) · 같은 고객 새 개통(가족 회선 · 재개통)은 [⋯] → [새 개통 추가] · 개통 기록이 없으면 지금처럼 [개통등록]', 'a']] },
             { v: 'V298', d: '2026-11-03', items: [
                 ['🛠 개통 고치기: 다른 날 개통한 고객을 [개통등록]으로 열면 날짜가 오늘이라 새 개통으로 저장돼서 예전 기록(부가 · 정산)이 비워지던 것 → [✏️ 그날 개통 고치기] 버튼이 떠요', 'a'],
                 ['✏️ 고객카드 개통 기록마다 [✏️ 고치기]: 그 개통의 기종 · 색상 · 일련번호 · 유심 · 요금제 · 부가/보험 줄 · 정산을 다 불러와서 고칠 칸만 고치고 저장', 'a']] },
