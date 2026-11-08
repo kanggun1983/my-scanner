@@ -19758,6 +19758,7 @@ familyStr + `\n` +
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
                 Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
+                if (isM && freshAct && !keepLatest) { const ad = arVal('ar-date'); upd.visitDate = /^\d{4}-\d{2}-\d{2}$/.test(ad) && ad <= today ? ad : today; }   // 📅 V300 기존 고객이 새로 개통하면 방문일도 그날로 (예전엔 처음 방문일 그대로)
                 if (cur.deletedAt) upd.deletedAt = '';
                 if (cur.name && cur.name !== upd.name && !(await customConfirm(`기존 이름 '${cur.name}'을(를) '${upd.name}'(으)로 바꿀까요?`))) upd.name = cur.name;
             } else {
@@ -22557,7 +22558,7 @@ familyStr + `\n` +
             gdRecEl.innerHTML = head('🎙 녹음 완료', m ? `${gdRecFmt(m.dur)} · ${m.ok} / ${m.total} 항목 "네"` : '') + `<div class="flex-1 overflow-y-auto p-4 space-y-3">
                 <div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-2"><p class="text-[15px] font-bold text-gray-900">${m && m.ok >= m.total ? '✅' : '⚠️'} ${m ? `${m.ok} / ${m.total} 확인했어요` : ''}${m && m.down ? ' · <span class="text-red-700">하향 제한 안내 ✓</span>' : ''}</p>${m ? `<audio controls src="${m.url}" class="w-full"></audio>` : ''}<button type="button" data-rec="redo" class="w-full h-10 rounded-xl border border-gray-200 bg-white text-[13px] font-bold text-gray-700">🔄 다시 녹음</button></div>
                 <div class="rounded-2xl bg-white border border-gray-200 p-3"><p class="text-[14px] font-bold text-gray-900">다음 순서</p><p class="text-[12.5px] text-gray-600 mt-1 leading-relaxed">✍ 고객 서명 → 📤 안내서 문자 → 📋 개통등록</p></div>
-            </div><footer class="bg-white border-t border-gray-200 p-3"><button type="button" data-rec="sign" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">✍ 서명받기 ▶</button></footer>`;
+            </div><footer class="bg-white border-t border-gray-200 p-3"><button type="button" data-rec="sign" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">${S.later ? '☁️ 녹음 저장하기 ▶' : '✍ 서명받기 ▶'}</button></footer>`;
         }
         function gdRecHide() { gdRecEl.querySelectorAll('audio').forEach(x => { try { x.pause(); } catch (e) { /* 무시 */ } }); gdRecEl.style.display = 'none'; gdRecEl.innerHTML = ''; }   // 🔇 V268 들어 보던 녹음은 창을 닫으면 멈춤
         function gdRecEl2(S) { return Math.max(0, Date.now() - S.t0 - (S.pausedMs || 0) - (S.pausedAt ? Date.now() - S.pausedAt : 0)); }   // ⏱ 멈춘 시간 빼고
@@ -22817,6 +22818,7 @@ familyStr + `\n` +
             gdInner.innerHTML = `<section class="rounded-2xl border ${gdStage === 'done' ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 bg-white'} px-4 py-3">
                     <p class="text-[16px] font-extrabold ${gdStage === 'done' ? 'text-emerald-900' : 'text-gray-900'}">${gdStage === 'done' ? '✅ 서명 받았어요 · 저장했어요' : `✍ ${escapeHtml(gdTitle(g))}`}</p>
                     <p class="text-[13px] text-gray-700 mt-0.5 leading-relaxed">${escapeHtml(g.name || '이름 없음')} · ${escapeHtml(formatPhone(phoneDigits(g.phone)))}<br>${g.signed ? `${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명 · ${escapeHtml(g.signed.by || '')}` : ''}${sentTxt ? ` · ${sentTxt}` : ''}<br>${g.act ? `<span class="font-bold text-emerald-800">✅ ${gdMD(g.act.date)} 개통등록 됨</span>` : '<span class="font-bold text-amber-800">⏳ 아직 개통등록 전</span>'}</p></section>
+                ${!gdRecMem.has(g.id) && !g.rec && g.st !== 'draft' && driveMode() !== 'off' ? `<section class="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 space-y-2"><p class="text-[13px] font-bold text-indigo-900">🎙 구매 내용 확인 녹음이 아직 없어요</p><button type="button" data-gd-reclater class="w-full h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">🎙 지금 녹음하기 (고객과 같이)</button><p class="text-[11px] text-indigo-800">안내서 내용으로 대본이 나와요 · 끝나면 고객 서류에 올라가요</p></section>` : ''}
                 ${gdRecMem.has(g.id) && !g.rec ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 p-3 space-y-2"><p class="text-[13px] font-bold text-amber-900">🎙 구매 확인 녹음이 아직 고객 서류에 안 올라갔어요${driveMode() === 'off' ? ' (서류 보관(구글 드라이브)이 꺼져 있어요)' : ''} · 앱을 닫으면 사라져요</p><div class="grid grid-cols-2 gap-2">${driveMode() !== 'off' ? '<button type="button" data-gd-recup class="h-11 rounded-xl bg-amber-500 text-white text-[13px] font-bold">☁️ 다시 올리기</button>' : ''}<button type="button" data-gd-recdl class="h-11 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900 ${driveMode() === 'off' ? 'col-span-2' : ''}">📥 이 폰에 파일로 저장</button></div></section>` : ''}
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
@@ -22841,6 +22843,10 @@ familyStr + `\n` +
             gdImage(g).then(url => { const img = document.getElementById('gdDoneImg'); if (!img || !gd || gd.id !== g.id) return; img.src = url; img.classList.remove('hidden'); const w = document.getElementById('gdDoneWait'); if (w) w.remove(); }).catch(err => { console.warn(err); const w = document.getElementById('gdDoneWait'); if (w) w.textContent = '안내서 그림을 못 만들었어요.'; });
         }
         gdInner.addEventListener('click', async (e) => {
+            if (e.target.closest('[data-gd-reclater]') && gd) {   // 🎙 V300 서명한 뒤에도 녹음 (안내서에서 넘기고 나중에)
+                const g = gd; gdRecSt = { g, later: true, stage: 'intro', go: async () => { const msg = await gdRecUpload(g); if (msg) stockToast(msg); gdRender(); } };
+                gdRecRender(); gdRecEl.style.display = 'flex'; return;
+            }
             if (e.target.closest('[data-gd-recup]') && gd) { const msg = await gdRecUpload(gd); if (msg) stockToast(msg); gdRender(); return; }   // 🎙 V289 녹음 다시 올리기
             if (e.target.closest('[data-gd-recdl]') && gd) { const m = gdRecMem.get(gd.id); if (!m) return; const a = document.createElement('a'); a.href = m.url || URL.createObjectURL(m.blob); a.download = `녹음_구매확인_${String(gd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(gd.date || getTodayStr()).replace(/-/g, '')}.${/mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm')}`; document.body.appendChild(a); a.click(); a.remove(); stockToast('📥 녹음 파일을 이 폰에 저장했어요'); return; }
             if (gdStage !== 'done' && gdStage !== 'view') return;
@@ -26627,7 +26633,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V299';
+        const APP_VER = 'V300';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -26635,6 +26641,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V300', d: '2026-11-08', items: [
+                ['📅 기존 고객이 새로 개통하면 방문일도 그 개통일로 바뀌어요 (예전엔 처음 방문일 그대로)', 'a'],
+                ['🎙 서명한 안내서도 나중에 녹음: 안내서 열기 → [🎙 지금 녹음하기] → 대본 읽고 [녹음 저장하기] → 고객 서류에 올라가요', 'a']] },
             { v: 'V299', d: '2026-11-08', items: [
                 ['✏️ 고객카드 아래 [개통등록] → 개통한 고객은 [개통 정보 고치기 (그날)]: 최근 개통을 그대로 불러와서 고쳐요 (실수로 새 개통이 생기지 않게) · 같은 고객 새 개통(가족 회선 · 재개통)은 [⋯] → [새 개통 추가] · 개통 기록이 없으면 지금처럼 [개통등록]', 'a']] },
             { v: 'V298', d: '2026-11-03', items: [
