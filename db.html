@@ -471,7 +471,7 @@
                 <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
                     <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><button type="button" id="ydayActBtn" data-dash-filter="yday_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="전일 개통 고객 점검하기"><span id="ydayActText" class="text-gray-500"></span></button><button type="button" id="todayActBtn" data-dash-filter="today_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="오늘 개통 고객 점검하기"><span id="todayActText" class="text-gray-500"></span></button></span>
                     <span id="monthlyActTotal" class="text-[17px] font-bold text-gray-900 leading-snug">0건</span>
-                    <span class="text-xs text-gray-600 truncate">무선 <span id="monthlyActWireless">0</span> / 유선 <span id="monthlyActWired">0</span> / 동시 <span id="monthlyActBoth">0</span></span>
+                    <span class="text-xs text-gray-600 truncate">모바일 <span id="monthlyActWireless">0</span> · 인터넷+TV <span id="monthlyActWired">0</span> · 동시판매 <span id="monthlyActBoth">0</span></span>
                     <button type="button" id="actStaffBtn" class="self-start min-h-[28px] -mb-1 text-xs font-bold text-indigo-700" aria-label="담당자별 개통 실적 보기">담당자별 개통 <i class="fa-solid fa-chevron-right text-[10px]"></i></button>
                 </div>
                 <button type="button" id="statsStaffCell" aria-label="담당자별 실적 보기 (OB·문자·푸시·자동)" class="px-3 py-2 flex flex-col min-w-0 text-left hover:bg-gray-50">
@@ -6991,7 +6991,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function goalActuals(ym) {
             const rows = computeStaffActs('month', ym), by = {};
             let total = 0;
-            rows.forEach(([n, o]) => { const v = o.m + o.w + o.both; by[n] = v; total += v; });
+            rows.forEach(([n, o]) => { const v = o.m + o.w - o.both; by[n] = v; total += v; });   // 🎯 목표는 예전처럼 (같은 날 동시판매는 1건)
             return { total, by };
         }
         function goalActualFor(name, A) { let v = 0; Object.entries(A.by).forEach(([n, x]) => { if (sameStaff(n, name)) v += x; }); return v; }
@@ -8630,10 +8630,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const byDate = new Map();
                 actsOf(c).forEach(a => { if (a.canceled) return; const g = byDate.get(a.date) || { m: 0, w: 0 }; if (a.kind === '유선') g.w++; else g.m++; byDate.set(a.date, g); });
                 byDate.forEach((g, dd) => {
-                    const both = g.m && g.w ? 1 : 0, one = g.m + g.w - both;   // 무선·유선이 같은 날이면 동시 1건 · 같은 날 기종이 다르면 따로 (V193)
-                    if (dd.startsWith(curMonth)) { bothCount += both; wirelessCount += g.m - both; wiredCount += g.w - both; }
-                    if (dd === todayStrAct) todayActCount += one;
-                    if (dd === ydayStrAct) ydayActCount += one;
+                    if (dd.startsWith(curMonth)) { wirelessCount += g.m; wiredCount += g.w; }   // 📊 V337 모바일 · 인터넷+TV는 다 세고 동시판매는 따로 (아래)
+                    if (dd === todayStrAct) todayActCount += g.m + g.w;
+                    if (dd === ydayStrAct) ydayActCount += g.m + g.w;
                 });
             });
             const ydayActEl = document.getElementById('ydayActText');
@@ -8646,7 +8645,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 todayActEl.textContent = ` · 오늘 ${todayActCount}건`;
                 todayActEl.className = todayActCount > 0 ? 'font-bold text-green-700' : 'text-gray-500';
             }
-            const totalMonthlyAct = wirelessCount + wiredCount + bothCount;
+            try { bothCount = comboSales(matchesManagerFilter).filter(x => String(x.date).startsWith(curMonth)).length; } catch (e) { bothCount = 0; }   // 📊 V337 동시판매 (같은 달 · 본인 · 가족)
+            const totalMonthlyAct = wirelessCount + wiredCount;   // 📊 V336 합계 = 모바일 + 인터넷+TV (동시판매는 따로 보여주기만)
 
             const monthlyActTotal = document.getElementById('monthlyActTotal');
             const monthlyActWireless = document.getElementById('monthlyActWireless');
@@ -17750,6 +17750,30 @@ familyStr + `\n` +
                 .sort((a, b) => (b[1].ob + b[1].sms + b[1].push + b[1].auto) - (a[1].ob + a[1].sms + a[1].push + a[1].auto));
         }
         // 개통 실적: 고객 화면 '○월 개통'과 같은 기준 (판매성공 · 무선/유선 같은 날이면 동시 1건) · 개통자(개통보고) 기준, 없으면 담당자
+        /* 📊 V337 동시판매: 같은 달 안에 본인 · 가족(가족 묶음)이 모바일과 인터넷+TV를 둘 다 개통하면 1건 (같은 날이 아니어도)
+             · 같은 달 안에서 인터넷+TV 1건 ↔ 모바일 1건씩 짝 (날짜 순) · 날짜 = 둘 중 늦은 날 (짝이 완성된 날) · 실적은 인터넷+TV 개통자 */
+        function comboSales(filterFn) {
+            const groups = new Map();
+            customerDB.forEach(c => {
+                const gk = c.familyGroupId ? 'F' + c.familyGroupId : 'C' + c.id;
+                const g = groups.get(gk) || []; actsOf(c).forEach(a => { if (!a.canceled) g.push({ a, c }); }); groups.set(gk, g);
+            });
+            const out = [];
+            groups.forEach(L => {
+                const byM = new Map();
+                L.forEach(x => { const ym = String(x.a.date).slice(0, 7); const o = byM.get(ym) || { m: [], w: [] }; (x.a.kind === '유선' ? o.w : o.m).push(x); byM.set(ym, o); });
+                byM.forEach(o => {
+                    const sd = (p, q) => String(p.a.date).localeCompare(String(q.a.date));
+                    o.w.sort(sd); o.m.sort(sd);
+                    for (let i = 0; i < Math.min(o.w.length, o.m.length); i++) {
+                        const w = o.w[i], m = o.m[i];
+                        if (filterFn && !filterFn(w.c)) continue;
+                        out.push({ date: w.a.date > m.a.date ? w.a.date : m.a.date, staff: actStaffKey(w.a, w.c), cid: w.c.id, mid: m.c.id });
+                    }
+                });
+            });
+            return out;
+        }
         function computeStaffActs(period, ym) {
             let from, to;
             if (ym) { from = `${ym}-01`; to = `${ym}-31`; }
@@ -17762,12 +17786,12 @@ familyStr + `\n` +
                     const m = g.filter(a => a.kind !== '유선'), w = g.filter(a => a.kind === '유선');
                     const k = actStaffKey(m[0] || w[0], c);
                     const o = map.get(k) || { m: 0, w: 0, both: 0 };
-                    const both = m.length && w.length ? 1 : 0;   // 같은 날 기종이 다르면 따로 (V193)
-                    o.both += both; o.m += m.length - both; o.w += w.length - both;
+                    o.m += m.length; o.w += w.length;   // 📊 V337 모바일 · 인터넷+TV는 다 셈
                     map.set(k, o);
                 });
             });
-            return [...map.entries()].sort((x, y) => (y[1].m + y[1].w + y[1].both) - (x[1].m + x[1].w + x[1].both));
+            comboSales().forEach(x => { if (x.date < from || x.date > to) return; const o = map.get(x.staff) || { m: 0, w: 0, both: 0 }; o.both++; map.set(x.staff, o); });   // 📊 V337 동시판매 (같은 달 · 본인 · 가족)
+            return [...map.entries()].sort((x, y) => (y[1].m + y[1].w) - (x[1].m + x[1].w));
         }
         function renderStaffActs() {
             const rows = computeStaffActs(staffPeriod);
@@ -17779,15 +17803,15 @@ familyStr + `\n` +
             const num = (n, strong) => `<span class="text-right text-[15px] ${n ? (strong ? 'font-bold text-indigo-700' : 'font-bold text-gray-900') : 'text-gray-300'}">${n}</span>`;
             const row = (name, o, strong) => `<div class="${grid} px-3 py-3 ${strong ? 'bg-gray-50' : ''}">
                     <span class="text-[15px] ${strong ? 'font-bold' : 'font-medium'} text-gray-900 truncate">${escapeHtml(name)}${!strong && name === me ? ' <span class="text-xs font-bold text-indigo-700">나</span>' : ''}</span>
-                    ${num(o.m)}${num(o.w)}${num(o.both)}${num(o.m + o.w + o.both, true)}${money(name, strong)}
+                    ${num(o.m)}${num(o.w)}${num(o.both)}${num(o.m + o.w, true)}${money(name, strong)}
                 </div>`;
             return `<div class="rounded-2xl border border-gray-200 overflow-hidden divide-y divide-gray-100">
                     <div class="${grid} px-3 py-2 bg-gray-50 text-xs font-bold text-gray-600">
-                        <span>개통자</span><span class="text-right">무선</span><span class="text-right">유선</span><span class="text-right">동시</span><span class="text-right">합계</span>
+                        <span>개통자</span><span class="text-right">모바일</span><span class="text-right leading-tight">인터넷<br>+TV</span><span class="text-right leading-tight">동시<br>판매</span><span class="text-right">합계</span>
                     </div>
                     ${rows.length ? rows.map(([n, o]) => row(n, o, false)).join('') + row('합계', sum, true) : '<p class="text-sm text-gray-600 text-center py-8">이 기간 개통이 없어요.</p>'}
                 </div>
-                <p class="text-xs text-gray-500 leading-relaxed pl-1"><b class="text-gray-700">개통 기록</b> 기준이에요 (같은 분이라도 개통일이 다르면 따로 · 취소한 개통은 빠짐). 그 개통의 <b class="text-gray-700">개통자</b> 이름으로 나누고, 비어 있으면 고객 담당자로 셌어요. '과장'·'님' 같은 직함은 빼고 같은 사람으로 묶어요.${SR && SR.missing ? ` <b class="text-amber-700">💰 정산 미입력 ${SR.missing}건은 매출에 아직 안 들어갔어요.</b>` : ''}</p>`;
+                <p class="text-xs text-gray-500 leading-relaxed pl-1"><b class="text-gray-700">개통 기록</b> 기준이에요 (같은 분이라도 개통일이 다르면 따로 · 취소한 개통은 빠짐). <b class="text-gray-700">동시판매</b> = 같은 달 안에 본인이나 가족(가족 묶음)이 모바일과 인터넷+TV를 둘 다 개통한 것 (같은 날이 아니어도 · 인터넷+TV 개통자 실적) → 모바일 1 · 인터넷+TV 1 · 동시판매 1이 다 올라가요 (합계 = 모바일 + 인터넷+TV). 그 개통의 <b class="text-gray-700">개통자</b> 이름으로 나누고, 비어 있으면 고객 담당자로 셌어요. '과장'·'님' 같은 직함은 빼고 같은 사람으로 묶어요.${SR && SR.missing ? ` <b class="text-amber-700">💰 정산 미입력 ${SR.missing}건은 매출에 아직 안 들어갔어요.</b>` : ''}</p>`;
         }
         // 👤 신규 등록: 등록한 직원 기준 (예전 고객은 담당자) · 그중 개통(판매성공)까지 간 고객
         function computeStaffRegs(period) {
@@ -27947,7 +27971,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V336';
+        const APP_VER = 'V337';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27955,6 +27979,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V337', d: '2026-11-09', items: [
+                ['📊 개통 실적 칸: 모바일 · 인터넷+TV · 동시판매 · 동시판매 = 같은 달 안에 본인 · 가족(가족 묶음)이 모바일과 인터넷+TV를 둘 다 개통 (같은 날 아니어도 · 인터넷+TV 개통자 실적) → 모바일 1 · 인터넷+TV 1 · 동시판매 1이 다 올라감 (합계 = 모바일 + 인터넷+TV) · 대시보드 이달 개통도 같게 · 월 목표는 예전처럼 동시판매를 1건으로', 'a']] },
             { v: 'V336', d: '2026-11-09', items: [
                 ['🩹 문자 보내기 · 전화를 눌러 문자앱 · 전화앱으로 넘어갈 때 저장이 멈추면 연락 기록이 빠지던 것 고침 · 돌아오면 다시 저장 (20초 넘게 멈춘 저장도) · 아직 저장 중인 연락은 고객카드 연락 탭에 ⏳ 저장 중으로 바로 보임 · 저장 못 하면 알림', 'a']] },
             { v: 'V335', d: '2026-11-09', items: [
