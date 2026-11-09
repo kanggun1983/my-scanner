@@ -11569,6 +11569,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (tb) { body.appendChild(tb); if (tf) body.appendChild(tf); try { renderTeamSettings(); } catch (e) { console.warn(e); } }
                 return;
             }
+            { const tb = document.getElementById('teamSetBox'), tf = document.getElementById('teamPhotoFile'), home = document.querySelector('[data-team-home]'); if (tb && home && tb.parentElement !== home) { home.appendChild(tb); if (tf) home.appendChild(tf); } }   // 🩹 V346 대표 탭 그리기 전에 직원 칸은 제자리로 (지워지지 않게)
             document.getElementById('calcSheetSub').textContent = '미리보기 보면서 고치고 [저장]하면 명함에 바로 반영 · 링크 주소는 그대로';
             if (!ceDraft) { body.innerHTML = '<p class="text-sm text-gray-500 py-6 text-center">불러오는 중…</p>'; if (!ceLoading) ceLoad().then(renderCardEdit); return; }
             const d = ceDraft, inp = 'w-full mt-1 h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white', lb = 'block text-xs font-bold text-gray-600 mt-2', box = 'rounded-2xl border border-gray-200 bg-white p-3';
@@ -11618,9 +11619,12 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (t.matches('[data-ce-photo-file]') && t.files && t.files[0]) { try { ceDraft.photo = await cePhotoShrink(t.files[0]); renderCardEdit(); } catch (err) { customAlert(err.message || '사진을 못 읽었어요.'); } }
         });
         document.getElementById('calcSheetBody').addEventListener('click', async (e) => {
-            if (calcSheetMode !== 'cardedit' || !ceDraft) return;
+            if (calcSheetMode !== 'cardedit') return;
             const g = (sel) => e.target.closest(sel);
             let b;
+            if ((b = g('[data-ce-tab]'))) { ceTab = b.dataset.ceTab; return renderCardEdit(); }   // 👥 V340 · 🩹 V346 직원 탭에서 먼저 열면(대표 명함을 아직 안 불러옴) 탭이 안 바뀌던 것
+            if (g('[data-ce-team]')) { ceTab = 'team'; return renderCardEdit(); }
+            if (!ceDraft) return;
             if ((b = g('[data-ce-color]'))) { ceDraft.color = b.dataset.ceColor; return renderCardEdit(); }
             if (g('[data-ce-photo]')) { const f = document.querySelector('[data-ce-photo-file]'); f.value = ''; return f.click(); }
             if (g('[data-ce-photo-del]')) { ceDraft.photo = ''; return renderCardEdit(); }
@@ -11630,8 +11634,6 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if ((b = g('[data-ce-down]'))) { const i = +b.dataset.ceDown; [ceDraft.btns[i + 1], ceDraft.btns[i]] = [ceDraft.btns[i], ceDraft.btns[i + 1]]; return renderCardEdit(); }
             if (g('[data-ce-reset]')) { ceDraft = ceClone(ceSaved); return renderCardEdit(); }
             if (g('[data-ce-default]')) { if (!(await customConfirm('처음 명함 내용(강태훈 과장 · 마젠타 · 기본 버튼)으로 되돌릴까요? 저장해야 반영돼요.'))) return; ceDraft = ceClone(CE_DEF); return renderCardEdit(); }
-            if ((b = g('[data-ce-tab]'))) { ceTab = b.dataset.ceTab; return renderCardEdit(); }   // 👥 V340
-            if (g('[data-ce-team]')) { ceTab = 'team'; return renderCardEdit(); }
             if ((b = g('[data-ce-save]'))) {
                 const d = ceClone(ceDraft);
                 d.sns = (d.sns || []).filter(x => x.url && /^https:\/\//.test(x.url)).slice(0, 6);
@@ -28080,7 +28082,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V345';
+        const APP_VER = 'V346';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28088,6 +28090,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V346', d: '2026-11-10', items: [
+                ['🩹 명함 꾸미기에서 [👥 직원 명함] 탭으로 먼저 열면 [👑 대표 명함] 탭을 눌러도 안 바뀌던 것 고침 · 탭을 오가도 직원 명함 칸이 지워지지 않게', 'a']] },
             { v: 'V345', d: '2026-11-10', items: [
                 ['🩹 개통등록 \'결합 · 복지\' 칸의 복지가 고객카드 가족결합 칸에 같이 들어가던 것 고침 → 가족결합 · 복지할인 따로 · 예전에 섞여 들어간 고객도 수정 화면에선 나눠서 보여요', 'a']] },
             { v: 'V344', d: '2026-11-10', items: [
