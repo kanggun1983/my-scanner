@@ -456,6 +456,8 @@
 
             <!-- 🔗 바로가기 (V200) -->
             <div id="quickLinksRow" class="hidden mb-2.5 flex-wrap items-center gap-1.5" role="navigation" aria-label="바로가기"></div>
+            <!-- 🏷 V339 스마트초이스 공통지원금이 오래됐으면 (7일) 알림 · 명함 · 견적 · 안내서 공시가 옛 값 -->
+            <button type="button" id="scStaleStrip" data-sc-go class="hidden w-full mb-2.5 text-left rounded-xl border-2 border-red-200 bg-red-50 px-3 py-2.5 text-[14px] text-red-900"></button>
             <!-- 📋 오늘 할 일 (V177) -->
             <button type="button" id="todoRow" class="w-full mb-2.5 min-h-[48px] px-3 py-2 rounded-xl border-2 border-indigo-200 bg-indigo-50 flex items-center gap-2 text-left hover:bg-indigo-100">
                 <i class="fa-solid fa-list-check text-indigo-700 flex-shrink-0" aria-hidden="true"></i>
@@ -6893,8 +6895,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const scChip = `<button type="button" data-sc-go class="h-9 px-2.5 rounded-full border ${scA >= 7 || scA < 0 ? 'border-red-300 bg-red-50 text-red-800' : 'border-sky-300 bg-sky-50 text-sky-900'} text-[13px] font-bold whitespace-nowrap">🏷 공통지원금 가져오기 <span class="font-medium">${scA < 0 ? '' : (scA ? scA + '일 전' : '오늘')}</span></button>`;
             row.innerHTML = `<span class="text-xs font-bold text-gray-500 pl-0.5">🔗 바로가기</span>${scChip}${qlStore().map(x => chip(x, false)).join('')}${qlMine().map(x => chip(x, true)).join('')}<button type="button" data-ql-edit class="h-9 px-2.5 rounded-full border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700 whitespace-nowrap">＋ 추가·편집</button>`;
             row.classList.remove('hidden'); row.classList.add('flex');
+            const st = document.getElementById('scStaleStrip');   // 🏷 V339
+            if (st) { const show = !!siseCache && can('editPolicy') && (scA >= 7 || scA < 0); st.classList.toggle('hidden', !show); if (show) st.innerHTML = `🏷 <b>${scA < 0 ? '스마트초이스 공통지원금을 아직 안 가져왔어요' : `공통지원금을 ${scA}일 전에 가져왔어요`}</b> · 명함 · 견적 · 안내서 공시가 ${scA < 0 ? '비어 있어요' : '옛 값일 수 있어요'} <span class="font-bold underline">지금 가져오기 ›</span>`; }
         }
         document.getElementById('quickLinksRow').addEventListener('click', (e) => { if (e.target.closest('[data-ql-edit]')) openQuickLinks(); if (e.target.closest('[data-sc-go]')) scGoSheet(); });
+        document.getElementById('scStaleStrip').addEventListener('click', () => scGoSheet());
         let qlEditing = null;   // { scope: 'store'|'mine', id }
         function openQuickLinks() {
             let sh = document.getElementById('quickLinksSheet');
@@ -10968,12 +10973,54 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 + rows.map(([l, v]) => `<div class="flex items-start justify-between gap-3 py-0.5 text-[13px]"><span class="text-gray-600 flex-shrink-0">${l}</span><span class="text-right text-gray-900 leading-snug">${v}</span></div>`).join('')
                 + (!done ? `<p class="mt-1 pt-1.5 border-t border-sky-100 text-[13px] text-gray-900">지금 바꾸면 대략 <b class="text-[15px]">${arWon(r.total)}원</b></p>` : '')
                 + `<p class="text-[11px] text-gray-500 leading-snug mt-0.5">계산기 상품으로 계산: ${prod}${miss.length ? ` · <b class="text-amber-700">⚠ ${miss.join(' · ')} 이름을 못 찾아 기본 상품으로</b>` : ''} · 위약금${r.ptype} 기준 · 정확한 금액은 통신사 조회</p>`
+                + (!done ? wnChkHtml(c, I) : '')
                 + btns(I));
+        }
+        /* 📞 V339 통신사 조회 위약금 넣기 → 계산기와 비교 · 차이가 나면 '인터넷 무약정이 ○○원이면 맞아요' → [계산기 상품 고치기] (👑 정책 권한)
+             · 고객카드 c.wiredPenChk { amt, date, by } · 비교는 조회한 날 기준 · 위약금은 받은 할인에 비례해서 인터넷 무약정 요금을 거꾸로 계산 */
+        const wnChkOpen = {};
+        function wnImplied(I, chk) {
+            if (!chk || !(chk.amt > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(chk.date || '')) return null;
+            const g = I.g, r = WiredCalc.estimate({ ...g, start: I.start, end: chk.date }); if (!r) return null;
+            const c = WiredCalc.CARRIER_DATA[g.carrier], intObj = ((c.internet || {})[g.tab] || []).find(x => x.id === g.intId); if (!intObj) return { r };
+            const vx = c.vatExNet ? 1 / 1.1 : 1, f = WiredCalc.penalty(r.ptype, 1, r.days, g.carrier) * vx;
+            const rest = chk.amt - r.p.tv - r.p.bundle - r.p.equip, nc = f > 0 ? Math.round((intObj.price + rest / f) / 100) * 100 : 0;
+            return { r, intObj, nc: nc >= intObj.price && nc <= intObj.price * 3 ? nc : 0 };
+        }
+        function wnChkHtml(c, I) {
+            const chk = c.wiredPenChk && c.wiredPenChk.amt > 0 ? c.wiredPenChk : null, open = wnChkOpen[c.id];
+            let h = '';
+            if (chk) {
+                const M = wnImplied({ ...I, start: c.wiredDate }, chk), diff = M ? chk.amt - M.r.total : 0;
+                h += `<div class="mt-2 rounded-lg bg-white border border-sky-100 px-2.5 py-2 text-[12px] text-gray-800 leading-relaxed">📞 <b>통신사 조회 ${arWon(chk.amt)}원</b> <span class="text-gray-500">(${gdDot(chk.date)}${chk.by ? ' · ' + escapeHtml(chk.by) : ''})</span>`
+                    + (M ? `<br>그날 계산기 ${arWon(M.r.total)}원 · ${Math.abs(diff) < 1000 ? '<b class="text-emerald-700">거의 같아요 ✅</b>' : `<b class="text-amber-700">${diff > 0 ? '+' : '−'}${arWon(Math.abs(diff))}원 차이</b>`}` : '')
+                    + (M && M.nc && Math.abs(diff) >= 1000 && M.nc !== M.intObj.noContract ? `<br>인터넷 무약정이 <b>${arWon(M.nc)}원</b>이면 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(M.intObj.name)} ${arWon(M.intObj.noContract)}원)</span>${can('editPolicy') ? `<button type="button" data-wn-fix="${M.nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(M.nc)}원으로 고치기</button>` : ''}` : '')
+                    + `</div>`;
+            }
+            h += open ? `<div class="mt-2 flex gap-1.5"><input id="wnChkIn" inputmode="numeric" placeholder="통신사 조회 위약금 (원)" value="${chk ? arWon(chk.amt) : ''}" class="flex-1 min-w-0 h-10 px-3 border border-sky-300 rounded-lg text-[15px] text-right bg-white"><button type="button" data-wn-chksave class="flex-shrink-0 h-10 px-3 rounded-lg bg-sky-700 text-white text-[13px] font-bold">오늘 조회로 저장</button></div>`
+                : `<button type="button" data-wn-chk class="mt-2 w-full h-9 rounded-lg border border-sky-300 bg-white text-[12px] font-bold text-sky-800">📞 통신사 조회 금액 ${chk ? '다시 ' : ''}넣기 (계산기와 비교)</button>`;
+            return h;
         }
         profileModal.addEventListener('click', async (ev) => {   // 🏠 V244
             const cb = ev.target.closest('[data-wn-car]'), calc = ev.target.closest('[data-wn-calc]'), cp = ev.target.closest('[data-wn-copy]');
-            if ((!cb && !calc && !cp) || !currentProfileId) return;
+            const chkB = ev.target.closest('[data-wn-chk]'), chkS = ev.target.closest('[data-wn-chksave]'), fixB = ev.target.closest('[data-wn-fix]');   // 📞 V339
+            if ((!cb && !calc && !cp && !chkB && !chkS && !fixB) || !currentProfileId) return;
             const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
+            if (chkB) { wnChkOpen[c.id] = true; renderProfileCard(); setTimeout(() => { const i = document.getElementById('wnChkIn'); if (i) i.focus(); }, 50); return; }
+            if (chkS) {
+                const amt = Number(String((document.getElementById('wnChkIn') || {}).value || '').replace(/[^\d]/g, '')) || 0;
+                if (!(await lockGate(c, '위약금 조회 금액', 'edit'))) return;
+                try { await saveDoc(doc(db, 'smart_customers', c.id), { wiredPenChk: amt > 0 ? { amt, date: getTodayStr(), by: getStaffName() || '' } : null }, { merge: true }); c.wiredPenChk = amt > 0 ? { amt, date: getTodayStr(), by: getStaffName() || '' } : null; wnChkOpen[c.id] = false; renderProfileCard(); stockToast(amt > 0 ? '📞 통신사 조회 금액을 저장했어요' : '조회 금액을 지웠어요'); }
+                catch (err) { customAlert(koreanError(err, '저장')); }
+                return;
+            }
+            if (fixB) {
+                const I0 = wnInfo(c); if (!I0) return; const g = I0.g, nc = Number(fixB.dataset.wnFix) || 0, C0 = WiredCalc.CARRIER_DATA[g.carrier], base = ((C0.internet || {})[g.tab] || []).find(x => x.id === g.intId); if (!base || !nc) return;
+                if (!(await customConfirm(`유선계산기 상품을 고칠까요?\n\n${C0.name} · ${base.name}\n무약정 ${arWon(base.noContract)}원 → ${arWon(nc)}원\n\n이 상품을 쓰는 모든 고객 · 명함 계산기에 같이 적용돼요. (설정 → 유선 상품에서 되돌릴 수 있어요)`))) return;
+                if (!wiredCfg) await wiredLoadCfg();
+                await wedSave(items => { const L = (items[g.carrier] = items[g.carrier] || {}), p = `internet.${g.tab}`, arr = (L[p] = L[p] || []), i = arr.findIndex(x => x.id === g.intId), e = { id: g.intId, name: base.name, price: base.price, noContract: nc, speed: base.speed }; if (i >= 0) arr[i] = { ...arr[i], ...e }; else arr.push(e); }, `🌐 ${base.name} 무약정을 ${arWon(nc)}원으로 고쳤어요`);
+                renderProfileCard(); return;
+            }
             if (cb) { wnCarPick[c.id] = cb.dataset.wnCar; renderProfileCard(); return; }
             const I = wnInfo(c);
             if (calc) { window.open(wnCalcUrl(c, I), '_blank', 'noopener'); return; }
@@ -24050,6 +24097,10 @@ familyStr + `\n` +
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서 서명 · ${gdTitle(g)} (담당: ${me || '-'})`;
                 txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), ...gdMoneyProm(g, moneyKey), contactHistory: appendLine(cur.contactHistory, gdMoneyOn(g) && moneyKey ? `${line}\n[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ${(PROMISE_DEFS.find(t => t.key === moneyKey) || { label: '' }).label} 약속 ${/2$/.test(moneyKey) ? '추가' : '등록'} · ${gdMoneyLine(g, true)}` : line), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
                 gdDirty = false; gdStage = 'done'; gdRender();
+                setTimeout(async () => {   // 📜 V339 서명만 하고 개통등록을 빠뜨리면 실적 · 정산에 안 잡혀서 바로 물어봄 (안내서로 채워짐)
+                    if (!gd || gd.id !== g.id || gdStage !== 'done' || g.act || !gdInner.querySelector('[data-gd-act]')) return;
+                    if (await customConfirm(`${g.kind === 'wired' ? '📺 인터넷 · TV' : '📱 휴대폰'} 개통등록도 지금 할까요?\n\n안내서 내용으로 채워져요. 개통등록을 해야 실적 · 정산에 잡혀요.\n(나중에 하려면 [취소] → 이 화면 [지금 개통등록 하기])`)) { const b = gdInner.querySelector('[data-gd-act]'); if (b) b.click(); }
+                }, 350);
                 if (gdRecMem.has(g.id)) gdRecUpload(g).then(msg => { if (msg) stockToast(msg); if (gd && gd.id === g.id && gdStage === 'done') gdRender(); });   // 🎙 V267 · V289 못 올리면 [다시 올리기 · 폰에 저장]
             } catch (err) {
                 if (g.st === 'signed' && !gdList.some(x => x.id === g.id && x.st !== 'draft')) { g.st = 'draft'; delete g.signed; delete g.pi; }   // V238 저장 못 했으면 서명 전으로
@@ -27957,7 +28008,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V338';
+        const APP_VER = 'V339';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27965,6 +28016,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V339', d: '2026-11-10', items: [
+                ['📜 안내서 서명이 끝나면 "개통등록도 지금 할까요?"를 바로 물어봐요 (안내서 내용으로 채워짐) · 서명만 하고 개통등록을 빠뜨려 실적 · 정산에 안 잡히는 일 막기', 'a'],
+                ['🏷 스마트초이스 공통지원금을 7일 넘게 안 가져왔으면 첫 화면에 빨간 알림 (누르면 가져오기)', 'a'],
+                ['📞 고객카드 유선 \'지금 바꾸면\'에 [통신사 조회 금액 넣기]: 계산기와 비교 · 차이가 나면 "인터넷 무약정이 ○○원이면 맞아요" → [계산기 상품 고치기]', 'a']] },
             { v: 'V338', d: '2026-11-10', items: [
                 ['🩹 직접 넣은 공통지원금을 요금제 이름으로 보관 (지원금 엑셀을 새로 올려 요금제 순서가 바뀌어도 그대로) · 명함 V5.20', 'a'],
                 ['🧹 기종 고치기 화면의 공통지원금 칸 정리 (스마트초이스 · 직접 넣기로 하나로) · 안 쓰는 옛 코드 정리', 'a'],
