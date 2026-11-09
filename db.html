@@ -3747,7 +3747,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function pmBuild() {   // 고객 이름 · 생년월일 목록으로 찾기 식 만들기 (고객이 바뀌면 다시)
             const list = Array.isArray(customerDB) ? customerDB : [];
-            const sig = `${list.length}|${list[0] && list[0].id}|${list[list.length - 1] && list[list.length - 1].id}`;
+            let chk = 0; list.forEach(c => { const t = `${c.name || ''}|${c.dob || ''}|${c.legalName || ''}|${c.promPayAcct || ''}|${c.promSendAcct || ''}|${c.promPay2Acct || ''}|${c.promSend2Acct || ''}`; for (let i = 0; i < t.length; i++) chk = (chk * 31 + t.charCodeAt(i)) | 0; });   // V332 이름 · 생년월일 · 계좌를 고쳐도 바로 가리게
+            const sig = `${list.length}|${chk}`;
             if (PM.re && sig === PM.sig) return;
             PM.sig = sig;
             let staff = new Set();
@@ -5205,7 +5206,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 아직 체크(완료) 안 된 약속 날짜들
         function getOpenPromiseDates(c, opts = {}) {   // opts.noVisit: 방문 약속은 빼고 (대시보드 '약속' 칸은 '방문약속' 칸과 따로 · V174)
-            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promAddon2Date, c.promAddon2Chk], [c.promAddon3Date, c.promAddon3Chk], [c.promAddon4Date, c.promAddon4Chk], [c.promInsDate, c.promInsChk], [c.promCardDate, c.promCardChk], [c.promAccDate, c.promAccChk], [opts.noVisit ? '' : c.promVisitDate, c.promVisitChk], [c.promOtherDate, c.promOtherChk], [c.promCallDate, c.promCallChk], ...[...PROM_MONEY_KEYS, ...PROM_X_KEYS].map(k => [c[`prom${k}Date`], c[`prom${k}Chk`]])]
+            return [[c.promPlanDate, c.promPlanChk], [c.promAddonDate, c.promAddonChk], [c.promAddon2Date, c.promAddon2Chk], [c.promAddon3Date, c.promAddon3Chk], [c.promAddon4Date, c.promAddon4Chk], [c.promInsDate, c.promInsChk], [c.promCardDate, c.promCardChk], [c.promAccDate, c.promAccChk], [opts.noVisit ? '' : c.promVisitDate, c.promVisitChk], [c.promOtherDate, c.promOtherChk], [c.promCallDate, c.promCallChk], ...PROMISE_DEFS.filter(t => t.money || t.custom).map(t => [c[`prom${t.key}Date`], c[`prom${t.key}Chk`]])]   // V332 뺀 추가 종류는 안 셈 (달력과 같게)
                 .filter(([d, chk]) => d && d.length >= 10 && !chk)
                 .map(([d]) => d);
         }
@@ -8574,7 +8575,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (currentFilter === 'bizcard') return c.bizCardInstalled === true;
                 if (currentFilter === 'doc_yes') return docCountOf(c) > 0;
                 if (currentFilter === 'doc_no') return c.salesStatus === '판매성공' && docCountOf(c) === 0;   // 개통 고객 중 서류 없는 고객
-                if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promAddon2Date || c.promAddon3Date || c.promAddon4Date || c.promInsDate || c.promCardDate || c.promAccDate || c.promVisitDate || c.promOtherDate || c.promCallDate || [...PROM_MONEY_KEYS, ...PROM_X_KEYS].some(k => c[`prom${k}Date`])); 
+                if (currentFilter === 'promise') return (c.promPlanDate || c.promAddonDate || c.promAddon2Date || c.promAddon3Date || c.promAddon4Date || c.promInsDate || c.promCardDate || c.promAccDate || c.promVisitDate || c.promOtherDate || c.promCallDate || PROMISE_DEFS.some(t => (t.money || t.custom) && c[`prom${t.key}Date`])); 
                 return true; 
             });
 
@@ -12314,7 +12315,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 'p.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', 'pn1']),
                 'p.visit': h([smsSetting('smsTplVisit'), 'pn1']),
                 'p.act': h([smsSetting('smsTplAct'), reviewUrl(), smsSetting('smsActDays'), 'pn1']),
-                'p.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', 'pn1']),
+                'p.promo': h([smsSetting('smsTplPromo'), appSettings.smsPromoImage || '', appSettings.smsPromoPushImage || '', String(appSettings.smsPromoImgPos ?? ''), 'pn1']),   // V332 푸시용 사진 · 위치가 바뀌면 예약 푸시도 다시
                 'p.phone': h([smsSetting('smsTplPhone'), phoneMonths(), 'pn1']),
                 'p.miss': h([smsSetting('smsTplMiss'), 'pn1'])
             };
@@ -27672,7 +27673,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V331';
+        const APP_VER = 'V332';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27680,6 +27681,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V332', d: '2026-11-09', items: [
+                ['🛠 점검 수정: 홍보 푸시 사진 위치를 바꾸면 이미 예약된 푸시도 새 사진으로 · 🙈 가리기 켠 채로 고객 이름 · 생년월일 · 계좌를 고쳐도 바로 가려져요 · 뺀 약속 종류는 \'약속\' 숫자에서도 빠져요 (달력과 같게)', 'a']] },
             { v: 'V331', d: '2026-11-09', items: [
                 ['✅ 약속 달력 · 이번 주 약속 줄: 미처리는 종류별 색 칸 · 완료는 회색 \'✓ 완료 N\'으로 따로 · 지난 미처리는 빨간 테두리 · 달력은 처음부터 \'완료 포함\'으로 열리고 날짜 목록도 미처리 아래에 \'✓ 완료한 약속\'으로 따로 보여요', 'a']] },
             { v: 'V330', d: '2026-11-09', items: [
