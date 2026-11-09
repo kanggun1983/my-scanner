@@ -765,11 +765,11 @@
             <section class="space-y-2" aria-labelledby="setCardEditTitle">
                 <h3 id="setCardEditTitle" class="text-[13px] font-bold text-gray-600 pl-1">📇 명함 꾸미기</h3>
                 <button type="button" id="cardEditBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left">
-                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">대표 명함 이름 · 사진 · 소개 · 연락처 · 색깔 · SNS · 바로가기 버튼</span><span class="text-[13px] text-gray-600 leading-snug">👑 대표만 · 미리보기 보면서 고치고 저장하면 명함에 바로 반영</span></span>
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">👑 대표 · 👥 직원 명함 한 곳에서 (이름 · 사진 · 소개 · 연락처 · 색깔 · SNS · 바로가기 버튼)</span><span class="text-[13px] text-gray-600 leading-snug">👑 대표만 · 미리보기 보면서 고치고 저장하면 명함에 바로 반영</span></span>
                     <i class="fa-solid fa-chevron-right text-gray-400"></i>
                 </button>
             </section>
-            <section class="space-y-2" aria-labelledby="setTeamTitle">
+            <section class="space-y-2 hidden" aria-labelledby="setTeamTitle" data-team-home>   <!-- 👥 V340 직원 명함은 📇 명함 꾸미기 안 [👥 직원 명함] 탭으로 (칸은 그때 옮겨 감) -->
                 <h3 id="setTeamTitle" class="text-[13px] font-bold text-gray-600 pl-1">👥 직원 공용 명함</h3>
                 <div id="teamSetBox" class="bg-white border border-gray-200 rounded-2xl p-3 space-y-3"></div>
                 <input type="file" id="teamPhotoFile" accept="image/*" class="hidden">
@@ -938,7 +938,7 @@
                 <h3 id="setCalcTitle" class="text-[13px] font-bold text-gray-600 pl-1">명함 폰값계산 <span class="font-normal text-gray-500">(지원금 엑셀 · 요금제 · 위약금)</span></h3>
                 <button type="button" id="calcManageBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
                     <span class="flex flex-col min-w-0">
-                        <span class="text-[15px] font-medium text-gray-900">지원금 엑셀 · 요금제 · 위약금 기준</span>
+                        <span class="text-[15px] font-medium text-gray-900">요금제 · 위약금 기준 <span class="text-[13px] text-gray-500">(지원금 엑셀은 선택 · 기종 · 출고가는 스마트초이스로도)</span></span>
                         <span id="calcManageSub" class="text-[13px] text-gray-600 truncate">-</span>
                     </span>
                     <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
@@ -1121,7 +1121,7 @@
             <section class="space-y-2" aria-labelledby="setDiagTitle">
                 <h3 id="setDiagTitle" class="text-[13px] font-bold text-gray-600 pl-1">연결 점검</h3>
                 <button type="button" id="diagBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] pl-4 pr-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
-                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">🩺 연결된 기능 한 번에 점검</span><span class="text-[13px] text-gray-600">Firebase · 알림 서버 · 푸시 · 자동 문자 · 서류 백업 · AI</span></span>
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">🩺 연결 점검 · 연결도 (한 화면)</span><span class="text-[13px] text-gray-600">Firebase · 알림 서버 · 푸시 · 자동 문자 · 서류 백업 · AI</span></span>
                     <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
                 </button>
             </section>
@@ -8631,24 +8631,25 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const ydayStrAct = yesterdayStr();
             let todayActCount = 0;   // 📅 당일 개통 (무선·유선·동시 합계 · 월 개통과 같은 기준)
             let ydayActCount = 0;    // 📅 전일 개통 (같은 기준)
+            const todayActPpl = new Set(), ydayActPpl = new Set();
 
             customerDB.filter(matchesManagerFilter).forEach(c => {   // 👤 담당자별 · 📜 개통 기록 기준 (V192: 같은 분도 개통일이 다르면 따로 · 취소한 개통은 빠짐)
                 const byDate = new Map();
                 actsOf(c).forEach(a => { if (a.canceled) return; const g = byDate.get(a.date) || { m: 0, w: 0 }; if (a.kind === '유선') g.w++; else g.m++; byDate.set(a.date, g); });
                 byDate.forEach((g, dd) => {
                     if (dd.startsWith(curMonth)) { wirelessCount += g.m; wiredCount += g.w; }   // 📊 V337 모바일 · 인터넷+TV는 다 세고 동시판매는 따로 (아래)
-                    if (dd === todayStrAct) todayActCount += g.m + g.w;
-                    if (dd === ydayStrAct) ydayActCount += g.m + g.w;
+                    if (dd === todayStrAct) { todayActCount += g.m + g.w; todayActPpl.add(c.id); }
+                    if (dd === ydayStrAct) { ydayActCount += g.m + g.w; ydayActPpl.add(c.id); }   // 👥 V340 눌러서 나오는 목록은 고객 수라 같이 셈
                 });
             });
             const ydayActEl = document.getElementById('ydayActText');
             if (ydayActEl) {
-                ydayActEl.textContent = ` · 전일 ${ydayActCount}건`;
+                ydayActEl.textContent = ` · 전일 ${ydayActCount}건${ydayActPpl.size && ydayActPpl.size !== ydayActCount ? `(${ydayActPpl.size}명)` : ''}`;
                 ydayActEl.className = ydayActCount > 0 ? 'font-bold text-gray-800' : 'text-gray-500';
             }
             const todayActEl = document.getElementById('todayActText');
             if (todayActEl) {
-                todayActEl.textContent = ` · 오늘 ${todayActCount}건`;
+                todayActEl.textContent = ` · 오늘 ${todayActCount}건${todayActPpl.size && todayActPpl.size !== todayActCount ? `(${todayActPpl.size}명)` : ''}`;
                 todayActEl.className = todayActCount > 0 ? 'font-bold text-green-700' : 'text-gray-500';
             }
             try { bothCount = comboSales(matchesManagerFilter).filter(x => String(x.date).startsWith(curMonth)).length; } catch (e) { bothCount = 0; }   // 📊 V337 동시판매 (같은 달 · 본인 · 가족)
@@ -11514,15 +11515,23 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <div style="padding:10px 12px;font-size:12.5px"><div><span style="color:#6b7280;display:inline-block;width:56px">직통전화</span><b>${escapeHtml(fmt(d.phone))}</b></div><div><span style="color:#6b7280;display:inline-block;width:56px">영업시간</span><b>${escapeHtml(d.hours || '')}</b></div>
                 <div style="display:grid;grid-template-columns:repeat(${Math.max(1, Math.min(4, d.btns.filter(b => b.on !== false).length))},1fr);gap:6px;margin-top:8px">${btns}</div></div></div>`;
         }
+        let ceTab = 'boss';   // 👥 V340 [👑 대표 명함] · [👥 직원 명함] 한 화면에
+        function ceSegHtml() { const n = (() => { try { return Object.values((teamData && teamData.staff) || {}).filter(x => x && x.active !== false).length; } catch (e) { return 0; } })(); return `<div class="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-2xl">${[['boss', '👑 대표 명함'], ['team', `👥 직원 명함${n ? ' ' + n : ''}`]].map(([k, l]) => `<button type="button" data-ce-tab="${k}" class="h-10 rounded-xl text-[14px] font-bold ${ceTab === k ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${l}</button>`).join('')}</div>`; }
         function renderCardEdit() {
             document.getElementById('calcSheetTitle').textContent = '📇 명함 꾸미기';
-            document.getElementById('calcSheetSub').textContent = '미리보기 보면서 고치고 [저장]하면 명함에 바로 반영 · 링크 주소는 그대로';
             const body = document.getElementById('calcSheetBody'); ceBind();
-            if (!isSuperAdmin) { body.innerHTML = '<p class="text-sm text-gray-600">👑 대표만 고칠 수 있어요.</p>'; return; }
+            if (ceTab === 'team' || !isSuperAdmin) {   // 👥 V340 설정에 따로 있던 '직원 공용 명함' 칸을 여기로 옮겨 와서 그대로 씀
+                document.getElementById('calcSheetSub').textContent = '직원마다 이름 · 사진 · 번호 · 공용 명함 켜기 · 색깔 · SNS · 버튼은 대표 명함과 같이';
+                body.innerHTML = isSuperAdmin ? ceSegHtml() : '';
+                const tb = document.getElementById('teamSetBox'), tf = document.getElementById('teamPhotoFile');
+                if (tb) { body.appendChild(tb); if (tf) body.appendChild(tf); try { renderTeamSettings(); } catch (e) { console.warn(e); } }
+                return;
+            }
+            document.getElementById('calcSheetSub').textContent = '미리보기 보면서 고치고 [저장]하면 명함에 바로 반영 · 링크 주소는 그대로';
             if (!ceDraft) { body.innerHTML = '<p class="text-sm text-gray-500 py-6 text-center">불러오는 중…</p>'; if (!ceLoading) ceLoad().then(renderCardEdit); return; }
             const d = ceDraft, inp = 'w-full mt-1 h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white', lb = 'block text-xs font-bold text-gray-600 mt-2', box = 'rounded-2xl border border-gray-200 bg-white p-3';
             const dirty = JSON.stringify(d) !== JSON.stringify(ceSaved);
-            body.innerHTML = `
+            body.innerHTML = ceSegHtml() + `
                 <p class="text-[12px] font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-full px-3 py-1 inline-block">미리보기 · 고치는 대로 바로 바뀌어요</p>
                 <div id="cePrev">${cePreview(d)}</div>
                 <div class="${box}"><p class="text-[14px] font-bold">🎨 명함 색깔 <span class="text-xs font-normal text-gray-500">(공용 명함도 같이)</span></p>
@@ -11541,14 +11550,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <div class="${box}"><p class="text-[14px] font-bold">🔘 바로가기 버튼 <span class="text-xs font-normal text-gray-500">(▲▼ 순서 · 스위치로 숨기기)</span></p>
                     ${d.btns.map((b, i) => `<div class="mt-2 rounded-xl border border-gray-200 p-2"><div class="flex items-center gap-2"><span class="flex flex-col"><button type="button" data-ce-up="${i}" ${i === 0 ? 'disabled' : ''} class="text-[11px] text-gray-500 disabled:opacity-20" aria-label="위로">▲</button><button type="button" data-ce-down="${i}" ${i === d.btns.length - 1 ? 'disabled' : ''} class="text-[11px] text-gray-500 disabled:opacity-20" aria-label="아래로">▼</button></span><span class="flex-1 text-[14px] font-bold">${CE_BTN[b.k]}</span><label class="flex items-center gap-1 text-[12px] font-bold text-gray-600"><input type="checkbox" data-ce-on="${i}" ${b.on !== false ? 'checked' : ''} class="w-5 h-5 accent-indigo-600">보이기</label></div>
                         ${b.k === 'book' || b.k === 'kakao' ? `<input data-ce-url="${i}" value="${escapeHtml(b.url || '')}" placeholder="${b.k === 'book' ? '네이버 예약 주소' : '카카오채널 주소'} (https://…)" class="w-full mt-1.5 h-10 px-2 border border-gray-300 rounded-lg text-[12.5px]">` : `<p class="text-[11.5px] text-gray-500 mt-1">${b.k === 'call' ? '위 직통전화로 걸려요' : '문자 창이 열려요'}</p>`}</div>`).join('')}</div>
-                <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-[12.5px] text-gray-700 leading-relaxed">👥 <b>직원 명함</b>의 이름 · 사진 · 번호는 설정 → <b>👥 직원 공용 명함</b>에서 고쳐요. 색깔 · SNS · 바로가기 버튼은 여기서 고친 대로 직원 명함에도 같이 바뀌어요.<br><button type="button" data-ce-team class="mt-1.5 h-9 px-3 rounded-lg border border-gray-300 bg-white text-[12.5px] font-bold">직원 공용 명함 설정 열기</button></div>
+                <div class="rounded-2xl border border-gray-200 bg-gray-50 p-3 text-[12.5px] text-gray-700 leading-relaxed">👥 <b>직원 명함</b>의 이름 · 사진 · 번호는 위 <b>[👥 직원 명함]</b> 탭에서 고쳐요. 색깔 · SNS · 바로가기 버튼은 여기서 고친 대로 직원 명함에도 같이 바뀌어요.<br><button type="button" data-ce-team class="mt-1.5 h-9 px-3 rounded-lg border border-gray-300 bg-white text-[12.5px] font-bold">직원 공용 명함 설정 열기</button></div>
                 <p class="text-[11.5px] text-gray-500">저장하면 고객이 명함을 다음에 열 때부터 바뀌어요 · 문자 미리보기 사진은 한동안 예전 것이 보일 수 있어요</p>
                 <div class="flex gap-2 sticky bottom-0 bg-white pt-2 pb-1"><button type="button" data-ce-reset class="h-12 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700" ${dirty ? '' : 'disabled'}>되돌리기</button><button type="button" data-ce-save class="flex-1 h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold disabled:opacity-40" ${dirty ? '' : 'disabled'}>${dirty ? '저장 · 명함에 반영' : '바뀐 것 없음'}</button></div>
                 <button type="button" data-ce-default class="w-full text-[12px] text-gray-500 underline">처음 명함 내용으로 되돌리기</button>`;
         }
         function ceRefresh(full) { const pv = document.getElementById('cePrev'); if (full || !pv) return renderCardEdit(); pv.innerHTML = cePreview(ceDraft); const dirty = JSON.stringify(ceDraft) !== JSON.stringify(ceSaved); const sv = document.querySelector('[data-ce-save]'), rs = document.querySelector('[data-ce-reset]'); if (sv) { sv.disabled = !dirty; sv.textContent = dirty ? '저장 · 명함에 반영' : '바뀐 것 없음'; } if (rs) rs.disabled = !dirty; }
         function cePhotoShrink(file) { return new Promise((ok, no) => { const url = URL.createObjectURL(file), im = new Image(); im.onload = () => { try { const S = 360, w = im.naturalWidth, h = im.naturalHeight, side = Math.min(w, h), cv = document.createElement('canvas'); cv.width = cv.height = S; cv.getContext('2d').drawImage(im, (w - side) / 2, (h - side) / 3, side, side, 0, 0, S, S); URL.revokeObjectURL(url); ok(cv.toDataURL('image/jpeg', 0.82)); } catch (e) { no(e); } }; im.onerror = () => { URL.revokeObjectURL(url); no(new Error('사진을 못 읽었어요')); }; im.src = url; }); }
-        document.getElementById('cardEditBtn').addEventListener('click', () => { if (!isSuperAdmin) return customAlert('👑 대표만 고칠 수 있어요.'); ceDraft = null; openCalcSheet('cardedit'); });
+        document.getElementById('cardEditBtn').addEventListener('click', () => { if (!isSuperAdmin) ceTab = 'team'; ceDraft = null;   /* 👥 V340 직원은 직원 명함 보기만 */ openCalcSheet('cardedit'); });
         let ceBound = false;
         function ceBind() {   // calcSheetBody는 나중에 만들어져서 처음 열 때 묶어요
         if (ceBound) return; ceBound = true;
@@ -11579,7 +11588,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if ((b = g('[data-ce-down]'))) { const i = +b.dataset.ceDown; [ceDraft.btns[i + 1], ceDraft.btns[i]] = [ceDraft.btns[i], ceDraft.btns[i + 1]]; return renderCardEdit(); }
             if (g('[data-ce-reset]')) { ceDraft = ceClone(ceSaved); return renderCardEdit(); }
             if (g('[data-ce-default]')) { if (!(await customConfirm('처음 명함 내용(강태훈 과장 · 마젠타 · 기본 버튼)으로 되돌릴까요? 저장해야 반영돼요.'))) return; ceDraft = ceClone(CE_DEF); return renderCardEdit(); }
-            if (g('[data-ce-team]')) { closeCalcSheet(); setTimeout(() => { const el = document.getElementById('teamSetBox'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 80); return; }
+            if ((b = g('[data-ce-tab]'))) { ceTab = b.dataset.ceTab; return renderCardEdit(); }   // 👥 V340
+            if (g('[data-ce-team]')) { ceTab = 'team'; return renderCardEdit(); }
             if ((b = g('[data-ce-save]'))) {
                 const d = ceClone(ceDraft);
                 d.sns = (d.sns || []).filter(x => x.url && /^https:\/\//.test(x.url)).slice(0, 6);
@@ -17694,6 +17704,7 @@ familyStr + `\n` +
         function renderCalcSheet() {
             const manage = calcSheetMode === 'manage';
             { const qb = document.getElementById('qtPickBox'), home = document.getElementById('qtPickHome'); if (qb && home && qb.parentElement !== home) home.appendChild(qb); }   // ⭐ V259 다른 창으로 바뀌면 제자리로
+            { const tb = document.getElementById('teamSetBox'), tf = document.getElementById('teamPhotoFile'), home = document.querySelector('[data-team-home]'); if (tb && home && tb.parentElement !== home) { home.appendChild(tb); if (tf) home.appendChild(tf); } }   // 👥 V340
             document.getElementById('calcManageBox').classList.toggle('hidden', !manage);
             document.getElementById('calcSheetBody').classList.toggle('hidden', manage);
             if (calcSheetMode === 'requests') renderCalcRequests();
@@ -18696,7 +18707,7 @@ familyStr + `\n` +
             const ck = carrierKeepKey(d.carrier || ''); return C.margin[ck] || 0;
         }
         function siseCalc(C, d, row, x, f) {   // f: nP nS mP mS cP cS → { cash, inst } 만원
-            const N = (v) => typeof v === 'string' ? (v.trim() === '' ? null : Number(v.replace(/[^\d.-]/g, ''))) : v, pol = N(x[f]); let price = N(row.price), pub = N(row.pub); if (!price) price = scPriceFor(d.carrier, row.model) || price; if (!pub && f.endsWith('P')) pub = scPubFor(d.carrier, row.model, f[0] === 'c' ? 'chg' : 'mnp', 0) || pub; /* 🏷 V305 정책표에 공시 · 출고가 없으면 스마트초이스 값 */ if (pol === undefined || pol === null || isNaN(pol) || !price) return null; row = { ...row, price, pub };
+            const N = (v) => typeof v === 'string' ? (v.trim() === '' ? null : Number(v.replace(/[^\d.-]/g, ''))) : v, pol = N(x[f]); let price = N(row.price), pub = N(row.pub); if (!price) price = scPriceFor(d.carrier, row.model) || price; if (f.endsWith('P')) { const sp = scPubFor(d.carrier, row.model, f[0] === 'c' ? 'chg' : 'mnp', 0); if (sp) pub = sp; } /* 🏷 V305 출고가 없으면 스마트초이스 · 📊 V340 공시는 스마트초이스 먼저 (없을 때만 정책표 공시) — 명함 · 견적 · 안내서와 같은 기준 */ if (pol === undefined || pol === null || isNaN(pol) || !price) return null; row = { ...row, price, pub };
             const E = siseDealerExtra(d), isPub = f.endsWith('P');
             if (isPub && !row.pub) return null;
             const base = (row.price - (isPub ? row.pub : 0)) / 10000, extra = (C.grade ? E.grade : 0) + (C.addonWith ? E.plus : 0) + siseExt(C, d, f);   // 🗣 V277 구두 · 추가정책까지 다 했을 때
@@ -18808,7 +18819,7 @@ familyStr + `\n` +
                 <div class="overflow-x-auto -mx-1"><table class="min-w-full text-[12px] text-right"><thead><tr class="text-gray-500"><th class="text-left px-1 py-1">기종</th><th class="px-1">SK 기변/번이</th><th class="px-1">KT 기변/번이</th><th class="px-1">LG 기변/번이</th></tr></thead><tbody>
                 ${rows.filter(x => showAll || x.ch).map(x => `<tr class="border-t border-gray-100 align-top"><td class="text-left px-1 py-1 font-bold text-gray-900">${escapeHtml(x.r.n)}<span class="block text-[10px] font-normal text-gray-500">${escapeHtml(x.k)}</span></td>${x.cells.map(c => `<td class="px-1 py-1 ${c.ch ? 'bg-amber-50' : ''}">${c.a ? `<b>${W(c.a.chg)} / ${W(c.a.mnp)}</b><span class="block text-[10px] text-gray-500">${escapeHtml(c.a.pn || '')}${c.b && c.ch ? ` · 전 ${W(c.b.chg)}/${W(c.b.mnp)}` : ''}</span>` : '<span class="text-gray-300">·</span>'}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="4" class="py-3 text-center text-gray-500">바뀐 기종이 없어요</td></tr>'}</tbody></table></div>
                 ${Object.keys(old).length ? `<button type="button" data-scx="all" class="w-full h-9 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700">${showAll ? '바뀐 것만 보기' : `전체 ${rows.length}개 보기`}</button>` : ''}
-                <p class="text-[11px] text-gray-500 leading-relaxed">정책표에 공시 금액이 없으면 시세표(공시 · 싼 쪽)와 구매 안내서 · 비교의 공시지원금 칸에 이 값을 써요. 안내서는 고른 요금제 월정액에 맞는 구간(~3.9만 ~ ~13만) 값으로 채워요.</p>`,
+                <p class="text-[11px] text-gray-500 leading-relaxed">명함 · 상담용 견적 · 구매 안내서 · 비교 · 시세표의 공시지원금은 이 값을 먼저 써요 (시세표는 스마트초이스에 없는 기종만 정책표 공시). 안내서는 고른 요금제 월정액에 맞는 구간(~3.9만 ~ ~13만) 값으로 채워요.</p>`,
                 '<button type="button" data-scx="save" class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-[15px] font-bold">저장</button>');
             S.sh.addEventListener('click', async (e) => {
                 const a = (e.target.closest('[data-scx],[data-ss]') || {}).dataset || {};
@@ -18852,7 +18863,7 @@ familyStr + `\n` +
                 if (e.target.closest('[data-ss="close"]')) return S.close();
                 const g = (e.target.closest('[data-scg]') || {}).dataset || {};
                 if (g.scg === 'view') { S.close(); scView(); }
-                if (g.scg === 'setup') { S.close(); try { switchTab('settings'); const b = document.querySelector('[data-set-go="sise"]'); if (b) b.click(); setTimeout(() => { const d = document.querySelector('[data-sc-box]'); if (d) { d.open = true; const x = d.querySelector('details'); if (x) x.open = true; d.scrollIntoView({ block: 'start' }); } }, 600); } catch (err) { console.warn(err); } }
+                if (g.scg === 'setup') { S.close(); try { try { closePhoneCalc(); } catch (e2) { /* 무시 */ } switchTab('settings'); const b = document.querySelector('[data-set-go="sise"]'); if (b) b.click(); setTimeout(() => { const d = document.querySelector('[data-sc-box]'); if (d) { d.open = true; const x = d.querySelector('details'); if (x) x.open = true; d.scrollIntoView({ block: 'start' }); } }, 600); } catch (err) { console.warn(err); } }
             });
         }
         function scView() {   // 📊 V306 요금 구간마다 (~3.9만 ~ ~13만) 공시 보기
@@ -27251,7 +27262,7 @@ familyStr + `\n` +
                 runDiag();
             } catch (e) { customAlert(`예약하지 못했어요: ${e.message}`); }
         }
-        document.getElementById('diagBtn').addEventListener('click', () => { openCalcSheet('diag'); runDiag(); });
+        document.getElementById('diagBtn').addEventListener('click', () => { if (typeof window.__setOpenPage === 'function') { sysTab = 'conn'; window.__setOpenPage('sysmap'); return; } openCalcSheet('diag'); runDiag(); });   // 🩺 V340 연결 점검 · 연결도 한 화면으로
 
     
         /* =====================================================================
@@ -28008,7 +28019,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V339';
+        const APP_VER = 'V340';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28016,6 +28027,14 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V340', d: '2026-11-10', items: [
+                ['📊 기종 관리 [스마트초이스로 기종 · 출고가 맞추기]: 지원금 엑셀 없이도 출고가는 스마트초이스 값으로 · 새 기종은 명함에서 빼 둔 채로 넣음 (☑ 체크하면 나옴) · 요금제 목록은 그대로', 'a'],
+                ['📊 시세표 공시도 스마트초이스 먼저 (없을 때만 정책표 공시) — 명함 · 견적 · 안내서와 같은 기준', 'a'],
+                ['🏷 [공통지원금 가져오기] · [가져온 공시 보기]를 📋 기종 관리 맨 위에서도', 'a'],
+                ['👥 📇 명함 꾸미기 안에 [👑 대표 명함] · [👥 직원 명함] 탭 — 설정에 따로 있던 직원 공용 명함을 합침', 'a'],
+                ['🩺 연결 점검과 기능 탐색기 · 연결도를 한 화면으로 (설정 → 연결 점검 · 기능 탐색기 · [하나씩 점검하기])', 'a'],
+                ['🧭 자동 안내 맨 위 바로가기: 상황별 · 문구 · 명함 링크 · 부재 고객 · 약속 알림 · 개통 후 자동 약속', 'a'],
+                ['👥 첫 화면 전일 · 오늘 개통에 고객 수도 (예: 전일 2건(1명) — 눌러서 나오는 목록은 고객 수)', 'a']] },
             { v: 'V339', d: '2026-11-10', items: [
                 ['📜 안내서 서명이 끝나면 "개통등록도 지금 할까요?"를 바로 물어봐요 (안내서 내용으로 채워짐) · 서명만 하고 개통등록을 빠뜨려 실적 · 정산에 안 잡히는 일 막기', 'a'],
                 ['🏷 스마트초이스 공통지원금을 7일 넘게 안 가져왔으면 첫 화면에 빨간 알림 (누르면 가져오기)', 'a'],
@@ -28885,7 +28904,7 @@ familyStr + `\n` +
             { id: 'me', grp: '내 폰 · 관리', title: '내 정보 · 계정', icon: 'fa-user', tone: 'cyan' },
             { id: 'conn', grp: '내 폰 · 관리', title: '연결 관리', icon: 'fa-plug', tone: 'cyan' },
             { id: 'data', grp: '내 폰 · 관리', title: '데이터 · 보안', icon: 'fa-database', tone: 'cyan' },
-            { id: 'sysmap', grp: '내 폰 · 관리', title: '기능 탐색기 · 연결도', icon: 'fa-diagram-project', tone: 'cyan' }   // 🕸 V312
+            { id: 'sysmap', grp: '내 폰 · 관리', title: '연결 점검 · 기능 탐색기', icon: 'fa-stethoscope', tone: 'cyan' }   // 🕸 V312 · 🩺 V340 연결 점검도 여기로 합침
         ];   // 🧭 V274 앱 정보는 '내 정보 · 계정' 안으로
         const SET_TONE = { indigo: ['bg-indigo-50', 'text-indigo-700'], pink: ['bg-pink-50', 'text-pink-700'], amber: ['bg-amber-50', 'text-amber-700'], cyan: ['bg-cyan-50', 'text-cyan-700'] };
         let setPageEls = null, setPageOpen = '', setPagePushed = false;
@@ -29042,7 +29061,7 @@ familyStr + `\n` +
         function renderSysMap() {
             const host = document.getElementById('sysMapBox'); if (!host) return;
             host.innerHTML = `<div class="grid grid-cols-2 gap-1.5 mb-2">${[['fx', '🧭 기능 탐색기'], ['conn', '🔌 연결 상태']].map(([k, l]) => `<button type="button" data-systab="${k}" class="h-11 rounded-xl text-[14px] font-bold border ${sysTab === k ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300'}">${l}</button>`).join('')}</div><div id="fxBox" class="${sysTab === 'fx' ? '' : 'hidden'}"></div><div id="sysConnBox" class="${sysTab === 'conn' ? '' : 'hidden'}"></div>`;
-            host.onclick = (e) => { const t = e.target.closest('[data-systab]'); if (t) { sysTab = t.dataset.systab; renderSysMap(); } };
+            host.onclick = (e) => { if (e.target.closest('[data-sys-diag]')) { openCalcSheet('diag'); runDiag(); return; } const t = e.target.closest('[data-systab]'); if (t) { sysTab = t.dataset.systab; renderSysMap(); } };   // 🩺 V340 연결 점검도 여기서
             try { fxRender(); } catch (e) { console.warn('기능 탐색기', e); }
             const box = document.getElementById('sysConnBox');
             const L = sysMapNodes(), IN = L.filter(n => n.side === 'in'), OUT = L.filter(n => n.side === 'out');
@@ -29054,7 +29073,7 @@ familyStr + `\n` +
                     <text x="${x + 8}" y="${yy + 4}" font-size="11.5" font-weight="700" fill="${n.st === 'off' ? '#9ca3af' : '#111827'}">${n.ic} ${escapeHtml(n.sn || n.name)}</text>
                     <circle cx="${x + bw - 9}" cy="${yy}" r="3.6" fill="${C[n.st]}"/>`; };
             const bad = L.filter(n => n.st === 'warn');
-            box.innerHTML = `<div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-3">
+            box.innerHTML = `<button type="button" data-sys-diag class="w-full h-12 mb-2 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">🩺 하나씩 점검하기 (이 폰에서 실제로 연결 확인)</button><div class="rounded-2xl bg-white border border-gray-200 p-3 space-y-3">
                 <p class="text-[13px] text-gray-600">왼쪽은 <b>강CRM으로 들어오는 곳</b>, 오른쪽은 <b>강CRM이 내보내거나 같이 쓰는 곳</b>이에요. 점: <span style="color:${C.ok}">●</span> 연결됨 · <span style="color:${C.warn}">●</span> 확인 필요 · <span style="color:#94a3b8">●</span> 안 씀</p>
                 <svg viewBox="0 0 ${W} ${H}" class="w-full" role="img" aria-label="시스템 연결도">
                     ${IN.map((n, i) => node(n, i, IN.length, true)).join('')}${OUT.map((n, i) => node(n, i, OUT.length, false)).join('')}
@@ -29199,7 +29218,15 @@ familyStr + `\n` +
             put('me', secOf('grpMeTitle'), secOf('setAppTitle')); hideH('grpMeTitle');   // 🧭 V274 앱 정보도 여기
             put('card', secOf('grpCardTitle')); hideH('grpCardTitle');   // 🧭 V274 ⭐ 인기 · 🔥 특가 · 분류 · 모델 코드는 명함 화면 것이라 여기로
             put('store', secOf('setSettleTitle'), secOf('setPromPushTitle'));   // V246 아침 약속 알림 · 마감 요약(직원 폰)은 매장 운영으로
-            put('auto', autoRowsSec(), secOf('grpAutoTitle'), cardSec, missSec); hideH('grpAutoTitle');   // V246 문자 · 푸시 · 명함 링크 · 부재 연락을 한 화면에
+            /* 🧭 V340 자동 안내 맨 위 바로가기: 이 화면 칸 + 다른 화면에 있는 자동 기능(약속 알림 · 개통 후 자동 약속)까지 한 줄로 */
+            const autoNav = mk(`<div class="flex flex-wrap gap-1.5" data-auto-nav>${[['setAutoRowsTitle', '📨 상황별 한눈에'], ['setSmsTitle', '✏️ 보내는 방법 · 문구'], ['setCardSmsTitle', '📇 명함 링크'], ['setMissTitle', '📵 부재 고객']].map(([id, l]) => `<button type="button" data-auto-jump="${id}" class="h-9 px-3 rounded-full border border-pink-200 bg-pink-50 text-[13px] font-bold text-pink-800">${l}</button>`).join('')}${[['store', 'setPromPushTitle', '📅 약속 알림 (직원 폰) ›'], ['dealer', 'setAutoTitle', '📜 개통 후 자동 약속 ›']].map(([pg, id, l]) => `<button type="button" data-auto-page="${pg}" data-auto-to="${id}" class="h-9 px-3 rounded-full border border-gray-300 bg-white text-[13px] font-bold text-gray-700">${l}</button>`).join('')}</div>`);
+            autoNav.addEventListener('click', (e) => {
+                const j = e.target.closest('[data-auto-jump]'), pg = e.target.closest('[data-auto-page]');
+                const go = (id) => setTimeout(() => { const h = document.getElementById(id); if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 60);
+                if (j) go(j.dataset.autoJump);
+                if (pg) { openPage(pg.dataset.autoPage); go(pg.dataset.autoTo); }
+            });
+            put('auto', autoNav, autoRowsSec(), secOf('grpAutoTitle'), cardSec, missSec); hideH('grpAutoTitle');   // V246 문자 · 푸시 · 명함 링크 · 부재 연락을 한 화면에
             put('promo', secOf('grpPromoTitle'), secOf('subPushAllTitle')); hideH('grpPromoTitle');
             put('policy', secOf('grpSubsidyTitle'), $('qtPickBtn'), $('qtPickHome')); hideH('grpSubsidyTitle');   // ⭐ V312 명함 견적요청 기종은 정책 · 지원금으로
             put('dealer', secOf('setAutoTitle'), dealerSec);
@@ -29762,6 +29789,32 @@ familyStr + `\n` +
             }).catch(e => console.error(e));
             return pcalSaveChain;
         }
+        /* 📊 V340 스마트초이스로 기종 · 출고가 맞추기 (지원금 엑셀 없이) — 이 통신사 스마트초이스 기종 중
+             · 이미 있는 기종(같은 폰 열쇠)은 출고가만 스마트초이스 값으로 · 없는 기종은 '직접' 기종으로 넣되 명함에선 빼 둠 (☑ 체크하면 나옴) · 요금제 목록 · 뺀 기종은 그대로 */
+        async function pcalScSync(car) {
+            const P = scPub(); if (!P) return customAlert('스마트초이스 공통지원금을 먼저 가져와 주세요.');
+            const ck = carrierKeepKey(car), d0 = calcNormalize(calcData), C0 = d0.carriers[car] || {};
+            if (!(C0.plans || []).length) return customAlert(`${car}는 요금제 목록이 아직 없어요.\n설정 → 정책 · 지원금 → 요금제 · 위약금 기준에서 요금제를 먼저 넣어 주세요.`);
+            const have = new Map(); [...(C0.src || C0.models || []), ...(C0.manual || [])].forEach(m => have.set(pcalId(m).key, m));
+            const upd = [], add = [];
+            Object.entries(P.m).forEach(([k, rec]) => {
+                const L = (rec && rec.d && rec.d[ck]) || []; if (!L.length || /워치|watch|패드|pad|탭/i.test(rec.n || '')) return;
+                const pr = Number((L.find(x => x && x.pr) || {}).pr) || 0; if (!pr) return;
+                const m = have.get(k);
+                if (m) { if (Number(m.price) !== pr) upd.push({ name: m.name, from: Number(m.price) || 0, to: pr }); }
+                else { const nm0 = siseKey(rec.c || rec.n).name; add.push({ k, n: nm0 && !/^[A-Z]{1,2}\d{3}/.test(nm0) ? nm0 : (String(rec.n || '').trim() || nm0 || k), c: rec.c, pr }); }
+            });
+            if (!upd.length && !add.length) return customAlert(`${car} 기종 · 출고가가 스마트초이스와 같아요 ✅`);
+            if (!(await customConfirm(`📊 스마트초이스로 ${car} 맞추기\n\n· 출고가 바뀜 ${upd.length}개${upd.slice(0, 5).map(u => `\n   ${u.name}: ${arWon(u.from)} → ${arWon(u.to)}`).join('')}${upd.length > 5 ? `\n   … 외 ${upd.length - 5}개` : ''}\n· 새 기종 ${add.length}개 (명함에선 빼 둔 채로 넣어요 · ☑ 체크하면 나와요)\n\n요금제 목록 · 뺀 기종 · 직접 넣은 공통지원금은 그대로예요.`))) return;
+            const ok = await pcalSaveCarrier(car, C2 => {
+                const n = (C2.plans || C0.plans || []).length, z = () => Array(n).fill(0);
+                const fix = (m) => { const u = upd.find(x => x.name === m.name); return u ? { ...m, price: u.to } : m; };
+                C2.src = C2.src.map(fix); C2.manual = C2.manual.map(fix);
+                const names = new Set([...C2.src, ...C2.manual].map(m => m.name));
+                add.forEach(a => { let nm = a.n; if (names.has(nm)) nm = `${nm} (${a.c || a.k})`; names.add(nm); C2.manual.push({ name: nm, code: a.c || a.k, gen: '5G', price: a.pr, sup: { new: z(), chg: z(), mnp: z() }, sc: 1 }); if (!C2.off.includes(nm)) C2.off.push(nm); });
+            });
+            if (ok) { renderPcalTable(); stockToast(`📊 ${car}: 출고가 ${upd.length}개 · 새 기종 ${add.length}개 (빼 둔 채로)`); }
+        }
         function renderPcalTable() {
             const d = calcData || calcNormalize(null);
             const cars = CALC_CARRIERS.filter(k => d.carriers[k] && ((d.carriers[k].models || []).length || (d.carriers[k].src || []).length));
@@ -29799,8 +29852,10 @@ familyStr + `\n` +
                 <div class="flex gap-1 p-1 bg-gray-100 rounded-2xl overflow-x-auto">${[['', '전체', all.length], ...PCAL_SER.filter(([k]) => serCnt[k]).map(([k]) => [k, { gx: '갤럭시', ip: '아이폰', lo: '중저가', etc: '기타' }[k], serCnt[k]])].map(([v, l, n]) => `<button type="button" data-pcal-brand="${v}" class="flex-1 min-w-[64px] h-10 rounded-xl text-[13px] font-bold whitespace-nowrap ${pcalSt.brand === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600'}">${l} <span class="text-xs font-medium text-gray-500">${n}</span></button>`).join('')}</div>
                 <div class="rounded-xl px-3 py-2 text-[12px] leading-relaxed ${P ? (scAgeN >= 7 ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-emerald-50 border border-emerald-200 text-emerald-900') : 'bg-amber-50 border border-amber-200 text-amber-900'}">
                     ${P ? `📊 공통지원금 = <b>스마트초이스 ${escapeHtml(scKst(P.at).slice(5, 10).replace('-', '/'))}</b> (${scAgeN ? scAgeN + '일 전' : '오늘'})${scAgeN >= 7 ? ' · 새로 가져오세요' : ''} · 지원금표 금액은 안 써요 · 신규는 번호이동 값` : '📊 스마트초이스 공통지원금이 아직 없어요 → 바로가기 [공통지원금 가져오기] (지원금표 금액은 안 써요)'}
-                    <span class="block text-gray-600">견적에서 틀리면 계산기 [✏️ 금액 직접 고치기]</span></div>
+                    <span class="block text-gray-600">견적에서 틀리면 계산기 [✏️ 금액 직접 고치기]</span>
+                    ${canPick ? `<span class="grid ${P ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5 mt-2"><button type="button" data-pcal-scgo class="h-10 rounded-lg bg-indigo-600 text-white text-[13px] font-bold">🏷 공통지원금 ${P ? '새로 ' : ''}가져오기</button>${P ? '<button type="button" data-pcal-scview class="h-10 rounded-lg border border-sky-300 bg-white text-[13px] font-bold text-sky-800">가져온 공시 보기</button>' : ''}</span>` : ''}</div>
                 <p class="text-xs text-gray-600 px-1">${escapeHtml(pcalSt.car)} · 명함에 <b class="text-indigo-700">${onCnt}</b> / ${all.length}개 · ⭐ ${nHot} · 🔥 ${nDeal}${admin ? ' · ☑ 끄면 <b>3사 모두</b> 명함 · 견적요청에서 빠져요' : ''}${canPick ? ' · ⭐ 누를 때마다 인기 → 🔥 오늘 특가 → 없음' : ''}</p>
+                ${admin && P ? `<button type="button" id="pcalScSync" class="w-full h-10 rounded-xl border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800">📊 스마트초이스로 ${escapeHtml(pcalSt.car)} 기종 · 출고가 맞추기 <span class="font-medium">(엑셀 없이)</span></button>` : ''}
                 ${canPick ? `<button type="button" id="pcalCatBtn" class="w-full h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">📂 견적요청 칸 나누기 · 📛 모르는 코드 이름 붙이기</button>` : ''}
                 ${admin && rows.length ? `<div class="flex items-center gap-1.5">
                     <span class="flex-1 text-xs text-gray-600 pl-1">${q ? '찾은' : '이 칸'} ${rows.length}개 중 ${rowsOn}개 ☑</span>
@@ -29865,6 +29920,9 @@ familyStr + `\n` +
             };
             box.querySelectorAll('[data-pcal-mansave]').forEach(b => b.onclick = () => manSave(b.dataset.pcalMansave, false));
             box.querySelectorAll('[data-pcal-mandel]').forEach(b => b.onclick = () => manSave(b.dataset.pcalMandel, true));
+            { const sy = document.getElementById('pcalScSync'); if (sy) sy.onclick = () => pcalScSync(pcalSt.car); }   // 📊 V340
+            box.querySelectorAll('[data-pcal-scgo]').forEach(b => b.onclick = () => scGoSheet());   // 🏷 V340 공통지원금 가져오기도 기종 관리에서
+            box.querySelectorAll('[data-pcal-scview]').forEach(b => b.onclick = () => scView());
             const cb = document.getElementById('pcalCatBtn'); if (cb) cb.onclick = () => { closePhoneCalc(); setTimeout(() => { qtPickMode = 'cat'; openCalcSheet('qtpick'); }, 0); };   // 창이 계산기 뒤에 숨지 않게
             const bulk = async (on) => {
                 const keys = [...new Set(rows.map(x => x.id.key))];
