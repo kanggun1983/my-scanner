@@ -3736,6 +3736,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const want = appSettings && appSettings.privacyMask === true;
             document.documentElement.classList.toggle('pm-on', want);
             if (want === PM.on) return;
+            try { if (profileModal && profileModal.style.display === 'flex') renderProfileCard(); } catch (e) { /* 준비 전 */ }   // 📷 V329 사진도 같이 숨기기
             PM.on = want;
             if (want) {
                 PM.re = null; PM.sig = '';
@@ -10424,7 +10425,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return `
                 <div class="bg-white px-4 pt-3.5 pb-3 border-b border-gray-200">
                     <div class="flex items-center gap-2.5">
-                        <div class="w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 font-extrabold text-lg flex items-center justify-center flex-shrink-0">${e(name.charAt(0))}</div>
+                        <button type="button" data-pc-photo aria-label="고객 사진 ${custPhotoOk(c) ? '보기 · 바꾸기' : '넣기'}" class="relative w-11 h-11 rounded-2xl bg-indigo-50 text-indigo-600 font-extrabold text-lg flex items-center justify-center flex-shrink-0 overflow-hidden">${custPhotoOk(c) ? `<img src="${c.photo}" alt="" class="w-full h-full object-cover">` : e(name.charAt(0))}<span class="absolute rounded-full bg-white text-gray-500 flex items-center justify-center shadow-sm" style="right:-2px;bottom:-2px;width:16px;height:16px;font-size:9px" aria-hidden="true"><i class="fa-solid fa-camera"></i></span></button>
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-1.5 flex-wrap"><h2 class="text-[19px] font-extrabold text-gray-900 break-all leading-tight">${e(name)}</h2>${ageTxt ? `<span class="text-[13px] font-bold text-gray-500">${ageTxt}</span>` : ''}${genderIcon}</div>
                             <p class="text-[15px] font-semibold text-gray-600 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
@@ -11262,9 +11263,59 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             ].join('');
         }
 
+        /* 📷 V329 고객 사진 (고객카드 맨 위 동그란 칸 · 목록에는 안 보임) — 작게 줄여서(160px) 고객 정보 photo에 저장
+             · 🙈 가리기가 켜져 있으면 안 보임 · 넣을 때 '고객 동의 받음' 체크 필수 · 신분증 사진 금지 안내 · 담당자 잠금 규칙 그대로 */
+        function custPhotoOk(c) { return !!(c && typeof c.photo === 'string' && /^data:image\/(jpeg|webp|png);base64,/.test(c.photo) && !(appSettings && appSettings.privacyMask === true)); }
+        function custPhotoShrink(file) {
+            return new Promise((ok, no) => {
+                const url = URL.createObjectURL(file), im = new Image();
+                im.onload = () => { try { const S = 160, w = im.naturalWidth, h = im.naturalHeight, side = Math.min(w, h), cv = document.createElement('canvas'); cv.width = cv.height = S; cv.getContext('2d').drawImage(im, (w - side) / 2, (h - side) / 2, side, side, 0, 0, S, S); URL.revokeObjectURL(url); ok(cv.toDataURL('image/jpeg', 0.72)); } catch (e) { no(e); } };
+                im.onerror = () => { URL.revokeObjectURL(url); no(new Error('사진을 못 읽었어요')); };
+                im.src = url;
+            });
+        }
+        function openCustPhoto(c) {
+            if (!c) return;
+            if (appSettings.privacyMask === true) return customAlert('🙈 이름 · 번호 가리기가 켜져 있어서 사진을 볼 수 없어요.');
+            const locked = isLockedFor(c) && !isSuperAdmin, has = custPhotoOk(c);
+            let agree = false;
+            const S = siseSheet(`📷 ${escapeHtml(c.name || '고객')} 사진`, '고객카드 맨 위에만 보여요 · 직원 폰에서도 같이 보여요', () => `
+                <div class="flex justify-center"><div class="rounded-3xl bg-indigo-50 text-indigo-600 font-extrabold flex items-center justify-center overflow-hidden" style="width:160px;height:160px;font-size:48px">${has ? `<img src="${c.photo}" alt="고객 사진" class="w-full h-full object-cover">` : escapeHtml(String(c.name || '?').charAt(0))}</div></div>
+                ${has && c.photoAt ? `<p class="text-center text-[12px] text-gray-500">${escapeHtml(String(c.photoAt).slice(0, 10).replace(/-/g, '.'))} · ${escapeHtml(c.photoBy || '')} 넣음 · 고객 동의 받음</p>` : ''}
+                ${locked ? '<p class="text-[13px] font-bold text-gray-600 bg-gray-50 rounded-xl px-3 py-2">🔒 담당자만 사진을 넣고 뺄 수 있어요.</p>' : `
+                <label class="flex items-start gap-2 rounded-xl border ${agree ? 'border-indigo-300 bg-indigo-50' : 'border-gray-200'} p-3 cursor-pointer"><input type="checkbox" data-ph-agree ${agree ? 'checked' : ''} class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span class="text-[13.5px] font-bold text-gray-900">고객에게 사진 남기는 것 동의 받았어요<span class="block text-[12px] font-normal text-gray-600">예) "다음에 오시면 바로 알아보게 사진 하나 남겨도 될까요?"</span></span></label>
+                <p class="text-[12px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">🚫 신분증 사진은 넣지 마세요 (얼굴만 오려도 안 돼요) — 신분증 사본 보관이 돼요</p>
+                <div class="grid grid-cols-2 gap-2"><button type="button" data-ph="cam" ${agree ? '' : 'disabled'} class="h-12 rounded-xl bg-indigo-600 text-white text-[14px] font-bold disabled:opacity-40">📷 사진 찍기</button><button type="button" data-ph="pick" ${agree ? '' : 'disabled'} class="h-12 rounded-xl border border-indigo-300 bg-white text-indigo-700 text-[14px] font-bold disabled:opacity-40">🖼 사진 고르기</button></div>
+                ${has ? '<button type="button" data-ph="del" class="w-full h-11 rounded-xl border border-red-200 bg-white text-red-700 text-[13px] font-bold">사진 빼기</button>' : ''}`}
+                <input type="file" accept="image/*" capture="user" data-ph-file="cam" class="hidden"><input type="file" accept="image/*" data-ph-file="pick" class="hidden">`,
+                '<button type="button" data-ph="close" class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold text-gray-800">닫기</button>');
+            const save = async (photo) => {
+                const me = getStaffName() || '', now = new Date().toISOString();
+                const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📷 고객 사진 ${photo ? '넣음 (고객 동의 받음)' : '뺌'} · ${me || '-'}`;
+                await txCustomerUpdate(c.id, (cur) => ({ photo: photo || '', photoAt: photo ? now : '', photoBy: photo ? me : '', contactHistory: appendLine(cur.contactHistory, line), updatedAt: now, __audit: '고객 사진' }));
+                c.photo = photo || ''; c.photoAt = photo ? now : ''; c.photoBy = photo ? me : '';
+                S.close(); try { renderProfileCard(); } catch (e) { /* 무시 */ }
+                stockToast(photo ? '📷 사진을 넣었어요' : '사진을 뺐어요');
+            };
+            S.sh.addEventListener('change', async (e) => {
+                if (e.target.matches('[data-ph-agree]')) { agree = e.target.checked; S.draw(); return; }
+                const f = e.target.matches('[data-ph-file]') && e.target.files && e.target.files[0]; if (!f) return;
+                if (!/^image\//.test(f.type || '')) return customAlert('사진 파일만 넣을 수 있어요.');
+                try { await save(await custPhotoShrink(f)); } catch (err) { customAlert(koreanError(err, '저장')); }
+            });
+            S.sh.addEventListener('click', async (e) => {
+                if (e.target === S.sh) return S.close();
+                const a = e.target.closest('[data-ph]'); if (!a) return;
+                const k = a.dataset.ph;
+                if (k === 'close') return S.close();
+                if (k === 'cam' || k === 'pick') { if (!agree) return; const inp = S.sh.querySelector(`[data-ph-file="${k}"]`); inp.value = ''; inp.click(); return; }
+                if (k === 'del') { if (!(await customConfirm('이 고객 사진을 뺄까요?'))) return; try { await save(''); } catch (err) { customAlert(koreanError(err, '저장')); } }
+            });
+        }
         // 카드 안의 모든 클릭을 한 곳에서 처리 (카드 내용이 다시 그려져도 동작 유지)
         profileModal.addEventListener('click', (ev) => {
             if (ev.target === profileModal || ev.target.closest('#closeProfileModal, [data-pclose]')) { closeProfileCard(); return; }
+            if (ev.target.closest('[data-pc-photo]')) { openCustPhoto(customerDB.find(x => x.id === currentProfileId)); return; }   // 📷 V329
             const tabBtn = ev.target.closest('[data-ptab]');
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
@@ -27418,7 +27469,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V328';
+        const APP_VER = 'V329';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27426,6 +27477,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V329', d: '2026-11-09', items: [
+                ['📷 고객 사진: 고객카드 맨 위 동그란 칸(이름 첫 글자)을 누르면 사진 찍기 · 고르기 · 빼기 · \'고객 동의 받음\' 체크해야 넣을 수 있어요 · 목록에는 안 보이고 🙈 가리기를 켜면 숨겨요 · 신분증 사진은 넣지 마세요', 'a']] },
             { v: 'V328', d: '2026-11-09', items: [
                 ['📅 이번 주 약속 줄 제목에 담당자 필터 표시: 담당자를 골라 두면 \'· 강태훈 담당만\'처럼 보여요 (다른 직원 약속이 빠져 보여서 헷갈렸던 것)', 'a']] },
             { v: 'V327', d: '2026-11-08', items: [
