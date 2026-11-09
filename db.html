@@ -10177,7 +10177,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 items.filter(Boolean).forEach(el => { if (el === salesBlock || el === promBlock || el === memoBlock) el.classList.add('col-span-2'); inn.appendChild(el); });
                 pInfo.appendChild(d); dmSecs.push({ el: d, sum });
             };
-            sec('📱 지금 쓰는 회선', true, [carW, wrap('modalActivation'), wrap('modalDiscount'), wrap('modalPlan'), wrap('modalFee'), wrap('modalTargetPlan'), wrap('modalUsage')],
+            sec('📱 지금 쓰는 회선', true, [carW, wrap('modalActivation'), wrap('modalDiscount'), wrap('modalPlan'), wrap('modalFee'), wrap('modalRealPay'), wrap('modalTargetPlan'), wrap('modalUsage')],   // 💳 V343 실납부금 칸도 (빠져서 안 보였음)
                 () => [carrierLabel(v('modalCarrier') === '미정' ? '' : v('modalCarrier'), v('modalMvno')), (document.getElementById('modalDiscount').selectedOptions[0] || {}).text || '', v('modalPlan')].filter(x => x && x !== '미정').join(' · '));
             sec('💳 단말기 · 할부', false, [wrap('modalDevice'), wrap('modalInstallment'), wrap('modalInstallment2'), wrap('modalInterest')],
                 () => [v('modalDevice') || '단말기 없음', v('modalInstallment') ? `할부 ${v('modalInstallment')}` : '', v('modalInstallment2') ? '이중할부' : ''].filter(Boolean).join(' · '));
@@ -10238,7 +10238,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             mb.className = 'hidden mt-2 rounded-xl border border-yellow-200 bg-yellow-50/70 p-2.5 space-y-2';
             mb.insertAdjacentHTML('afterbegin', `<div><span class="block text-xs font-bold text-gray-600 mb-1">알뜰폰 망</span><div class="grid grid-cols-3 gap-1.5">${[['SK', 'SK망'], ['KT', 'KT망'], ['LG', 'LG망']].map(([v, l]) => chipBtn('data-dm-net', v, l)).join('')}</div></div>`);
             // 회선 묶음 순서: 통신사 / 개통일 · 할인 / 요금제 · 월요금 / 바꿀 요금제 / 사용량
-            const inn = carW.parentElement; ['modalActivation', 'modalDiscount', 'modalUsage', 'modalPlan', 'modalFee', 'modalTargetPlan'].forEach(id => { let el = document.getElementById(id); while (el && el.parentElement !== inn) el = el.parentElement; if (el) { inn.appendChild(el); if (id === 'modalActivation') el.classList.add('col-span-2'); } });
+            const inn = carW.parentElement; ['modalActivation', 'modalDiscount', 'modalUsage', 'modalPlan', 'modalFee', 'modalRealPay', 'modalTargetPlan'].forEach(id => { let el = document.getElementById(id); while (el && el.parentElement !== inn) el = el.parentElement; if (el) { inn.appendChild(el); if (id === 'modalActivation') el.classList.add('col-span-2'); } });
             // 바닥: [⋯ 삭제 · 출력] [취소] [저장 / 바뀐 칸]
             const del = document.getElementById('modalDeleteBtn'), prn = document.getElementById('printDetailBtn'), save = document.getElementById('saveDetailBtn');
             const row = save.parentElement; row.className = 'grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1.6fr)] gap-2 relative';
@@ -10685,18 +10685,20 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* 💳 V341 실납부금 계산: 할부원금 · 개월 → 월 할부금 (연 5.9%) + 요금제 기본료 − 선택약정 25% (결합 · 복지는 고객카드 칸이 없어서 빼지 않음 · 직접 고치면 그 값) */
         function instMonthly(P, n) { P = Number(P) || 0; n = Number(n) || 0; if (!(P > 0) || !(n > 0)) return 0; const r = 0.059 / 12; return Math.floor(P * r / (1 - Math.pow(1 + r, -n)) / 10) * 10; }
-        function realPayOf(inst, fee, sel) { fee = Number(fee) || 0; return fee > 0 ? (Number(inst) || 0) + fee - (sel ? Math.round(fee * 0.25) : 0) : 0; }
+        //    🤝 V343 복지할인도 안내서와 같은 계산 (선약 뺀 요금에서 · 기초연금 12,100원까지 · 생계 28,600원 · 차상위 · 장애 · 유공 35% · 기기값에선 안 빠짐) — 고객카드 '복지' 칸 글자로 종류를 앎
+        function welTypeOf(t) { t = String(t || ''); return /기초\s*연금|연금/.test(t) ? 'pension' : (/생계|의료|기초\s*생활|수급/.test(t) ? 'basic' : (/차상위/.test(t) ? 'near' : (/장애/.test(t) ? 'disabled' : (/유공|국가/.test(t) ? 'merit' : '')))); }
+        function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.max(0, a - w); }
         function realPayFromForm() {   // 고객카드 수정 화면 값으로
             const v = (id) => (document.getElementById(id) || {}).value || '';
             const num = (t) => Number(String(t).replace(/[^\d]/g, '')) || 0;
             const m = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(v('modalInstallment')));
-            const inst = m ? instMonthly(num(m[1]), Number(m[2])) : 0, sel = /선택약정|선약/.test(v('modalDiscount'));
-            return { inst, sel, now: realPayOf(inst, num(v('modalFee')), sel), after: realPayOf(inst, num(v('modalTargetFee')), sel) };
+            const inst = m ? instMonthly(num(m[1]), Number(m[2])) : 0, sel = /선택약정|선약/.test(v('modalDiscount')), wt = welTypeOf(v('modalWelfareOnly'));
+            return { inst, sel, wt, now: realPayOf(inst, num(v('modalFee')), sel, wt), after: realPayOf(inst, num(v('modalTargetFee')), sel, wt) };
         }
         function realPayHint() {
             const h = document.getElementById('modalRealHint'); if (!h) return;
             const R = realPayFromForm(), W = (n) => arWon(n);
-            h.textContent = R.now ? `자동 계산: 할부 ${W(R.inst)} + 요금 ${W(R.now - R.inst)}${R.sel ? ' (선약 25% 뺌)' : ''} = ${W(R.now)}원${R.after ? ` · 변경 후 ${W(R.after)}원` : ''} · 결합 · 복지 할인은 직접 빼서 넣어요` : '할부 · 기본료를 넣으면 자동 계산돼요';
+            h.textContent = R.now ? `자동 계산: 할부 ${W(R.inst)} + 요금 ${W(R.now - R.inst)}${R.sel ? ' (선약 25%' : ''}${R.wt ? (R.sel ? ' · ' : ' (') + '복지할인' : ''}${R.sel || R.wt ? ' 뺌)' : ''} = ${W(R.now)}원${R.after ? ` · 변경 후 ${W(R.after)}원` : ''} · 결합 할인은 직접 빼서 넣어요` : '할부 · 기본료를 넣으면 자동 계산돼요';
         }
         function payFromCustomer(c) {
             const pf = Number(c.planFee) || Number(String(c.fee || '').replace(/[^\d]/g, '')) || 0; if (!pf) return null;
@@ -15580,7 +15582,7 @@ ${AI_TONES[aiSmsTone]}
             if (R.after) document.getElementById('modalTargetRealPay').value = applyComma(String(R.after));
             detailDirty = true; realPayHint();
         };
-        ['modalInstallment', 'modalFee', 'modalTargetFee', 'modalDiscount'].forEach(id => { const el = document.getElementById(id); if (el) { el.addEventListener('input', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); el.addEventListener('change', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); } });
+        ['modalInstallment', 'modalFee', 'modalTargetFee', 'modalDiscount', 'modalWelfareOnly'].forEach(id => { const el = document.getElementById(id); if (el) { el.addEventListener('input', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); el.addEventListener('change', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); } });
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); detailDirty = true; };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
 
@@ -20275,10 +20277,10 @@ familyStr + `\n` +
         // 📱 V211 번호이동 → 수수료 칸에 MNP 수수료 (손으로 고친 금액은 그대로 · 번호이동이 아니게 되면 자동으로 넣은 것만 비움)
         // 💳 V341 실납부금 (개통등록): 할부원금 · 개월 → 월 할부금 + 기본료 − 선약 25% · 손으로 고친 칸은 그대로
         function arRealAuto() {
-            const r = arCalc(), n = parseInt(arVal('ar-inst'), 10) || 0, inst = instMonthly(r.loan, n), sel = r.sup !== '공시' && arVal('ar-term') !== '무약정';
-            const now = realPayOf(inst, arNum('ar-planfee'), sel), after = realPayOf(inst, arNum('ar-targetfee'), sel);
+            const r = arCalc(), n = parseInt(arVal('ar-inst'), 10) || 0, inst = instMonthly(r.loan, n), sel = r.sup !== '공시' && arVal('ar-term') !== '무약정', wt = welTypeOf(arVal('ar-comb'));   // 🤝 V343 복지도
+            const now = realPayOf(inst, arNum('ar-planfee'), sel, wt), after = realPayOf(inst, arNum('ar-targetfee'), sel, wt);
             [['ar-realpay', now], ['ar-targetreal', after]].forEach(([id, v]) => { const f = document.getElementById(id); if (!f || f.dataset.manual === '1') return; f.value = v ? arWon(v) : ''; f.dataset.auto = '1'; });
-            const h = document.getElementById('ar-realpay-hint'); if (h) h.textContent = now ? `할부 ${arWon(inst)}${n ? ` (${n}개월)` : ''} + 요금 ${arWon(now - inst)}${sel ? ' (선약 25% 뺌)' : ''} · 결합 · 복지 할인이 있으면 직접 고쳐요` : '기본료를 넣으면 자동으로 채워져요';
+            const h = document.getElementById('ar-realpay-hint'); if (h) h.textContent = now ? `할부 ${arWon(inst)}${n ? ` (${n}개월)` : ''} + 요금 ${arWon(now - inst)}${sel || wt ? ` (${[sel ? '선약 25%' : '', wt ? '복지할인' : ''].filter(Boolean).join(' · ')} 뺌)` : ''} · 결합 할인이 있으면 직접 고쳐요` : '기본료를 넣으면 자동으로 채워져요';
         }
         function arFeeAuto() {
             const f = document.getElementById('ar-fee'); if (!f || arMode !== 'mobile') return;
@@ -22666,7 +22668,7 @@ familyStr + `\n` +
         const GD_WEL_RULE = {
             basic: '월정액에서 최대 28,600원 (따로 나오는 음성·데이터 통화료는 50% · 최대 8,250원)',
             near: '월정액 12,100원까지 면제 + 나머지 35% (45,100원까지) · 최대 23,650원',
-            pension: '월정액의 50% · 최대 12,100원',
+            pension: '요금(월정액)에서 12,100원까지 · 기기값에선 안 빠져요',   // 🤝 V343
             disabled: '월정액의 35% (한도 없음)',
             merit: '월정액의 35% (한도 없음 · 상이등급 이상)'
         };
@@ -23056,7 +23058,7 @@ familyStr + `\n` +
                 carrier: gdCarOf(mem.carrier), actType: '', dealer: '',
                 dev: { name: '', code: '', color: '', serial: '', price: 0, pub: 0, sw: 0, extra: 0, used: 0, cardName: '', card: 0, etcName: '', etc: 0, prepay: 0, inst: GD_INST.includes(mem.inst) ? mem.inst : 24 },
                 sup: '선약', term: 24,
-                plan: { name: '', fee: 0, welType: '', wel: 0, welAuto: true, welV: 4, combName: '', comb: 0, cardName: '', card: 0 },
+                plan: { name: '', fee: 0, welType: '', wel: 0, welAuto: true, welV: 5, combName: '', comb: 0, cardName: '', card: 0 },
                 keep: { code: '', target: '', targetFee: 0 },
                 usim: { fee: Number.isFinite(mem.usimFee) ? mem.usimFee : 7700, pay: usim ? '첫 달 청구' : (GD_USIM_PAY.includes(mem.usimPay) ? mem.usimPay : '선납') },
                 promises: [], gift: '', createdAt: '', createdBy: getStaffName() || '' };
@@ -23064,19 +23066,19 @@ familyStr + `\n` +
             if (md && (!g.carrier || !gdCarOf(md.carrier) || gdCarOf(md.carrier) === g.carrier)) gdApplyDealer(g, md.name); else g.keep.code = gdKeepDefault(g);
             return g;
         }
-        // ver: 1 = V237까지 · 2~3 = V238~V239 (생계에 남은 월정액 50%까지 붙였던 계산) · 4 = V240 (생계는 월정액에서 최대 28,600원 · 50%는 따로 나오는 통화료에만)
+        // ver: 1 = V237까지 · 2~3 = V238~V239 (생계에 남은 월정액 50%까지 붙였던 계산) · 4 = V240 (생계는 월정액에서 최대 28,600원 · 50%는 따로 나오는 통화료에만) · 5 = V343 (기초연금 요금에서 12,100원까지 전액)
         function gdWelAuto(type, after, ver) {
-            const v = ver === true ? 1 : (Number(ver) || 4), b = Math.max(0, Math.round(Number(after) || 0));
+            const v = ver === true ? 1 : (Number(ver) || 5), b = Math.max(0, Math.round(Number(after) || 0));
             if (v === 1) { if (type === 'basic') return Math.min(b, 28600); if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100); return null; }   // V237까지 서명한 안내서는 그때 계산 그대로
             if (type === 'basic') return v < 4 ? Math.min(b, 28600) + Math.round(Math.max(0, Math.min(b, 45100) - 28600) * 0.5) : Math.min(b, 28600);   // 🤝 V240 월정액 요금제는 통화료가 따로 안 나와서 28,600원까지
             if (type === 'near') return Math.min(b, 12100) + Math.round(Math.max(0, Math.min(b, 45100) - 12100) * 0.35);
-            if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100);
+            if (type === 'pension') return v >= 5 ? Math.min(b, 12100) : Math.min(Math.round(b * 0.5), 12100);   // 🤝 V343 (ver 5) 기초연금은 요금에서 12,100원까지 그대로 (기기값에선 안 빠짐) · 예전 안내서(ver 4까지)는 50%
             if (type === 'disabled' || type === 'merit') return Math.round(b * 0.35);
             return null;
         }
         // 예전(V237까지) 서명 · 보낸 안내서는 예전 계산 그대로 (서명한 금액이 바뀌면 안 돼요)
         //  · welV 없음 = V237까지 (예전 금액 · 선약 뒤) · welV 2 = V238 (선약 뒤) · welV 3 = V239 (선약 · 결합 뒤) · welV 4 = V240 (생계 28,600원까지 · 선약 · 결합 뒤)
-        const gdWelVer = (g) => !(g && g.st && g.st !== 'draft') ? 4 : (Number(g.plan && g.plan.welV) || 1);
+        const gdWelVer = (g) => !(g && g.st && g.st !== 'draft') ? 5 : (Number(g.plan && g.plan.welV) || 1);
         const gdWelOld = (g) => gdWelVer(g) === 1;
         const gdWelAfterComb = (g) => gdWelVer(g) >= 3;
         function gdWelBase(g, after, comb) { return gdWelAfterComb(g) ? Math.max(0, after - comb) : after; }
@@ -23498,7 +23500,7 @@ familyStr + `\n` +
         function gdCopyOf(g0, other) {
             const n = gdClone(g0);
             ['signed', 'sent', 'act', 'imgUrl', 'notes', 'notesV', 'calc', 'title', 'pi'].forEach(k => delete n[k]);
-            if (n.plan) n.plan.welV = 4;   // 🤝 복사본은 지금 복지할인 계산 (V240)
+            if (n.plan) n.plan.welV = 5;   // 🤝 복사본은 지금 복지할인 계산 (V240 · V343)
             Object.assign(n, { id: gdNewId(), st: 'draft', date: getTodayStr(), createdAt: '', createdBy: getStaffName() || '', updatedAt: '' });
             if (other) { Object.assign(n, { custId: '', name: '', phone: '', gift: '' }); if (n.dev) { n.dev.serial = ''; n.dev.used = 0; } }
             return n;
@@ -23815,7 +23817,7 @@ familyStr + `\n` +
                 if (v === '__CUSTOM__') { v = askKeepDays() || gd.keep.code || ''; el.innerHTML = gdKeepOpts(v); el.value = v; }
                 gd.keep.code = v; gd.keepTouched = true; gdRecalcView(); return;
             }
-            if (path === 'plan.welType') { gd.plan.welType = el.value; gd.plan.welAuto = true; gd.plan.wel = 0; gd.plan.welV = 4; gdRender(); return; }
+            if (path === 'plan.welType') { gd.plan.welType = el.value; gd.plan.welAuto = true; gd.plan.wel = 0; gd.plan.welV = 5; gdRender(); return; }
             gdSetPath(path, path === 'dev.inst' ? Number(el.value) || 0 : el.value);
             gdRecalcView();
         });
@@ -24153,7 +24155,7 @@ familyStr + `\n` +
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
                 g.notes = gdNotesFor(g); g.notesV = 2; g.down = gdDownLines(g); g.pi = gdPiSnap(g);   // ⚠️ V267 하향 제한 문구도 그때 것 그대로
-                if (g.plan) g.plan.welV = 4;   // 🛠 V289 이 줄이 주석 안에 들어가 있었음 (예전 임시저장 안내서는 서명 뒤 복지할인이 옛 계산으로 바뀔 수 있었음) · 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
+                if (g.plan) g.plan.welV = 5;   // 🛠 V289 · V343 ver 5 이 줄이 주석 안에 들어가 있었음 (예전 임시저장 안내서는 서명 뒤 복지할인이 옛 계산으로 바뀔 수 있었음) · 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
                 await setDoc(doc(db, 'smart_guides', g.id), stripUndefined(gdStorable(g)));
                 gdSignCache.set(g.id, img);
@@ -28072,7 +28074,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V342';
+        const APP_VER = 'V343';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28080,6 +28082,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V343', d: '2026-11-10', items: [
+                ['🩹 고객카드 수정 화면에 💳 실납부금 칸이 안 보이던 것 고침 (요금제 · 기본료 바로 아래)', 'a'],
+                ['🤝 실납부금 자동 계산에 복지할인도 (안내서와 같은 계산) · 결합 할인만 직접', 'a'],
+                ['🤝 기초연금 할인: 요금(기본료)에서 12,100원까지 그대로 빼요 (예전엔 50%까지) · 요금이 12,100원보다 적으면 요금만큼만 · 기기값(할부)에선 안 빠짐 · 이미 서명한 안내서는 그때 금액 그대로', 'a']] },
             { v: 'V342', d: '2026-11-10', items: [
                 ['🎨 설정 메뉴 제목에 살짝 색 (연한 보라 띠 · 왼쪽 줄) — 칸이 어디서 시작하는지 찾기 쉽게', 'a']] },
             { v: 'V341', d: '2026-11-10', items: [
