@@ -17,7 +17,10 @@
          (예전엔 화면 안에서 임시로 만든 설치 정보라 '바로가기'로만 설치돼서, 열 때마다 'URL 복사하기' 알림이 떴음) -->
     <link rel="manifest" href="manifest.webmanifest">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
+         · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) -->
+    <link rel="stylesheet" href="crm.css?v=V333">
+    <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -834,6 +837,12 @@
                         </div>
                         <p class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 leading-relaxed">늘 지켜요: 광고성 수신 거부 고객 · '연락 원치 않아요' 고객 · 고객거부는 빼요 · 저녁 9시~아침 8시엔 안 보내고 아침 9시로 미뤄요 (콜매니저에서 직접 고른 시간도) · 맨 끝에 수신거부 안내 자동</p>
                         <p class="text-xs text-gray-500 leading-relaxed">문구에 <b>{이름} {매장} {담당자} {약속} {단말기} {사진}</b>을 넣으면 고객마다 바꿔서 보내요 ({사진}을 안 넣으면 생일 문자 맨 끝에 붙어요). <b>{담당자}</b>는 그 고객카드의 담당자 이름 (담당자가 없으면 아래 '보내는 사람' 이름) · 매장 이름은 위 '내 정보'에서 바꿔요. 맨 끝에 수신거부 안내가 자동으로 붙어요.</p>
+                        <div id="sendDoneBox" class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 space-y-2">
+                            <p class="text-[14px] font-bold text-gray-900">💰 고객송금 완료 알림 문자 <span class="text-xs font-normal text-gray-600">(약속의 고객송금을 처리 체크할 때)</span></p>
+                            <select id="sendDoneMode" class="w-full h-11 px-2 border border-emerald-300 rounded-xl text-[14px] text-gray-900 bg-white"><option value="ask">체크할 때마다 물어보기 (지금 · 시간 정해서 · 안 보냄)</option><option value="auto">체크하면 자동으로 바로 보내기</option><option value="off">보내지 않기</option></select>
+                            <textarea id="sendDoneTpl" rows="3" aria-label="송금 완료 알림 문구" class="w-full p-3 border border-emerald-300 rounded-xl text-[13.5px] leading-relaxed text-gray-900 bg-white resize-none"></textarea>
+                            <p class="text-xs text-gray-600 leading-relaxed"><b>{이름} {매장} {담당자} {금액} {은행} {계좌}</b> · 계좌는 가운데를 가려서 넣어요 (예: 302-****-**78-91) · 저녁 9시~아침 8시엔 아침 9시로 미뤄요 · 광고 문자가 아니라 수신거부 안내는 안 붙어요</p>
+                        </div>
                         <p id="smsAutoSaved" class="hidden text-xs font-bold text-green-700"><i class="fa-solid fa-check"></i> 저장됨</p>
                     <button type="button" id="smsListBtn" class="w-full h-11 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-sm font-bold text-gray-800">예약된 문자 보기</button>
                 </div>
@@ -4560,6 +4569,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 settingsLoaded = true;
                 try { applyPrivacyMask(); } catch (e) { console.error(e); }   // 🙈 V327
                 try { refreshPromDefs(); } catch (e) { console.error(e); }   // ➕ V330 직접 추가한 약속 종류
+                try { renderSendDone(); } catch (e) { /* 준비 전 */ }   // 💰 V333
                 try { bindStaffName(); } catch (e) { console.error(e); }
                 try { syncPermsDoc(); } catch (e) { /* 준비 전 */ }   // 🔐 V275 보안 규칙이 읽는 권한표
                 if (dbLoaded) setTimeout(() => autoReleaseProspects(), 1500);
@@ -10555,7 +10565,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 chipP(hasAct ? `개통 D+${act.days}${act.months ? ` · ${act.months}개월` : ''}` : '', 'bg-red-50 border-red-200 text-red-700'),
                 chipP(discountBase ? e(discountBase + (discountTerm ? ` ${discountTerm}` : '')) : '', 'bg-white border-gray-300 text-gray-600'),
                 chipP(c.manager ? `담당 ${e(c.manager)}` : '', 'bg-indigo-50 border-indigo-200 text-indigo-800'),
-                chipP(c.marketingDeny ? '광고 거부' : '광고 동의', c.marketingDeny ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'),
+                `<button type="button" data-pc-optout class="text-[12px] font-bold rounded-full border px-2 py-0.5 whitespace-nowrap ${c.marketingDeny ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'}" aria-label="${c.marketingDeny ? '광고 거부 · 눌러서 다시 동의로' : '광고 동의 · 눌러서 수신거부 처리'}">${c.marketingDeny ? '🚫 광고 거부' : '광고 동의'} <i class="fa-solid fa-pen text-[9px] opacity-50"></i></button>`,   // 🚫 V333 눌러서 바로 수신거부 처리 (수정 화면 안 들어가도)
                 c.bizCardInstalled === true ? chipP('<i class="fa-solid fa-address-card"></i> 명함', 'bg-pink-50 border-pink-200 text-pink-700') : '',
                 c.pushSubscribed === true ? chipP('<i class="fa-solid fa-bell"></i> 알림', 'bg-indigo-50 border-indigo-200 text-indigo-700') : ''
             ].join('');
@@ -11414,6 +11424,78 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 im.src = url;
             });
         }
+        /* 💰 V333 고객송금 완료 알림 — 고객송금(Send · Send2)을 처리 체크하면 (설정: 물어보기 / 자동 / 끄기) 고객에게 '보내드렸어요' 문자
+             · 예약 번호 'asd-…' (자동 문자 정리에 안 지워지게 auto:false) · 시간: 지금 또는 직원이 고른 시각 · 밤 9시~아침 8시면 아침 9시 */
+        const SEND_DONE_TPL = '{이름}님, {매장}입니다 😊\n약속드린 {금액}원을 {은행} {계좌}(으)로 보내드렸어요.\n확인해 보시고 궁금한 점은 편하게 연락 주세요.\n담당 {담당자}';
+        function sendDoneText(c, k) {
+            const amt = parseInt(String(c[`prom${k}Amt`] || '').replace(/\D/g, ''), 10);
+            const acct = String(c[`prom${k}Acct`] || '').trim(); const n = acct.replace(/\D/g, '').length; let i = 0;
+            const masked = acct.replace(/\d/g, d => (++i <= 3 || i > n - 4) ? d : '*');
+            const tpl = String(appSettings.sendDoneTpl || '').trim() || SEND_DONE_TPL;
+            return tpl.replace(/\{이름\}/g, msgName(c)).replace(/\{매장\}/g, msgStoreName()).replace(/\{담당자\}/g, custStaffName(c) || getStaffName() || msgStoreName())
+                .replace(/\{금액\}/g, amt ? amt.toLocaleString() : '').replace(/\{은행\}/g, String(c[`prom${k}Bank`] || '').trim()).replace(/\{계좌\}/g, masked)
+                .replace(/ {2,}/g, ' ').replace(/ \(으\)로/g, '(으)로').trim();
+        }
+        async function sendDoneSchedule(c, k, atMs) {
+            const to = smsMobileDigits(c.phone);
+            if (!to) throw new Error('휴대폰 번호가 없어서 못 보내요.');
+            if (!pushRelayReady()) throw new Error('문자 중계 서버가 연결 안 돼 있어요 (설정 → 🔌 연결).');
+            const sendAt = missQuiet(Math.max(Number(atMs) || 0, Date.now() + 60 * 1000));
+            const id = `asd-${String(c.id).replace(/[^A-Za-z0-9_-]/g, '')}-${k}-${Date.now().toString(36)}`, text = sendDoneText(c, k);
+            await callSms('schedule', { items: [{ id, to, name: c.name || '', auto: false, sendAt, text }] });
+            const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 💰 송금 완료 알림 문자 ${fmtSmsWhen(sendAt)} 예약 · ${getStaffName() || '-'}`;
+            txCustomerUpdate(c.id, (cur) => ({ contactHistory: appendLine(cur.contactHistory, line), __audit: '송금 완료 알림' })).catch(e => console.warn(e));
+            return sendAt;
+        }
+        function afterSendDone(c, k) {   // 고객송금 처리 체크한 직후 (고객 수정 저장 · 약속 달력 체크)
+            if (!c || !/^Send2?$/.test(k)) return;
+            const mode = appSettings.sendDoneMode || 'ask';
+            if (mode === 'off') return;
+            if (!smsMobileDigits(c.phone)) return;
+            if (mode === 'auto') { sendDoneSchedule(c, k, 0).then(at => stockToast(`💰 송금 완료 알림 ${fmtSmsWhen(at)} 보내요`)).catch(e => customAlert(e.message || '송금 알림을 못 보냈어요.')); return; }
+            const pad = (n) => String(n).padStart(2, '0'), d0 = new Date(Date.now() + 30 * 60e3), defAt = `${d0.getFullYear()}-${pad(d0.getMonth() + 1)}-${pad(d0.getDate())}T${pad(d0.getHours())}:${pad(d0.getMinutes())}`;
+            const S = siseSheet('💰 고객에게 송금 완료 알림을 보낼까요?', `${escapeHtml(c.name || '고객')}님 · 휴대폰으로 문자`, () => `
+                <div class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-[13.5px] text-gray-900 whitespace-pre-wrap leading-relaxed">${escapeHtml(sendDoneText(c, k))}</div>
+                <button type="button" data-sd="now" class="w-full h-12 rounded-xl bg-emerald-600 text-white text-[14px] font-bold">지금 보내기</button>
+                <div class="flex gap-2"><input type="datetime-local" data-sd-at value="${defAt}" class="flex-1 min-w-0 h-12 px-2 border border-gray-300 rounded-xl text-[14px]"><button type="button" data-sd="at" class="h-12 px-3 rounded-xl border border-emerald-300 bg-white text-emerald-800 text-[14px] font-bold">이 시간에</button></div>
+                <button type="button" data-sd="no" class="w-full h-11 rounded-xl border border-gray-300 bg-white text-gray-700 text-[13px] font-bold">안 보내기</button>
+                <p class="text-[12px] text-gray-500">설정 → 자동 안내에서 '자동으로 바로' · '보내지 않기'로 바꿀 수 있어요</p>`, '');
+            S.sh.addEventListener('click', async (e) => {
+                if (e.target === S.sh) return S.close();
+                const b = e.target.closest('[data-sd]'); if (!b) return;
+                if (b.dataset.sd === 'no') return S.close();
+                let at = 0;
+                if (b.dataset.sd === 'at') { at = Date.parse(S.sh.querySelector('[data-sd-at]').value || ''); if (!isFinite(at)) return customAlert('보낼 시간을 골라 주세요.'); }
+                b.disabled = true;
+                try { const t = await sendDoneSchedule(c, k, at); S.close(); stockToast(`💰 ${fmtSmsWhen(t)}에 보내요`); } catch (err) { b.disabled = false; customAlert(err.message || '못 보냈어요.'); }
+            });
+        }
+        function renderSendDone() {
+            const m = document.getElementById('sendDoneMode'), t = document.getElementById('sendDoneTpl'); if (!m || !t) return;
+            if (document.activeElement !== m) m.value = appSettings.sendDoneMode || 'ask';
+            if (document.activeElement !== t) t.value = String(appSettings.sendDoneTpl || '').trim() || SEND_DONE_TPL;
+            const lock = !can('editAuto'); m.disabled = lock; t.disabled = lock;
+        }
+        ['sendDoneMode', 'sendDoneTpl'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', async () => {
+            if (!can('editAuto')) { renderSendDone(); return customAlert('자동 안내를 바꿀 권한이 없어요.'); }
+            const v = id === 'sendDoneTpl' ? (el.value.trim() === SEND_DONE_TPL ? '' : el.value.trim().slice(0, 300)) : el.value;
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), { [id]: v }, { merge: true }); appSettings = { ...appSettings, [id]: v }; stockToast('저장했어요'); } catch (e) { customAlert(koreanError(e, '저장')); }
+        }); });
+        /* 🚫 V333 고객카드 '광고 동의' 칩을 누르면 바로 수신거부 처리 (고객이 '거부' 답장 · 전화로 거부했을 때) · 다시 누르면 동의로 */
+        async function quickOptout(c) {
+            if (!c) return;
+            if (!(await lockGate(c, '수신거부 처리'))) return;
+            const toDeny = !c.marketingDeny;
+            if (!(await customConfirm(toDeny ? `${c.name || '이 고객'}님을 광고 수신 거부로 바꿀까요?\n\n홍보 문자 · 광고 푸시가 더 이상 안 가요.\n(약속 안내 같은 업무 안내는 그대로 가요)` : `${c.name || '이 고객'}님을 다시 광고 동의로 바꿀까요?\n\n고객이 다시 받겠다고 했을 때만 바꿔 주세요.`))) return;
+            const why = toDeny ? (String(prompt('어떻게 거부했나요? (예: \'거부\' 답장 · 전화로 거부) — 비워도 돼요') || '').trim().slice(0, 40)) : '';
+            const me = getStaffName() || '', now = new Date().toISOString();
+            const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ${toDeny ? `🚫 광고 수신 거부 처리${why ? ` (${why})` : ''}` : '✅ 광고 수신 다시 동의'} · ${me || '-'}`;
+            try {
+                await txCustomerUpdate(c.id, (cur) => ({ marketingDeny: toDeny, marketingDenyAt: toDeny ? now : '', contactHistory: appendLine(cur.contactHistory, line), updatedAt: now, __audit: '수신거부 처리' }));
+                c.marketingDeny = toDeny; renderProfileCard(); try { renderDB(); } catch (e) { /* 무시 */ }
+                stockToast(toDeny ? '🚫 광고 수신 거부로 바꿨어요' : '✅ 광고 동의로 바꿨어요');
+            } catch (e) { customAlert(koreanError(e, '저장')); }
+        }
         function openCustPhoto(c) {
             if (!c) return;
             if (appSettings.privacyMask === true) return customAlert('🙈 이름 · 번호 가리기가 켜져 있어서 사진을 볼 수 없어요.');
@@ -11456,6 +11538,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         profileModal.addEventListener('click', (ev) => {
             if (ev.target === profileModal || ev.target.closest('#closeProfileModal, [data-pclose]')) { closeProfileCard(); return; }
             if (ev.target.closest('[data-pc-photo]')) { openCustPhoto(customerDB.find(x => x.id === currentProfileId)); return; }   // 📷 V329
+            if (ev.target.closest('[data-pc-optout]')) { quickOptout(customerDB.find(x => x.id === currentProfileId)); return; }   // 🚫 V333
             const tabBtn = ev.target.closest('[data-ptab]');
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
@@ -12967,6 +13050,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else if ((m = /^ah-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'phone'; label = '내 폰 정보'; custId = m[1]; }
             else if ((m = /^am-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'miss'; label = '부재 안내'; custId = m[1]; }
             else if (/^apm-/.test(id)) { kind = 'promo'; label = '홍보'; const mm = /^apm-\d{12}-(.+?)(?:-p)?$/.exec(id); custId = mm ? mm[1] : ''; }
+            else if ((m = /^asd-(.+)-Send2?-[a-z0-9]+$/.exec(id))) { kind = 'task'; label = '송금 완료'; custId = m[1]; }   // 💰 V333
             else if (/^diagtest-/.test(id)) { kind = 'test'; label = '연결 시험'; }
             else if (x && x.auto) { kind = 'task'; label = '자동 안내'; }
             return { kind, label, push, custId, ...SMS_KIND_STYLE[kind] };
@@ -15445,6 +15529,7 @@ ${AI_TONES[aiSmsTone]}
                 detailDirty = false;
                 customAlert("상세 정보 및 약속이 저장되었습니다!");
                 closeDetailModalFunc();
+                ['Send', 'Send2'].forEach(k => { if (pick[`prom${k}Chk`] === true) { const cc = customerDB.find(x => x.id === (newId || currentDetailId)) || { ...fresh, ...pick, id: newId || currentDetailId }; setTimeout(() => afterSendDone({ ...cc, ...pick }, k), 400); } });   // 💰 V333 송금 완료 알림
             } catch (e) { console.error(e); customAlert(`저장하지 못했어요.\n${koreanError(e, '저장')}`); }
         };
 
@@ -19189,7 +19274,9 @@ familyStr + `\n` +
                 if (!(await lockGate(c, '약속 처리'))) return;
                 b.disabled = true;
                 try {
-                    await saveUpdate(doc(db, 'smart_customers', id), { [`prom${key}Chk`]: !c[`prom${key}Chk`], updatedAt: new Date().toISOString() });
+                    const on = !c[`prom${key}Chk`], money = PROM_MONEY_KEYS.includes(key);
+                    await saveUpdate(doc(db, 'smart_customers', id), { [`prom${key}Chk`]: on, ...(money ? { [`prom${key}DoneBy`]: on ? (getStaffName() || '') : '', [`prom${key}DoneAt`]: on ? new Date().toISOString() : '' } : {}), updatedAt: new Date().toISOString() });   // 💸 V333 달력에서 체크해도 처리자 기록
+                    if (on) afterSendDone(c, key);   // 💰 V333
                 } catch (e) { b.disabled = false; customAlert(koreanError(e, '저장')); }
             });
         }
@@ -27673,7 +27760,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V332';
+        const APP_VER = 'V333';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27681,6 +27768,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V333', d: '2026-11-09', items: [
+                ['💰 고객송금 완료 알림 문자: 고객송금을 처리 체크하면 고객에게 \'보내드렸어요\' 문자 · 설정 → 자동 안내에서 물어보기(지금 · 시간 정해서 · 안 보냄) / 자동으로 바로 / 끄기 · 문구도 고쳐요 · 계좌는 가려서', 'a'],
+                ['🚫 고객카드 \'광고 동의\' 칩을 누르면 바로 수신거부 처리 (어떻게 거부했는지 한 줄 · 연락 기록에 남음) · 다시 누르면 동의로', 'a'],
+                ['⚡ 첫 화면이 더 빨리 떠요 (화면 스타일을 미리 만들어 둔 파일로)', 'a'],
+                ['💸 약속 달력에서 대납 · 송금을 체크해도 누가 언제 처리했는지 남아요', 'a']] },
             { v: 'V332', d: '2026-11-09', items: [
                 ['🛠 점검 수정: 홍보 푸시 사진 위치를 바꾸면 이미 예약된 푸시도 새 사진으로 · 🙈 가리기 켠 채로 고객 이름 · 생년월일 · 계좌를 고쳐도 바로 가려져요 · 뺀 약속 종류는 \'약속\' 숫자에서도 빠져요 (달력과 같게)', 'a']] },
             { v: 'V331', d: '2026-11-09', items: [
