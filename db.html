@@ -10687,7 +10687,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function instMonthly(P, n) { P = Number(P) || 0; n = Number(n) || 0; if (!(P > 0) || !(n > 0)) return 0; const r = 0.059 / 12; return Math.floor(P * r / (1 - Math.pow(1 + r, -n)) / 10) * 10; }
         //    🤝 V343 복지할인도 안내서와 같은 계산 (선약 뺀 요금에서 · 기초연금 12,100원까지 · 생계 28,600원 · 차상위 · 장애 · 유공 35% · 기기값에선 안 빠짐) — 고객카드 '복지' 칸 글자로 종류를 앎
         function welTypeOf(t) { t = String(t || ''); return /기초\s*연금|연금/.test(t) ? 'pension' : (/생계|의료|기초\s*생활|수급/.test(t) ? 'basic' : (/차상위/.test(t) ? 'near' : (/장애/.test(t) ? 'disabled' : (/유공|국가/.test(t) ? 'merit' : '')))); }
-        function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.max(0, a - w); }
+        function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.floor(Math.max(0, a - w) / 10) * 10; }   // 💳 V344 요금은 10원 아래 버림 (청구서처럼)
         function realPayFromForm() {   // 고객카드 수정 화면 값으로
             const v = (id) => (document.getElementById(id) || {}).value || '';
             const num = (t) => Number(String(t).replace(/[^\d]/g, '')) || 0;
@@ -22668,7 +22668,7 @@ familyStr + `\n` +
         const GD_WEL_RULE = {
             basic: '월정액에서 최대 28,600원 (따로 나오는 음성·데이터 통화료는 50% · 최대 8,250원)',
             near: '월정액 12,100원까지 면제 + 나머지 35% (45,100원까지) · 최대 23,650원',
-            pension: '요금(월정액)에서 12,100원까지 · 기기값에선 안 빠져요',   // 🤝 V343
+            pension: '월정액의 50% · 최대 12,100원 (기기값에선 안 빠져요)',
             disabled: '월정액의 35% (한도 없음)',
             merit: '월정액의 35% (한도 없음 · 상이등급 이상)'
         };
@@ -23072,7 +23072,7 @@ familyStr + `\n` +
             if (v === 1) { if (type === 'basic') return Math.min(b, 28600); if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100); return null; }   // V237까지 서명한 안내서는 그때 계산 그대로
             if (type === 'basic') return v < 4 ? Math.min(b, 28600) + Math.round(Math.max(0, Math.min(b, 45100) - 28600) * 0.5) : Math.min(b, 28600);   // 🤝 V240 월정액 요금제는 통화료가 따로 안 나와서 28,600원까지
             if (type === 'near') return Math.min(b, 12100) + Math.round(Math.max(0, Math.min(b, 45100) - 12100) * 0.35);
-            if (type === 'pension') return v >= 5 ? Math.min(b, 12100) : Math.min(Math.round(b * 0.5), 12100);   // 🤝 V343 (ver 5) 기초연금은 요금에서 12,100원까지 그대로 (기기값에선 안 빠짐) · 예전 안내서(ver 4까지)는 50%
+            if (type === 'pension') return Math.min(Math.round(b * 0.5), 12100);   // 🤝 V344 기초연금은 요금의 50% · 최대 12,100원 (V343에서 잠깐 바꿨다가 되돌림)
             if (type === 'disabled' || type === 'merit') return Math.round(b * 0.35);
             return null;
         }
@@ -28074,7 +28074,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V343';
+        const APP_VER = 'V344';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28082,10 +28082,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V344', d: '2026-11-10', items: [
+                ['🤝 기초연금 할인을 다시 요금의 50% · 최대 12,100원으로 (V343에서 바꾼 것 되돌림) · 실납부금 요금은 10원 아래 버림 (예: 음성12.1 12,100원 → 할부 9,100 + 요금 4,530 = 13,630원)', 'a']] },
             { v: 'V343', d: '2026-11-10', items: [
                 ['🩹 고객카드 수정 화면에 💳 실납부금 칸이 안 보이던 것 고침 (요금제 · 기본료 바로 아래)', 'a'],
                 ['🤝 실납부금 자동 계산에 복지할인도 (안내서와 같은 계산) · 결합 할인만 직접', 'a'],
-                ['🤝 기초연금 할인: 요금(기본료)에서 12,100원까지 그대로 빼요 (예전엔 50%까지) · 요금이 12,100원보다 적으면 요금만큼만 · 기기값(할부)에선 안 빠짐 · 이미 서명한 안내서는 그때 금액 그대로', 'a']] },
+                ['🤝 (V344에서 되돌림) 기초연금 할인 12,100원 전액 — 지금은 다시 50% · 최대 12,100원', 'a']] },
             { v: 'V342', d: '2026-11-10', items: [
                 ['🎨 설정 메뉴 제목에 살짝 색 (연한 보라 띠 · 왼쪽 줄) — 칸이 어디서 시작하는지 찾기 쉽게', 'a']] },
             { v: 'V341', d: '2026-11-10', items: [
