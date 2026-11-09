@@ -18692,11 +18692,17 @@ familyStr + `\n` +
             const t = SC_TARGET[ck] || 110000; return [...L].sort((a, b) => (Math.abs((a.pp || 0) - t) - Math.abs((b.pp || 0) - t)) || ((b.pp || 0) - (a.pp || 0)))[0];
         }
         function scPubFor(car, model, act, fee) { const ck = carrierKeepKey(car || ''), p = scPlan(scRec(model), ck, Number(fee) || 0); if (!p) return 0; return Number(act === '기기변경' || act === 'chg' ? p.chg : p.mnp) || 0; }
-        function scPubOf(car, m, act, fee) {   // 📊 V335 지원금표 기종(코드까지)으로 스마트초이스 공시 찾기 · 신규는 번호이동 값
-            const P = scPub(); if (!P || !m) return 0;
-            const rec = P.m[pcalId(m).key] || scRec(m.name), p = scPlan(rec, carrierKeepKey(car || ''), Number(fee) || 0);
-            return p ? Number(act === '기기변경' || act === 'chg' ? p.chg : p.mnp) || 0 : 0;
+        function scPubOf(car, m, act, fee) {   // 📊 V335 지원금표 기종(코드까지)으로 스마트초이스 공시 찾기 · 신규는 번호이동 값 · 없으면 기종 관리에서 직접 넣은 값
+            if (!m) return 0;
+            const P = scPub(), rec = P && (P.m[pcalId(m).key] || scRec(m.name)), p = rec ? scPlan(rec, carrierKeepKey(car || ''), Number(fee) || 0) : null;
+            const v = p ? Number(act === '기기변경' || act === 'chg' ? p.chg : p.mnp) || 0 : 0;
+            if (v) return v;
+            const C = (calcData && calcData.carriers && calcData.carriers[car]) || {}, PL = C.plans || [];
+            let i = PL.findIndex(x => Number(x.fee) === Number(fee)); if (i < 0 && PL.length === 1) i = 0;
+            return i < 0 ? 0 : pcalManVal(car, m.name, act === '기기변경' || act === 'chg' ? 'chg' : 'mnp', i) || 0;
         }
+        // ✏️ V335 스마트초이스에 없는 기종 공통지원금 직접 넣기 (phonecalc.supMan {통신사: {엑셀 기종 이름: {chg: [요금제 순서], mnp: [...]}}} · 신규는 번호이동 값 · 명함도 같이 씀)
+        function pcalManVal(car, name, type, plan) { const r = (((calcData && calcData.supMan) || {})[car] || {})[name], a = r && r[type === 'new' ? 'mnp' : type]; const v = Array.isArray(a) ? Number(a[plan]) : 0; return v > 0 ? v : null; }
         function scPriceFor(car, model) { const rec = scRec(model), ck = carrierKeepKey(car || ''), L = (rec && rec.d && rec.d[ck]) || []; return Number((L.find(x => x && x.pr) || {}).pr) || 0; }
         function scFromPayload(pay) {   // 북마크가 넘긴 값 → 보관 형태 (Firestore는 배열 안 배열을 못 넣어서 객체로)
             const m = {}; (pay.items || []).slice(0, 300).forEach(it => { if (!it || !it.d) return; const k = scKeyOf(it); if (!k) return;
@@ -27947,6 +27953,7 @@ familyStr + `\n` +
         const WHATS_NEW = [
             { v: 'V335', d: '2026-11-09', items: [
                 ['📊 폰값계산 공통지원금 = 스마트초이스 값만 (요금제 월정액 구간에 맞게 · 지원금표 금액은 안 씀 · 신규는 번호이동 값 · 스마트초이스에 없는 기종은 \'상담 때 안내\') · 명함 계산기 · 상담용 견적 같이 (명함 V5.19) · 공통지원금을 새로 가져오면 바로 반영', 'a'],
+                ['✏️ 스마트초이스에 없는 기종은 📋 기종 관리에서 공통지원금 직접 넣기 (번호이동 · 기기변경 · 요금제마다) → 명함 · 견적 · 안내서에 같이', 'a'],
                 ['✏️ 상담용 견적 [금액 직접 고치기]: 출고가 · 공통지원금이 틀리면 그 견적만 고쳐서 보내기 (예: 62만 → 60만) · 원래 값 같이 보임 · 기종을 바꾸면 원래대로', 'a'],
                 ['📋 기종 관리 하나로: ☑ 명함에 보이기(3사 같이) · ⭐ 인기 · 🔥 오늘 특가 · 공통지원금을 한 화면에서 (설정 → 정책 · 지원금 → 📋 기종 관리) · 예전 \'⭐ 명함 견적요청 기종\' 칩 화면은 칸 나누기 · 코드 이름만', 'a'],
                 ['📛 기종 이름 정리: 통신사 엑셀 이름이 달라도 같은 모양 (S942 · SM-S942NK · LG \'S26\' → 갤럭시 S26 · LG \'S26-\' → 갤럭시 S26+) · 갤럭시가 \'기타\'로 가던 것 · \'갤럭시Z Flip 8\'이 아이폰으로 보이던 것 고침 · 칸: 갤럭시 · 아이폰 · 중저가 · 기타', 'a']] },
@@ -29350,7 +29357,7 @@ familyStr + `\n` +
             <div id="pcalCalc" class="flex-1 min-h-0"></div>
             <div id="pcalTable" class="flex-1 overflow-y-auto px-3 pt-2 space-y-2 hidden" style="padding-bottom: max(24px, env(safe-area-inset-bottom));"></div>`;
         document.body.appendChild(pcalEl);
-        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null, brand: localStorage.getItem('pcalBrand') || '' };
+        let pcalPushed = false, pcalTab = 'calc', pcalSt = { car: '', type: 'mnp', plan: -1, q: '', edit: null, man: '', brand: localStorage.getItem('pcalBrand') || '' };
         // 명함과 같은 규칙 + 모델 코드(SM-·AIP)로도 구분
         const pcalBrandOf = (m) => { const t = `${m.name || ''} ${m.code || ''}`; return /iphone|아이폰|apple|\bAIP/i.test(t) ? '애플' : (/갤럭시|galaxy|삼성|samsung|\bSM-|z ?폴드|z ?플립|fold|flip/i.test(t) ? '삼성' : '기타'); };
         // 📤 견적 보내기 대상 (명함 견적요청에서 열었을 때) · null이면 그냥 상담용
@@ -29738,14 +29745,18 @@ familyStr + `\n` +
                 </div>` : ''}
                 ${rows.length ? `<div class="rounded-2xl border border-gray-200 bg-white overflow-hidden">
                     <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 text-[11px] font-bold text-gray-600">${admin ? '<span class="w-7 flex-shrink-0">명함</span>' : ''}<span class="flex-1 grid grid-cols-3 gap-1"><span class="text-right">출고가</span><span class="text-right">공통지원금</span><span class="text-right">지원 후</span></span><span class="w-11 flex-shrink-0 text-center">인기</span></div>
-                    ${rows.map((x, ri) => { const m = x.m, xl = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0, sc = pcalScVal(pcalSt.car, m, pcalSt.type, pcalSt.plan), sup = sc !== null ? sc : 0; const isOn = !off.has(m.name); const head = !pcalSt.brand && (ri === 0 || rows[ri - 1].ser !== x.ser) ? `<div class="px-3 py-1.5 border-t border-gray-200 bg-indigo-50/60 text-[12px] font-bold text-indigo-900">${(PCAL_SER.find(([k]) => k === x.ser) || [, '기타'])[1]} <span class="font-medium text-indigo-700">${serCnt[x.ser]}개</span></div>` : ''; const pv = x.g && x.g.key ? pick[x.g.key] : undefined; return `${head}<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
+                    ${rows.map((x, ri) => { const m = x.m, xl = ((m.sup && m.sup[pcalSt.type]) || [])[pcalSt.plan] || 0, sc = pcalScVal(pcalSt.car, m, pcalSt.type, pcalSt.plan), man = sc === null ? pcalManVal(pcalSt.car, m.name, pcalSt.type, pcalSt.plan) : null, sup = sc !== null ? sc : (man || 0); const isOn = !off.has(m.name); const head = !pcalSt.brand && (ri === 0 || rows[ri - 1].ser !== x.ser) ? `<div class="px-3 py-1.5 border-t border-gray-200 bg-indigo-50/60 text-[12px] font-bold text-indigo-900">${(PCAL_SER.find(([k]) => k === x.ser) || [, '기타'])[1]} <span class="font-medium text-indigo-700">${serCnt[x.ser]}개</span></div>` : ''; const pv = x.g && x.g.key ? pick[x.g.key] : undefined; return `${head}<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100 ${isOn ? '' : 'bg-gray-50'}">
                         ${admin ? `<label class="w-7 h-11 flex-shrink-0 flex items-center cursor-pointer"><input type="checkbox" data-pcal-on="${escapeHtml(x.id.key)}" ${isOn ? 'checked' : ''} aria-label="${escapeHtml(x.id.name)} 명함에 보이기" class="w-6 h-6 accent-indigo-600"></label>` : ''}
                         <button type="button" data-pcal-edit="${escapeHtml(m.name)}" ${admin ? '' : 'disabled'} class="flex-1 min-w-0 text-left ${isOn ? '' : 'opacity-50'}">
                             <span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(x.id.name)} <span class="text-[11px] font-medium text-gray-400">${escapeHtml(m.name)}</span>${manualNames.has(m.name) ? ' <span class="text-[10px] font-bold text-pink-700">직접</span>' : ''}${isOn ? '' : ' <span class="text-[10px] font-bold text-gray-500">명함에서 뺌</span>'}</span>
-                            <span class="grid grid-cols-3 gap-1 mt-0.5 items-baseline"><span class="text-right text-[12px] text-gray-700">${W(m.price)}</span><span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${sc !== null ? W(sup) : '-'}${sc !== null ? '' : '<span class="block text-[10px] font-medium text-red-600">스마트초이스에 없음</span>'}</span><span class="text-right text-[13px] font-bold text-gray-900">${W(Math.max(0, m.price - sup))}</span></span>
+                            <span class="grid grid-cols-3 gap-1 mt-0.5 items-baseline"><span class="text-right text-[12px] text-gray-700">${W(m.price)}</span><span class="text-right text-[12px] font-bold ${sup ? 'text-indigo-700' : 'text-gray-400'}">${sc !== null || man ? W(sup) : '-'}${sc !== null ? '' : (man ? '<span class="block text-[10px] font-medium text-pink-700">직접 넣음</span>' : '<span class="block text-[10px] font-medium text-red-600">스마트초이스에 없음</span>')}</span><span class="text-right text-[13px] font-bold text-gray-900">${W(Math.max(0, m.price - sup))}</span></span>
                         </button>
                         ${x.g && x.g.key ? `<button type="button" data-pcal-pick="${escapeHtml(x.g.key)}" ${canPick ? '' : 'disabled'} aria-label="${escapeHtml(x.id.name)} 인기 · 특가" class="w-11 h-11 flex-shrink-0 rounded-xl border text-[17px] ${pv === 'deal' ? 'bg-red-50 border-red-300' : (pv === 'hot' ? 'bg-amber-100 border-amber-300' : 'bg-white border-gray-200 grayscale opacity-40')}">${pv === 'deal' ? '🔥' : '⭐'}</button>` : '<span class="w-11 flex-shrink-0"></span>'}
-                        </div>`; }).join('')}
+                        </div>${sc === null && canPick ? (pcalSt.man === m.name ? `<div class="px-3 pb-3 pt-1 bg-pink-50/60 border-t border-pink-100 space-y-1.5" data-pcal-manbox>
+                            <p class="text-[12px] font-bold text-pink-900">✏️ ${escapeHtml(x.id.name)} 공통지원금 직접 넣기 <span class="font-medium text-pink-700">· ${escapeHtml(pl.name || '')} · 명함 · 견적 · 안내서에 같이 써요</span></p>
+                            <div class="grid grid-cols-2 gap-1.5"><label class="text-[11px] font-bold text-gray-600">번호이동 · 신규<input data-pcal-man="mnp" inputmode="numeric" value="${pcalManVal(pcalSt.car, m.name, 'mnp', pcalSt.plan) ? W(pcalManVal(pcalSt.car, m.name, 'mnp', pcalSt.plan)) : ''}" placeholder="0" class="mt-0.5 w-full h-10 px-2 border border-pink-200 rounded-lg text-[15px] font-bold text-right bg-white"></label><label class="text-[11px] font-bold text-gray-600">기기변경<input data-pcal-man="chg" inputmode="numeric" value="${pcalManVal(pcalSt.car, m.name, 'chg', pcalSt.plan) ? W(pcalManVal(pcalSt.car, m.name, 'chg', pcalSt.plan)) : ''}" placeholder="0" class="mt-0.5 w-full h-10 px-2 border border-pink-200 rounded-lg text-[15px] font-bold text-right bg-white"></label></div>
+                            <div class="grid grid-cols-[1fr_1fr_1.4fr] gap-1.5"><button type="button" data-pcal-mancancel class="h-10 rounded-lg border border-gray-300 bg-white text-[13px] font-bold text-gray-700">닫기</button><button type="button" data-pcal-mandel="${escapeHtml(m.name)}" class="h-10 rounded-lg border border-red-200 bg-white text-[13px] font-bold text-red-700">지우기</button><button type="button" data-pcal-mansave="${escapeHtml(m.name)}" class="h-10 rounded-lg bg-pink-600 text-white text-[13px] font-bold">저장</button></div>
+                        </div>` : `<button type="button" data-pcal-manopen="${escapeHtml(m.name)}" class="w-full text-right px-3 pb-2 -mt-1 text-[12px] font-bold text-pink-700">✏️ 공통지원금 ${man ? '고치기' : '직접 넣기'}</button>`) : ''}`; }).join('')}
                 </div>` : (q ? '' : '<p class="text-sm text-gray-500 text-center py-6">기종이 없어요.</p>')}
                 <p class="text-xs text-gray-500 px-1 leading-relaxed">'${escapeHtml(pl.name || '')}' 요금제 기준이에요. 유통망·전환지원금은 빠진 금액이라 실제 할부원금은 [계산기]에서 확인해요. ⭐ · 🔥는 같은 폰이면 용량 · 통신사 상관없이 같이 켜져요. 엑셀·사진을 새로 올려도 뺀 기종은 계속 빠져 있어요.</p>`;
             document.getElementById('pcalCar').onchange = e => { pcalSt.car = e.target.value; pcalSt.plan = -1; renderPcalTable(); };
@@ -29768,6 +29779,21 @@ familyStr + `\n` +
                 next.qtPick = pk; next.qtPickDay = getTodayStr();
                 if (await calcSave(next, true)) { renderPcalTable(); box.scrollTop = top; try { renderQtPick(next, false); } catch (e) { /* 무시 */ } }
             });
+            box.querySelectorAll('[data-pcal-manopen]').forEach(b => b.onclick = () => { const top = box.scrollTop; pcalSt.man = b.dataset.pcalManopen; renderPcalTable(); box.scrollTop = top; const i = box.querySelector('[data-pcal-man="mnp"]'); if (i) i.focus(); });
+            box.querySelectorAll('[data-pcal-mancancel]').forEach(b => b.onclick = () => { const top = box.scrollTop; pcalSt.man = ''; renderPcalTable(); box.scrollTop = top; });
+            box.querySelectorAll('[data-pcal-man]').forEach(i => i.addEventListener('input', () => { const v = Number(String(i.value).replace(/[^\d]/g, '')) || 0; i.value = v ? arWon(v) : ''; }));
+            const manSave = async (name, del) => {
+                if (!can('editPolicy')) return customAlert('총관리자만 바꿀 수 있어요.');
+                const top = box.scrollTop, next = calcNormalize(calcData), car = pcalSt.car, n = (next.carriers[car].plans || []).length;
+                const all = { ...(next.supMan || {}) }, carM = { ...(all[car] || {}) }, r = { chg: Array.from({ length: n }, (_, i) => ((carM[name] || {}).chg || [])[i] || 0), mnp: Array.from({ length: n }, (_, i) => ((carM[name] || {}).mnp || [])[i] || 0) };
+                ['mnp', 'chg'].forEach(t => { const el = box.querySelector(`[data-pcal-man="${t}"]`); r[t][pcalSt.plan] = del ? 0 : (Number(String((el || {}).value || '').replace(/[^\d]/g, '')) || 0); });
+                if (r.chg.some(v => v > 0) || r.mnp.some(v => v > 0)) carM[name] = r; else delete carM[name];
+                if (Object.keys(carM).length) all[car] = carM; else delete all[car];
+                next.supMan = all;
+                if (await calcSave(next, true)) { pcalSt.man = ''; renderPcalTable(); box.scrollTop = top; stockToast(del ? '직접 넣은 공통지원금을 지웠어요' : '공통지원금을 저장했어요 · 명함 · 견적에 바로 반영'); }
+            };
+            box.querySelectorAll('[data-pcal-mansave]').forEach(b => b.onclick = () => manSave(b.dataset.pcalMansave, false));
+            box.querySelectorAll('[data-pcal-mandel]').forEach(b => b.onclick = () => manSave(b.dataset.pcalMandel, true));
             const cb = document.getElementById('pcalCatBtn'); if (cb) cb.onclick = () => { closePhoneCalc(); setTimeout(() => { qtPickMode = 'cat'; openCalcSheet('qtpick'); }, 0); };   // 창이 계산기 뒤에 숨지 않게
             const bulk = async (on) => {
                 const keys = [...new Set(rows.map(x => x.id.key))];
