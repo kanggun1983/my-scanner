@@ -4471,7 +4471,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 전화·문자앱으로 넘어가는 사이 폰이 앱을 멈추거나 닫아도 → 앱으로 돌아올 때·다시 열 때 이어서 저장 (이미 들어간 줄은 다시 안 넣음)
            · 오늘·이번 달 OB·문자 숫자 = 고객카드 연락 기록에서 셈 (📇 명함 보내기는 뺌 · 담당자별 실적·마감 알림과 같은 기준)
            ===================================================================== */
-        const contactInflight = new Set();
+        const contactInflight = new Set(), contactInflightAt = new Map();   // 🩹 V336 언제 저장을 시작했는지 (문자앱으로 넘어가며 멈춘 저장은 20초 뒤 다시)
+        const contactBusy = (k) => contactInflight.has(k) && Date.now() - (contactInflightAt.get(k) || 0) < 20000;
         function loadPendingContacts() { try { const a = JSON.parse(localStorage.getItem('pendingContacts') || '[]'); return Array.isArray(a) ? a.filter(p => p && p.key && p.id && p.entry) : []; } catch (e) { return []; } }
         function savePendingContacts(a) { try { if (a.length) localStorage.setItem('pendingContacts', JSON.stringify(a.slice(-40))); else localStorage.removeItem('pendingContacts'); } catch (e) { /* 무시 */ } }
         function addPendingContact(p) { savePendingContacts([...loadPendingContacts(), p]); }
@@ -4491,19 +4492,20 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function scheduleContactFlush(ms = 2500) { clearTimeout(contactFlushTimer); contactFlushTimer = setTimeout(() => { flushPendingContacts().catch(e => console.warn(e)); }, ms); }
         async function flushPendingContacts() {
             if (!db || !dbLoaded || contactFlushing) return;
-            const list = loadPendingContacts().filter(p => !contactInflight.has(p.key));
+            const list = loadPendingContacts().filter(p => !contactBusy(p.key));   // 🩹 V336 멈춘 저장(20초 넘음)도 다시 (같은 줄은 안 겹치게 dedupe)
             if (!list.length) return;
             contactFlushing = true;
             try {
                 for (const p of list) {
                     if (Date.now() - (Number(p.at) || 0) > 7 * 864e5 || !(customerDB.some(c => c.id === p.id) || trashDB.some(c => c.id === p.id))) { dropPendingContact(p.key); continue; }
-                    contactInflight.add(p.key);
+                    contactInflight.add(p.key); contactInflightAt.set(p.key, Date.now());
                     try { await txCustomerUpdate(p.id, (cur) => contactPatchFor(cur, p, true)); dropPendingContact(p.key); }
-                    catch (e) { console.warn('연락 기록 이어서 저장 실패:', e); if (/permission/i.test(String((e && e.code) || ''))) dropPendingContact(p.key); }
-                    finally { contactInflight.delete(p.key); }
+                    catch (e) { console.warn('연락 기록 이어서 저장 실패:', e); if (/permission/i.test(String((e && e.code) || ''))) { dropPendingContact(p.key); stockToast('⚠️ 연락 기록을 저장하지 못했어요 (권한)'); } }
+                    finally { contactInflight.delete(p.key); contactInflightAt.delete(p.key); }
                 }
             } finally { contactFlushing = false; }
             try { renderGlobalStatsUI(); } catch (e) { /* 무시 */ }
+            try { if (currentProfileId) renderProfileCard(); } catch (e) { /* 무시 */ }   // 🩹 V336 저장 끝나면 연락 탭 바로
         }
         document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') scheduleContactFlush(800); });
         window.addEventListener('online', () => scheduleContactFlush(800));
@@ -6277,14 +6279,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 //    (예전: 서버 저장이 끝나기 전에 전화앱이 열리면 연락 기록·최근 연락일·오늘 OB 숫자가 통째로 빠질 수 있었음)
                 const pend = { key: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`, id: docId, entry: logEntry, date: today, manager: managerName, card: isCardSend, at: Date.now(), ...(smsItem ? { sms: smsItem } : {}) };
                 addPendingContact(pend);
-                contactInflight.add(pend.key);
+                contactInflight.add(pend.key); contactInflightAt.set(pend.key, Date.now());
                 try { renderGlobalStatsUI(); } catch (e) { /* 무시 */ }
                 // 최근 연락일은 바로 저장 (이 폰 화면·카드에 즉시 · 인터넷이 느려도 순서대로 올라감)
                 if (!isCardSend && customer) saveDoc(doc(db, 'smart_customers', docId), { lastContactDate: today, contactManager: managerName }, { merge: true }).catch(e => console.warn('최근 연락일 저장 실패:', e));
                 const logWrite = txCustomerUpdate(docId, (cur) => contactPatchFor(cur, pend, false))
                     .then(() => dropPendingContact(pend.key))
-                    .catch(e => { console.error('연락 기록 저장 실패:', e); if (/permission/i.test(String((e && e.code) || ''))) dropPendingContact(pend.key); })
-                    .finally(() => { contactInflight.delete(pend.key); });
+                    .catch(e => { console.error('연락 기록 저장 실패:', e); if (/permission/i.test(String((e && e.code) || ''))) { dropPendingContact(pend.key); stockToast('⚠️ 연락 기록을 저장하지 못했어요 (권한)'); } else scheduleContactFlush(3000); })
+                    .finally(() => { contactInflight.delete(pend.key); contactInflightAt.delete(pend.key); try { if (currentProfileId === docId) renderProfileCard(); } catch (e) { /* 무시 */ } });
                 // 인터넷이 느려도 전화·문자앱이 늦게(또는 아예 안) 열리지 않도록 최대 1.5초만 기다림 (저장은 계속 진행 · 못 끝나면 보관함에서 이어서)
                 await Promise.race([logWrite, new Promise(r => setTimeout(r, 1500))]);
                 
@@ -11386,6 +11388,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         </div></div>`;
                 }).join('');
             }
+            const pendL = loadPendingContacts().filter(p => p.id === c.id && !String(c.contactHistory || '').includes(p.entry));   // 🩹 V336 아직 저장 중인 연락도 바로 보이게
+            if (pendL.length) html += `<div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900"><b>⏳ 저장 중 ${pendL.length}건</b> · 인터넷이 잡히면 저절로 저장돼요${pendL.map(p => `<span class="block mt-1 text-gray-700">${escapeHtml(p.entry)}${p.sms ? `<span class="block text-gray-500 line-clamp-2">${escapeHtml(p.sms.text)}</span>` : ''}</span>`).join('')}</div>`;
             const logs = parseContactHistory(c.contactHistory);
             html += `<p class="text-[11px] font-bold text-gray-400 mt-3 mb-1">연락 기록${logs.length ? ` ${logs.length}건` : ''}</p>`;
             if (logs.length === 0) {
@@ -27943,7 +27947,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V335';
+        const APP_VER = 'V336';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27951,6 +27955,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V336', d: '2026-11-09', items: [
+                ['🩹 문자 보내기 · 전화를 눌러 문자앱 · 전화앱으로 넘어갈 때 저장이 멈추면 연락 기록이 빠지던 것 고침 · 돌아오면 다시 저장 (20초 넘게 멈춘 저장도) · 아직 저장 중인 연락은 고객카드 연락 탭에 ⏳ 저장 중으로 바로 보임 · 저장 못 하면 알림', 'a']] },
             { v: 'V335', d: '2026-11-09', items: [
                 ['📊 폰값계산 공통지원금 = 스마트초이스 값만 (요금제 월정액 구간에 맞게 · 지원금표 금액은 안 씀 · 신규는 번호이동 값 · 스마트초이스에 없는 기종은 \'상담 때 안내\') · 명함 계산기 · 상담용 견적 같이 (명함 V5.19) · 공통지원금을 새로 가져오면 바로 반영', 'a'],
                 ['✏️ 스마트초이스에 없는 기종은 📋 기종 관리에서 공통지원금 직접 넣기 (번호이동 · 기기변경 · 요금제마다) → 명함 · 견적 · 안내서에 같이', 'a'],
