@@ -10041,8 +10041,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('modalUsage').value = c.usage || '';
             
             // 결합/복지, 인터넷/TV를 각각 독립된 필드로 그대로 로드 (합쳤다 쪼개는 파싱 없음 → 데이터 유실 방지)
-            document.getElementById('modalCombinationOnly').value = (c.combination && c.combination !== '해당없음' && c.combination !== '-' && c.combination !== '미적용') ? c.combination : '';
-            document.getElementById('modalWelfareOnly').value = (c.welfare && c.welfare !== '해당없음' && c.welfare !== '-' && c.welfare !== '미적용') ? c.welfare : '';
+            { const okv = (x) => x && x !== '해당없음' && x !== '-' && x !== '미적용' ? x : '', S = splitCombWel(okv(c.combination));   // 🩹 V345 예전에 '결합'에 같이 들어간 복지는 복지 칸으로 나눠서 보여줌
+              document.getElementById('modalCombinationOnly').value = S.comb;
+              document.getElementById('modalWelfareOnly').value = okv(c.welfare) || S.wel; }
 
             // 새롭게 연동된 가족 정보
             document.getElementById('modalFamily').value = c.repFamily || '';
@@ -10686,6 +10687,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         /* 💳 V341 실납부금 계산: 할부원금 · 개월 → 월 할부금 (연 5.9%) + 요금제 기본료 − 선택약정 25% (결합 · 복지는 고객카드 칸이 없어서 빼지 않음 · 직접 고치면 그 값) */
         function instMonthly(P, n) { P = Number(P) || 0; n = Number(n) || 0; if (!(P > 0) || !(n > 0)) return 0; const r = 0.059 / 12; return Math.floor(P * r / (1 - Math.pow(1 + r, -n)) / 10) * 10; }
         //    🤝 V343 복지할인도 안내서와 같은 계산 (선약 뺀 요금에서 · 기초연금 12,100원까지 · 생계 28,600원 · 차상위 · 장애 · 유공 35% · 기기값에선 안 빠짐) — 고객카드 '복지' 칸 글자로 종류를 앎
+        // 🩹 V345 '참쉬운가족결합 / 복지(기초연금 (만 65세↑))' → { comb: '참쉬운가족결합', wel: '기초연금 (만 65세↑)' }
+        function splitCombWel(t) {
+            const parts = String(t || '').split(/\s*\/\s*/).map(x => x.trim()).filter(Boolean), isWel = (x) => /^복지|기초\s*연금|장애|유공|차상위|생계|의료\s*급여|수급/.test(x);
+            return { comb: parts.filter(x => !isWel(x)).join(' / '), wel: parts.filter(isWel).map(x => x.replace(/^복지\s*\((.*)\)$/, '$1').replace(/^복지\s*[:·]?\s*/, '').trim()).filter(Boolean).join(' / ') };
+        }
         function welTypeOf(t) { t = String(t || ''); return /기초\s*연금|연금/.test(t) ? 'pension' : (/생계|의료|기초\s*생활|수급/.test(t) ? 'basic' : (/차상위/.test(t) ? 'near' : (/장애/.test(t) ? 'disabled' : (/유공|국가/.test(t) ? 'merit' : '')))); }
         function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.floor(Math.max(0, a - w) / 10) * 10; }   // 💳 V344 요금은 10원 아래 버림 (청구서처럼)
         function realPayFromForm() {   // 고객카드 수정 화면 값으로
@@ -20882,7 +20888,7 @@ familyStr + `\n` +
                 // (V195) 예전엔 적기만 해도 유선 약정일이 개통일로 바뀌어 '동시개통'·정산 미입력(유선)으로 잡혔음 → '오늘 새로 개통' 체크했을 때만
                 if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', ...((document.getElementById('ar-itv-new') || {}).checked ? { wiredDate: d } : {}) });
                 const cmb = arVal('ar-comb');
-                if (cmb && cmb !== arPrefill.combo) Object.assign(upd, { combination: cmb, welfare: '' });
+                if (cmb && cmb !== arPrefill.combo) { const S = splitCombWel(cmb); Object.assign(upd, { combination: S.comb, welfare: S.wel }); }   // 🩹 V345 '결합 · 복지' 한 칸 → 가족결합 · 복지할인 따로 (예전엔 복지까지 결합 칸에)
                 if (model) Object.assign(upd, {
                     device: [model, arVal('ar-color')].filter(Boolean).join(' '), deviceSerial: arVal('ar-serial'),
                     repDevice: [[model, arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / '), repPrincipal: r.loan ? arWon(r.loan) : '0',
@@ -28074,7 +28080,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V344';
+        const APP_VER = 'V345';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28082,6 +28088,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V345', d: '2026-11-10', items: [
+                ['🩹 개통등록 \'결합 · 복지\' 칸의 복지가 고객카드 가족결합 칸에 같이 들어가던 것 고침 → 가족결합 · 복지할인 따로 · 예전에 섞여 들어간 고객도 수정 화면에선 나눠서 보여요', 'a']] },
             { v: 'V344', d: '2026-11-10', items: [
                 ['🤝 기초연금 할인을 다시 요금의 50% · 최대 12,100원으로 (V343에서 바꾼 것 되돌림) · 실납부금 요금은 10원 아래 버림 (예: 음성12.1 12,100원 → 할부 9,100 + 요금 4,530 = 13,630원)', 'a']] },
             { v: 'V343', d: '2026-11-10', items: [
