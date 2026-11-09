@@ -19034,7 +19034,7 @@ familyStr + `\n` +
         };
         const calNow = new Date();
         let calY = calNow.getFullYear(), calM = calNow.getMonth(), calSel = getTodayStr();
-        let calType = 'all', calState = 'open', calStaff = '';
+        let calType = 'all', calState = 'all', calStaff = '';   // V331 기본 = 완료 포함 (미처리 · 완료를 칸에서 구분해서 보여줌)
         let promAdd = { cid: '', key: 'Call', date: '', memo: '', q: '' };
         const calPad = (n) => String(n).padStart(2, '0');
         const calYmd = (y, m, d) => `${y}-${calPad(m + 1)}-${calPad(d)}`;
@@ -19063,7 +19063,8 @@ familyStr + `\n` +
             const days = [...Array(7)].map((_, i) => { const d = new Date(t0); d.setDate(t0.getDate() + i); return calYmd(d.getFullYear(), d.getMonth(), d.getDate()); });
             const by = new Map(days.map(d => [d, {}])); let overdue = 0, open = 0;
             customerDB.filter(matchesManagerFilter).forEach(c => { if (c.deletedAt) return;
-                PROMISE_DEFS.forEach(t => { const date = String(c[`prom${t.key}Date`] || '').slice(0, 10); if (date.length < 10 || c[`prom${t.key}Chk`]) return;
+                PROMISE_DEFS.forEach(t => { const date = String(c[`prom${t.key}Date`] || '').slice(0, 10); if (date.length < 10) return;
+                    if (c[`prom${t.key}Chk`]) { const m0 = by.get(date); if (m0) m0.__done = (m0.__done || 0) + 1; return; }   // ✅ V331 완료는 따로 세기
                     if (date < today) overdue++;
                     const m = by.get(date); if (m) { m[t.key] = (m[t.key] || 0) + 1; open++; } }); });
             const md = (d) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
@@ -19074,13 +19075,13 @@ familyStr + `\n` +
                     ${weekOff ? '<button type="button" data-wk-nav="0" class="h-9 px-2 rounded-lg border border-gray-300 text-[12px] font-bold text-gray-700">이번 주</button>' : ''}
                     <button type="button" data-wk-nav="1" aria-label="다음 주" class="w-9 h-9 rounded-lg text-gray-600 hover:bg-gray-100 flex items-center justify-center"><i class="fa-solid fa-chevron-right text-xs"></i></button></div>
                 <div class="grid grid-cols-7 gap-0.5">${days.map((d, i) => { const m = by.get(d), keys = PROMISE_DEFS.map(t => t.key).filter(k => m[k]), past = d < today, isT = d === today;
-                    const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-0.5 text-[10px] leading-[15px] font-bold ${CAL_STYLE[k].cls}">${CAL_STYLE[k].short} ${m[k]}</span>`).join('') + (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[13px]">+${keys.slice(3).reduce((a, k) => a + m[k], 0)}</span>` : '');
+                    const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-0.5 text-[10px] leading-[15px] font-bold ${CAL_STYLE[k].cls}">${CAL_STYLE[k].short} ${m[k]}</span>`).join('') + (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[13px]">+${keys.slice(3).reduce((a, k) => a + m[k], 0)}</span>` : '') + (m.__done ? `<span class="block truncate rounded px-0.5 text-[10px] leading-[14px] font-bold bg-white text-gray-500">✓ 완료 ${m.__done}</span>` : '');   // ✅ V331 완료
                     return `<button type="button" data-wk-day="${d}" aria-label="${md(d)} 약속" class="min-h-[64px] rounded-lg p-0.5 text-left flex flex-col gap-0.5 ${isT ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-400' : 'bg-gray-50'}">
                         <span class="flex items-baseline gap-0.5 px-0.5"><span class="text-[10px] font-bold ${i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : 'text-gray-400'}">${'일월화수목금토'[i]}</span><span class="text-[12px] font-bold ${isT ? 'text-indigo-700' : (i === 0 ? 'text-red-600' : i === 6 ? 'text-blue-600' : 'text-gray-800')}">${+d.slice(8, 10)}</span></span>${pills}</button>`; }).join('')}</div></div>`;
         }
         document.getElementById('weekCal').addEventListener('click', (e) => {
             const n = e.target.closest('[data-wk-nav]'); if (n) { const v = Number(n.dataset.wkNav); weekOff = v === 0 ? 0 : weekOff + v; renderWeekCal(); return; }
-            const d = e.target.closest('[data-wk-day]'); if (d) { const ds = d.dataset.wkDay, x = new Date(ds + 'T00:00:00'); calY = x.getFullYear(); calM = x.getMonth(); calSel = ds; calState = 'open'; openCalcSheet('cal'); }
+            const d = e.target.closest('[data-wk-day]'); if (d) { const ds = d.dataset.wkDay, x = new Date(ds + 'T00:00:00'); calY = x.getFullYear(); calM = x.getMonth(); calSel = ds; calState = 'all'; openCalcSheet('cal'); }
         });
         function calStaffList() {
             const set = new Set();
@@ -19129,13 +19130,14 @@ familyStr + `\n` +
                 if (d < 1 || d > days) { html += `<div class="min-h-[68px] border-t border-gray-100 bg-gray-50/60"></div>`; continue; }
                 const ds = calYmd(calY, calM, d);
                 const list = byDay.get(ds) || [];
-                const counts = {};
-                list.forEach(e => { counts[e.key] = (counts[e.key] || 0) + 1; });
+                const counts = {}; let doneN = 0;
+                list.forEach(e => { if (e.done) doneN++; else counts[e.key] = (counts[e.key] || 0) + 1; });   // ✅ V331 미처리는 종류별 색 · 완료는 회색 '✓ 완료 N'
                 const keys = PROMISE_DEFS.map(t => t.key).filter(k => counts[k]);
                 const late = list.some(e => !e.done && e.date < today);
                 const dow = (first + d - 1) % 7;
-                const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-1 text-[10px] leading-[16px] font-bold ${CAL_STYLE[k].cls}">${CAL_STYLE[k].short} ${counts[k]}</span>`).join('') +
-                    (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[14px]">+${keys.slice(3).reduce((s, k) => s + counts[k], 0)}</span>` : '');
+                const pills = keys.slice(0, 3).map(k => `<span class="block truncate rounded px-1 text-[10px] leading-[16px] font-bold ${CAL_STYLE[k].cls}" ${late ? 'style="box-shadow:inset 0 0 0 1px #f87171"' : ''}>${CAL_STYLE[k].short} ${counts[k]}</span>`).join('') +
+                    (keys.length > 3 ? `<span class="block text-[10px] text-gray-500 leading-[14px]">+${keys.slice(3).reduce((s, k) => s + counts[k], 0)}</span>` : '') +
+                    (doneN ? `<span class="block truncate rounded px-1 text-[10px] leading-[15px] font-bold bg-gray-100 text-gray-500">✓ 완료 ${doneN}</span>` : '');
                 html += `<button type="button" data-cal-day="${ds}" aria-label="${calM + 1}월 ${d}일 약속 ${list.length}건" class="min-h-[68px] border-t border-gray-100 ${i % 7 ? 'border-l' : ''} p-0.5 text-left flex flex-col gap-0.5 ${ds === calSel ? 'bg-indigo-50 ring-2 ring-inset ring-indigo-400' : 'bg-white'}">
                         <span class="flex items-center gap-1 px-0.5"><span class="text-[12px] font-bold ${ds === today ? 'w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center' : (dow === 0 ? 'text-red-600' : dow === 6 ? 'text-blue-600' : 'text-gray-800')}">${d}</span>${late ? '<span class="w-1.5 h-1.5 rounded-full bg-red-500" aria-hidden="true"></span>' : ''}</span>
                         ${pills}
@@ -19151,7 +19153,7 @@ familyStr + `\n` +
                     <button type="button" data-cal-add class="h-9 px-2 rounded-lg text-sm font-bold text-indigo-700 hover:bg-indigo-50"><i class="fa-solid fa-plus"></i> 이 날 약속</button>
                 </div>`;
             if (!dayList.length) html += `<p class="text-sm text-gray-500 text-center py-6">이 날은 ${calState === 'open' ? '처리할 ' : ''}약속이 없어요.</p>`;
-            else html += `<div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` + dayList.map(e => `
+            else html += `<div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` + dayList.map((e, i) => (e.done && (i === 0 || !dayList[i - 1].done) ? `<div class="px-3 py-1.5 bg-gray-100 text-[12px] font-bold text-gray-500">✓ 완료한 약속 ${dayList.filter(x => x.done).length}건</div>` : '') + `
                     <div class="flex items-center gap-2 px-2 py-2 ${e.done ? 'bg-gray-50' : (e.date < today ? 'bg-red-50/50' : 'bg-white')}">
                         <button type="button" data-cal-done="${e.c.id}|${e.key}" role="checkbox" aria-checked="${e.done}" aria-label="${escapeHtml(e.c.name || '')} ${e.label} 처리 표시" class="w-11 h-11 flex-shrink-0 flex items-center justify-center">
                             <span class="w-6 h-6 rounded-md border-2 ${e.done ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 bg-white'} flex items-center justify-center text-xs">${e.done ? '<i class="fa-solid fa-check"></i>' : ''}</span>
@@ -27670,7 +27672,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V330';
+        const APP_VER = 'V331';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -27678,6 +27680,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V331', d: '2026-11-09', items: [
+                ['✅ 약속 달력 · 이번 주 약속 줄: 미처리는 종류별 색 칸 · 완료는 회색 \'✓ 완료 N\'으로 따로 · 지난 미처리는 빨간 테두리 · 달력은 처음부터 \'완료 포함\'으로 열리고 날짜 목록도 미처리 아래에 \'✓ 완료한 약속\'으로 따로 보여요', 'a']] },
             { v: 'V330', d: '2026-11-09', items: [
                 ['💸 약속에 매장대납 · 💰 고객송금 추가: 날짜 · 금액 · 은행 · 계좌주 · 계좌번호 · 처리 체크하면 누가 언제 했는지 남아요 · 달력 · 주간 달력 · 대시보드 · 오늘 할 일에 같이 나와요', 'a'],
                 ['➕ 약속 종류 직접 추가 (👑 고객 수정 → 약속 맨 아래 [＋ 약속 종류 추가] · 최대 5개 · 예: 사은품 발송)', 'a'],
