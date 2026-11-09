@@ -1244,6 +1244,13 @@
                     <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
                 </button>
             </section>
+            <section id="setCombWelSec" class="hidden space-y-2" aria-labelledby="setCombWelTitle">
+                <h3 id="setCombWelTitle" class="text-[13px] font-bold text-gray-600 pl-1">🧹 결합 · 복지 정리 <span class="font-normal text-gray-500">(👑 대표만 · 한 번만 하면 돼요)</span></h3>
+                <button type="button" id="combWelCleanBtn" class="w-full bg-white border border-gray-200 rounded-2xl min-h-[64px] px-4 py-3 flex items-center justify-between gap-3 text-left hover:bg-gray-50">
+                    <span class="flex flex-col min-w-0"><span class="text-[15px] font-medium text-gray-900">가족결합 칸에 같이 들어간 복지를 복지할인 칸으로</span><span id="combWelSub" class="text-[13px] text-gray-600 leading-snug">예전 개통등록 때 '결합 · 복지'가 통째로 결합 칸에 들어간 고객 · 몇 명인지 먼저 보여 줘요</span></span>
+                    <i class="fa-solid fa-chevron-right text-gray-400 flex-shrink-0" aria-hidden="true"></i>
+                </button>
+            </section>
             <section class="space-y-2" aria-labelledby="setTrashTitle">
                 <h3 id="setTrashTitle" class="text-[13px] font-bold text-gray-600 pl-1">휴지통 <span id="trashCount" class="font-medium"></span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -3532,7 +3539,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 메모 · 연락 기록은 '지운 줄'이 있을 때만 남김 (이어 쓰기는 안 남김) · 자동 처리는 '자동'
            · 고객마다 최근 60건 (80건이 되면 오래된 것부터 정리)
            ===================================================================== */
-        const AUDIT_FIELDS = { name: '이름', dob: '생년월일', carrier: '통신사', device: '단말기', plan: '요금제', activationDate: '개통일', openStore: '개통점', openDealer: '개통거래처', salesStatus: '영업상태', manager: '담당자', repManager: '개통자', wiredRepManager: '홈상품 개통자', regBy: '등록한 직원', regDate: '등록일', regStore: '등록점', installment: '할부', installment2: '이중할부', discountType: '할인', wiredDate: '유선 약정일', internetProd: '인터넷·TV', legalName: '법정대리인', lockOff: '함께 관리', marketingDeny: '마케팅 거부' };
+        const AUDIT_FIELDS = { combination: '가족결합', welfare: '복지할인', name: '이름', dob: '생년월일', carrier: '통신사', device: '단말기', plan: '요금제', activationDate: '개통일', openStore: '개통점', openDealer: '개통거래처', salesStatus: '영업상태', manager: '담당자', repManager: '개통자', wiredRepManager: '홈상품 개통자', regBy: '등록한 직원', regDate: '등록일', regStore: '등록점', installment: '할부', installment2: '이중할부', discountType: '할인', wiredDate: '유선 약정일', internetProd: '인터넷·TV', legalName: '법정대리인', lockOff: '함께 관리', marketingDeny: '마케팅 거부' };
         const AUDIT_OWN = new Set(['manager', 'repManager', 'wiredRepManager', 'regBy']);
         const AUDIT_LINES = { memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', contactHistory: '연락 기록', repFamily: '가족 정보' };
         const EDITLOG_MAX = 80, EDITLOG_KEEP = 60;
@@ -10692,6 +10699,23 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const parts = String(t || '').split(/\s*\/\s*/).map(x => x.trim()).filter(Boolean), isWel = (x) => /^복지|기초\s*연금|장애|유공|차상위|생계|의료\s*급여|수급/.test(x);
             return { comb: parts.filter(x => !isWel(x)).join(' / '), wel: parts.filter(isWel).map(x => x.replace(/^복지\s*\((.*)\)$/, '$1').replace(/^복지\s*[:·]?\s*/, '').trim()).filter(Boolean).join(' / ') };
         }
+        // 🧹 V347 결합 칸에 섞인 복지 한 번에 정리 (👑 대표 · 미리 보여 주고 [확인]해야 저장 · 바뀐 기록에 남음)
+        function combWelTargets() { return customerDB.filter(c => c && c.combination && splitCombWel(c.combination).wel); }
+        async function cleanCombWel() {
+            if (!isSuperAdmin) return customAlert('👑 대표만 할 수 있어요.');
+            const L = combWelTargets();
+            if (!L.length) return customAlert('정리할 고객이 없어요 ✅\n(가족결합 칸에 복지가 들어간 고객이 없어요)');
+            const ex = L.slice(0, 4).map(c => { const S = splitCombWel(c.combination); return `· ${c.name || formatPhone(c.id)}: 결합 '${S.comb || '(빈칸)'}' · 복지 '${S.wel}'`; }).join('\n');
+            if (!(await customConfirm(`🧹 가족결합 칸에 복지가 같이 들어간 고객 ${L.length}명을 정리할까요?\n\n${ex}${L.length > 4 ? `\n… 외 ${L.length - 4}명` : ''}\n\n복지할인 칸이 이미 채워진 고객은 그 값을 그대로 두고 결합 칸만 정리해요. 고객카드 '바뀐 기록'에 남아요.`))) return;
+            let ok = 0, fail = 0;
+            for (const c of L) {
+                try { await txCustomerUpdate(c.id, (cur) => { const S = splitCombWel(cur.combination); if (!S.wel) return {}; const w = String(cur.welfare || '').trim(); return { combination: S.comb, ...(w && !/^(해당없음|-|미적용)$/.test(w) ? {} : { welfare: S.wel }), __audit: '결합 · 복지 정리' }; }); ok++; }
+                catch (e) { console.warn('결합 · 복지 정리 실패', c.id, e); fail++; }
+            }
+            customAlert(`🧹 ${ok}명 정리했어요${fail ? ` · ${fail}명은 못 했어요 (인터넷 확인 후 다시 눌러 주세요)` : ''}`);
+            try { renderCombWelSub(); } catch (e) { /* 무시 */ }
+        }
+        function renderCombWelSub() { const sec = document.getElementById('setCombWelSec'); if (!sec) return; sec.classList.toggle('hidden', !isSuperAdmin); const el = document.getElementById('combWelSub'); if (el && isSuperAdmin) { const n = combWelTargets().length; el.textContent = n ? `정리할 고객 ${n}명 · 누르면 예시를 먼저 보여 줘요` : '정리할 고객이 없어요 ✅'; } }
         function welTypeOf(t) { t = String(t || ''); return /기초\s*연금|연금/.test(t) ? 'pension' : (/생계|의료|기초\s*생활|수급/.test(t) ? 'basic' : (/차상위/.test(t) ? 'near' : (/장애/.test(t) ? 'disabled' : (/유공|국가/.test(t) ? 'merit' : '')))); }
         function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.floor(Math.max(0, a - w) / 10) * 10; }   // 💳 V344 요금은 10원 아래 버림 (청구서처럼)
         function realPayFromForm() {   // 고객카드 수정 화면 값으로
@@ -15591,6 +15615,7 @@ ${AI_TONES[aiSmsTone]}
             detailDirty = true; realPayHint();
         };
         ['modalInstallment', 'modalFee', 'modalTargetFee', 'modalDiscount', 'modalWelfareOnly'].forEach(id => { const el = document.getElementById(id); if (el) { el.addEventListener('input', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); el.addEventListener('change', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); } });
+        document.getElementById('combWelCleanBtn').addEventListener('click', () => cleanCombWel());   // 🧹 V347
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); detailDirty = true; };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
 
@@ -25224,7 +25249,9 @@ familyStr + `\n` +
             if (eff !== arActPrefilled) {
                 arClearPrefill();
                 arActPrefilled = eff;   // 먼저 (채우면서 생기는 change → 다시 여기로 들어와도 안 돌게)
+                ['ar-realpay', 'ar-targetreal'].forEach(id => { const f = document.getElementById(id); if (f) { f.dataset.manual = ''; f.value = ''; } });   // 💳 V347
                 if (eff !== 'new') arPrefillFrom(list.find(a => a.id === eff));
+                if (eff !== 'new' && arCust) { const last = custLastAct(arCust); if (last && last.id === eff) [['ar-realpay', arCust.realPay], ['ar-targetreal', arCust.targetRealPay]].forEach(([id, v]) => { const f = document.getElementById(id); if (f && Number(v) > 0) { f.value = arWon(Number(v)); f.dataset.manual = '1'; f.dataset.auto = ''; } }); }   // 💳 V347 예전 개통을 고칠 땐 고객카드 실납부금 그대로 (지우면 다시 자동)
                 arRecalc();
             }
         }
@@ -28082,7 +28109,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V346';
+        const APP_VER = 'V347';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28090,6 +28117,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V347', d: '2026-11-10', items: [
+                ['💳 개통등록에서 예전 개통을 고칠 때 고객카드 실납부금을 그대로 불러와요 (직접 넣은 금액이 자동 계산으로 바뀌지 않게 · 지우면 다시 자동)', 'a'],
+                ['🧹 설정 → 데이터 · 보안 → [결합 · 복지 정리] (👑 대표): 예전 개통등록 때 가족결합 칸에 같이 들어간 복지를 복지할인 칸으로 한 번에 · 몇 명인지 · 예시 먼저 보여 주고 [확인]해야 저장 · 바뀐 기록에 남음', 'a']] },
             { v: 'V346', d: '2026-11-10', items: [
                 ['🩹 명함 꾸미기에서 [👥 직원 명함] 탭으로 먼저 열면 [👑 대표 명함] 탭을 눌러도 안 바뀌던 것 고침 · 탭을 오가도 직원 명함 칸이 지워지지 않게', 'a']] },
             { v: 'V345', d: '2026-11-10', items: [
@@ -29314,7 +29344,7 @@ familyStr + `\n` +
             const secChkSec = secOf('secCheckTitle'), driveSec = secOf('setDriveTitle');   // 🧭 V274 연결 묶음 안에 있어서 옮기기 전에 잡아 둠
             put('conn', secOf('grpConnTitle')); hideH('grpConnTitle');
             put('sysmap', mk('<section class="space-y-2"><div id="sysMapBox"></div></section>'));   // 🕸 V312 시스템 연결도
-            put('data', secOf('setPrivacyTitle'), secChkSec, driveSec, secOf('setBackupTitle'), secOf('setTrashTitle'));   // 🗄️ V237 백업 · 🧭 V274 보안 점검 · 서류 클라우드 백업도
+            put('data', secOf('setPrivacyTitle'), secChkSec, driveSec, secOf('setBackupTitle'), secOf('setCombWelTitle'), secOf('setTrashTitle'));   // 🧹 V347 결합 · 복지 정리   // 🗄️ V237 백업 · 🧭 V274 보안 점검 · 서류 클라우드 백업도
             if (storeGrp) storeGrp.classList.add('hidden');   // 다 옮기고 빈 묶음 (요약 칸만 남음)
 
             const search = $('setSearch'), h2 = view.querySelector(':scope > h2');
@@ -29335,6 +29365,7 @@ familyStr + `\n` +
                 if (!setPagePushed) { setPagePushed = true; pushAppState({ setPage: id }); }
                 try { renderSetHome(); } catch (e) { /* 준비 전 */ }
                 if (id === 'sysmap') { try { renderSysMap(); } catch (e) { console.warn(e); } }
+                if (id === 'data') { try { renderCombWelSub(); } catch (e) { console.warn(e); } }   // 🧹 V347
                 if (id === 'wired') { try { wedTry = 0; renderWiredEd(); } catch (e) { console.warn(e); } }
                 if (!o.keepScroll && typeof window.scrollTo === 'function') window.scrollTo(0, 0);
             }
