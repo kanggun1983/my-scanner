@@ -375,7 +375,7 @@
             <!-- 목록 머리: 고객 수 + 정렬 + 선택 + 추가 -->
             <div id="listHeader" class="flex items-center justify-between gap-2 mb-2">
                 <div class="flex items-baseline gap-2 min-w-0">
-                    <h2 class="text-[22px] font-bold text-gray-900 tracking-tight">고객</h2>
+                    <h2 class="text-[22px] font-bold text-gray-900 tracking-tight whitespace-nowrap flex-shrink-0">고객</h2>
                     <span id="totalCustomerCount" class="text-[15px] font-medium text-gray-600 truncate">0명</span>
                 </div>
                 <div class="flex items-center gap-0.5 flex-shrink-0">
@@ -416,6 +416,21 @@
                 <button type="button" id="reassignBtn" class="hidden bg-amber-600 hover:bg-amber-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap" title="체크한 고객의 담당자를 한 번에 바꿔요 (총관리자)"><i class="fa-solid fa-user-pen"></i> 담당자 바꾸기</button>
             </div>
 
+            <!-- ☀️ V358 오늘 카드: 할 일 · 약속 · 명함 · 실적을 탭 하나로 (아래 조각들을 열 때 이 안으로 옮김) -->
+            <section id="todayCard" class="bg-white border border-gray-200 rounded-2xl mb-2.5 overflow-hidden" aria-label="오늘">
+                <div class="flex items-center gap-2 px-3 pt-2.5 pb-1.5"><b class="text-[16px] text-gray-900">☀️ 오늘</b><span id="todayCardDate" class="text-xs text-gray-500"></span><span class="flex-1"></span><button type="button" id="todayCardCal" class="h-8 px-2 rounded-lg text-[13px] font-bold text-indigo-700 hover:bg-indigo-50">약속 달력 ›</button></div>
+                <div class="flex gap-1 mx-2.5 mb-2 p-1 rounded-xl bg-gray-100" role="group" aria-label="오늘 보기">
+                    <button type="button" data-today-tab="todo" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">할 일<span data-today-badge="todo" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-red-600 text-white text-[11px] leading-[18px]"></span></button>
+                    <button type="button" data-today-tab="prom" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">약속<span data-today-badge="prom" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-orange-500 text-white text-[11px] leading-[18px]"></span></button>
+                    <button type="button" data-today-tab="card" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">명함<span data-today-badge="card" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-pink-600 text-white text-[11px] leading-[18px]"></span></button>
+                    <button type="button" data-today-tab="stat" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">실적</button>
+                </div>
+                <div data-today-panel="todo" class="px-2.5 pb-1"></div>
+                <div data-today-panel="prom" class="px-2.5 pb-1 hidden"></div>
+                <div data-today-panel="card" class="px-2.5 pb-1 hidden"><p id="todayCardEmpty" class="hidden text-sm text-gray-500 text-center py-5">어제부터 명함을 본 고객 · 새 견적요청이 없어요</p></div>
+                <div data-today-panel="stat" class="px-2.5 pb-1 hidden"></div>
+            </section>
+            <button type="button" id="quickToggle" class="hidden w-full mb-2.5 min-h-[42px] px-3 rounded-xl border border-gray-200 bg-white flex items-center gap-2 text-left text-[13.5px] font-bold text-gray-700" aria-expanded="false"><span>🔗 바로가기</span><span id="quickToggleSub" class="flex-1 min-w-0 truncate text-xs font-normal text-gray-500"></span><i class="fa-solid fa-chevron-down text-xs text-gray-400" aria-hidden="true"></i></button>
             <!-- 📅 V310 이번 주 약속 (달력 한 주 · 누르면 그 날 달력) -->
             <div id="weekCal" class="mb-2.5"></div>
             <!-- 📇 V250 아침 전화 명단: 어제부터 명함을 열었거나 견적 · 계산을 본 고객 -->
@@ -473,7 +488,7 @@
             <div id="calcReqStrip" class="hidden mb-2.5 bg-white border-2 border-pink-300 rounded-xl overflow-hidden"></div>
 
             <!-- 이달 개통 · 오늘/이번 달 연락 실적 · 이달 푸시 알림 -->
-            <div class="bg-white border border-gray-200 rounded-xl mb-2.5 overflow-hidden">
+            <div id="statsBlock" class="bg-white border border-gray-200 rounded-xl mb-2.5 overflow-hidden">
             <div class="grid grid-cols-2">
                 <div class="px-3 py-2 flex flex-col border-r border-gray-100 min-w-0">
                     <span class="text-xs font-medium text-gray-600 leading-snug"><span id="monthlyActLabel">이달 개통</span><button type="button" id="ydayActBtn" data-dash-filter="yday_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="전일 개통 고객 점검하기"><span id="ydayActText" class="text-gray-500"></span></button><button type="button" id="todayActBtn" data-dash-filter="today_act" class="align-baseline min-h-[28px] -my-1 px-0.5 rounded underline decoration-dotted underline-offset-2" aria-label="오늘 개통 고객 점검하기"><span id="todayActText" class="text-gray-500"></span></button></span>
@@ -544,7 +559,7 @@
 
             <!-- 🔎 기간·개통종류 · 몇 명씩 보기 -->
             <div id="listToolsRow" class="flex items-center gap-2 mb-2.5">
-                <button type="button" id="rangeBtn" class="flex-1 min-w-0 h-11 pl-3 pr-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center gap-2" aria-label="기간과 개통종류로 거르기"><i class="fa-regular fa-calendar text-indigo-600" aria-hidden="true"></i><span id="rangeLabel" class="truncate">기간 · 개통종류 전체</span><i class="fa-solid fa-chevron-down text-[11px] text-gray-500 ml-auto" aria-hidden="true"></i></button>
+                <button type="button" id="rangeBtn" class="flex-1 min-w-0 h-11 pl-3 pr-2 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800 flex items-center gap-2" aria-label="기간과 개통종류로 거르기"><i class="fa-regular fa-calendar text-indigo-600" aria-hidden="true"></i><span id="rangeLabel" class="truncate">🎚 조건으로 찾기 (기간 · 상태 · 통신사 · 약속 · 명함 …)</span><i class="fa-solid fa-chevron-down text-[11px] text-gray-500 ml-auto" aria-hidden="true"></i></button>
                 <button type="button" id="rangeClear" class="hidden flex-shrink-0 w-11 h-11 rounded-xl text-gray-500 hover:bg-gray-200/60 flex items-center justify-center" aria-label="기간 조건 지우기"><i class="fa-solid fa-xmark"></i></button>
                 <select id="pageSizeSel" aria-label="한 번에 볼 고객 수" class="flex-shrink-0 h-11 pl-2 pr-1 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-800">
                     <option value="3">3명씩</option><option value="5">5명씩</option><option value="10">10명씩</option><option value="15">15명씩</option><option value="20">20명씩</option><option value="50">50명씩</option><option value="100">100명씩</option>
@@ -4262,6 +4277,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         let globalFilteredDB = []; // 엑셀 출력을 위한 전역 필터링 변수 추가
         let listRange = { base: 'act', key: 'all', from: '', to: '', label: '전체' };   // 🔎 목록 기간
         let listActType = '', listCarrier = '';
+        let custCond = { st: '', use: '', prom: '', card: '', age: '', wired: '' };   // 🎚 V358 조건으로 찾기 (상태 · 사용 개월 · 약속 · 명함 · 나이 · 유선)
         let selectedIds = new Set(); // 페이지를 넘기거나 목록이 새로고침돼도 유지되는 체크박스 선택 상태
 
         // 📊 대시보드 타겟 기준 (매장 방침에 맞게 숫자만 바꾸면 대시보드/필터/배지에 모두 반영됨)
@@ -20149,8 +20165,30 @@ familyStr + `\n` +
             }
             if (listActType && pcStr(c.actType) !== listActType) return false;
             if (listCarrier && (c.carrier || '') !== listCarrier) return false;
+            return custCondPass(c);
+        }
+        // 🎚 V358 조건으로 찾기
+        const CUST_COND = [
+            ['st', '영업 상태', null],
+            ['use', '개통 후', [['m6', '6개월 안'], ['m12', '12개월↑'], ['m18', '18개월↑ (기변 대상)'], ['m24', '24개월↑']]],
+            ['prom', '약속', [['open', '처리할 약속 있음'], ['over', '지난 약속 (지연)'], ['week', '7일 안 약속']]],
+            ['card', '명함', [['on', '명함 설치'], ['off', '명함 미설치'], ['push', '알림 켬']]],
+            ['age', '나이', [['o65', '65세↑'], ['m40', '40~64세'], ['u39', '39세↓'], ['none', '나이 모름']]],
+            ['wired', '인터넷 · TV', [['has', '유선 있음'], ['exp', '유선 만료 90일 안'], ['none', '유선 없음']]]
+        ];
+        function custHasWired(c) { const ok = (v) => v && String(v).trim() && String(v).trim() !== '-' && !/해당없음|없음|미적용/.test(String(v)); return !!(ok(c.internetProd) || ok(c.tvProd) || ok(c.wiredDate) || ok(c.wiredFee)); }
+        function custCondPass(c) {
+            const k = custCond;
+            if (k.st && (c.salesStatus || '미정') !== k.st && !(k.st === '가망고객' && String(c.salesStatus || '').startsWith('가망고객'))) return false;
+            if (k.use) { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c.activationDate || ''))) return false; const m = getDdayAndMonths(c.activationDate).months; if ((k.use === 'm6' && m >= 6) || (k.use === 'm12' && m < 12) || (k.use === 'm18' && m < 18) || (k.use === 'm24' && m < 24)) return false; }
+            if (k.prom) { const P = getPromiseDueInfo(c); const any = getOpenPromiseDates(c).length > 0; if ((k.prom === 'open' && !any) || (k.prom === 'over' && !P.overdue) || (k.prom === 'week' && !(P.today || P.soon))) return false; }
+            if (k.card) { if ((k.card === 'on' && c.bizCardInstalled !== true) || (k.card === 'off' && c.bizCardInstalled === true) || (k.card === 'push' && c.pushSubscribed !== true)) return false; }
+            if (k.age) { const b = parseBirth(c.dob), a = b && b.age !== null ? b.age : null; if ((k.age === 'none' && a !== null) || (k.age !== 'none' && a === null) || (k.age === 'o65' && a < 65) || (k.age === 'm40' && (a < 40 || a > 64)) || (k.age === 'u39' && a > 39)) return false; }
+            if (k.wired) { const h = custHasWired(c); if ((k.wired === 'has' && !h) || (k.wired === 'none' && h) || (k.wired === 'exp' && !isWiredExpiryTarget(c))) return false; }
             return true;
         }
+        function custCondLabels() { return CUST_COND.filter(([k]) => custCond[k]).map(([k, , opts]) => [k, opts ? (opts.find(o => o[0] === custCond[k]) || [, custCond[k]])[1] : custCond[k]]); }
+        function custCondClear() { Object.keys(custCond).forEach(k => { custCond[k] = ''; }); }
         const LIST_BASES = [['act', '개통일'], ['reg', '등록일'], ['visit', '방문일']];
         function quickRange(key) {
             const t = new Date(); const y = t.getFullYear(), m = t.getMonth(), d = t.getDate();
@@ -20172,21 +20210,28 @@ familyStr + `\n` +
             if (listRange.from || listRange.to) parts.push(`${baseName} ${listRange.label}`);
             if (listActType) parts.push(listActType);
             if (listCarrier) parts.push(listCarrier);
+            custCondLabels().forEach(([, l]) => parts.push(l));
             const on = parts.length > 0;
-            lab.textContent = on ? parts.join(' · ') : '기간 · 개통종류 전체';
+            lab.textContent = on ? `🎚 ${parts.join(' · ')}` : '🎚 조건으로 찾기 (기간 · 상태 · 통신사 · 약속 · 명함 …)';
             const btn = document.getElementById('rangeBtn');
             btn.classList.toggle('border-indigo-500', on); btn.classList.toggle('bg-indigo-50', on); btn.classList.toggle('border-gray-300', !on); btn.classList.toggle('bg-white', !on);
             document.getElementById('rangeClear').classList.toggle('hidden', !on);
         }
         function applyListTools() { cardPage = 1; currentPage = 1; updateListToolsUI(); renderDB(); }
         function renderRangeSheet() {
-            document.getElementById('calcSheetTitle').textContent = '목록 기간·조건';
-            document.getElementById('calcSheetSub').textContent = '날짜와 개통종류로 걸러 봐요';
+            document.getElementById('calcSheetTitle').textContent = '🎚 조건으로 찾기';
+            document.getElementById('calcSheetSub').textContent = '여러 개 고르면 모두 맞는 고객만 보여요';
+            const statuses = [...new Set(customerDB.map(c => String(c.salesStatus || '미정').replace(/^가망고객\(.*\)$/, '가망고객')))].sort((a, b) => a.localeCompare(b, 'ko'));
+            const condCount = (k, v) => { const save = custCond[k]; custCond[k] = v; const n = customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length; custCond[k] = save; return n; };
             const types = [...new Set(customerDB.map(c => pcStr(c.actType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
             const carriers = [...new Set(customerDB.map(c => c.carrier).filter(v => v && v !== '미정'))].sort();
             const chip = (attr, val, label, on) => `<button type="button" ${attr}="${escapeHtml(val)}" class="h-10 px-3 rounded-full border text-sm font-bold ${on ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-300 bg-white text-gray-700'}">${escapeHtml(label)}</button>`;
             const field = 'h-11 min-w-0 w-full px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
             document.getElementById('calcSheetBody').innerHTML = `
+                <div class="rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2 text-[13px] text-indigo-900 flex items-center gap-2"><span class="flex-1">지금 조건에 맞는 고객 <b class="text-[16px]">${customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length}명</b></span><span class="text-xs text-indigo-700">버튼 옆 숫자 = 그걸 고르면 몇 명</span></div>
+                <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">자주 쓰는 조합</p>
+                    <div class="flex flex-wrap gap-1.5">${[['m18', '🔁 기변 대상 (18개월↑)'], ['senior', '👵 65세↑ · 명함 미설치'], ['wexp', '🏠 유선 만료 90일 안'], ['over', '⏰ 지난 약속']].map(([k, l]) => `<button type="button" data-cpre="${k}" class="h-10 px-3 rounded-full border border-dashed border-indigo-400 bg-white text-sm font-bold text-indigo-800">${l}</button>`).join('')}</div></div>
+                ${CUST_COND.map(([k, label, opts]) => { const list = opts || statuses.map(v => [v, v]); return `<div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">${label}</p><div class="flex flex-wrap gap-1.5">${chip('data-cond', `${k}|`, '전체', !custCond[k])}${list.map(([v, l]) => chip('data-cond', `${k}|${v}`, `${l} ${condCount(k, v)}`, custCond[k] === v)).join('')}</div></div>`; }).join('')}
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기준 날짜</p>
                     <div class="grid grid-cols-3 gap-1.5">${LIST_BASES.map(([k, l]) => `<button type="button" data-rbase="${k}" class="h-11 rounded-xl border text-sm font-bold ${listRange.base === k ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-gray-300 bg-white text-gray-700'}">${l}</button>`).join('')}</div></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기간</p>
@@ -20216,13 +20261,65 @@ familyStr + `\n` +
                 listRange = { ...listRange, key: 'custom', from, to, label: `${from ? from.slice(5).replace('-', '/') : '처음'}~${to ? to.slice(5).replace('-', '/') : '오늘'}` };
                 applyListTools(); renderRangeSheet();
             };
+            body.querySelectorAll('[data-cond]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.cond.split('|'); custCond[k] = v; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-cpre]').forEach(b => b.onclick = () => { custCondClear(); const k = b.dataset.cpre; if (k === 'm18') custCond.use = 'm18'; if (k === 'senior') { custCond.age = 'o65'; custCond.card = 'off'; } if (k === 'wexp') custCond.wired = 'exp'; if (k === 'over') custCond.prom = 'over'; applyListTools(); renderRangeSheet(); });
             body.querySelectorAll('[data-rtype]').forEach(b => b.onclick = () => { listActType = b.dataset.rtype; applyListTools(); renderRangeSheet(); });
             body.querySelectorAll('[data-rcar]').forEach(b => b.onclick = () => { listCarrier = b.dataset.rcar; applyListTools(); renderRangeSheet(); });
-            document.getElementById('rangeReset').onclick = () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; applyListTools(); renderRangeSheet(); };
+            document.getElementById('rangeReset').onclick = () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; custCondClear(); applyListTools(); renderRangeSheet(); };
             document.getElementById('rangeDone').onclick = () => closeCalcSheet();
+            { const done = document.getElementById('rangeDone'); if (done) done.textContent = `${customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length}명 보기`; }
         }
         document.getElementById('rangeBtn').addEventListener('click', () => openCalcSheet('range'));
-        document.getElementById('rangeClear').addEventListener('click', () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; applyListTools(); });
+        // ☀️ V358 오늘 카드 — 예전 조각(할 일 · 타일 · 주간 약속 · 명함 본 고객 · 견적요청 · 실적)을 그대로 옮겨 담고 탭으로 (각 조각을 그리는 코드는 그대로)
+        (() => {
+            const card = document.getElementById('todayCard'); if (!card) return;
+            const P = (k) => card.querySelector(`[data-today-panel="${k}"]`);
+            const move = (id, k, before) => { const el = document.getElementById(id); if (el) { if (before) P(k).insertBefore(el, before); else P(k).appendChild(el); } };
+            move('scStaleStrip', 'todo'); move('todoRow', 'todo'); move('alertDashboard', 'todo');
+            move('weekCal', 'prom');
+            move('morningCallBox', 'card', document.getElementById('todayCardEmpty')); move('calcReqStrip', 'card', document.getElementById('todayCardEmpty'));
+            move('statsBlock', 'stat');
+            // 바로가기는 한 줄로 접어 둠
+            const ql = document.getElementById('quickLinksRow'), qt = document.getElementById('quickToggle');
+            let qlOpen = false; try { qlOpen = localStorage.getItem('quickOpen') === '1'; } catch (e) { /* 무시 */ }
+            const qlSync = () => {
+                if (!ql || !qt) return;
+                const has = !ql.classList.contains('hidden') || ql.dataset.v358hidden === '1';
+                const names = [...ql.querySelectorAll('a, button')].map(x => (x.textContent || '').trim()).filter(t => t && !/추가|편집/.test(t));
+                qt.classList.toggle('hidden', !names.length);
+                document.getElementById('quickToggleSub').textContent = `${names.length}개 · ${names.slice(0, 4).join(' · ')}${names.length > 4 ? ' …' : ''}`;
+                qt.setAttribute('aria-expanded', qlOpen ? 'true' : 'false');
+                qt.querySelector('i').className = `fa-solid fa-chevron-${qlOpen ? 'up' : 'down'} text-xs text-gray-400`;
+                ql.style.display = qlOpen || !names.length ? '' : 'none';
+                void has;
+            };
+            if (qt) qt.onclick = () => { qlOpen = !qlOpen; try { localStorage.setItem('quickOpen', qlOpen ? '1' : '0'); } catch (e) { /* 무시 */ } qlSync(); };
+            // 탭
+            let tab = 'todo'; try { tab = localStorage.getItem('todayTab') || 'todo'; } catch (e) { /* 무시 */ }
+            const setTab = (k) => {
+                tab = k; try { localStorage.setItem('todayTab', k); } catch (e) { /* 무시 */ }
+                card.querySelectorAll('[data-today-tab]').forEach(b => { const on = b.dataset.todayTab === k; b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.className = `flex-1 h-9 rounded-lg text-[13.5px] font-bold ${on ? 'bg-white text-indigo-800 shadow-sm' : 'text-gray-500'}`; });
+                card.querySelectorAll('[data-today-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.todayPanel !== k));
+            };
+            card.querySelectorAll('[data-today-tab]').forEach(b => b.onclick = () => setTab(b.dataset.todayTab));
+            document.getElementById('todayCardCal').onclick = () => { const b = document.getElementById('calOpenBtn'); if (b) b.click(); };
+            // 탭 숫자 (각 조각에 이미 나오는 숫자를 읽음)
+            const num = (el, re) => { if (!el || el.classList.contains('hidden')) return 0; const m = re.exec(el.textContent || ''); return m ? Number(m[1]) || 0 : 0; };
+            const badges = () => {
+                const set = (k, n) => { const b = card.querySelector(`[data-today-badge="${k}"]`); if (b) { b.textContent = n > 99 ? '99+' : String(n); b.classList.toggle('hidden', !n); } };
+                set('todo', num(document.getElementById('todoRowText'), /할 일\s*(\d+)/));
+                set('prom', num(document.getElementById('weekCal'), /약속\s*(\d+)건/));
+                const mc = num(document.getElementById('morningCallBox'), /(\d+)명/), rq = num(document.getElementById('calcReqStrip'), /견적요청\s*(\d+)건/);
+                set('card', mc + rq);
+                const emp = document.getElementById('todayCardEmpty'); if (emp) emp.classList.toggle('hidden', !!(mc || rq || !document.getElementById('morningCallBox').classList.contains('hidden') || !document.getElementById('calcReqStrip').classList.contains('hidden')));
+                const d = new Date(); document.getElementById('todayCardDate').textContent = `${d.getMonth() + 1}/${d.getDate()} (${'일월화수목금토'[d.getDay()]})`;
+                qlSync();
+            };
+            let bt = 0; const later = () => { clearTimeout(bt); bt = setTimeout(badges, 120); };
+            ['todoRowText', 'weekCal', 'morningCallBox', 'calcReqStrip', 'quickLinksRow'].forEach(id => { const el = document.getElementById(id); if (el) new MutationObserver(later).observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class'] }); });
+            setTab(['todo', 'prom', 'card', 'stat'].includes(tab) ? tab : 'todo'); badges();
+        })();
+        document.getElementById('rangeClear').addEventListener('click', () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; custCondClear(); applyListTools(); });
         (() => {
             const sel = document.getElementById('pageSizeSel');
             sel.value = String(CARD_PAGE_SIZE);
@@ -28364,7 +28461,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V357';
+        const APP_VER = 'V358';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28372,6 +28469,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V358', d: '2026-11-10', items: [
+                ['☀️ 고객 탭 첫 화면 정리: 할 일 · 주간 약속 · 명함 본 고객 · 견적요청 · 실적을 [☀️ 오늘] 카드 하나에 탭으로 (할 일 · 약속 · 명함 · 실적, 마지막에 본 탭 기억) · 바로가기는 한 줄로 접기', 'a'],
+                ['🎚 조건으로 찾기: 기간 · 개통종류 · 통신사에 영업 상태 · 개통 후(6개월 안 ~ 24개월↑) · 약속(지연 · 7일 안) · 명함 · 나이 · 인터넷 · TV 추가 · 버튼마다 몇 명인지 · 자주 쓰는 조합(기변 대상 · 시니어 명함 미설치 · 유선 만료 · 지난 약속)', 'a']] },
             { v: 'V357', d: '2026-11-10', items: [
                 ['✏️ 고객 카드 → 약속 탭에서 바로 [완료 · 날짜 · 내용]: 완료 · 내일로 · 1주 뒤로 · 날짜 고르기 · 내용 고치기 · 지우기 (수정 화면을 안 열어도 돼요)', 'a'],
                 ['✅ 약속을 완료하면 그 칸은 비워지고 \'완료한 약속\'으로 옮겨져요 (고객 카드 약속 탭 아래 · 약속 달력에 그대로) · 잘못 눌렀으면 [되살리기] · 예전에 체크만 해 둔 약속은 [칸 비우기]', 'a']] },
