@@ -23827,12 +23827,16 @@ familyStr + `\n` +
                 <div><span class="block text-xs font-bold text-gray-600 mb-1"><span class="text-red-600">*</span> 개통종류</span>${gdChips('actType', GD_TYPES.map(v => [v, v]), g.actType)}</div>
                 ${gdLbl('거래처', `<select data-gd="dealer" class="${gdCls}"><option value="">- 고르지 않음 -</option>${DL.map(d => `<option value="${escapeHtml(d.name)}" ${stockKey(d.name) === stockKey(g.dealer) ? 'selected' : ''}>${escapeHtml(d.name)}${d.carrier ? ` · ${escapeHtml(d.carrier)}` : ''}</option>`).join('')}<option value="__direct" ${(g.dealer && !dIn) || g.dealerDirect ? 'selected' : ''}>✏️ 직접 입력</option></select>${(g.dealer && !dIn) || g.dealerDirect ? gdInp('dealerText', g.dealer, { cls: 'mt-1.5', ph: '거래처 이름' }) : ''}`)}
                 ${dd ? `<p class="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5 leading-relaxed">🏢 ${escapeHtml(dd.name)} 조건 · ${escapeHtml(dealerSummary(dd))}</p>` : ''}`);
+            // 📍 V355 휴대폰은 [공시 · 선약]과 약정을 A · 휴대폰의 출고가 위로 (공시를 고르면 바로 아래 공통지원 칸이 나와서) · 유심만은 B · 요금 그대로
+            const gdSupHtml = `${gdChips('sup', dev ? [['선약', '요금할인 (선택약정)'], ['공시', '단말할인 (공시)']] : [['선약', '선택약정'], ['없음', '약정 없음']], g.sup)}
+                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', g.sup === '선약' && gd1212Ok(g) ? [['24', '24개월'], ['12', '12개월'], ['12+12', '12+12개월']] : [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}`;
             if (dev) h += gdSec('A · 휴대폰', `<button type="button" data-gd-scan class="w-full min-h-[44px] rounded-xl border border-indigo-300 bg-indigo-50 text-[14px] font-bold text-indigo-800 flex items-center justify-center gap-1.5 px-2"><i class="fa-solid fa-barcode" aria-hidden="true"></i>상자 바코드 찍기 <span class="font-medium text-indigo-700">· 재고에서 모델 · 색상 · 거래처</span></button>
                 ${g.dev.serial ? `<p class="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 rounded-lg px-2.5 py-1.5">📦 일련번호 ${escapeHtml(g.dev.serial)}${stockFind(g.dev.serial).length === 1 ? ' · 재고에 있어요 (개통등록 때 그대로 들어가요)' : ''}</p>` : ''}
                 <div class="grid grid-cols-2 gap-2">
                     ${gdLbl('<span class="text-red-600">*</span> 기종', gdInp('dev.name', g.dev.name, { list: 'gdModelList', ph: '예) 갤럭시 A17 LTE' }), 'col-span-2')}
                     ${gdLbl('모델명', gdInp('dev.code', g.dev.code, { ph: '예) SM-A175N' }))}
                     ${gdLbl('색상', gdInp('dev.color', g.dev.color, { ph: '예) 블랙' }))}
+                    <div class="col-span-2 space-y-2">${gdSupHtml}</div>
                     ${gdLbl('<span class="text-red-600">*</span> 출고가', gdInp('dev.price', g.dev.price, { money: true }), g.sup === '공시' ? '' : 'col-span-2')}
                     ${g.sup === '공시' ? gdLbl('공통지원 (공시)', gdInp('dev.pub', g.dev.pub, { money: true })) : ''}
                     ${gdLbl('전환지원', gdInp('dev.sw', g.dev.sw, { money: true }))}
@@ -23847,8 +23851,7 @@ familyStr + `\n` +
                 </div>
                 <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap"><span class="text-sm font-bold text-indigo-900">할부원금 <b id="gdLoan" class="text-[17px]">${arWon(c.loan)}</b>원</span><span class="text-sm font-bold text-indigo-900">월 할부금 약 <b id="gdMonth" class="text-[17px]">${arWon(c.month)}</b>원</span></div>
                 <p id="gdLoanSub" class="text-xs text-gray-600 text-right -mt-1">${gdLoanSub(c)}</p>`);
-            h += gdSec('B · 요금', `${gdChips('sup', dev ? [['선약', '요금할인 (선택약정)'], ['공시', '단말할인 (공시)']] : [['선약', '선택약정'], ['없음', '약정 없음']], g.sup)}
-                ${g.sup !== '없음' ? `<div><span class="block text-xs font-bold text-gray-600 mb-1">약정</span>${gdChips('term', g.sup === '선약' && gd1212Ok(g) ? [['24', '24개월'], ['12', '12개월'], ['12+12', '12+12개월']] : [['24', '24개월'], ['12', '12개월']], String(g.term))}</div>` : ''}
+            h += gdSec('B · 요금', `${dev ? '' : gdSupHtml}
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('<span class="text-red-600">*</span> 요금제', gdInp('plan.name', g.plan.name, { list: 'gdPlanList', ph: '예) 라이트 39' }))}${gdLbl('<span class="text-red-600">*</span> 월정액', gdInp('plan.fee', g.plan.fee, { money: true }))}</div>
                 ${g.sup === '선약' ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[13px] text-gray-700 flex justify-between"><span>선택약정 ${g.term}개월 (25%)</span><b id="gdSel" class="text-gray-900">-${arWon(c.sel)}원</b></div>${g.term === '12+12' ? `<p class="text-xs text-gray-600 -mt-1" data-gd-1212>${gdReTermText(g)}</p>` : ''}` : ''}
                 <div id="gdPlanInfo">${planInfoHtml(g.carrier, planInfoFind(g.carrier, g.plan.name))}</div>
@@ -28260,7 +28263,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V354';
+        const APP_VER = 'V355';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28268,6 +28271,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V355', d: '2026-11-10', items: [
+                ['📍 단말 구매 안내서: [요금할인(선택약정) · 단말할인(공시)]과 약정을 A · 휴대폰의 출고가 위로 옮겼어요 (공시를 고르면 바로 아래 공통지원 칸이 나와요) · 유심만 안내서는 그대로', 'a']] },
             { v: 'V354', d: '2026-11-10', items: [
                 ['✉️ 명함 보내기를 한 통으로: 인사말 + 명함 링크가 한 문자에 (예전엔 두 통이라 문자앱을 두 번 오가야 했고, 돌아올 때 화면이 새로 열리면 링크 문자가 빠지기도 했어요)', 'a']] },
             { v: 'V353', d: '2026-11-10', items: [
