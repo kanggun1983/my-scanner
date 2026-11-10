@@ -3482,7 +3482,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, arrayUnion, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, arrayUnion, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -3503,7 +3503,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         async function checkStaffAccess(emailLc) {
             if (SUPER_ADMIN_EMAILS.includes(emailLc)) return { ok: true };
             try {
-                const snap = await getDoc(doc(db, 'staff_accounts', 'list'));
+                const snap = await getDocM(doc(db, 'staff_accounts', 'list'));
                 const remember = (ok) => { try { if (ok) localStorage.setItem('kcrmAccessOk', emailLc); else if (localStorage.getItem('kcrmAccessOk') === emailLc) localStorage.removeItem('kcrmAccessOk'); } catch (e) { /* 무시 */ } return { ok }; };
                 if (snap.exists()) {
                     const d = snap.data() || {};
@@ -4010,7 +4010,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!calcData || !settingsLoaded) { setTimeout(() => syncCardWho(force), 5000); return; }   // [V177] 명함 설정(내 폰 정보·소개 켜짐)을 알고 나서 맞춤 · [V185] 매장 설정(📱 몇 개월·개통 안부 날)도
             cardWhoRunning = true;
             try {
-                const snap = await getDocs(collection(db, 'card_who'));
+                const snap = await getDocsM(collection(db, 'card_who'));
                 const have = new Map();
                 snap.forEach(d => { const x = { ...(d.data() || {}) }; delete x.at; have.set(d.id, cardWhoSig(x)); have.set(d.id + '#n', String(x.n ?? '\u0000')); });
                 cardWhoCache = new Map(have);
@@ -4024,6 +4024,54 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         function saveDoc(ref, data, opts) { data = stampCustomerWrite(ref, data); noteCustomerWrite(ref, data); return opts ? setDoc(ref, stripUndefined(data), opts) : setDoc(ref, stripUndefined(data)); }
         function saveUpdate(ref, data) { noteCustomerWrite(ref, data); return updateDoc(ref, stripUndefined(stampCustomerWrite(ref, data))); }
         // ⚠️ 오류를 알아듣기 쉬운 한국어로 (영어 오류문이 그대로 뜨지 않게)
+        // ═════════════════════════════════════════════
+        // 📖 V353 Firebase 읽기 아끼기 + 읽기 계량기 (무료 하루 읽기 5만 번 · 모든 폰 합계)
+        //   liveSnap: 폰에 저장해 둔 것(캐시)으로는 일하지 않고 서버 확인을 기다림 (예전 데이터로 자동 정리 · 반영이 돌지 않게)
+        //             · 인터넷이 끊겨 있으면 저장해 둔 것으로 보여 줌 (예전처럼) · 바뀐 것 없는 신호는 건너뜀
+        //   계량기: 서버에서 실제로 받은 문서 수를 종류별로 (이 폰 · 오늘) → 연결 점검에 표시
+        // ═════════════════════════════════════════════
+        function refLabel(ref) {
+            try {
+                const p = (ref && (ref.path || (ref._query && ref._query.path && ref._query.path.segments && ref._query.path.segments.join('/')) || ref.col)) || '';
+                return String(p).split('/')[0] || '기타';
+            } catch (e) { return '기타'; }
+        }
+        function readMeterAdd(label, n) {
+            if (!(n > 0)) return;
+            try {
+                const today = getTodayStr();
+                let m = JSON.parse(localStorage.getItem('readMeter') || 'null');
+                if (!m || m.date !== today) m = { date: today, by: {} };
+                m.by[label] = (m.by[label] || 0) + n;
+                localStorage.setItem('readMeter', JSON.stringify(m));
+            } catch (e) { /* 계량만 못 함 */ }
+        }
+        function readMeterGet() {
+            try { const m = JSON.parse(localStorage.getItem('readMeter') || 'null'); return m && m.date === getTodayStr() ? m.by : {}; } catch (e) { return {}; }
+        }
+        function liveSnap(ref, next, err) {
+            const label = refLabel(ref);
+            let served = false, lastDoc = null;
+            return onSnapshot(ref, { includeMetadataChanges: true }, (snap) => {
+                const md = snap.metadata || {}, isQuery = typeof snap.forEach === 'function';
+                if (md.fromCache) { if (typeof navigator !== 'undefined' && navigator.onLine === false) next(snap); return; }   // 캐시 → 서버 확인 기다림 (끊겨 있으면 보여 줌)
+                if (isQuery) {
+                    const ch = typeof snap.docChanges === 'function' ? snap.docChanges().length : (snap.size || 0);
+                    if (served && ch === 0 && !md.hasPendingWrites) return;   // 저장 확인 같은 표시만 바뀐 신호
+                    if (!md.hasPendingWrites) readMeterAdd(label, served ? ch : Math.max(1, ch));
+                } else {
+                    let key = ''; try { key = JSON.stringify(snap.exists() ? snap.data() : null); } catch (e) { key = String(Math.random()); }
+                    if (served && key === lastDoc) return;
+                    lastDoc = key;
+                    if (!md.hasPendingWrites) readMeterAdd(label, 1);
+                }
+                served = true;
+                next(snap);
+            }, err);
+        }
+        async function getDocsM(ref) { const snap = await getDocs(ref); readMeterAdd(refLabel(ref), Math.max(1, snap.size || 0)); return snap; }
+        async function getDocM(ref) { const snap = await getDoc(ref); readMeterAdd(refLabel(ref), 1); return snap; }
+
         function koreanError(e, what = '처리') {
             const code = String((e && (e.code || '')) || '').replace(/^(firestore|auth)\//, '');
             const msg = String((e && e.message) || e || '');
@@ -4032,7 +4080,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 'unauthenticated': '로그인이 풀렸어요. 다시 로그인해주세요.',
                 'unavailable': '인터넷 연결이 불안정해요. 잠시 뒤 다시 해주세요.',
                 'deadline-exceeded': '인터넷이 느려서 시간이 초과됐어요. 다시 해주세요.',
-                'resource-exhausted': '사용량 한도를 넘었어요. 잠시 뒤 다시 해주세요.',
+                'resource-exhausted': '오늘 Firebase 무료 사용량(읽기 하루 5만 번)을 다 썼어요. 한국 시간 오후 5시에 다시 채워져요.',
                 'invalid-argument': '저장할 내용에 비어 있는 칸이 섞여 있어서 저장하지 못했어요. 다시 저장해주세요.',
                 'not-found': '고객 정보를 찾지 못했어요. 목록을 새로고침해주세요.',
                 'already-exists': '이미 있는 고객이에요.',
@@ -4221,7 +4269,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             try {
                 const app = initializeApp(myFirebaseConfig);
                 auth = getAuth(app); 
-                db = getFirestore(app);
+                // 💾 V353 폰에 저장해 두기 — 30분 안에 다시 열면 바뀐 것만 읽음 (Firebase 무료 읽기 하루 5만 번 아끼기) · 안 되는 브라우저는 예전처럼
+                try { db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+                catch (e) { console.warn('폰 저장 캐시를 못 켬 → 예전 방식', e); db = getFirestore(app); }
                 const provider = new GoogleAuthProvider();
                 // 폰에 구글 계정이 여러 개면 매번 고르게 (예전: 이미 로그인된 계정으로 바로 들어가서 다른 계정을 못 골랐음)
                 provider.setCustomParameters({ prompt: 'select_account' });
@@ -4565,7 +4615,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (dbUnsubscribe) dbUnsubscribe();
             if (statsUnsubscribe) statsUnsubscribe();
             if (settingsUnsubscribe) settingsUnsubscribe();
-            dbUnsubscribe = onSnapshot(collection(db, 'smart_customers'), (snapshot) => {
+            dbUnsubscribe = liveSnap(collection(db, 'smart_customers'), (snapshot) => {
                 const all = [];
                 // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
                 snapshot.forEach((doc) => { all.push(normalizeCustomer({ ...doc.data(), id: doc.id })); });
@@ -4607,7 +4657,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
             });
             
-            settingsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'settings'), (docSnap) => {
+            settingsUnsubscribe = liveSnap(doc(db, 'smart_global', 'settings'), (docSnap) => {
                 const prevLock = `${appSettings.ownerLock}|${appSettings.actProtect}`;
                 appSettings = { ...AUTO_PROMISE_DEFAULTS, ...(docSnap.exists() ? docSnap.data() : {}) };
                 settingsLoaded = true;
@@ -4634,13 +4684,13 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }, (error) => console.error('매장 설정 불러오기 실패:', error));
 
             if (stockUnsubscribe) stockUnsubscribe();
-            stockUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stock'), (snap) => {   // 📦 재고 (문서 하나라 읽기 1번)
+            stockUnsubscribe = liveSnap(doc(db, 'smart_global', 'stock'), (snap) => {   // 📦 재고 (문서 하나라 읽기 1번)
                 stockData = snap.exists() ? (snap.data() || {}) : { items: [] };
                 stockLoaded = true;
                 stockRefresh();
             }, (error) => console.error('재고 불러오기 실패:', error));
 
-            statsUnsubscribe = onSnapshot(doc(db, 'smart_global', 'stats'), (docSnap) => {
+            statsUnsubscribe = liveSnap(doc(db, 'smart_global', 'stats'), (docSnap) => {
                 if (docSnap.exists()) {
                     globalStats = docSnap.data();
                 }
@@ -7584,11 +7634,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         async function payLoad(ym, force) {
             if (!payCfg || force) {
-                const s = await getDoc(doc(db, 'smart_pay', 'config')), d = s.exists() ? (s.data() || {}) : {};
+                const s = await getDocM(doc(db, 'smart_pay', 'config')), d = s.exists() ? (s.data() || {}) : {};
                 payCfg = { methods: Array.isArray(d.methods) ? d.methods : [], staff: d.staff && typeof d.staff === 'object' ? d.staff : {} };
             }
             if (!payMonth[ym] || force) {
-                const s = await getDoc(doc(db, 'smart_pay', 'm_' + ym)), d = s.exists() ? (s.data() || {}) : {};
+                const s = await getDocM(doc(db, 'smart_pay', 'm_' + ym)), d = s.exists() ? (s.data() || {}) : {};
                 payMonth[ym] = { adj: d.adj && typeof d.adj === 'object' ? d.adj : {} };
             }
         }
@@ -10875,7 +10925,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (wiredCfgLoading) return wiredCfgLoading;
             wiredCfgLoading = (async () => {
                 try {
-                    const s = await getDoc(doc(db, 'card_public', 'wired')), raw = s.exists() ? String((s.data() || {}).json || '') : '';
+                    const s = await getDocM(doc(db, 'card_public', 'wired')), raw = s.exists() ? String((s.data() || {}).json || '') : '';
                     wiredCfg = raw ? JSON.parse(raw) : { items: {} }; if (!wiredCfg.items) wiredCfg.items = {};
                     try { localStorage.setItem('wiredCustom', raw); } catch (e) { /* 무시 */ }
                     if (window.WiredCalc && WiredCalc.applyCustom) WiredCalc.applyCustom(wiredCfg);
@@ -11589,7 +11639,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const ceClone = (o) => JSON.parse(JSON.stringify(o));
         async function ceLoad() {
             ceLoading = true;
-            try { const sn = await getDoc(doc(db, 'card_public', 'profile')); const j = sn.exists() ? JSON.parse(String((sn.data() || {}).json || '{}')) : {}; ceSaved = { ...ceClone(CE_DEF), ...j }; }
+            try { const sn = await getDocM(doc(db, 'card_public', 'profile')); const j = sn.exists() ? JSON.parse(String((sn.data() || {}).json || '{}')) : {}; ceSaved = { ...ceClone(CE_DEF), ...j }; }
             catch (e) { console.warn(e); ceSaved = ceClone(CE_DEF); }
             if (!Array.isArray(ceSaved.btns) || !ceSaved.btns.length) ceSaved.btns = ceClone(CE_DEF.btns);
             Object.keys(CE_BTN).forEach(k => { if (!ceSaved.btns.some(b => b.k === k)) ceSaved.btns.push(ceClone(CE_DEF.btns.find(b => b.k === k))); });
@@ -12360,7 +12410,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         async function loadPushLog() {   // { 알림번호: 기록 } · 60일 지난 기록은 총관리자 폰이 정리
             const out = {};
             try {
-                const snap = await getDocs(collection(db, 'push_log'));
+                const snap = await getDocsM(collection(db, 'push_log'));
                 const cut = Date.now() - 60 * 86400e3;
                 snap.forEach(x => { const v = x.data() || {}; if (isSuperAdmin && Date.parse(v.at || 0) < cut) { deleteDoc(doc(db, 'push_log', x.id)).catch(() => {}); return; } out[x.id] = v; });
             } catch (e) { console.warn('푸시 기록 불러오기 실패', e); }
@@ -15824,7 +15874,7 @@ ${AI_TONES[aiSmsTone]}
                     if (mergeTarget) {
                         // 최신 값으로 합치기 (그 사이 다른 폰에서 고쳤을 수 있음)
                         let tgt = mergeTarget;
-                        try { const s = await getDoc(doc(db, 'smart_customers', newId)); if (s.exists()) tgt = s.data(); } catch (e) { /* 이 폰 값으로 */ }
+                        try { const s = await getDocM(doc(db, 'smart_customers', newId)); if (s.exists()) tgt = s.data(); } catch (e) { /* 이 폰 값으로 */ }
                         const { id: _tid, ...tgtData } = tgt;
                         finalData = mergeCustomerDocs(moving, tgtData, { by: me, today, otherId: newId });
                     } else {
@@ -17025,11 +17075,11 @@ familyStr + `\n` +
             try { attachDocFilesListener(); } catch (e) { console.error(e); }
             try { attachCallLogsListener(); } catch (e) { console.error(e); }   // 📞 V221
             setTimeout(refreshStaffAlert, 1500);
-            cardNoticeUnsub = onSnapshot(doc(db, 'card_public', 'notice'), snap => {
+            cardNoticeUnsub = liveSnap(doc(db, 'card_public', 'notice'), snap => {
                 cardNotice = snap.exists() && snap.data().id ? snap.data() : null;
                 renderCardNoticeNow();
             }, err => console.error('명함 공지 불러오기 실패:', err));
-            calcUnsub = onSnapshot(doc(db, 'card_public', 'phonecalc'), snap => {
+            calcUnsub = liveSnap(doc(db, 'card_public', 'phonecalc'), snap => {
                 let d = null;
                 try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
                 calcData = calcNormalize(d);
@@ -17043,20 +17093,20 @@ familyStr + `\n` +
                 calcData = calcData || calcNormalize(null);
                 renderCalcSettings();
             });
-            teamUnsub = onSnapshot(doc(db, 'card_public', 'team'), snap => {   // 👥 직원 공용 명함
+            teamUnsub = liveSnap(doc(db, 'card_public', 'team'), snap => {   // 👥 직원 공용 명함
                 let d = null;
                 try { d = snap.exists() && snap.data().json ? JSON.parse(snap.data().json) : null; } catch (e) { d = null; }
                 teamData = teamNormalize(d);
                 teamLoadError = null;
                 onTeamData();
             }, err => { console.error('직원 공용 명함 불러오기 실패:', err); teamLoadError = err; teamData = teamData || teamNormalize(null); onTeamData(); });
-            staffStatsUnsub = onSnapshot(doc(db, 'smart_global', 'staff_stats'), snap => {
+            staffStatsUnsub = liveSnap(doc(db, 'smart_global', 'staff_stats'), snap => {
                 staffStatsDoc = snap.exists() ? snap.data() : {};
                 if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats();
             }, err => console.error('담당자별 푸시 실적 불러오기 실패:', err));
             calcReqFirstLoad = true;
             startOverdueTimer();
-            calcReqUnsub = onSnapshot(collection(db, 'card_requests'), snap => {
+            calcReqUnsub = liveSnap(query(collection(db, 'card_requests'), where('at', '>=', new Date(Date.now() - 90 * 86400e3).toISOString())), snap => {   // 📖 V353 최근 90일만
                 let list = [];
                 snap.forEach(d => list.push({ ...d.data(), id: d.id }));
                 list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
@@ -17695,7 +17745,7 @@ familyStr + `\n` +
             const id = await pushSubId(OS);
             if (!id) return 'noid';
             const ref = doc(db, 'staff_push', em);
-            const snap = await getDoc(ref), cur = snap.exists() ? (snap.data() || {}) : {};
+            const snap = await getDocM(ref), cur = snap.exists() ? (snap.data() || {}) : {};
             const removed = { ...(cur.removed || {}) }, devices = { ...(cur.devices || {}) }, now = new Date().toISOString();
             if (removed[id] && !manual) return 'removed';   // 총관리자가 끊은 폰
             const nm = staffKeyName(getStaffName()) || '';
@@ -17711,7 +17761,7 @@ familyStr + `\n` +
             if (!em || !db) return;
             const id = await pushSubId(OS); if (!id) return;
             const ref = doc(db, 'staff_push', em);
-            const snap = await getDoc(ref); if (!snap.exists()) return;
+            const snap = await getDocM(ref); if (!snap.exists()) return;
             const cur = snap.data() || {}, devices = { ...(cur.devices || {}) };
             if (!devices[id]) return;
             delete devices[id];
@@ -18732,7 +18782,7 @@ familyStr + `\n` +
         async function siseLoad(force) {
             if (siseLoading || (siseCache && !force) || !db) return;
             siseLoading = true;
-            try { const snap = await getDocs(collection(db, 'sise_policy')); siseCache = {}; snap.forEach(d => { siseCache[d.id] = d.data(); }); }
+            try { const snap = await getDocsM(collection(db, 'sise_policy')); siseCache = {}; snap.forEach(d => { siseCache[d.id] = d.data(); }); }
             catch (e) { console.warn('정책표 불러오기 실패', e); siseCache = siseCache || {}; }
             finally { siseLoading = false; siseRender(); try { renderQuickLinks(); } catch (e) { /* 무시 */ } }
         }
@@ -21482,7 +21532,7 @@ familyStr + `\n` +
            🗑️ 재고 전체 초기화 (V198 · 👑 대표) — 재고만 / 전부 · 지우기 전에 smart_global/stock_backup에 통째로 보관 → [↩ 되돌리기]
            ===================================================================== */
         const STOCK_BACKUP_DAYS = 30;
-        async function stockBackupGet() { try { const sn = await getDoc(doc(db, 'smart_global', 'stock_backup')); const b = sn.exists() ? sn.data() : null; return b && Array.isArray(b.items) && b.at && (Date.now() - Date.parse(b.at)) < STOCK_BACKUP_DAYS * 864e5 && !b.restoredAt ? b : null; } catch (e) { console.warn(e); return null; } }
+        async function stockBackupGet() { try { const sn = await getDocM(doc(db, 'smart_global', 'stock_backup')); const b = sn.exists() ? sn.data() : null; return b && Array.isArray(b.items) && b.at && (Date.now() - Date.parse(b.at)) < STOCK_BACKUP_DAYS * 864e5 && !b.restoredAt ? b : null; } catch (e) { console.warn(e); return null; } }
         let stockResetMode = 'live';
         async function openStockReset() {
             if (!isSuperAdmin) return customAlert('재고 전체 초기화는 👑 대표만 할 수 있어요.');
@@ -23532,7 +23582,7 @@ familyStr + `\n` +
         }
         async function gdSignOf(id) {
             if (gdSignCache.has(id)) return gdSignCache.get(id);
-            try { const s = await getDoc(doc(db, 'smart_guide_signs', id)); const img = s.exists() ? String((s.data() || {}).img || '') : ''; if (img) gdSignCache.set(id, img); return img; } catch (e) { return ''; }
+            try { const s = await getDocM(doc(db, 'smart_guide_signs', id)); const img = s.exists() ? String((s.data() || {}).img || '') : ''; if (img) gdSignCache.set(id, img); return img; } catch (e) { return ''; }
         }
         async function gdImage(g) {
             const key = `${g.updatedAt || ''}|${g.st}|${g.signed ? g.signed.at : ''}`, hit = gdImgCache.get(g.id);
@@ -23608,7 +23658,7 @@ familyStr + `\n` +
         async function gdGet(id) {
             const hit = gdList.find(x => x.id === id);
             if (hit) return gdClone(hit);
-            try { const s = await getDoc(doc(db, 'smart_guides', id)); return s.exists() ? { ...gdClone(s.data()), id } : null; } catch (e) { return null; }
+            try { const s = await getDocM(doc(db, 'smart_guides', id)); return s.exists() ? { ...gdClone(s.data()), id } : null; } catch (e) { return null; }
         }
         async function gdOpenById(id) {
             const g = await gdGet(id);
@@ -24513,7 +24563,7 @@ familyStr + `\n` +
         function gdListen() {
             if (gdUnsub || !db || !dbLoaded) return;
             const cut = addDaysStr(getTodayStr(), -60);
-            gdUnsub = onSnapshot(query(collection(db, 'smart_guides'), where('date', '>=', cut)), (snap) => {
+            gdUnsub = liveSnap(query(collection(db, 'smart_guides'), where('date', '>=', cut)), (snap) => {
                 gdList = snap.docs.map(d => ({ ...d.data(), id: d.id })); gdListReady = true; gdRenderList();
             }, (err) => { console.warn('안내서 목록', err); gdListReady = true; gdRenderList(); });
         }
@@ -25483,7 +25533,7 @@ familyStr + `\n` +
             if (phoneLibLoading && !force) return phoneLibLoading;
             phoneLibLoading = (async () => {
                 try {
-                    const snap = await getDocs(collection(db, 'phone_images'));
+                    const snap = await getDocsM(collection(db, 'phone_images'));
                     phoneLib = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(x => x.data).sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
                 } catch (e) { console.error('기종 사진 불러오기 실패', e); phoneLib = phoneLib || []; }
                 phoneLibLoading = null;
@@ -26030,7 +26080,7 @@ familyStr + `\n` +
         function attachDocFilesListener() {
             if (docFilesUnsub) { docFilesUnsub(); docFilesUnsub = null; }
             const ref = isSuperAdmin ? collection(db, 'doc_files') : query(collection(db, 'doc_files'), where('uploader', '==', myEmail()));
-            docFilesUnsub = onSnapshot(ref, snap => {
+            docFilesUnsub = liveSnap(ref, snap => {
                 const list = [];
                 snap.forEach(d => list.push({ ...d.data(), id: d.id }));
                 list.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
@@ -26587,6 +26637,26 @@ familyStr + `\n` +
         }
 
         let callLogs = [], callLogsUnsubs = [], callLogsReady = false;
+        const CALL_LIVE_DAYS = 90;
+        const oldCallLogs = new Map(), oldCallAsked = new Set();   // 고객 번호 → 90일 지난 통화 기록 (카드를 열 때 한 번)
+        function callLogsFor(c) {
+            const ids = new Set([c.id, ...prevIdsOf(c)]);
+            const m = new Map();
+            callLogs.forEach(L => { if (ids.has(L.customerId)) m.set(L.id, L); });
+            ids.forEach(id => (oldCallLogs.get(id) || []).forEach(L => { if (!m.has(L.id)) m.set(L.id, L); }));
+            if (isSuperAdmin && db) ids.forEach(id => {
+                if (oldCallAsked.has(id)) return;
+                oldCallAsked.add(id);
+                getDocsM(query(collection(db, 'call_logs'), where('customerId', '==', id))).then(snap => {
+                    const cut = Date.now() - CALL_LIVE_DAYS * 86400e3, arr = [];
+                    snap.forEach(d => { const L = { ...d.data(), id: d.id }; if ((Date.parse(L.startedAt || L.at || '') || 0) < cut || !L.startedAt) arr.push(L); });
+                    if (!arr.length) return;
+                    oldCallLogs.set(id, arr);
+                    if (currentProfileId && ids.has(currentProfileId)) { try { renderProfileCard(); } catch (e) { /* 무시 */ } }
+                }).catch(e => { oldCallAsked.delete(id); console.warn('예전 통화 기록', e); });
+            });
+            return [...m.values()].sort((a, b) => String(b.startedAt || b.at || '').localeCompare(String(a.startedAt || a.at || '')));
+        }
         function attachCallLogsListener() {
             callLogsUnsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } });
             callLogsUnsubs = [];
@@ -26603,9 +26673,10 @@ familyStr + `\n` +
                 try { refreshCallSheet(); } catch (e) { /* 무시 */ }   // 🎙 V223
                 try { if (loadPendingCall()) checkPendingCallResult(); } catch (e) { /* 무시 */ }   // 📞 V245 콜매니저 기록이 오면 강CRM 결과 창은 안 띄움
             };
-            const qs = isSuperAdmin ? [['all', collection(db, 'call_logs')]]
+            const cut90 = new Date(Date.now() - CALL_LIVE_DAYS * 86400e3).toISOString();   // 📖 V353 대표 폰은 최근 90일만 실시간 (예전 건 고객 카드를 열 때 그 고객 것만)
+            const qs = isSuperAdmin ? [['all', query(collection(db, 'call_logs'), where('startedAt', '>=', cut90))]]
                 : [['up', query(collection(db, 'call_logs'), where('uploader', '==', me))], ['mg', query(collection(db, 'call_logs'), where('managerEmail', '==', me))]];
-            qs.forEach(([k, q]) => callLogsUnsubs.push(onSnapshot(q, snap => { const arr = []; snap.forEach(d => arr.push({ ...d.data(), id: d.id })); parts.set(k, arr); merge(); }, err => console.warn('통화 기록 불러오기 실패:', err))));
+            qs.forEach(([k, q]) => callLogsUnsubs.push(liveSnap(q, snap => { const arr = []; snap.forEach(d => arr.push({ ...d.data(), id: d.id })); parts.set(k, arr); merge(); }, err => console.warn('통화 기록 불러오기 실패:', err))));
         }
         // 통화 한 건 → 연락 기록 한 줄 (강CRM에서 이미 '📞 전화발신'을 남긴 전화면 결과만 · OB 숫자 두 번 안 셈)
         function callLogEntry(L, c) {
@@ -26697,8 +26768,7 @@ familyStr + `\n` +
             }
         }
         function buildCallLogsHtml(c) {
-            const ids = new Set([c.id, ...prevIdsOf(c)]);
-            const list = callLogs.filter(L => ids.has(L.customerId));
+            const list = callLogsFor(c);   // 📖 V353 90일 지난 것도 (그 고객 것만 따로 읽음)
             if (!list.length) return '';
             const two = (n) => String(n).padStart(2, '0');
             const icon = (d) => d === 'in' ? '📲' : (d === 'missed' ? '📵' : '📞');
@@ -26980,7 +27050,7 @@ familyStr + `\n` +
         }
         function buildCallTimelineHtml(c) {
             const ids = new Set([c.id, ...prevIdsOf(c)]);
-            const logs = callLogs.filter(L => ids.has(L.customerId));
+            const logs = callLogsFor(c);   // 📖 V353
             const items = logs.map(L => ({ t: Date.parse(L.startedAt || L.at || '') || 0, k: 'call', L }));
             (Array.isArray(c.smsLog) ? c.smsLog : []).forEach(m => { const t = Date.parse((m && m.at) || ''); if (t) items.push({ t, k: 'sms', m }); });
             parseContactHistory(c.contactHistory).forEach(l => {
@@ -27268,12 +27338,19 @@ familyStr + `\n` +
             try { const r = await fetch(url, { ...opt, signal: ctl.signal }); const d = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, data: d }; }
             finally { clearTimeout(t); }
         }
+        const QUOTA_MSG = '⛽ 오늘 Firebase 무료 사용량(읽기 하루 5만 번 · 모든 폰 합계)을 다 썼어요 (429). 한국 시간 오후 5시에 다시 채워져요 · 그때까지 콜매니저 고객 찾기 · 녹음 백업이 실패할 수 있어요';
+        const READ_LABELS = { smart_customers: '고객', call_logs: '통화 기록', card_requests: '명함 견적요청', smart_global: '매장 설정', card_public: '명함 설정', doc_files: '서류 기록', smart_guides: '안내서', staff_access: '접속 기록', staff_push: '직원 알림', staff_accounts: '직원 계정', card_who: '명함 이름', push_log: '푸시 기록', sise_policy: '시세표', phone_images: '폰 사진', smart_backup: '백업', smart_pay: '급여' };
+        function readMeterText() {
+            const by = readMeterGet(), list = Object.entries(by).sort((a, b) => b[1] - a[1]), total = list.reduce((s, [, n]) => s + n, 0);
+            return { total, text: `오늘 이 폰 약 ${total.toLocaleString()}번${list.length ? ' · ' + list.slice(0, 6).map(([k, n]) => `${READ_LABELS[k] || k} ${n.toLocaleString()}`).join(' · ') : ''} (무료는 모든 폰 합쳐 하루 5만 번)` };
+        }
         async function runDiag() {
             diagRunning = true; diagRows = []; renderDiag();
             const add = (group, label, state, hint = '') => { diagRows.push({ group, label, state, hint }); renderDiag(); };
             const d = calcData || calcNormalize(null);
             // 1. Firebase
             add('Firebase', '고객 데이터', dbLoadError ? 'bad' : (dbLoaded ? 'ok' : 'warn'), dbLoadError ? koreanError(dbLoadError, '불러오기') : `고객 ${customerDB.length}명 · 휴지통 ${trashDB.length}명`);
+            { const R = readMeterText(); add('Firebase', '📖 Firebase 읽기 (V353 계량기)', R.total > 15000 ? 'warn' : 'ok', R.text); }
             add('Firebase', '서류 기록 규칙 (doc_files)', docFilesError ? 'bad' : 'ok', docFilesError ? 'Firebase 규칙을 최신 firestore-rules.txt로 바꿔 게시해 주세요.' : (isSuperAdmin ? '총관리자 · 전체 보기' : '직원 · 본인 것만 보기'));
             add('Firebase', '명함 지원금 (card_public)', calcLoadError ? 'bad' : 'ok', calcLoadError ? '규칙에 card_public 칸이 있는지 확인해 주세요.' : CALC_CARRIERS.map(k => { const C = d.carriers[k] || {}; return `${k} ${C.models && C.models.length ? (C.date || '등록') : '준비 중'}`; }).join(' · '));
             add('Firebase', '명함 견적요청 읽기 (card_requests)', calcReqError ? 'bad' : 'ok', calcReqError ? '규칙에 card_requests 칸이 있는지 확인해 주세요.' : `새 요청 ${calcRequests.filter(r => r.done !== 'Y').length}건`);
@@ -27284,16 +27361,17 @@ familyStr + `\n` +
                 const fields = Object.fromEntries(Object.entries({ kind: 'calc', cid: 'diagtest', name: '', phone: '', agree: '', summary: '연결 점검 저장 시험 (바로 지워요)', detail: '연결 점검', at: new Date().toISOString() }).map(([k, v]) => [k, { stringValue: v }]));
                 const r = await fetch(`https://firestore.googleapis.com/v1/projects/${myFirebaseConfig.projectId}/databases/(default)/documents/card_requests?documentId=${tid}&key=${myFirebaseConfig.apiKey}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fields }) });
                 if (r.ok) { deleteDoc(doc(db, 'card_requests', tid)).catch(() => {}); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'ok', '명함에서 보낸 요청이 강CRM에 들어올 수 있어요.'); }
+                else if (r.status === 429) add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'warn', QUOTA_MSG);
                 else { const t = await r.text().catch(() => ''); add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'bad', r.status === 403 ? `규칙이 막고 있어요 (403). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]해 주세요. 그 전까지 명함 요청은 강CRM에 안 들어오고 문자로만 와요.` : `저장 실패 (${r.status}) ${t.slice(0, 80)}`); }
             } catch (e) { add('Firebase', '명함 견적요청 저장 (고객 폰처럼)', 'warn', `시험하지 못했어요: ${e.message || e}`); }
             // 🧪 규칙이 V167(직원 계정 · 보낸 견적)인지: 로그인 없이 card_quotes 하나를 읽어 봄 → 404면 새 규칙 (없는 번호) · 403이면 예전 규칙
             try {
                 const r = await fetch(`https://firestore.googleapis.com/v1/projects/${myFirebaseConfig.projectId}/databases/(default)/documents/card_quotes/zzdiag?key=${myFirebaseConfig.apiKey}`, { cache: 'no-store' });
-                add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', r.status === 404 || r.ok ? 'ok' : 'bad', r.status === 404 || r.ok ? '새 규칙이에요' : `예전 규칙이에요 (${r.status}). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]. 그 전엔 고객 명함에 '받은 견적'이 안 보이고, 설정의 직원 계정 추가가 적용되지 않아요.`);
+                if (r.status === 429) add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', 'warn', QUOTA_MSG); else add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', r.status === 404 || r.ok ? 'ok' : 'bad', r.status === 404 || r.ok ? '새 규칙이에요' : `예전 규칙이에요 (${r.status}). Firebase → Firestore → 규칙에 새 firestore-rules.txt를 통째로 붙여넣고 [게시]. 그 전엔 고객 명함에 '받은 견적'이 안 보이고, 설정의 직원 계정 추가가 적용되지 않아요.`);
             } catch (e) { add('Firebase', '보안 규칙 V167 (직원 계정 · 보낸 견적)', 'warn', '확인하지 못했어요 (인터넷 확인)'); }
             add('Firebase', '👤 직원 계정 목록', staffAccounts ? 'ok' : 'warn', staffAccounts ? `직원 ${staffAccounts.emails.length}명 + 👑 총관리자 ${SUPER_ADMIN_EMAILS.length}명` : '아직 없어요 — 👑 총관리자가 강CRM V167을 한 번 열면 예전 목록으로 만들어져요 (새 규칙 게시 전에)');
             add('Firebase', '🕒 직원 접속 기록 (V170)', accessWrite.ok === false ? 'warn' : 'ok', accessWrite.ok === false ? `이 폰 접속 기록을 못 남겼어요 (${accessWrite.err}). Firebase 규칙을 새 파일(V170)로 게시했는지 확인해주세요` : (isSuperAdmin ? `${Object.keys(accessMap).length}개 계정 기록 중 · 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · [접속 기록]` : '이 폰 접속이 기록되고 있어요 (총관리자만 봐요)'));
-            let W0 = {}; try { const ws0 = await getDoc(doc(db, 'smart_global', 'worker_status')); W0 = ws0.exists() ? ws0.data() : {}; } catch (e) { W0 = {}; }
+            let W0 = {}; try { const ws0 = await getDocM(doc(db, 'smart_global', 'worker_status')); W0 = ws0.exists() ? ws0.data() : {}; } catch (e) { W0 = {}; }
             // 2. 알림 서버
             const aUrl = d.alert && d.alert.url;
             if (!aUrl) add('알림 서버', '상담 알림 서버 주소', 'bad', '설정 → 🔌 연결 → 상담 알림 서버에 주소를 넣어주세요.');
@@ -27316,7 +27394,7 @@ familyStr + `\n` +
             add('알림 서버', '약속 알림 켜짐 (설정)', appSettings.promPushOn === true ? 'ok' : 'warn', appSettings.promPushOn === true ? '' : '설정 → 📅 약속 알림을 켜야 아침마다 와요.');
             // ⏰ 알림 서버 Cron이 실제로 돌았는지 (v3.1 서버가 Firestore에 기록)
             try {
-                const ws = await getDoc(doc(db, 'smart_global', 'worker_status'));
+                const ws = await getDocM(doc(db, 'smart_global', 'worker_status'));
                 const W = ws.exists() ? ws.data() : {};
                 if (!W.alertLastCron) add('알림 서버', '자동 실행 (Cron) 기록', 'warn', '아직 기록이 없어요. 알림 서버 코드를 v3.1로 배포하면, 다음 Cron이 돌 때부터 여기 보여요.');
                 else {
@@ -27633,14 +27711,14 @@ familyStr + `\n` +
         async function bkSnapshot() {
             const data = {}, counts = {};
             for (const [col] of BK_COLS) {
-                const snap = await getDocs(collection(db, col));
+                const snap = await getDocsM(collection(db, col));
                 const o = {}; snap.forEach(d => { o[d.id] = d.data(); });
                 data[col] = o; counts[col] = Object.keys(o).length;
             }
             return { data, counts };
         }
         async function bkLoadList() {
-            const snap = await getDocs(collection(db, 'smart_backup'));
+            const snap = await getDocsM(collection(db, 'smart_backup'));
             const L = []; snap.forEach(d => L.push({ id: d.id, ...(d.data() || {}) }));
             L.sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')));
             bkList = L; bkSubUpdate();
@@ -27676,7 +27754,7 @@ familyStr + `\n` +
         async function bkBytes(meta) {
             let b64 = '';
             for (let i = 0; i < (Number(meta.parts) || 1); i++) {
-                const s = await getDoc(doc(db, 'smart_backup_parts', `${meta.id}_${i}`));
+                const s = await getDocM(doc(db, 'smart_backup_parts', `${meta.id}_${i}`));
                 if (!s.exists()) throw new Error(`백업 조각 ${i + 1}/${meta.parts}개가 없어요. 다른 날짜 백업을 골라 주세요.`);
                 b64 += String((s.data() || {}).d || '');
             }
@@ -27708,7 +27786,7 @@ familyStr + `\n` +
             const plan = [];
             for (const [col, label] of BK_COLS) {
                 const B = j.data[col]; if (!B || typeof B !== 'object') continue;
-                const snap = await getDocs(collection(db, col)); const cur = {}; snap.forEach(d => { cur[d.id] = d.data(); });
+                const snap = await getDocsM(collection(db, col)); const cur = {}; snap.forEach(d => { cur[d.id] = d.data(); });
                 const ids = Object.keys(B);
                 const gone = ids.filter(id => !cur[id]);
                 const trashed = col === 'smart_customers' ? ids.filter(id => cur[id] && cur[id].deletedAt && !(B[id] || {}).deletedAt) : [];
@@ -27852,7 +27930,7 @@ familyStr + `\n` +
         async function seedStaffAccounts() {   // 처음 한 번: 예전 고정 목록을 그대로 옮김 (총관리자 폰에서)
             if (!isSuperAdmin || !db) return;
             try {
-                const snap = await getDoc(doc(db, 'staff_accounts', 'list'));
+                const snap = await getDocM(doc(db, 'staff_accounts', 'list'));
                 if (snap.exists()) return;
                 const emails = ALLOWED_EMAILS.map(e => e.toLowerCase()).filter(e => !SUPER_ADMIN_EMAILS.includes(e));
                 const info = {}; emails.forEach(e => info[e] = { addedAt: getTodayStr(), addedBy: '기존 목록' });
@@ -27908,7 +27986,7 @@ familyStr + `\n` +
         }
         function attachStaffPush() {
             if (!isSuperAdmin || staffPushUnsub || !db) return;
-            staffPushUnsub = onSnapshot(collection(db, 'staff_push'), snap => {
+            staffPushUnsub = liveSnap(collection(db, 'staff_push'), snap => {
                 const o = {}; snap.forEach(d => { o[String(d.id).toLowerCase()] = d.data() || {}; });
                 staffPushDocs = o; renderStaffAccounts();
             }, err => console.warn('알림 폰 명단 불러오기 실패', err));
@@ -27916,7 +27994,7 @@ familyStr + `\n` +
         function attachStaffAccounts() {
             try { attachStaffPush(); } catch (e) { console.warn(e); }   // 🔔 V237
             if (staffAcctUnsub) { staffAcctUnsub(); staffAcctUnsub = null; }
-            staffAcctUnsub = onSnapshot(doc(db, 'staff_accounts', 'list'), snap => {
+            staffAcctUnsub = liveSnap(doc(db, 'staff_accounts', 'list'), snap => {
                 const d = snap.exists() ? (snap.data() || {}) : null;
                 staffAccounts = d ? { emails: Array.isArray(d.emails) ? d.emails.map(e => String(e).toLowerCase()) : [], info: d.info || {}, storeMoved: !!d.storeMoved } : null;
                 const me = myEmail().toLowerCase();
@@ -28183,7 +28261,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V352';
+        const APP_VER = 'V353';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28191,6 +28269,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V353', d: '2026-11-10', items: [
+                ['📖 Firebase 무료 읽기(하루 5만 번) 아끼기: 폰에 저장해 두고 30분 안에 다시 열면 바뀐 것만 읽어요 · 통화 기록 · 명함 견적요청은 최근 90일만 실시간 (예전 통화는 고객 카드를 열 때 그 고객 것만)', 'a'],
+                ['🩺 연결 점검: [📖 Firebase 읽기] 오늘 이 폰에서 읽은 양(종류별) · 429는 \'예전 규칙\'이 아니라 \'오늘 무료 사용량 다 씀\'으로 바르게 안내', 'a']] },
             { v: 'V352', d: '2026-11-10', items: [
                 ['📶 스캔 화면: 통신사에서 알뜰 SK · KT · LG를 고르면 [알뜰폰 브랜드] 칸이 나와요 (세븐모바일 · U+유모바일 등 목록 · 직접 입력) — 고객 수정 · 개통보고의 브랜드 칸과 같은 곳에 저장', 'a']] },
             { v: 'V351', d: '2026-11-10', items: [
@@ -28782,7 +28863,7 @@ familyStr + `\n` +
             const ref = doc(db, 'staff_access', em), now = new Date(), iso = now.toISOString(), day = getTodayStr(), hm = accHM(now), dev = accessDevice();
             try {
                 if (kind === 'open') {
-                    const snap = await getDoc(ref), d = snap.exists() ? (snap.data() || {}) : {};
+                    const snap = await getDocM(ref), d = snap.exists() ? (snap.data() || {}) : {};
                     const days = { ...(d.days || {}) }, cut = addDaysStr(day, -40);
                     Object.keys(days).forEach(k => { if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || k < cut) delete days[k]; });
                     const t = days[day] || {};
@@ -28803,7 +28884,7 @@ familyStr + `\n` +
             clearInterval(accessHbTimer);
             accessHbTimer = setInterval(() => { if (document.visibilityState === 'visible') logAccess('beat'); }, ACCESS_GAP);
             if (accessUnsub) { accessUnsub(); accessUnsub = null; }
-            if (isSuperAdmin) accessUnsub = onSnapshot(collection(db, 'staff_access'), snap => {
+            if (isSuperAdmin) accessUnsub = liveSnap(collection(db, 'staff_access'), snap => {
                 const m = {}; snap.forEach(x => { m[x.id] = x.data() || {}; }); accessMap = m;
                 try { renderStaffAccounts(); } catch (e) { /* 준비 전 */ }
                 const sh = document.getElementById('accessSheet'); if (sh && sh.dataset.em) openAccessSheet(sh.dataset.em);
