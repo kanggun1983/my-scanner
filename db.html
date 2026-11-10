@@ -337,6 +337,7 @@
                             <div class="sc-bd hidden" id="scWiredBd">
                                 <label class="sc-f"><span class="sc-l">인터넷 상품명</span><input type="text" id="val-internet" class="sc-in" placeholder="예: 기가인터넷"></label>
                                 <label class="sc-f"><span class="sc-l">TV 상품명</span><input type="text" id="val-tv" class="sc-in" placeholder="예: 베이직TV"></label>
+                                <label class="sc-f sc-full"><span class="sc-l">📺 TV 추가 단말 <span class="sc-sub">(두 번째 TV · 없으면 비움)</span></span><input type="text" id="val-tv2" class="sc-in" placeholder="예: 베이직 · 실속형"></label>
                                 <label class="sc-f"><span class="sc-l">유선 월요금 (청구금액)</span><input type="text" id="val-wired-fee" class="sc-in" placeholder="-"></label>
                                 <div class="sc-f"><span class="sc-l">가입/재약정일 <span id="val-wired-dday" class="sc-sub">날짜입력</span></span><input type="date" id="val-wireddate" class="sc-in"></div>
                             </div>
@@ -3028,6 +3029,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         <div class="grid grid-cols-2 gap-2">
                             <input type="text" id="modalInternetOnly" class="modal-input text-xs sm:text-sm" placeholder="인터넷 상품명">
                             <input type="text" id="modalTvOnly" class="modal-input text-xs sm:text-sm" placeholder="TV 상품명">
+                            <label class="col-span-2 flex items-center gap-2"><span class="text-[10px] sm:text-xs text-teal-700 font-bold whitespace-nowrap">📺 TV 추가 단말</span><input type="text" id="modalTvExtra" class="modal-input text-xs sm:text-sm flex-1 min-w-0" placeholder="두 번째 TV · 없으면 비움"></label>
                         </div>
                         <div class="mt-2 pt-2 border-t border-teal-100">
                             <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">유선 월 청구금액</span>
@@ -5512,7 +5514,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             scChipBtns('scLineChips', SC_LINES, 'val-comb-lines');
             scChipBtns('scWelChips', SC_WEL, 'val-wel-type');
             // 접는 칸: 값이 있으면 저절로 펼침
-            [['scWiredTg', 'scWiredBd', ['val-internet', 'val-tv', 'val-wired-fee', 'val-wireddate'], '있음'], ['scLegalTg', 'scLegalBd', ['val-legal-name', 'val-legal-phone', 'val-legal-dob'], '미성년자']].forEach(([tg, bd, ids, lab]) => {
+            [['scWiredTg', 'scWiredBd', ['val-internet', 'val-tv', 'val-tv2', 'val-wired-fee', 'val-wireddate'], '있음'], ['scLegalTg', 'scLegalBd', ['val-legal-name', 'val-legal-phone', 'val-legal-dob'], '미성년자']].forEach(([tg, bd, ids, lab]) => {
                 const has = ids.some(id => String((scEl(id) || {}).value || '').trim());
                 if (has) scOpen(tg, bd, lab, true);
             });
@@ -5913,7 +5915,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             lastScannerLookupPhone = '';
             document.getElementById('val-manager').value = getStaffName(); // 담당자(직원 이름)는 지우지 않음
             setScanInst2Open(false);
-            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-installment2', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-wired-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
+            ['val-name', 'val-phone', 'val-device', 'val-installment', 'val-installment2', 'val-activation', 'val-dob', 'val-plan', 'val-fee', 'val-wired-fee', 'val-usage', 'val-combination', 'val-welfare', 'val-internet', 'val-tv', 'val-tv2', 'val-wireddate', 'memoPad', 'obMemoPad', 'historyPad', 'val-legal-name', 'val-legal-phone', 'val-legal-dob'].forEach(id => {
                 if(document.getElementById(id)) document.getElementById(id).value = '';
             });
             document.getElementById('val-dday').textContent = 'D+0일';
@@ -6071,7 +6073,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 document.getElementById('val-welfare').value = data.welfare || '';
                 document.getElementById('val-plan').value = data.plan || '';
                 document.getElementById('val-internet').value = data.internetProd || '';
-                document.getElementById('val-tv').value = data.tvProd || '';
+                { const T = tvSplit(data.tvProd); document.getElementById('val-tv').value = T.main; document.getElementById('val-tv2').value = T.extra; }
                 document.getElementById('val-wired-fee').value = '';
                 setTimeout(markScanBlanks, 0);   // 🟨 AI가 못 읽은 칸 표시 (개통일 등 아래에서 채운 뒤)
 
@@ -6223,7 +6225,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 combType: keepIfBlank('combType', document.getElementById('val-comb-type').value), combLines: keepIfBlank('combLines', document.getElementById('val-comb-lines').value),
                 welType: keepIfBlank('welType', document.getElementById('val-wel-type').value), combFam: keepIfBlank('combFam', document.getElementById('val-comb-fam').value.trim()),
                 internetProd: keepIfBlank('internetProd', document.getElementById('val-internet').value),
-                tvProd: keepIfBlank('tvProd', document.getElementById('val-tv').value),
+                tvProd: keepIfBlank('tvProd', tvJoin(document.getElementById('val-tv').value, document.getElementById('val-tv2').value)),
                 wiredDate: keepIfBlank('wiredDate', document.getElementById('val-wireddate').value),
                 discountType: finalDiscount,
                 ...(/공시/.test(finalDiscount) && subsidyNum('val-pub-support') > 0 ? { publicSupport: subsidyNum('val-pub-support') } : {}),   // 🏷 V225
@@ -10066,7 +10068,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('modalFamily').value = c.repFamily || '';
 
             document.getElementById('modalInternetOnly').value = (c.internetProd && c.internetProd !== '-' && c.internetProd !== '해당없음') ? c.internetProd : '';
-            document.getElementById('modalTvOnly').value = (c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') ? c.tvProd : '';
+            { const T = tvSplit((c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') ? c.tvProd : ''); document.getElementById('modalTvOnly').value = T.main; document.getElementById('modalTvExtra').value = T.extra; }   // 📺 V351 '베이직 (추가 실속형)' → 주 TV · 추가 단말 칸으로 나눠 보여줌
             document.getElementById('modalWiredFee').value = c.wiredFee || '';
             
             document.getElementById('modalWiredDate').value = c.wiredDate || '';
@@ -10202,7 +10204,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             sec('🤝 약속 · 후속 업무', false, [promBlock],
                 () => { const n = PROMISE_DEFS.filter(t => document.getElementById(`prom${t.key}Date`) && v(`prom${t.key}Date`) && !document.getElementById(`prom${t.key}Chk`).checked).length; return n ? `남은 약속 ${n}개` : '남은 약속 없음'; });
             sec('👨‍👩‍👧 결합 · 가족 · 유선', false, [wrap('modalCombinationOnly'), wrap('modalFamily'), wrap('modalInternetOnly')],
-                () => [v('modalCombinationOnly') || v('modalWelfareOnly'), [v('modalInternetOnly'), v('modalTvOnly')].filter(Boolean).join('+'), v('modalFamily') ? '가족 정보 있음' : ''].filter(Boolean).join(' · ') || '없음');
+                () => [v('modalCombinationOnly') || v('modalWelfareOnly'), [v('modalInternetOnly'), tvJoin(v('modalTvOnly'), v('modalTvExtra'))].filter(Boolean).join('+'), v('modalFamily') ? '가족 정보 있음' : ''].filter(Boolean).join(' · ') || '없음');
             sec('📝 메모 · 상담', true, [memoBlock],
                 () => (v('modalMemo').split('\n').pop() || '메모 없음'));
             sec('🗂 영업 상태 · 고객 관리', false, [salesBlock, wrap('modalDob'), wrap('modalVisitDate'), wrap('modalVisitPurpose'), wrap('modalManager'), wrap('modalOpenStore'), wrap('modalOpenDealer'), wrap('modalRegStore'), wrap('modalLegalName')],
@@ -10459,6 +10461,15 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const profileValue = (v) => (v === undefined || v === null || String(v).trim() === '' || String(v).trim() === '-') ? PROFILE_DASH : escapeHtml(v);
 
         const hasMobileInfo = (c) => [c.device, c.plan, c.fee, c.activationDate, c.installment, c.usage].some(v => v && String(v).trim() && String(v).trim() !== '-');
+        // 📺 V351 TV 추가 단말: 따로 칸 없이 tvProd에 '주 TV (추가 단말)'로 저장 (개통보고 TV(부)와 같은 모양 · 유선계산기가 '추가'를 보고 TV 2대로 계산)
+        function tvSplit(v) {
+            const str = String(v || '').trim(), m = str.match(/^(.*?)\s*\(추가\s*([^()]*)\)\s*$/);
+            return m ? { main: m[1].trim(), extra: m[2].trim() || '1대' } : { main: str, extra: '' };
+        }
+        function tvJoin(main, extra) {
+            const a = String(main || '').trim(), x = String(extra || '').trim().replace(/^\(?추가\s*/, '').replace(/\)$/, '');
+            return x ? `${a || 'TV'} (추가 ${x})` : a;
+        }
         const hasWiredInfo = (c) => [c.internetProd, c.tvProd, c.wiredFee, c.wiredDate].some(v => v && String(v).trim() && String(v).trim() !== '-' && !String(v).includes('해당없음'));
 
         window.openProfileCard = function(id) {
@@ -15673,7 +15684,7 @@ ${AI_TONES[aiSmsTone]}
                 discountType: v('modalDiscount'), publicSupport: subsidyNum('modalPubSupport') || '', distSupport: subsidyNum('modalDistSupport') || '', plan: v('modalPlan'), fee: v('modalFee'), wiredFee: v('modalWiredFee'), usage: v('modalUsage'),
                 repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 realPay: (Number(v('modalRealPay').replace(/[^\d]/g, '')) || 0) || '', targetRealPay: (Number(v('modalTargetRealPay').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V341 실납부금
-                combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: v('modalTvOnly') || '',
+                combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
                 wiredDate: v('modalWiredDate'), repFamily: v('modalFamily'),
                 legalName: v('modalLegalName'), legalPhone: v('modalLegalPhone'), legalDob: v('modalLegalDob'),
                 marketingDeny: ck('modalMarketingDeny'), bizCardInstalled: ck('modalBizCard'),
@@ -28166,7 +28177,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V350';
+        const APP_VER = 'V351';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28174,6 +28185,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V351', d: '2026-11-10', items: [
+                ['📺 스캔 화면 · 고객 정보 수정에 [TV 추가 단말] 칸 (두 번째 TV) — \'베이직 (추가 실속형)\'처럼 저장돼 유선계산기 · 위약금 계산이 TV 2대로 봐요 (개통보고 TV(부)와 같은 방식)', 'a']] },
             { v: 'V350', d: '2026-11-10', items: [
                 ['📢 홍보 문자에 [어떻게 보낼까요] 추가: 💬 문자만(기본) · 💬+🔔 둘 다 · 🔔 푸시만 — 필요할 때만 푸시도 같이 (푸시는 명함 알림 켠 고객만) · 대상 옆에 문자 몇 명 · 푸시 몇 명 표시 · 진행 중에도 바꾸면 아직 안 나간 것부터 적용', 'a']] },
             { v: 'V349', d: '2026-11-10', items: [
