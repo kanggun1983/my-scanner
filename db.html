@@ -2588,8 +2588,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
                 <div class="bg-white border-2 border-gray-200 rounded-xl p-3 sm:p-4 shadow-sm">
                     <h4 class="text-sm font-bold text-gray-800 mb-3 border-b pb-2"><i class="fa-solid fa-chart-line text-blue-500"></i> 영업/컨택 기록</h4>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div class="col-span-2 sm:col-span-1">
                             <p class="text-xs text-gray-500 font-semibold mb-1">현재 상태 (진행도)</p>
                             <select id="modalSalesStatus" class="w-full p-2 border border-gray-300 rounded-lg font-bold text-gray-800 focus:ring-2 focus:ring-indigo-500 outline-none">
                                 <option value="미정">⚪ 상태 미정</option>
@@ -2617,14 +2617,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                                 </label>
                             </div>
                         </div>
-                        <div>
+                        <div class="col-span-2 sm:col-span-1">
                             <p class="text-xs text-gray-500 font-semibold mb-1">최근 연락한 날짜</p>
                             <div class="flex items-center gap-2">
                                 <input type="date" id="modalContactDate" class="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 outline-none bg-white">
                                 <button id="btnTodayContact" class="bg-gray-800 text-white px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap hover:bg-gray-700 transition">오늘 연락</button>
                             </div>
                         </div>
-                        <div class="sm:col-span-3 mt-1 border-t pt-2">
+                        <div class="col-span-2 sm:col-span-3 mt-1 border-t pt-2">
                             <p class="text-xs text-indigo-600 font-semibold mb-1">최종 컨택 담당자</p>
                             <input type="text" id="modalContactManager" class="w-full p-2 border border-indigo-200 rounded-lg text-sm font-bold text-gray-800 outline-none bg-indigo-50/30" placeholder="연락하신 분 이름을 적어주세요">
                         </div>
@@ -3071,7 +3071,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 <div class="space-y-3">
                     <div>
                         <p class="text-xs font-bold text-gray-800 mb-1">일반 상담 메모</p>
-                        <textarea id="modalMemo" class="w-full min-h-[60px] p-2 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800"></textarea>
+                        <textarea id="modalMemo" rows="8" class="w-full min-h-[200px] p-2.5 leading-relaxed bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm text-gray-800"></textarea>
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-1">
@@ -3100,7 +3100,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         <textarea id="modalProspectMemo" class="w-full min-h-[40px] p-2 bg-white border border-blue-200 rounded focus:ring-1 focus:ring-blue-500 outline-none text-[11px] text-gray-700 leading-relaxed" placeholder="추가 수기 메모 (직접 수정/추가 가능)"></textarea>
                     </div>
 
-                    <div>
+                    <div class="hidden" aria-hidden="true"><!-- V360 연락 기록은 고객 카드 [연락] 탭에서 보여서 여기선 숨김 (값은 그대로) -->
                         <p class="text-xs font-bold text-teal-700 mb-1"><i class="fa-solid fa-clock-rotate-left"></i> 자동 연락 타임라인 (수정불가)</p>
                         <textarea id="modalHistory" readonly class="w-full min-h-[90px] p-2 bg-gray-100 border border-teal-200 rounded-xl outline-none text-[11px] text-gray-600 font-mono resize-none leading-relaxed" placeholder="위의 [전화/문자] 버튼을 클릭하면 내역이 자동으로 누적됩니다."></textarea>
                     </div>
@@ -10288,18 +10288,21 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 items.filter(Boolean).forEach(el => { if (el === salesBlock || el === promBlock || el === memoBlock) el.classList.add('col-span-2'); inn.appendChild(el); });
                 pInfo.appendChild(d); dmSecs.push({ el: d, sum });
             };
-            sec('📱 지금 쓰는 회선', true, [carW, wrap('modalActivation'), wrap('modalDiscount'), wrap('modalPlan'), wrap('modalFee'), wrap('modalRealPay'), wrap('modalTargetPlan'), wrap('modalUsage')],   // 💳 V343 실납부금 칸도 (빠져서 안 보였음)
+            // 📍 V360 순서: 연락하고 나서 고치는 것(영업 상태 · 메모 · 약속) 먼저 → 회선 · 단말 · 결합 → 고객 정보 · 담당 · 개통점 (예전엔 영업 상태가 맨 아래라 찾기 힘들었음)
+            sec('🗂 영업 상태 · 연락', true, [salesBlock],
+                () => [(document.getElementById('modalSalesStatus').selectedOptions[0] || {}).text || '', (document.getElementById('modalContactDate') || {}).value ? `최근 연락 ${String(document.getElementById('modalContactDate').value).slice(5).replace('-', '/')}` : ''].filter(Boolean).join(' · '));
+            sec('📝 메모 · 상담', true, [memoBlock],
+                () => (v('modalMemo').split('\n').pop() || '메모 없음'));
+            sec('🤝 약속 · 후속 업무', false, [promBlock],
+                () => { const n = PROMISE_DEFS.filter(t => document.getElementById(`prom${t.key}Date`) && v(`prom${t.key}Date`) && !document.getElementById(`prom${t.key}Chk`).checked).length; return n ? `남은 약속 ${n}개` : '남은 약속 없음'; });
+            sec('📱 지금 쓰는 회선', false, [carW, wrap('modalActivation'), wrap('modalDiscount'), wrap('modalPlan'), wrap('modalFee'), wrap('modalRealPay'), wrap('modalTargetPlan'), wrap('modalUsage')],   // 💳 V343 실납부금 칸도 (빠져서 안 보였음)
                 () => [carrierLabel(v('modalCarrier') === '미정' ? '' : v('modalCarrier'), v('modalMvno')), (document.getElementById('modalDiscount').selectedOptions[0] || {}).text || '', v('modalPlan')].filter(x => x && x !== '미정').join(' · '));
             sec('💳 단말기 · 할부', false, [wrap('modalDevice'), wrap('modalInstallment'), wrap('modalInstallment2'), wrap('modalInterest')],
                 () => [v('modalDevice') || '단말기 없음', v('modalInstallment') ? `할부 ${v('modalInstallment')}` : '', v('modalInstallment2') ? '이중할부' : ''].filter(Boolean).join(' · '));
-            sec('🤝 약속 · 후속 업무', false, [promBlock],
-                () => { const n = PROMISE_DEFS.filter(t => document.getElementById(`prom${t.key}Date`) && v(`prom${t.key}Date`) && !document.getElementById(`prom${t.key}Chk`).checked).length; return n ? `남은 약속 ${n}개` : '남은 약속 없음'; });
             sec('👨‍👩‍👧 결합 · 가족 · 유선', false, [wrap('modalCombinationOnly'), wrap('modalFamily'), wrap('modalInternetOnly')],
                 () => [v('modalCombinationOnly') || v('modalWelfareOnly'), [v('modalInternetOnly'), tvJoin(v('modalTvOnly'), v('modalTvExtra'))].filter(Boolean).join('+'), v('modalFamily') ? '가족 정보 있음' : ''].filter(Boolean).join(' · ') || '없음');
-            sec('📝 메모 · 상담', true, [memoBlock],
-                () => (v('modalMemo').split('\n').pop() || '메모 없음'));
-            sec('🗂 영업 상태 · 고객 관리', false, [salesBlock, wrap('modalDob'), wrap('modalVisitDate'), wrap('modalVisitPurpose'), wrap('modalManager'), wrap('modalOpenStore'), wrap('modalOpenDealer'), wrap('modalRegStore'), wrap('modalLegalName')],
-                () => [(document.getElementById('modalSalesStatus').selectedOptions[0] || {}).text || '', v('modalManager') ? `담당 ${v('modalManager')}` : ''].filter(Boolean).join(' · '));
+            sec('👤 고객 정보 · 담당 · 개통점', false, [wrap('modalDob'), wrap('modalVisitDate'), wrap('modalVisitPurpose'), wrap('modalManager'), wrap('modalOpenStore'), wrap('modalOpenDealer'), wrap('modalRegStore'), wrap('modalLegalName')],
+                () => [v('modalManager') ? `담당 ${v('modalManager')}` : '', v('modalOpenStore'), v('modalDob') ? '생일 있음' : ''].filter(Boolean).join(' · ') || '담당 · 생일 · 개통점');
             if (grid.children.length) { const left = document.createElement('details'); left.className = 'dm-sec bg-white border border-gray-200 rounded-2xl overflow-hidden'; left.innerHTML = '<summary class="flex items-center px-3 min-h-[48px] bg-gray-50 cursor-pointer list-none"><h4 class="text-[15px] font-extrabold text-gray-900">기타</h4></summary><div class="dm-in p-3 grid grid-cols-2 gap-2 text-sm"></div>'; [...grid.children].forEach(x => left.querySelector('.dm-in').appendChild(x)); pInfo.appendChild(left); }   // 혹시 남은 칸
             grid.remove();
             const st = document.createElement('style');
@@ -28477,7 +28480,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V359';
+        const APP_VER = 'V360';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28485,6 +28488,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V360', d: '2026-11-10', items: [
+                ['📍 수정 화면 순서: 🗂 영업 상태 · 연락 → 📝 메모 → 🤝 약속 (연락하고 나서 고치는 것 먼저) → 📱 회선 → 💳 단말 → 👨‍👩‍👧 결합 → 👤 고객 정보 · 담당 · 개통점', 'a'],
+                ['📝 메모 칸을 크게 (8줄) · 자동 연락 타임라인은 고객 카드 [연락] 탭에 있어서 수정 화면에선 뺐어요', 'a']] },
             { v: 'V359', d: '2026-11-10', items: [
                 ['⋯ 고객 카드 위 정리: 상태 칩 한 줄 + 작은 글씨(잠금 · 광고 · 명함 · 알림) · 명함 보내기 · 명함 설치 · 푸시 · 함께 관리 · 광고 동의 · 사진은 오른쪽 위 [⋯] 안으로', 'a'],
                 ['🧹 수정 화면 바닥: [⋯] [취소] [저장]만 · 개통등록(개통 정보 고치기) · 홈상품 등록 · 출력 · 삭제는 [⋯] 안으로', 'a'],
