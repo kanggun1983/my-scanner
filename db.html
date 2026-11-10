@@ -9297,8 +9297,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 ${taskHtml}
                 <div class="flex gap-1.5">
                     <button type="button" data-card-action="tel" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} class="flex-1 min-w-0 h-11 rounded-xl text-[14px] font-bold flex items-center justify-center gap-1 disabled:opacity-40 ${callCls}"><i class="fa-solid fa-phone max-[359px]:hidden"></i>전화</button>
-                    <button type="button" data-card-action="sms" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} class="flex-1 min-w-0 h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold flex items-center justify-center gap-1 disabled:opacity-40 ${refused ? 'text-gray-700' : 'text-indigo-700'}"><i class="fa-solid fa-comment-sms max-[359px]:hidden"></i>문자</button>
-                    <button type="button" data-card-action="aisms" data-id="${idAttr}" class="flex-1 min-w-0 h-11 rounded-xl border text-[14px] font-bold flex items-center justify-center gap-1 whitespace-nowrap ${refused ? 'border-gray-300 bg-white text-gray-700' : 'border-indigo-200 bg-indigo-50 text-indigo-700'}"><i class="fa-solid fa-wand-magic-sparkles max-[359px]:hidden"></i>AI문자</button>
+                    <button type="button" data-card-action="smsmenu" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} aria-haspopup="menu" class="flex-1 min-w-0 h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold flex items-center justify-center gap-1 disabled:opacity-40 ${refused ? 'text-gray-700' : 'text-indigo-700'}"><i class="fa-solid fa-comment-sms max-[359px]:hidden"></i>문자 <i class="fa-solid fa-caret-down text-[11px]"></i></button>
                     ${c.legalPhone ? `<button type="button" data-card-action="legal" data-id="${idAttr}" aria-label="법정대리인에게 연락" class="flex-shrink-0 w-[52px] h-11 rounded-xl border border-orange-200 bg-orange-50 text-orange-800 text-[14px] font-bold">법대</button>` : ''}
                     <button type="button" data-card-action="profile" data-id="${idAttr}" aria-label="${escapeHtml(c.name || '고객')} 고객 정보 열기" class="flex-shrink-0 w-11 h-11 rounded-xl border border-gray-300 bg-white text-gray-700 flex items-center justify-center"><i class="fa-solid fa-ellipsis"></i></button>
                 </div>
@@ -9412,6 +9411,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else if (action === 'tel' || action === 'sms') cardContact(id, action);
             else if (action === 'legal') cardLegal(id);
             else if (action === 'aisms') openAiSmsSheet(id);
+            else if (action === 'smsmenu') {   // 💬 V359 문자 ▾ — 직접 · AI · 명함 (예전엔 [문자] [AI문자] 버튼 두 개)
+                const c = customerDB.find(x => x.id === id); if (!c) return;
+                openActionSheet(`💬 문자 · ${c.name || '고객'}`, [
+                    { icon: 'fa-solid fa-pen', label: '직접 쓰기', sub: '문자앱을 바로 열어요', onClick: () => cardContact(id, 'sms') },
+                    { icon: 'fa-solid fa-wand-magic-sparkles', label: 'AI로 쓰기', sub: c.marketingDeny ? '⚠ 광고 수신 거부 고객 · 안내 문자만' : '목적만 고르면 문구를 만들어요', onClick: () => openAiSmsSheet(id) },
+                    { icon: 'fa-solid fa-paper-plane', label: '명함 보내기', sub: '인사말 + 명함 링크 한 통', onClick: () => sendBizCard(customerDB.find(x => x.id === id)) }
+                ]);
+            }
             else if (action === 'add') openAddMenu();
             else if (action === 'reload') window.location.reload();
             else if (action === 'clear-search') { document.getElementById('searchInput').value = ''; currentPage = 1; renderDB(); }
@@ -10347,12 +10354,16 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const del = document.getElementById('modalDeleteBtn'), prn = document.getElementById('printDetailBtn'), save = document.getElementById('saveDetailBtn');
             const row = save.parentElement; row.className = 'grid grid-cols-[52px_minmax(0,1fr)_minmax(0,1.6fr)] gap-2 relative';
             del.classList.add('hidden'); prn.classList.add('hidden');
-            row.insertAdjacentHTML('afterbegin', `<button type="button" id="dmMore" aria-label="삭제 · 출력" class="h-12 rounded-xl border border-gray-300 bg-white text-gray-600 text-xl font-bold">⋯</button><div id="dmMoreMenu" class="hidden absolute left-0 bottom-14 z-20 w-44 rounded-2xl border border-gray-200 bg-white shadow-xl p-1.5"><button type="button" id="dmNewAct" data-dm-more="newact" class="hidden w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-green-700 hover:bg-green-50"><i class="fa-solid fa-plus w-5"></i> 새 개통 추가</button><button type="button" data-dm-more="print" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-gray-800 hover:bg-gray-50"><i class="fa-solid fa-print w-5"></i> 고객카드 출력</button><button type="button" data-dm-more="del" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash w-5"></i> 고객 삭제</button></div>`);
+            row.insertAdjacentHTML('afterbegin', `<button type="button" id="dmMore" aria-label="더보기 (개통 · 홈상품 · 출력 · 삭제)" class="h-12 rounded-xl border border-gray-300 bg-white text-gray-600 text-xl font-bold">⋯</button><div id="dmMoreMenu" class="hidden absolute left-0 bottom-14 z-20 w-60 rounded-2xl border border-gray-200 bg-white shadow-xl p-1.5"><button type="button" id="dmActBtn" data-dm-more="act" class="w-full min-h-[44px] rounded-xl text-left px-3 text-[14px] font-bold text-green-700 hover:bg-green-50"><i class="fa-solid fa-file-signature w-5"></i> <span>개통등록</span></button><button type="button" data-dm-more="wired" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-teal-700 hover:bg-teal-50"><i class="fa-solid fa-network-wired w-5"></i> 홈상품 등록</button><button type="button" id="dmNewAct" data-dm-more="newact" class="hidden w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-green-700 hover:bg-green-50"><i class="fa-solid fa-plus w-5"></i> 새 개통 추가</button><button type="button" data-dm-more="print" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-gray-800 hover:bg-gray-50"><i class="fa-solid fa-print w-5"></i> 고객카드 출력</button><button type="button" data-dm-more="del" class="w-full h-11 rounded-xl text-left px-3 text-[14px] font-bold text-red-600 hover:bg-red-50"><i class="fa-solid fa-trash w-5"></i> 고객 삭제</button></div>`);
             save.className = 'h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm flex flex-col items-center justify-center leading-tight';
             save.innerHTML = '<span class="text-[16px]"><i class="fa-solid fa-check"></i> 저장</span><span id="dmSaveN" class="text-[11px] font-bold opacity-90">바뀐 칸 없음</span>';
             const menu = document.getElementById('dmMoreMenu');
-            document.getElementById('dmMore').onclick = (e) => { e.stopPropagation(); menu.classList.toggle('hidden'); };
+            // 🧹 V359 [개통등록 · 개통 정보 고치기] [홈상품 등록] 큰 버튼 줄은 ⋯ 안으로 (바닥은 ⋯ · 취소 · 저장만)
+            { const ob = document.getElementById('openReportBtn'); if (ob && ob.parentElement) ob.parentElement.classList.add('hidden'); }
+            document.getElementById('dmMore').onclick = (e) => { e.stopPropagation(); const ob = document.getElementById('openReportBtn'), ab = document.querySelector('#dmActBtn span'); if (ob && ab) ab.textContent = (ob.textContent || '개통등록').replace(/\s+/g, ' ').trim(); menu.classList.toggle('hidden'); };
             menu.addEventListener('click', (e) => { const b = e.target.closest('[data-dm-more]'); if (!b) return; menu.classList.add('hidden');
+                if (b.dataset.dmMore === 'act') { document.getElementById('openReportBtn').click(); return; }
+                if (b.dataset.dmMore === 'wired') { document.getElementById('openWiredReportBtn').click(); return; }
                 if (b.dataset.dmMore === 'newact') { const c = customerDB.find(x => x.id === currentDetailId) || null; openActReg(c, 'mobile'); return; }   // ✏️ V299 같은 고객 새 개통 (가족 회선 · 재개통)
                 (b.dataset.dmMore === 'del' ? del : prn).click(); });
             detailModal.addEventListener('click', (e) => { if (!e.target.closest('#dmMore, #dmMoreMenu')) menu.classList.add('hidden'); });
@@ -10710,9 +10721,6 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 chipP(hasAct ? `개통 D+${act.days}${act.months ? ` · ${act.months}개월` : ''}` : '', 'bg-red-50 border-red-200 text-red-700'),
                 chipP(discountBase ? e(discountBase + (discountTerm ? ` ${discountTerm}` : '')) : '', 'bg-white border-gray-300 text-gray-600'),
                 chipP(c.manager ? `담당 ${e(c.manager)}` : '', 'bg-indigo-50 border-indigo-200 text-indigo-800'),
-                `<button type="button" data-pc-optout class="text-[12px] font-bold rounded-full border px-2 py-0.5 whitespace-nowrap ${c.marketingDeny ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-gray-300 text-gray-600'}" aria-label="${c.marketingDeny ? '광고 거부 · 눌러서 다시 동의로' : '광고 동의 · 눌러서 수신거부 처리'}">${c.marketingDeny ? '🚫 광고 거부' : '광고 동의'} <i class="fa-solid fa-pen text-[9px] opacity-50"></i></button>`,   // 🚫 V333 눌러서 바로 수신거부 처리 (수정 화면 안 들어가도)
-                c.bizCardInstalled === true ? chipP('<i class="fa-solid fa-address-card"></i> 명함', 'bg-pink-50 border-pink-200 text-pink-700') : '',
-                c.pushSubscribed === true ? chipP('<i class="fa-solid fa-bell"></i> 알림', 'bg-indigo-50 border-indigo-200 text-indigo-700') : ''
             ].join('');
             const ageTxt = birth && birth.age !== null ? `${birth.age}세` : '';
             return `
@@ -10723,20 +10731,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <div class="flex items-center gap-1.5 flex-wrap"><h2 class="text-[19px] font-extrabold text-gray-900 break-all leading-tight">${e(name)}</h2>${ageTxt ? `<span class="text-[13px] font-bold text-gray-500">${ageTxt}</span>` : ''}${genderIcon}</div>
                             <p class="text-[15px] font-semibold text-gray-600 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
                         </div>
+                        <button type="button" data-pmore class="w-10 h-10 rounded-xl border border-gray-300 text-gray-700 text-xl font-bold flex-shrink-0" aria-label="더보기 (명함 · 함께 관리 · 광고 동의 · 사진)">⋯</button>
                         <button type="button" data-pclose class="w-10 h-10 rounded-xl text-gray-500 text-2xl flex-shrink-0" aria-label="닫기">✕</button>
                     </div>
                     <div class="flex flex-wrap gap-1.5 mt-2">${chipsHtml}</div>
-                    ${ownerOf(c) && ownerLockOn() ? `<div class="mt-2 flex items-center gap-1.5 flex-wrap">
-                                <span class="text-[12px] font-bold rounded-full px-2.5 py-1 ${c.lockOff ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : (isLockedFor(c) ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-white/80 text-gray-700 border border-gray-200')}">${c.lockOff ? `🔓 함께 관리 · ${e(ownerOf(c))} 담당` : (isLockedFor(c) ? `🔒 ${e(ownerOf(c))} 담당 · 보기·연락만 돼요` : `🔒 내 담당 · 다른 직원은 못 고쳐요`)}</span>
-                                ${(isMine(c) || isSuperAdmin) ? `<button type="button" data-paction="lockoff" class="h-8 px-2.5 rounded-full bg-white/80 border border-gray-300 text-xs font-bold text-gray-700">${c.lockOff ? '다시 잠그기' : '함께 관리 켜기'}</button>` : ''}
-                            </div>` : ''}
-                    <div class="mt-2 flex items-center gap-1.5 flex-wrap">
-                                ${c.bizCardInstalled === true
-                                    ? `<button type="button" data-paction="bizcard" aria-pressed="true" class="h-8 px-2.5 rounded-full bg-pink-50 border border-pink-200 text-xs font-bold text-pink-700 flex items-center gap-1"><i class="fa-solid fa-address-card"></i>명함 설치함${c.bizCardInstalledAt ? ` · ${e(formatShortDate(c.bizCardInstalledAt))}` : ''}</button>`
-                                    : `<button type="button" data-paction="bizcard" aria-pressed="false" class="h-8 px-2.5 rounded-full bg-white/80 border border-dashed border-pink-300 text-xs font-bold text-pink-600 flex items-center gap-1"><i class="fa-solid fa-plus"></i>명함 설치 표시</button>`}
-                                ${c.phone ? `<button type="button" data-paction="sendcard" class="h-8 px-2.5 rounded-full bg-white/80 border border-pink-200 text-xs font-bold text-pink-700 flex items-center gap-1"><i class="fa-solid fa-paper-plane"></i>명함 보내기</button>` : ''}
-                                ${c.pushSubscribed === true && c.cardId ? `<button type="button" data-paction="pushone" class="h-8 px-2.5 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-700 flex items-center gap-1"><i class="fa-solid fa-bell"></i>푸시 보내기</button>` : ''}
-                    </div>
+                    <button type="button" data-pmore class="mt-1.5 max-w-full text-left text-[12.5px] text-gray-500 truncate">${[ownerOf(c) && ownerLockOn() ? (c.lockOff ? '🔓 함께 관리' : (isLockedFor(c) ? '🔒 다른 직원 담당' : '🔒 내 담당')) : '', c.marketingDeny ? '<span class="text-red-600 font-bold">🚫 광고 거부</span>' : '광고 동의', c.bizCardInstalled === true ? '명함 설치 ✅' : '명함 미설치', c.pushSubscribed === true ? '🔔 알림 켬' : ''].filter(Boolean).join(' · ')} <span class="text-indigo-600 font-bold">· 바꾸기 ›</span></button>
                 </div>
                 <div class="px-3 pt-3">
                     <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
@@ -11938,6 +11937,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (ev.target === profileModal || ev.target.closest('#closeProfileModal, [data-pclose]')) { closeProfileCard(); return; }
             if (ev.target.closest('[data-pc-photo]')) { openCustPhoto(customerDB.find(x => x.id === currentProfileId)); return; }   // 📷 V329
             if (ev.target.closest('[data-pc-optout]')) { quickOptout(customerDB.find(x => x.id === currentProfileId)); return; }   // 🚫 V333
+            if (ev.target.closest('[data-pmore]')) { profileMoreSheet(customerDB.find(x => x.id === currentProfileId)); return; }   // ⋯ V359
             const tabBtn = ev.target.closest('[data-ptab]');
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
@@ -11979,7 +11979,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!c) return;
             const action = actBtn.dataset.paction;
             if (action === 'tel') logActionAndCall(id, 'tel', c.phone);
-            else if (action === 'sms') logActionAndCall(id, 'sms', c.phone);
+            else if (action === 'sms') openActionSheet(`💬 문자 · ${c.name || '고객'}`, [   // 💬 V359 고객 카드 [문자]도 직접 · AI · 명함 중에
+                { icon: 'fa-solid fa-pen', label: '직접 쓰기', sub: '문자앱을 바로 열어요', onClick: () => logActionAndCall(id, 'sms', c.phone) },
+                { icon: 'fa-solid fa-wand-magic-sparkles', label: 'AI로 쓰기', sub: c.marketingDeny ? '⚠ 광고 수신 거부 고객 · 안내 문자만' : '목적만 고르면 문구를 만들어요', onClick: () => openAiSmsSheet(id) },
+                { icon: 'fa-solid fa-paper-plane', label: '명함 보내기', sub: '인사말 + 명함 링크 한 통', onClick: () => sendBizCard(customerDB.find(x => x.id === id)) }
+            ]);
             else if (action === 'legal') logActionAndCall(id, 'tel', c.legalPhone, '법대');
             else if (action === 'edit') { lockGate(c, '수정').then(ok => { if (ok) { closeProfileCard(); openDetailModal(id); } }); }
             else if (action === 'bizcard') toggleBizCard(id);
@@ -11996,6 +12000,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else if (action === 'refok') markRefAct(id, actBtn.dataset.rid, actBtn.dataset.ok === '1').then(() => { renderProfileCard(); try { renderTodoRow(); } catch (e) { /* 무시 */ } });
         });
 
+        // ⋯ V359 고객 카드 더보기 — 명함 · 푸시 · 함께 관리 · 광고 동의 · 사진 (예전엔 카드 위에 버튼으로 늘어서 있었음)
+        function profileMoreSheet(c) {
+            if (!c) return;
+            const id = c.id, opts = [];
+            if (c.phone) opts.push({ icon: 'fa-solid fa-paper-plane', label: '명함 보내기', sub: '인사말 + 명함 링크 한 통', onClick: () => sendBizCard(customerDB.find(x => x.id === id)) });
+            opts.push({ icon: 'fa-solid fa-address-card', label: c.bizCardInstalled === true ? '명함 설치 표시 끄기' : '명함 설치 표시', sub: c.bizCardInstalled === true ? `지금: 설치함${c.bizCardInstalledAt ? ' · ' + formatShortDate(c.bizCardInstalledAt) : ''}` : '지금: 미설치', onClick: () => toggleBizCard(id) });
+            if (c.pushSubscribed === true && c.cardId) opts.push({ icon: 'fa-solid fa-bell', label: '푸시 보내기', sub: '명함 알림을 켠 고객 · 무료', onClick: () => { const cc = customerDB.find(x => x.id === id); if (cc) lockGate(cc, '푸시 보내기', 'contact').then(ok => { if (ok) openPushSheet({ id: cc.id, name: cc.name || '고객', cardId: cc.cardId }); }); } });
+            if (ownerOf(c) && ownerLockOn() && (isMine(c) || isSuperAdmin)) opts.push({ icon: c.lockOff ? 'fa-solid fa-lock' : 'fa-solid fa-lock-open', label: c.lockOff ? '다시 내 담당으로 잠그기' : '함께 관리 켜기', sub: c.lockOff ? '지금: 함께 관리 (다른 직원도 고칠 수 있어요)' : '지금: 내 담당 · 다른 직원은 못 고쳐요', onClick: () => toggleLockOff(id) });
+            opts.push({ icon: 'fa-solid fa-bullhorn', label: c.marketingDeny ? '광고 수신 다시 동의로' : '광고 수신 거부로', sub: `지금: ${c.marketingDeny ? '거부 (홍보 문자 · 푸시 안 감)' : '동의'}`, onClick: () => quickOptout(customerDB.find(x => x.id === id)) });
+            opts.push({ icon: 'fa-solid fa-camera', label: custPhotoOk(c) ? '고객 사진 보기 · 바꾸기' : '고객 사진 넣기', onClick: () => openCustPhoto(customerDB.find(x => x.id === id)) });
+            openActionSheet(`${c.name || '고객'} · 더보기`, opts);
+        }
         /* 🤝 소개 · 🎁 사은품 칸 (V186 · 고객카드) — 소개한 지인 목록(개통 확인) · 단계별 사은품 [🎁 드렸어요] */
         function buildRefBox(c) {
             const S = refStats(c), T = refTiers(), g = refGiftOf(c);
@@ -28461,7 +28477,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V358';
+        const APP_VER = 'V359';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28469,6 +28485,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V359', d: '2026-11-10', items: [
+                ['⋯ 고객 카드 위 정리: 상태 칩 한 줄 + 작은 글씨(잠금 · 광고 · 명함 · 알림) · 명함 보내기 · 명함 설치 · 푸시 · 함께 관리 · 광고 동의 · 사진은 오른쪽 위 [⋯] 안으로', 'a'],
+                ['🧹 수정 화면 바닥: [⋯] [취소] [저장]만 · 개통등록(개통 정보 고치기) · 홈상품 등록 · 출력 · 삭제는 [⋯] 안으로', 'a'],
+                ['💬 고객 목록 [문자 ▾]: 직접 쓰기 · AI로 쓰기 · 명함 보내기 중에 고르기 ([AI문자] 버튼을 합쳐서 버튼 3개로)', 'a']] },
             { v: 'V358', d: '2026-11-10', items: [
                 ['☀️ 고객 탭 첫 화면 정리: 할 일 · 주간 약속 · 명함 본 고객 · 견적요청 · 실적을 [☀️ 오늘] 카드 하나에 탭으로 (할 일 · 약속 · 명함 · 실적, 마지막에 본 탭 기억) · 바로가기는 한 줄로 접기', 'a'],
                 ['🎚 조건으로 찾기: 기간 · 개통종류 · 통신사에 영업 상태 · 개통 후(6개월 안 ~ 24개월↑) · 약속(지연 · 7일 안) · 명함 · 나이 · 인터넷 · TV 추가 · 버튼마다 몇 명인지 · 자주 쓰는 조합(기변 대상 · 시니어 명함 미설치 · 유선 만료 · 지난 약속)', 'a']] },
