@@ -21403,7 +21403,7 @@ familyStr + `\n` +
             try { await saveDoc(doc(db, 'smart_global', 'settings'), { stockOldDays: od, usimLow: low }, { merge: true }); appSettings = { ...appSettings, stockOldDays: od, usimLow: low }; renderStock(); renderOpsRows(); stockToast(`📦 알림 기준: 단말 ${od}일 · 유심 ${low}개 이하`); }
             catch (e) { customAlert(koreanError(e, '저장')); }
         }
-        function stockUsedRows(ym) { const out = []; customerDB.forEach(c => actsOf(c).forEach(a => { if (!a.canceled && a.used && String(a.date).startsWith(ym)) out.push({ c, a, u: a.used }); })); return out.sort((x, y) => y.a.date.localeCompare(x.a.date)); }
+        function stockUsedRows(ym) { const out = []; customerDB.forEach(c => { actsOf(c).forEach(a => { if (!a.canceled && a.used && String(a.date).startsWith(ym)) out.push({ c, a, u: a.used }); }); (Array.isArray(c.usedOnly) ? c.usedOnly : []).forEach(e => { if (e && String(e.date || '').startsWith(ym)) out.push({ c, a: { id: e.id, date: e.date, only: true }, u: e }); }); }); return out.sort((x, y) => y.a.date.localeCompare(x.a.date)); }   // 📱 V364 개통 없이 넣은 중고폰(usedOnly)도
         const stockNorm = (v) => String(v ?? '').toUpperCase().replace(/[\s\-.:_/]/g, '');
         const stockKey = (v) => String(v || '').replace(/\s/g, '').toUpperCase();
         const stockSt = (x) => x.st || '재고';
@@ -21511,6 +21511,80 @@ familyStr + `\n` +
         }
         const STOCK_CAR_TONE = { 'LG U+': 'bg-pink-50 text-pink-700 border-pink-200', 'SKT': 'bg-orange-50 text-orange-700 border-orange-200', 'KT': 'bg-red-50 text-red-700 border-red-200' };
         const stockMD = (d) => (d ? String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/') : '');
+        // 📱 V364 중고폰 직접 넣기 · 고치기 → 그 개통의 used + 정산(settle.중고폰)에 바로 · 개통이 없으면 고객의 usedOnly(개통 없음)로 따로
+        function usedSheet(cid, aid, only) {
+            const money = canSeeSettle();
+            let c = cid ? customerDB.find(x => x.id === cid) : null;
+            let a = c && aid && !only ? actsOf(c).find(x => x.id === aid) : null;
+            let u = a ? (a.used || {}) : (c && only ? ((c.usedOnly || []).find(e => e.id === aid) || {}) : {});
+            let sh = document.getElementById('usedSheet'); if (sh) sh.remove();
+            sh = document.createElement('div'); sh.id = 'usedSheet';
+            sh.className = 'fixed inset-0 z-[61] flex items-end sm:items-center justify-center bg-black/50';
+            const inp = (id, label, val, ph, extra = '') => `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">${label}</span><input id="${id}" value="${escapeHtml(val || '')}" placeholder="${escapeHtml(ph || '')}" ${extra} class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] bg-white"></label>`;
+            const buyers = [...new Set(customerDB.flatMap(x => actsOf(x).map(y => y.used && y.used.buyer).filter(Boolean)))].slice(0, 30);
+            const draw = () => {
+                const acts = c ? actsOf(c).filter(x => !x.canceled && x.kind !== '유선').sort((x, y) => String(y.date).localeCompare(String(x.date))) : [];
+                sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3">
+                    <div class="flex items-center justify-between"><p class="text-[17px] font-bold text-gray-900">📱 중고폰 ${cid ? '고치기' : '직접 넣기'}</p><button type="button" data-us-close class="w-10 h-10 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                    ${c ? `<div class="rounded-xl bg-gray-50 px-3 py-2 text-[14px] flex items-center gap-2"><b class="flex-1 truncate">${escapeHtml(c.name || '고객')} · ${escapeHtml(formatPhone(c.phone || c.id))}</b>${cid ? '' : '<button type="button" data-us-recust class="text-xs font-bold text-indigo-700 underline">다른 고객</button>'}</div>`
+                        : `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">고객 찾기 (이름 · 번호)</span><input id="usQ" placeholder="예: 유성근 · 5678" autocomplete="off" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px]"></label><div id="usHits" class="space-y-1"></div>`}
+                    ${c ? `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">어느 개통에 넣을까요</span><select id="usAct" class="w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] bg-white">${acts.map(x => `<option value="${escapeHtml(x.id)}" ${a && a.id === x.id ? 'selected' : ''}>${escapeHtml(x.date)} · ${escapeHtml(x.actType || x.kind || '')} · ${escapeHtml(x.device || '')}</option>`).join('')}<option value="__only" ${!a ? 'selected' : ''}>개통 없이 중고폰만 (정산엔 안 들어감)</option></select></label>
+                    <div class="grid grid-cols-2 gap-2">${inp('usModel', '모델', u.model, '예: A175')}${inp('usColor', '색상', u.color, '예: 블루')}${inp('usSerial', '일련번호 · IMEI', u.serial, '')}${inp('usBuyer', '거래업체', u.buyer, '예: 중고나라', 'list="usBuyers"')}<datalist id="usBuyers">${buyers.map(b => `<option value="${escapeHtml(b)}"></option>`).join('')}</datalist>
+                        ${money ? inp('usAmt', '판매금액 (원)', u.amount ? arWon(u.amount) : '', '0', 'inputmode="numeric"') : ''}${!a ? inp('usDate', '날짜', u.date || getTodayStr(), '', 'type="date"') : ''}</div>
+                    ${money ? '<p class="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1.5">💰 금액은 그 개통의 정산에 바로 들어가요 (총매출 · 실마진 + 중고폰 · 부가세 없음)</p>' : ''}
+                    <div class="grid grid-cols-[auto_1fr] gap-2">${cid ? '<button type="button" data-us-del class="h-12 px-3 rounded-xl border border-red-200 text-red-600 font-bold">지우기</button>' : '<span></span>'}<button type="button" data-us-save class="h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button></div>` : ''}
+                </div>`;
+                const q = sh.querySelector('#usQ');
+                if (q) { q.focus(); q.oninput = () => { const t = q.value.trim(), d = t.replace(/\D/g, ''); const L = t ? customerDB.filter(x => String(x.name || '').includes(t) || (d.length >= 3 && String(x.phone || x.id).replace(/\D/g, '').includes(d))).slice(0, 8) : []; sh.querySelector('#usHits').innerHTML = L.map(x => `<button type="button" data-us-pick="${escapeHtml(x.id)}" class="w-full text-left px-3 py-2 rounded-xl border border-gray-200 text-[14px]"><b>${escapeHtml(x.name || '고객')}</b> <span class="text-gray-500">${escapeHtml(formatPhone(x.phone || x.id))} · 개통 ${actsOf(x).filter(y => !y.canceled).length}건</span></button>`).join('') || (t ? '<p class="text-xs text-gray-500 px-1">찾는 고객이 없어요</p>' : ''); }; }
+                const sel = sh.querySelector('#usAct'); if (sel) sel.onchange = () => { a = sel.value === '__only' ? null : actsOf(c).find(x => x.id === sel.value) || null; const keep = { model: (sh.querySelector('#usModel') || {}).value, color: (sh.querySelector('#usColor') || {}).value, serial: (sh.querySelector('#usSerial') || {}).value, buyer: (sh.querySelector('#usBuyer') || {}).value, amount: Number(String((sh.querySelector('#usAmt') || {}).value || '').replace(/\D/g, '')) || u.amount }; u = { ...u, ...keep }; draw(); };
+            };
+            sh.addEventListener('click', async (e) => {
+                if (e.target === sh || e.target.closest('[data-us-close]')) { sh.remove(); return; }
+                const pk = e.target.closest('[data-us-pick]'); if (pk) { c = customerDB.find(x => x.id === pk.dataset.usPick); const L = c ? actsOf(c).filter(x => !x.canceled && x.kind !== '유선').sort((x, y) => String(y.date).localeCompare(String(x.date))) : []; a = L.find(x => !x.used) || L[0] || null; u = a && a.used ? a.used : {}; draw(); return; }
+                if (e.target.closest('[data-us-recust]')) { c = null; a = null; u = {}; draw(); return; }
+                const del = e.target.closest('[data-us-del]'), save = e.target.closest('[data-us-save]');
+                if (!del && !save) return;
+                if (!c) return;
+                if (money && !can('editSettle')) return noPerm('정산 입력');
+                if (del && !(await customConfirm('이 중고폰 기록을 지울까요? (정산의 중고폰 금액도 빠져요)'))) return;
+                const v = (id) => String((sh.querySelector('#' + id) || {}).value || '').trim();
+                const amt = money ? (Number(v('usAmt').replace(/\D/g, '')) || 0) : (u.amount || 0);
+                const rec = { model: v('usModel'), color: v('usColor'), serial: v('usSerial'), buyer: v('usBuyer'), ...(amt ? { amount: amt } : {}) };
+                if (save && !rec.model && !rec.serial && !amt) return customAlert('모델 · 일련번호 · 금액 중 하나는 적어 주세요.');
+                const targetAct = a ? a.id : '', wasOnly = !!only, oldId = aid || '';
+                const btn = save || del; btn.disabled = true;
+                try {
+                    await txCustomerUpdate(c.id, (cur) => {
+                        const patch = { updatedAt: new Date().toISOString(), __audit: del ? '중고폰 지움' : '중고폰 입력' };
+                        let list = storableActs(actsOf(cur)), uo = Array.isArray(cur.usedOnly) ? cur.usedOnly.slice() : [];
+                        // 예전 자리에서 빼기 (다른 개통 · 개통 없음으로 옮길 때 · 지울 때)
+                        if (cid) {
+                            if (wasOnly) uo = uo.filter(x => x.id !== oldId);
+                            else { const o = list.find(x => x.id === oldId); if (o && (del || o.id !== targetAct)) { delete o.used; if (o.settle && o.settle.중고폰 !== undefined) { o.settle = { ...o.settle }; delete o.settle.중고폰; } } }
+                        }
+                        if (save) {
+                            if (targetAct) {
+                                const t = list.find(x => x.id === targetAct); if (!t) return {};
+                                t.used = { ...(t.used || {}), ...rec }; if (!amt) delete t.used.amount;
+                                if (t.settle) { const s0 = actSales(t); t.settle = { ...t.settle, 중고폰: amt }; if (!amt) delete t.settle.중고폰; t.hist = [...(t.hist || []), { at: new Date().toISOString(), by: getStaffName() || '', gross: s0.gross, real: s0.real }].slice(-5); }
+                            } else uo.push({ id: wasOnly && oldId ? oldId : 'u' + Date.now().toString(36), date: v('usDate') || getTodayStr(), ...rec, by: getStaffName() || '' });
+                        }
+                        patch.acts = list; patch.usedOnly = uo.slice(-30);
+                        { const last = list.filter(x => !x.canceled && x.kind !== '유선' && x.date === cur.activationDate).pop();   // 고객카드 '📱 중고폰' 칸 = 최근 개통의 중고폰 (고치면 같이 · 지우면 같이 비움)
+                          if (last) patch.usedPhone = last.used ? { ...last.used, date: last.date } : null; }
+                        return patch;
+                    });
+                    sh.remove(); stockToast(del ? '🗑 중고폰 기록을 지웠어요' : (targetAct ? '✅ 저장 · 그 개통 정산에 반영했어요' : '✅ 개통 없이 중고폰만 저장했어요'));
+                    try { renderStock(); } catch (err) { /* 무시 */ }
+                } catch (err) { console.warn(err); btn.disabled = false; customAlert(koreanError(err, '저장')); }
+            });
+            document.body.appendChild(sh); draw();
+        }
+        document.addEventListener('click', (e) => {
+            const ed = e.target.closest('[data-used-edit]');
+            if (ed && !e.target.closest('[data-stk-cust]')) { const [cid, aid, only] = ed.dataset.usedEdit.split('|'); usedSheet(cid, aid, only === '1'); return; }
+            if (e.target.closest('[data-used-add]')) usedSheet('', '', false);
+        });
         // 📦 V361 개통 기록에는 있는데 재고에 '재고'로 남은 단말 찾기 (개통 저장은 됐는데 재고 반영만 실패했을 때) → [모두 개통 처리]
         function stockStaleList(devs) {
             const out = [];
@@ -21577,8 +21651,9 @@ familyStr + `\n` +
                 usedRows.forEach(r => { let g = byB.find(x => stockKey(x.b) === stockKey(r.u.buyer || '')); if (!g) byB.push(g = { b: r.u.buyer || '', n: 0, sum: 0, list: [] }); g.n++; g.sum += Number(r.u.amount) || 0; g.list.push(r); });
                 listEl.innerHTML = `<div class="flex items-center justify-between bg-white rounded-2xl border border-gray-200 px-2 py-1.5"><button type="button" data-stk-um="-1" class="w-10 h-10 rounded-xl text-gray-600 text-lg" aria-label="지난달">‹</button><p class="text-[15px] font-bold text-gray-900">📱 ${Number(usedYm.slice(5))}월 중고폰 · ${usedRows.length}대${money ? ` · ${wonMan(usedRows.reduce((t, r) => t + (Number(r.u.amount) || 0), 0))}` : ''}</p><button type="button" data-stk-um="1" ${usedYm >= today.slice(0, 7) ? 'disabled' : ''} class="w-10 h-10 rounded-xl text-gray-600 text-lg disabled:opacity-30" aria-label="다음 달">›</button></div>
                     ${byB.length ? byB.sort((x, y) => y.n - x.n).map(g => `<section class="bg-white rounded-2xl border border-gray-200 overflow-hidden"><div class="flex items-center justify-between gap-2 px-3 py-2.5 bg-gray-50 border-b border-gray-200"><h3 class="text-[15px] font-extrabold text-gray-900 truncate">${escapeHtml(g.b || '거래업체 없음')}</h3><span class="flex-shrink-0 text-[13px] font-bold text-gray-700">${g.n}대${money ? ` · <span class="text-emerald-700">${arWon(g.sum)}원</span>` : ''}</span></div>
-                        ${g.list.map(r => `<div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0"><span class="w-10 flex-shrink-0 text-xs text-gray-500">${stockMD(r.a.date)}</span><span class="flex-1 min-w-0"><b class="block text-[14px] text-gray-900 truncate">${escapeHtml([r.u.model, r.u.color].filter(Boolean).join(' ') || '-')} <span class="font-mono text-[12px] font-medium text-gray-500">${escapeHtml(r.u.serial || '')}</span></b><button type="button" data-stk-cust="${escapeHtml(r.c.id)}" class="text-xs text-indigo-700 underline underline-offset-2">${escapeHtml(r.c.name || '고객')}</button></span>${money ? `<span class="flex-shrink-0 text-[13px] font-bold text-gray-900">${r.u.amount ? arWon(r.u.amount) + '원' : '-'}</span>` : ''}</div>`).join('')}</section>`).join('') : '<p class="px-1 py-6 text-center text-sm text-gray-500">이 달 중고폰 기록이 없어요</p>'}
-                    <p class="text-xs text-gray-500 px-1">개통등록 '📱 중고폰' 칸 기준 (취소한 개통은 빠짐) · 월말에 업체와 금액 맞출 때 써요.</p>`;
+                        ${g.list.map(r => `<div class="flex items-center gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0" data-used-edit="${escapeHtml(r.c.id)}|${escapeHtml(r.a.id || '')}|${r.a.only ? '1' : ''}" role="button" tabindex="0" aria-label="${escapeHtml(r.c.name || '고객')} 중고폰 고치기"><span class="w-10 flex-shrink-0 text-xs text-gray-500">${stockMD(r.a.date)}</span><span class="flex-1 min-w-0"><b class="block text-[14px] text-gray-900 truncate">${escapeHtml([r.u.model, r.u.color].filter(Boolean).join(' ') || '-')} <span class="font-mono text-[12px] font-medium text-gray-500">${escapeHtml(r.u.serial || '')}</span></b><button type="button" data-stk-cust="${escapeHtml(r.c.id)}" class="text-xs text-indigo-700 underline underline-offset-2">${escapeHtml(r.c.name || '고객')}</button></span>${money ? `<span class="flex-shrink-0 text-[13px] font-bold ${r.u.amount ? 'text-gray-900' : 'text-red-600'}">${r.u.amount ? arWon(r.u.amount) + '원' : '금액 ✏️'}</span>` : ''}${r.a.only ? '<span class="flex-shrink-0 text-[11px] font-bold rounded px-1 bg-gray-100 text-gray-600">개통 없음</span>' : ''}<i class="fa-solid fa-pen text-[11px] text-gray-300 flex-shrink-0" aria-hidden="true"></i></div>`).join('')}</section>`).join('') : '<p class="px-1 py-6 text-center text-sm text-gray-500">이 달 중고폰 기록이 없어요</p>'}
+                    <button type="button" data-used-add class="w-full h-12 rounded-2xl border-2 border-dashed border-indigo-300 bg-white text-[14px] font-bold text-indigo-700">＋ 빠진 중고폰 직접 넣기 (고객 정산에 바로 반영)</button>
+                    <p class="text-xs text-gray-500 px-1">개통등록 '📱 중고폰' 칸 + 직접 넣은 것 (취소한 개통은 빠짐) · 줄을 누르면 고쳐요 · 금액은 그 개통의 정산(총매출 · 실마진)에 바로 들어가요.</p>`;
                 return;
             }
             if (stockFilter === '__turn') {   // 📊 V288 판매 회전: 모델별 지금 재고 · 이번 달 개통 · 평균 며칠 만에 팔렸나
@@ -22514,7 +22589,19 @@ familyStr + `\n` +
                         const fm = BC_FORMATS.filter(f => (sup || []).includes(f));
                         if (fm.length) {
                             const d = new window.BarcodeDetector({ formats: fm });
-                            return { kind: 'native', detect: async (src) => (await d.detect(src)).map(r => ({ text: String(r.rawValue || ''), fmt: String(r.format || ''), y: r.boundingBox ? r.boundingBox.y : 0 })) };
+                            // ⚡ V363 한 번은 화면 전체, 한 번은 네모 안만 크게 키워서 (상자 라벨의 가늘고 촘촘한 바코드가 더 잘 읽힘)
+                            const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true }); let turn = 0;
+                            const map = (list, oy, k) => list.map(r => ({ text: String(r.rawValue || ''), fmt: String(r.format || ''), y: oy + (r.boundingBox ? r.boundingBox.y / k : 0) }));
+                            return { kind: 'native', detect: async (src, o = {}) => {
+                                const c = o.crop;
+                                if (c && !o.full && (turn++ % 2)) {
+                                    const [sx, sy, sw, sh] = c, k = Math.min(2, Math.max(1, 1600 / sw));
+                                    cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+                                    cx.imageSmoothingEnabled = true; cx.drawImage(src, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+                                    return map(await d.detect(cv), sy, k);
+                                }
+                                return map(await d.detect(src), 0, 1);
+                            } };
                         }
                     } catch (e) { /* 아래 ZXing으로 */ }
                 }
@@ -22639,7 +22726,7 @@ familyStr + `\n` +
             const detP = bcGetDetector().then(d => { S.det = d; return d; }, () => null);
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { bcMsg(S, '이 화면에선 카메라를 못 켜요 → 🖼 사진으로 찍어 주세요'); return; }
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } } });   // ⚡ V363 더 선명하게 (안 되는 폰은 알아서 낮춤)
                 if (bcState !== S) { stream.getTracks().forEach(t => t.stop()); return; }
                 S.stream = stream; S.track = stream.getVideoTracks()[0] || null;
                 v.srcObject = stream;
@@ -22647,7 +22734,11 @@ familyStr + `\n` +
                 const cap = S.track && S.track.getCapabilities ? S.track.getCapabilities() : {};
                 if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) { try { await S.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* 지원 안 함 */ } }
                 if (cap.torch) S.el.querySelector('[data-bc-torch]').classList.remove('hidden');
-                if (cap.zoom && cap.zoom.max >= 1.5) { S.zoomCap = cap.zoom; S.el.querySelector('[data-bc-zoom]').classList.remove('hidden'); }
+                if (cap.zoom && cap.zoom.max >= 1.5) {
+                    S.zoomCap = cap.zoom; const zb = S.el.querySelector('[data-bc-zoom]'); zb.classList.remove('hidden');
+                    // ⚡ V363 처음부터 2배 줌 (한 뼘 떨어져서 찍어도 바코드가 커서 초점 · 인식이 빨라요 · 버튼으로 1x · 3x)
+                    if (cap.zoom.max >= 2) { const lo = cap.zoom.min || 1, steps = [...new Set([1, 2, 3].map(z => Math.max(lo, Math.min(cap.zoom.max, z))))], zi = steps.indexOf(2); if (zi >= 0) { try { await S.track.applyConstraints({ advanced: [{ zoom: 2 }] }); S.zi = zi; zb.textContent = '2x'; } catch (e) { /* 지원 안 함 */ } } }
+                }
             } catch (e) {
                 bcMsg(S, e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? '카메라 권한이 막혀 있어요 → 🖼 사진으로 찍거나, 주소창의 🔒에서 카메라 허용' : '카메라를 못 켰어요 → 🖼 사진으로 찍어 주세요');
                 return;
@@ -22655,7 +22746,7 @@ familyStr + `\n` +
             const det = await detP;
             if (bcState !== S) return;
             if (!det) { bcMsg(S, '바코드 읽는 도구를 못 불러왔어요 (인터넷 확인) → ⌨️ 직접 입력'); return; }
-            bcMsg(S, '바코드를 네모 안에 · 너무 가까우면 흐려요 (한 뼘쯤 떨어져서)');
+            bcMsg(S, S.zi && S.zoomCap ? '바코드를 네모 안에 · 2배 줌이라 한 뼘쯤 떨어져서 비춰 주세요' : '바코드를 네모 안에 · 너무 가까우면 흐려요 (한 뼘쯤 떨어져서)');
             bcLoop(S);
         }
         // 화면 네모 → 영상 속 위치 (ZXing은 네모 안만 읽어서 빠르게)
@@ -22679,7 +22770,7 @@ familyStr + `\n` +
                     try { const res = await S.det.detect(v, { crop: bcCrop(S, v) }); if (bcState === S) bcFound(S, res); } catch (e) { /* 다음 장면 */ }
                     S.busy = false;
                 }
-                if (bcState === S) S.timer = setTimeout(tick, S.det && S.det.kind === 'native' ? 150 : 60);
+                if (bcState === S) S.timer = setTimeout(tick, S.det && S.det.kind === 'native' ? 40 : 60);   // ⚡ V363 폰 바코드 읽기는 더 자주 (예전 0.15초 → 0.04초 · 읽는 중엔 겹치지 않음)
             };
             tick();
         }
@@ -25662,7 +25753,7 @@ familyStr + `\n` +
             let h = '', hRows = '', hMoney = '', hList = '';
             const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
                 kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('추가할인', won(c.etcDiscount)), kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')), kv('할부원금', won(c.loanPrincipal)),
-                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : c.repUsedPhone), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
+                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : (c.repUsedPhone || ((Array.isArray(c.usedOnly) && c.usedOnly.length) ? `${usedPhoneText(c.usedOnly[c.usedOnly.length - 1])} (개통 없음 · ${String(c.usedOnly[c.usedOnly.length - 1].date || '').slice(5).replace('-', '/')})` : ''))), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
                 ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}${canSeeSettle() && it.amount ? ` (${arWon(it.amount)}원)` : ''}`)) : [])].join('');
             if (rows) hRows = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
             const acts = actsOf(c), money = canSeeSettle();
@@ -28518,7 +28609,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V362';
+        const APP_VER = 'V364';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28526,6 +28617,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V364', d: '2026-11-11', items: [
+                ['📱 재고 → 중고폰: [＋ 빠진 중고폰 직접 넣기] (고객 찾기 → 어느 개통 → 모델 · 일련번호 · 거래업체 · 금액) · 줄을 누르면 고치기 · 지우기', 'a'],
+                ['💰 중고폰 금액을 넣거나 고치면 그 개통 정산(총매출 · 실마진)에 바로 들어가요 · 개통이 없는 중고폰은 \'개통 없음\'으로 따로 (정산엔 안 들어감)', 'a'],
+                ['🪪 모델 · 색상 · 일련번호 · 거래업체는 그 개통 기록과 고객카드 \'📱 중고폰\' 칸(최근 개통이면)에 같이 들어가요 · 개통 없는 중고폰도 고객카드에 표시', 'a']] },
+            { v: 'V363', d: '2026-11-10', items: [
+                ['⚡ 바코드 더 빠르고 잘 읽게: 카메라 더 선명하게(최대 2560×1440) · 처음부터 2배 줌(지원하는 폰) · 읽는 간격 0.15초 → 0.04초 · 한 번은 화면 전체, 한 번은 네모 안을 크게 키워서 (가늘고 촘촘한 상자 바코드)', 'a']] },
             { v: 'V362', d: '2026-11-10', items: [
                 ['📷 단말기 바코드(개통등록 · 안내서): 상자의 IMEI 바코드가 먼저 읽혀서 IMEI가 들어가던 것 고침 → 재고와 같은 상자 S/N 끝 7자리가 기본 · 재고에 있으면 재고 번호 그대로 · 아이폰처럼 끝이 숫자가 아닌 S/N은 전체', 'a']] },
             { v: 'V361', d: '2026-11-10', items: [
