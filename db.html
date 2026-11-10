@@ -286,6 +286,7 @@
                                 <label class="sc-f"><span class="sc-l"><i>*</i> 전화번호</span><input type="text" id="val-phone" class="sc-in" placeholder="010-0000-0000"></label>
                                 <label class="sc-f sc-full"><span class="sc-l">생년월일 <span id="scAge" class="sc-sub"></span></span><input type="text" id="val-dob" class="sc-in" placeholder="예) 1958.03.12"></label>
                                 <div class="sc-f sc-full"><span class="sc-l">통신사</span><select id="val-carrier" class="sc-in" style="display:none" aria-hidden="true" tabindex="-1"><option value="미정">미정</option><option value="SKT">SKT</option><option value="KT">KT</option><option value="LG U+">LG U+</option><option value="알뜰폰(SK)">알뜰폰(SK)</option><option value="알뜰폰(KT)">알뜰폰(KT)</option><option value="알뜰폰(LG)">알뜰폰(LG)</option></select><div class="sc-chips" id="scCarChips" role="group" aria-label="통신사 고르기"></div></div>
+                                <label id="scMvnoWrap" class="sc-f sc-full hidden"><span class="sc-l">📶 알뜰폰 브랜드 <span class="sc-sub">(목록에서 고르거나 직접 입력)</span></span><input type="text" id="val-mvno" class="sc-in" list="scMvnoList" maxlength="30" placeholder="예) 세븐모바일 · U+유모바일" autocomplete="off"><datalist id="scMvnoList"></datalist></label>
                             </div>
                         </section>
                         <section class="sc-card" aria-labelledby="scHdMob">
@@ -5507,6 +5508,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (sel && carBox) {
                 carBox.innerHTML = [...sel.options].filter(o => o.value !== '미정').map(o => `<button type="button" class="sc-cbtn${sel.value === o.value ? ' on' : ''}" data-v="${escapeHtml(o.value)}" aria-pressed="${sel.value === o.value}">${escapeHtml(o.textContent.replace('알뜰폰', '알뜰 ').replace(/[()]/g, ''))}</button>`).join('');
                 carBox.querySelectorAll('button').forEach(b => b.onclick = () => { sel.value = sel.value === b.dataset.v ? '미정' : b.dataset.v; sel.dispatchEvent(new Event('change', { bubbles: true })); scSync(); });
+                // 📶 V352 알뜰을 고르면 브랜드 칸 (개통보고 · 고객 수정과 같은 mvnoBrand)
+                const mw = scEl('scMvnoWrap'), on = isMvno(sel.value);
+                if (mw) { mw.classList.toggle('hidden', !on); const dl = scEl('scMvnoList'); if (on && dl && !dl.options.length) dl.innerHTML = mvnoBrandList().map(x => `<option value="${escapeHtml(x)}"></option>`).join(''); }
             }
             scChipBtns('scCombChips', SC_COMB, 'val-comb-type', () => { if (!/family|net/.test(scEl('val-comb-type').value)) scEl('val-comb-lines').value = ''; });
             const fam = /family|net/.test(scEl('val-comb-type').value);
@@ -5905,6 +5909,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('saveDbBtn').classList.add('hidden');
             document.getElementById('val-date').value = getTodayStr();
             document.getElementById('val-carrier').value = '미정';
+            { const mv = document.getElementById('val-mvno'); if (mv) mv.value = ''; const dl = document.getElementById('scMvnoList'); if (dl) dl.innerHTML = ''; }
             document.getElementById('val-reg-store').value = msgStoreName(); regStoreAuto = true;
             clearScanBlanks();
             scanPicked.clear(); renderScanPurposes();
@@ -6209,6 +6214,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 name: keepIfBlank('name', document.getElementById('val-name').value),
                 phone: phoneDigits ? phoneVal : '',
                 carrier: finalCarrier,
+                mvnoBrand: isMvno(finalCarrier) ? (document.getElementById('val-mvno').value.trim().slice(0, 30) || (existingCustomer && isMvno(existingCustomer.carrier) ? String(existingCustomer.mvnoBrand || '') : '')) : '',   // 📶 V352
                 device: keepIfBlank('device', document.getElementById('val-device').value),
                 installment: finalInstallment,
                 installmentBaseDate: finalInstallmentBase,
@@ -28177,7 +28183,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V351';
+        const APP_VER = 'V352';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28185,6 +28191,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V352', d: '2026-11-10', items: [
+                ['📶 스캔 화면: 통신사에서 알뜰 SK · KT · LG를 고르면 [알뜰폰 브랜드] 칸이 나와요 (세븐모바일 · U+유모바일 등 목록 · 직접 입력) — 고객 수정 · 개통보고의 브랜드 칸과 같은 곳에 저장', 'a']] },
             { v: 'V351', d: '2026-11-10', items: [
                 ['📺 스캔 화면 · 고객 정보 수정에 [TV 추가 단말] 칸 (두 번째 TV) — \'베이직 (추가 실속형)\'처럼 저장돼 유선계산기 · 위약금 계산이 TV 2대로 봐요 (개통보고 TV(부)와 같은 방식)', 'a']] },
             { v: 'V350', d: '2026-11-10', items: [
