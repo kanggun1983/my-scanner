@@ -23230,7 +23230,7 @@ familyStr + `\n` +
         };
         const GD_RATE = 0.059;
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
-        const GD_MONEY = new Set(['money.amt', 'dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash', 'w.instInt', 'w.instTv']);
+        const GD_MONEY = new Set(['money.amt', 'dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'keep2.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash', 'w.instInt', 'w.instTv']);
         let gdList = [], gdListReady = false, gdUnsub = null, gdFilter = '', gdQuery = '';
         let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '', gdArG = null;   // gdArG: [안내서로 채우기]한 안내서 (저장할 때 번호 확인)
         const gdSignCache = new Map(), gdImgCache = new Map();
@@ -23299,6 +23299,9 @@ familyStr + `\n` +
         }
         /* ⚠️ V267 요금제 하향 제한 (안내서 빨간 경고 칸 · 녹음 대본 6-1) — 통신사 하향 기준(설정 → 명함 폰값계산 → 위약금 기준) · 유통망 유지일 · 요금제 유지일 */
         // 📅 V267 요금제를 바꿀 수 있는 날: 유통망지원금이 있으면 공시 · 선약 모두 유통망 유지일과 같게 (둘 중 늦은 날) — 안내서 · 녹음이 서로 다른 날짜를 말하지 않게
+        /* 📶 V368 안내서 2차 요금제 변경 (예: 공시 → 3개월 85 → 그 뒤 저가) · g.keep2 = { on, code, target, targetFee } */
+        function gdK2(g) { const k = g && g.keep2; if (!k || !k.on) return null; const d = k.code && g.date ? computeKeepDate(g.date, k.code) : ''; return { code: k.code || '', date: d, target: String(k.target || '').trim(), fee: gdNum(k.targetFee) }; }
+        function gdK2Txt(k2, W) { return `${k2.target || '다른 요금제'}${k2.fee ? ` (월 ${W(k2.fee)})` : ''}`; }
         function gdKeepEff(g) {
             const dev = g.kind !== 'usim', dv = g.dev || {};
             const keep = !!(g.keep && g.keep.code && g.keep.code !== 'NONE'), kd = keep && g.date ? computeKeepDate(g.date, g.keep.code) : '';
@@ -23951,6 +23954,7 @@ familyStr + `\n` +
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
                 const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
                 if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
+                const k2 = gdK2(g); if (k2 && (k2.date || k2.target)) ls.push(`2차 변경: ${k2.date ? `${gdDot(k2.date)}부터 ` : ''}${gdK2Txt(k2, W)}${k2.date ? '로 바꿀 수 있어요' : ''}`);   // 📶 V368
                 panel('요금제 유지 · 변경 안내', ls, { fill: '#EEF2FF', stroke: '#C7D2FE', titleColor: '#312E81', color: '#1E1B4B' });
             }
             const pl = (g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${p.kind} ${String(p.name || '').trim() || '(이름 없음)'}${gdNum(p.fee) ? ` (월 ${W(gdNum(p.fee))})` : ''}${p.code ? ` · ${keepLabel(p.code)} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; });
@@ -24285,7 +24289,12 @@ familyStr + `\n` +
                 <div id="gdPlanWarn">${gdPlanWarn(g, c)}</div>`);
             h += gdSec('요금제 유지 · 바꿀 요금제', `<div class="grid gap-2 items-end" style="grid-template-columns: minmax(0, 1fr) auto">${gdLbl('요금제 유지', `<select data-gd="keep.code" class="${gdCls}">${gdKeepOpts(g.keep.code)}</select>`)}<p id="gdKeepDate" class="pb-3 text-[13px] font-bold text-purple-800">${kd ? `${gdDot(kd)}부터 변경` : ''}</p></div>
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('유지 후 바꿀 요금제', gdInp('keep.target', g.keep.target, { list: 'gdPlanList', ph: '예) 5G 라이트' }))}${gdLbl('변경 후 월요금', gdInp('keep.targetFee', g.keep.targetFee, { money: true }))}</div>
-                <div id="gdKeepInfo">${planInfoHtml(g.carrier, g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null, { title: '(바꿀 요금제)', short: true })}</div>`);
+                <div id="gdKeepInfo">${planInfoHtml(g.carrier, g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null, { title: '(바꿀 요금제)', short: true })}</div>
+                ${g.keep2 && g.keep2.on ? `<div class="rounded-xl border border-dashed border-purple-300 bg-purple-50/60 p-2.5 space-y-2">
+                    <div class="grid gap-2 items-end" style="grid-template-columns: minmax(0, 1fr) auto auto">${gdLbl('2차 변경 시기 <span class="font-normal text-gray-500">(개통일부터)</span>', `<select data-gd="keep2.code" class="${gdCls}">${gdKeepOpts(g.keep2.code || '')}</select>`)}<p id="gdKeep2Date" class="pb-3 text-[13px] font-bold text-purple-800">${gdK2(g) && gdK2(g).date ? `${gdDot(gdK2(g).date)}부터` : ''}</p><button type="button" data-gd-k2del aria-label="2차 변경 빼기" class="mb-1 w-11 h-11 rounded-xl border border-purple-200 bg-white text-purple-700"><i class="fa-solid fa-xmark"></i></button></div>
+                    <p id="gdKeep2Warn" class="hidden -mt-1 text-[12px] font-bold text-red-600">⚠ 2차 날짜가 1차 변경일보다 빠르거나 같아요</p>
+                    <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('2차로 바꿀 요금제', gdInp('keep2.target', g.keep2.target || '', { list: 'gdPlanList', ph: '예) 33 요금제' }))}${gdLbl('2차 월요금', gdInp('keep2.targetFee', g.keep2.targetFee || 0, { money: true }))}</div>
+                </div>` : `<button type="button" data-gd-k2add class="w-full h-11 rounded-xl border border-dashed border-purple-300 bg-white text-[14px] font-bold text-purple-800"><i class="fa-solid fa-plus mr-1"></i>요금제 변경 한 번 더 (예: 3개월 85 → 그 뒤 저가)</button>`}`);
             h += gdSec('C · 유심 · 부가 · 보험', `<div class="grid grid-cols-2 gap-2">${gdLbl('유심비', gdInp('usim.fee', g.usim.fee, { money: true }))}${gdLbl('유심 납부', `<select data-gd="usim.pay" class="${gdCls}">${GD_USIM_PAY.map(v => `<option value="${v}" ${g.usim.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}</div>
                 <div id="gdProms" class="space-y-1.5">${gdPromRows(g)}</div>
                 <p id="gdAddFee" class="text-[12px] font-bold text-indigo-800">${c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : ''}</p>
@@ -24306,6 +24315,7 @@ familyStr + `\n` +
             if (w && gdWelAutoOn(gd) && document.activeElement !== w) w.value = c.wel ? arWon(c.wel) : '';
             const kd = gd.keep.code ? computeKeepDate(gd.date, gd.keep.code) : '';
             set('gdKeepDate', kd ? `${gdDot(kd)}부터 변경` : '');
+            { const k2 = gdK2(gd); set('gdKeep2Date', k2 && k2.date ? `${gdDot(k2.date)}부터` : ''); const wn = document.getElementById('gdKeep2Warn'); if (wn) wn.classList.toggle('hidden', !(k2 && k2.date && kd && k2.date <= kd)); }   // 📶 V368
             (gd.promises || []).forEach((p, i) => { const el = gdInner.querySelector(`[data-gd-pdate="${i}"]`); if (el) { const d = p.code ? computeKeepDate(gd.date, p.code) : ''; el.innerHTML = d ? `${gdDot(d)}부터<br>해지 가능` : ''; } });
             set('gdAddFee', c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : '');
             const pw = document.getElementById('gdPlanWarn'); if (pw) { const h = gdPlanWarn(gd, c); if (pw.innerHTML !== h) pw.innerHTML = h; }
@@ -24335,6 +24345,7 @@ familyStr + `\n` +
                 if (path === 'dev.pub') gd.dev.pubAuto = false;
                 if (path === 'dev.extra' && !gd.keepTouched) { const kc = gdKeepDefault(gd); if (kc !== gd.keep.code) { gd.keep.code = kc; const ks = gdInner.querySelector('[data-gd="keep.code"]'); if (ks) { ks.innerHTML = gdKeepOpts(kc); ks.value = kc; } } }   // 📅 V212 유통망지원금 → 189일
                 if (path === 'keep.targetFee') gd.keep.feeAuto = false;
+                if (path === 'keep2.targetFee') gd.keep2.feeAuto = false;
                 if (path === 'w.instInt' || path === 'w.instTv') gd.w.instAuto = false;   // 🔧 V303 설치비 직접 고침
             } else if (path === 'dealerText') gd.dealer = el.value.trim().slice(0, 30);
             else gdSetPath(path, el.value.slice(0, path === 'gift' ? 120 : 60));
@@ -24345,6 +24356,7 @@ familyStr + `\n` +
             }
             if (path === 'plan.name') { const f = gdPlanFee(gd.carrier, gd.plan.name); if (f && (!gd.plan.fee || gd.plan.feeAuto)) { gd.plan.fee = f; gd.plan.feeAuto = true; gdPutInput('plan.fee', f); } }
             if (path === 'keep.target') { const f = gdPlanFee(gd.carrier, gd.keep.target); if (f && (!gd.keep.targetFee || gd.keep.feeAuto)) { gd.keep.targetFee = f; gd.keep.feeAuto = true; gdPutInput('keep.targetFee', f); } }
+            if (path === 'keep2.target') { const f = gdPlanFee(gd.carrier, gd.keep2.target); if (f && (!gd.keep2.targetFee || gd.keep2.feeAuto)) { gd.keep2.targetFee = f; gd.keep2.feeAuto = true; gdPutInput('keep2.targetFee', f); } }   // 📶 V368
             if (path === 'dev.name' || path === 'plan.name' || path === 'plan.fee') {   // 🏷 V305 월정액을 바꿔도 공시 다시 (스마트초이스 구간)
                 const m = gd.kind !== 'usim' ? gdModelInfo(gd) : null;
                 if (m && m.price && (!gd.dev.price || gd.dev.priceAuto)) { gd.dev.price = m.price; gd.dev.priceAuto = true; gdPutInput('dev.price', m.price); }
@@ -24376,6 +24388,11 @@ familyStr + `\n` +
                 if (v === '__CUSTOM__') { v = askKeepDays() || gd.keep.code || ''; el.innerHTML = gdKeepOpts(v); el.value = v; }
                 gd.keep.code = v; gd.keepTouched = true; gdRecalcView(); return;
             }
+            if (path === 'keep2.code') {   // 📶 V368
+                let v = el.value;
+                if (v === '__CUSTOM__') { v = askKeepDays() || (gd.keep2 && gd.keep2.code) || ''; el.innerHTML = gdKeepOpts(v); el.value = v; }
+                gd.keep2 = { ...(gd.keep2 || {}), on: true, code: v }; gdRecalcView(); return;
+            }
             if (path === 'plan.welType') { gd.plan.welType = el.value; gd.plan.welAuto = true; gd.plan.wel = 0; gd.plan.welV = 5; gdRender(); return; }
             gdSetPath(path, path === 'dev.inst' ? Number(el.value) || 0 : el.value);
             gdRecalcView();
@@ -24398,6 +24415,8 @@ familyStr + `\n` +
                 gdRender(); return;
             }
             if (e.target.closest('[data-gd-showdisc]')) { gd.showDisc = true; gdRender(); return; }
+            if (e.target.closest('[data-gd-k2add]')) { gd.keep2 = { code: 'M6', target: '', targetFee: 0, ...(gd.keep2 || {}), on: true }; if (!gd.keep2.code) gd.keep2.code = 'M6'; gdDirty = true; gdRender(); return; }   // 📶 V368
+            if (e.target.closest('[data-gd-k2del]')) { gd.keep2 = { on: false, code: '', target: '', targetFee: 0 }; gdDirty = true; gdRender(); return; }
             if (e.target.closest('[data-gd-movecard]')) {   // 💳 요금DC카드 → 할부카드 (V204)
                 if (gd.kind === 'usim') return;
                 gd.dev.card = gdNum(gd.dev.card) + gdNum(gd.plan.card); if (String(gd.plan.cardName || '').trim()) gd.dev.cardName = String(gd.plan.cardName).trim().slice(0, 60);
@@ -24489,7 +24508,7 @@ familyStr + `\n` +
             if (g.sup === '공시') add('term', '약정 기간 · 위약금', `공통지원금을 받으셔서 ${g.term || 24}개월 약정입니다. 약정 기간 안에 해지 · 번호이동 하시면 남은 기간만큼 지원금을 위약금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
             else if (g.sup === '선약') add('term', '약정 기간 · 할인반환금', `선택약정 ${g.term || 24}개월입니다. 중간에 해지하시면 그동안 받은 요금 할인 일부를 할인반환금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
             const kd = gdKeepEff(g).date;   // 📅 유통망이 있으면 유통망 유지일
-            add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}부터${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있고, 그 전에는 지금 요금제를 유지하셔야 합니다.` : ''}`);
+            add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}부터${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있고, 그 전에는 지금 요금제를 유지하셔야 합니다.` : ''}${(() => { const k2 = gdK2(g); return k2 && k2.date ? ` 그 뒤 ${gdDateKo(k2.date)}부터는 ${gdK2Txt(k2, W)}로 한 번 더 바꾸실 수 있습니다.` : ''; })()}`);
             const down = gdDownLines(g).map(gdSpeak);
             if (down.length) add('down', '⚠️ 요금제 하향 제한 (필수)', down.join(' '), '네, 이해했습니다', true);
             const pr = (g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && (String(p.name || '').trim() || gdNum(p.fee)));
@@ -24638,6 +24657,7 @@ familyStr + `\n` +
             const proms = [
                 ...(kd ? [`요금제 <b>${escapeHtml(g.plan.name || '')}</b> · ${escapeHtml(keepLabel(g.keep.code))} 유지 (${escapeHtml(gdDateKo(kd))}부터 변경 가능)`] : []),
                 ...(g.keep.target ? [`바꿀 요금제: ${escapeHtml(g.keep.target)}${gdNum(g.keep.targetFee) ? ` · 월 ${arWon(gdNum(g.keep.targetFee))}원` : ''}`] : []),
+                ...((k2 => k2 && (k2.date || k2.target) ? [`2차 변경: ${k2.date ? `${escapeHtml(gdDateKo(k2.date))}부터 ` : ''}<b>${escapeHtml(k2.target || '다른 요금제')}</b>${k2.fee ? ` · 월 ${arWon(k2.fee)}원` : ''}`] : [])(gdK2(g))),   // 📶 V368
                 ...(g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${escapeHtml(p.kind)} <b>${escapeHtml(String(p.name || '').trim() || '(이름 없음)')}</b>${gdNum(p.fee) ? ` 월 ${arWon(gdNum(p.fee))}원` : ''}${p.code ? ` · ${escapeHtml(keepLabel(p.code))} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; }),
                 ...(g.gift ? [`사은품: ${escapeHtml(g.gift)}`] : [])
             ];
@@ -24749,6 +24769,7 @@ familyStr + `\n` +
             const ls = [`[${g.store.name || msgStoreName()}] ${g.name ? `${g.name}님, ` : ''}구매 안내서를 보내드려요.`, `· ${gdTitle(g)}`, `· 매달 약 ${arWon(c.total)}원${c.n ? ` (할부 ${c.n}개월)` : ''}`];
             if (c.addFee) ls.push(`· 부가 · 보험 월 ${arWon(c.addFee)}원 (유지 기간 동안)`);
             if (kd) ls.push(`· 요금제는 ${gdDot(kd)}부터 바꿀 수 있어요${g.keep.target ? ` (${g.keep.target})` : ''}`);
+            { const k2 = gdK2(g); if (k2 && k2.date) ls.push(`· 2차 변경은 ${gdDot(k2.date)}부터${k2.target ? ` (${k2.target})` : ''}`); }   // 📶 V368
             if (g.store.tel) ls.push(`문의 ${g.store.tel}`);
             return ls.join('\n');
         }
@@ -24911,6 +24932,10 @@ familyStr + `\n` +
             set('ar-plan', g.plan.name); money('ar-planfee', g.plan.fee);
             set('ar-target', g.keep.target); money('ar-targetfee', g.keep.targetFee);
             if (g.keep.code !== undefined) { arSetPlanKeep(g.keep.code || 'NONE'); arPlanSrc = 'user'; }
+            {   // 📶 V368 2차 변경도 같이
+                const k2 = g.keep2 && g.keep2.on && g.keep2.code ? g.keep2 : null, w2 = document.getElementById('ar-plan2-wrap'), add2 = document.getElementById('ar-plan2-add'), s2 = document.getElementById('ar-k-plan2');
+                if (k2 && w2 && s2) { w2.classList.remove('hidden'); if (add2) add2.classList.add('hidden'); s2.innerHTML = arKeepOpts(k2.code, true); s2.value = k2.code; s2.dataset.prev = k2.code; set('ar-target2', k2.target || ''); money('ar-targetfee2', k2.targetFee); try { arRecalc(); } catch (e) { /* 무시 */ } }
+            }
             set('ar-term', g.sup === '없음' ? '무약정' : `${g.term || 24}개월`);
             const sup = document.querySelector(`input[name="ar-sup"][value="${g.sup === '공시' ? '공시' : '선약'}"]`); if (sup && !sup.checked) { sup.checked = true; sup.dispatchEvent(new Event('change', { bubbles: true })); }
             set('ar-usimfee', g.usim.pay === '선납' ? '선납' : (g.usim.pay === '첫 달 청구' ? '후납' : '면제'));
@@ -28682,7 +28707,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V367';
+        const APP_VER = 'V368';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28690,6 +28715,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V368', d: '2026-11-11', items: [
+                ['📝 구매 안내서에도 「＋ 요금제 변경 한 번 더」 → 2차 시기 · 요금제 · 월요금 · 안내서 그림 · 문자 · 확인 녹음 문구에 같이 나오고 개통보고로 넘기면 2차 약속까지 저절로', 'a']
+            ] },
             { v: 'V367', d: '2026-11-11', items: [
                 ['📶 요금제 변경 약속을 두 번 넣을 수 있어요 (예: LG 공시 → 3개월 85 요금제 → 그 뒤 저가 요금제) · 고객 수정 화면 약속에 「요금제 변경 2」 칸', 'a'],
                 ['📝 개통보고 요금제 유지 아래 「＋ 요금제 변경 한 번 더」 → 2차 시기 · 요금제 · 기본료를 고르면 약속 2개가 저절로 · 달력 · 할 일 · 자동 문자에도 같이', 'a']
