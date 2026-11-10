@@ -3515,7 +3515,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, GoogleAuthProvider, signInWithRedirect, signInWithPopup, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, arrayUnion, query, where, runTransaction, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, setDoc, deleteDoc, onSnapshot, updateDoc, increment, arrayUnion, query, where, runTransaction, getDocs, getDoc, getDocsFromCache, getDocFromCache } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const myFirebaseConfig = {
             apiKey: "AIzaSyCEtd4aYZtxF7RTciLDHEc9oSReCE4_1rk",
@@ -3645,6 +3645,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const cur = (typeof customerDB !== 'undefined' && customerDB.find(x => x.id === ref.id)) || {};
             const out = { ...data };
             delete out.__audit;
+            out._u = new Date().toISOString();   // 📖 V370 저장 시각 → 다른 폰은 바뀐 고객만 받음
             try {   // 📝 변경 이력 (V197)
                 const audit = auditEntryFor(ref, data);
                 if (audit) {
@@ -4423,7 +4424,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const t = Date.parse(c.deletedAt);
                 if (!isNaN(t) && t < limit && !purgedIds.has(c.id)) {
                     purgedIds.add(c.id);
-                    deleteDoc(doc(db, 'smart_customers', c.id)).catch(e => console.error('휴지통 자동 비우기 실패', e));
+                    deleteDoc(doc(db, 'smart_customers', c.id)).then(() => custDeleted(c.id)).catch(e => console.error('휴지통 자동 비우기 실패', e));
                 }
             });
         }
@@ -4656,15 +4657,73 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return o;
         }
 
+        /* =====================================================================
+           📖 V370 고객은 '바뀐 것만 받기' (Firebase 무료 읽기 아끼기)
+           · 예전: 앱을 열 때마다(30분 넘게 쉬었다 열면) 고객 전체를 서버에서 다시 받음 (고객 수만큼 읽기)
+           · 지금: 폰에 저장된 고객부터 바로 → 서버에서는 마지막으로 받은 뒤 바뀐 고객만 (_u · updatedAt 기준)
+           · 12시간마다 한 번은 전체를 새로 받아서 맞춤 (다른 폰에서 완전히 지운 고객 · 시각이 안 남은 저장 정리)
+           · 이 폰에서 저장하면 _u(저장 시각)가 붙음 → 다른 폰은 그 고객만 받음
+           ===================================================================== */
+        const CUST_SYNC_LS = 'custSyncV370', CUST_FULL_EVERY = 12 * 3600e3, CUST_MARGIN = 10 * 60e3;
+        let custMap = new Map(), custApply = null, custOnError = null, custEmitT = 0, custSyncGen = 0;
+        const custSyncKey = () => `${CUST_SYNC_LS}:${(auth && auth.currentUser && auth.currentUser.uid) || 'x'}`;
+        function custSyncMeta() { try { return JSON.parse(localStorage.getItem(custSyncKey()) || 'null') || {}; } catch (e) { return {}; } }
+        function custSyncSave(m) { try { localStorage.setItem(custSyncKey(), JSON.stringify(m)); } catch (e) { /* 무시 */ } }
+        function custStampOf(d) { const a = String((d && d._u) || ''), b = String((d && d.updatedAt) || ''); return a > b ? a : b; }
+        function custEmit(now) {
+            clearTimeout(custEmitT);
+            const run = () => { if (!custApply) return; const all = []; custMap.forEach((d, id) => all.push(normalizeCustomer({ ...d, id }))); custApply(all); };   // id는 실제 문서 번호로 (맨 뒤)
+            if (now) run(); else custEmitT = setTimeout(run, 30);
+        }
+        function custDeleted(id) { if (custMap.delete(id)) custEmit(); }   // 이 폰에서 완전히 지운 고객은 바로 목록에서 뺌
+        function custFullSyncSoon() { const m = custSyncMeta(); m.full = 0; custSyncSave(m); }   // 다음에 열 때 전체 다시 (백업 되살리기 뒤)
+        function startCustomerSync() {
+            const gen = ++custSyncGen, unsubs = [];
+            const col = collection(db, 'smart_customers');
+            (async () => {
+                const meta = custSyncMeta();
+                custMap = new Map();
+                const needFull = !meta.full || !meta.w || Date.now() - meta.full > CUST_FULL_EVERY;
+                let ok = false;
+                if (!needFull) {
+                    try { const sn = await getDocsFromCache(col); sn.forEach(d => custMap.set(d.id, d.data())); ok = custMap.size > 0 && custMap.size >= Math.floor((Number(meta.n) || 0) * 0.95); } catch (e) { ok = false; }   // 폰 저장이 일부 지워졌으면(용량 정리) 전체 다시
+                    if (gen !== custSyncGen) return;
+                    if (ok) custEmit(true);
+                }
+                if (!ok) {
+                    try {
+                        const sn = await getDocsM(col);
+                        if (gen !== custSyncGen) return;
+                        custMap = new Map(); sn.forEach(d => custMap.set(d.id, d.data()));
+                        let w = ''; custMap.forEach(d => { const t = custStampOf(d); if (t > w) w = t; });
+                        const nowIso = new Date().toISOString();
+                        if (!sn.metadata || !sn.metadata.fromCache) { meta.full = Date.now(); meta.w = w && w < nowIso ? w : nowIso; meta.n = custMap.size; custSyncSave(meta); }
+                        custEmit(true);
+                    } catch (e) { if (gen === custSyncGen && custOnError) custOnError(e); return; }
+                }
+                const W = new Date((Date.parse(meta.w || '') || Date.now()) - CUST_MARGIN).toISOString();
+                ['_u', 'updatedAt'].forEach(f => {
+                    let prev = new Set();
+                    unsubs.push(liveSnap(query(col, where(f, '>=', W)), (snap) => {
+                        if (gen !== custSyncGen) return;
+                        const cur = new Set(); let top = '';
+                        snap.forEach(d => { const v = d.data(); cur.add(d.id); custMap.set(d.id, v); const t = custStampOf(v); if (t > top) top = t; });
+                        prev.forEach(id => { if (!cur.has(id)) getDocFromCache(doc(db, 'smart_customers', id)).then(x => { if (!x.exists()) custDeleted(id); }).catch(() => custDeleted(id)); });   // 결과에서 빠짐 = 지워짐 (확인 후)
+                        prev = cur;
+                        const md = snap.metadata || {};
+                        if (!md.hasPendingWrites) { const m = custSyncMeta(), nowIso = new Date().toISOString(), t = top && top < nowIso ? top : nowIso; let ch = false; if (top && (!m.w || t > m.w)) { m.w = t; ch = true; } if (m.n !== custMap.size) { m.n = custMap.size; ch = true; } if (ch) custSyncSave(m); }   // 앞으로 간 시계는 지금까지만
+                        custEmit();
+                    }, (err) => { console.warn('고객 바뀐 것 받기 실패', err); if (custOnError && !custMap.size) custOnError(err); }));
+                });
+            })();
+            return () => { if (gen === custSyncGen) custSyncGen++; unsubs.forEach(u => { try { u(); } catch (e) { /* 무시 */ } }); };
+        }
         function attachDBListeners() {
             // 로그인 신호가 두 번 오더라도 실시간 연결이 겹치지 않게 (겹치면 같은 화면을 두 번씩 그림)
             if (dbUnsubscribe) dbUnsubscribe();
             if (statsUnsubscribe) statsUnsubscribe();
             if (settingsUnsubscribe) settingsUnsubscribe();
-            dbUnsubscribe = liveSnap(collection(db, 'smart_customers'), (snapshot) => {
-                const all = [];
-                // id는 반드시 실제 문서ID로 (문서 데이터 안의 예전 id 값이 덮어쓰지 않도록 맨 뒤에 둠)
-                snapshot.forEach((doc) => { all.push(normalizeCustomer({ ...doc.data(), id: doc.id })); });
+            custApply = (all) => {
                 // 휴지통에 들어간 고객은 목록·대시보드·검색에서 모두 빠짐
                 customerDB = all.filter(c => !c.deletedAt);
                 trashDB = all.filter(c => c.deletedAt).sort((a, b) => String(b.deletedAt).localeCompare(String(a.deletedAt)));
@@ -4696,13 +4755,15 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (currentProfileId) renderProfileCard(); // 카드에서 전화/문자 누르면 연락 이력이 바로 갱신됨
                 try { dmRefreshTabs(); } catch (e) { /* 준비 전 */ }   // 🗂 V242 수정 화면 개통 기록 · 안내서 탭
                 try { renderCalcStrip(); renderRegStatsRow(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'staff') renderStaffStats(); if (calcSheetEl.style.display === 'flex' && calcSheetMode === 'cal') renderPromCalendar(); } catch (e) { /* 준비 전 */ }
-            }, (error) => {
+            };
+            custOnError = (error) => {
                 // 예전엔 오류가 나도 아무 표시 없이 빈 목록/불러오는 중으로 남았음
                 console.error('고객 목록 불러오기 실패:', error);
                 dbLoaded = true;
                 dbLoadError = error;
                 if (!document.getElementById('dbView').classList.contains('hidden')) renderDB();
-            });
+            };
+            dbUnsubscribe = startCustomerSync();   // 📖 V370 바뀐 것만 받기
             
             settingsUnsubscribe = liveSnap(doc(db, 'smart_global', 'settings'), (docSnap) => {
                 const prevLock = `${appSettings.ownerLock}|${appSettings.actProtect}`;
@@ -6479,7 +6540,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         async function purgeFromTrash(id) {
             const c = trashDB.find(x => x.id === id);
             if (!(await customConfirm(`${c && c.name ? c.name + ' 고객을' : '이 고객을'} 완전히 지울까요?\n지우면 다시 되살릴 수 없어요.`))) return;
-            try { await deleteDoc(doc(db, 'smart_customers', id)); }
+            try { await deleteDoc(doc(db, 'smart_customers', id)); custDeleted(id); }
             catch (e) { console.error(e); customAlert('지우지 못했어요. 인터넷 연결을 확인해주세요.'); }
         }
 
@@ -16005,7 +16066,7 @@ ${AI_TONES[aiSmsTone]}
                     Object.assign(finalData, finalizePrevPhones(prevNow, newId));
                     finalData.contactHistory = appendLine(finalData.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 📱 번호 변경 ${formatPhone(currentDetailId)} → ${formatPhone(newId)}${mergeTarget ? ' (카드 합침)' : ''} (담당: ${me || '직원'})`);
                     await saveDoc(doc(db, 'smart_customers', newId), stripUndefined(finalData), mergeTarget ? undefined : { merge: true });
-                    await deleteDoc(doc(db, 'smart_customers', currentDetailId));
+                    await deleteDoc(doc(db, 'smart_customers', currentDetailId)); custDeleted(currentDetailId);
                 } else {
                     await saveDoc(doc(db, 'smart_customers', currentDetailId), updatedData, { merge: true });
                 }
@@ -28226,10 +28287,13 @@ familyStr + `\n` +
         async function bkAuto() {   // ☁️ 하루 한 번 (대표 폰에서)
             if (!isSuperAdmin || !db) return null;
             try {
-                const L = await bkLoadList(), today = getTodayStr();
-                if (L.some(m => m.auto && m.at && bkYmd(Date.parse(m.at)) === today)) return null;
+                const today = getTodayStr();
+                try { if (localStorage.getItem('bkAutoDay') === today) return null; } catch (e) { /* 무시 */ }   // 📖 V370 오늘 이미 확인했으면 목록을 다시 읽지 않음 (켤 때마다 백업 수만큼 읽던 것)
+                const L = await bkLoadList();
+                const mark = () => { try { localStorage.setItem('bkAutoDay', today); } catch (e) { /* 무시 */ } };
+                if (L.some(m => m.auto && m.at && bkYmd(Date.parse(m.at)) === today)) { mark(); return null; }
                 if (!customerDB.length) return null;   // 고객을 아직 못 불러왔으면 다음에
-                return await bkMake(true);
+                const made = await bkMake(true); mark(); return made;
             } catch (e) { console.warn('자동 백업 실패', e); return null; }
         }
         function bkSubUpdate() {
@@ -28266,7 +28330,7 @@ familyStr + `\n` +
             });
             let done = 0;
             for (let i = 0; i < jobs.length; i += 25) {
-                await Promise.all(jobs.slice(i, i + 25).map(([col, id, data]) => setDoc(doc(db, col, id), stripUndefined(data))));
+                await Promise.all(jobs.slice(i, i + 25).map(([col, id, data]) => setDoc(doc(db, col, id), stripUndefined(col === 'smart_customers' ? { ...data, _u: new Date().toISOString() } : data))));   // 📖 V370 되살린 고객도 다른 폰에 바로
                 done = Math.min(jobs.length, i + 25); if (onStep) onStep(done, jobs.length);
             }
             if (jobs.some(x => x[0] === 'smart_customers') && typeof scheduleSmsResync === 'function') { try { scheduleSmsResync(); } catch (e) { /* 무시 */ } }
@@ -28723,7 +28787,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V369';
+        const APP_VER = 'V370';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28731,6 +28795,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V370', d: '2026-11-11', items: [
+                ['📖 Firebase 무료 읽기 아끼기: 고객 목록은 폰에 저장된 것부터 바로 열고, 서버에서는 바뀐 고객만 받아요 (예전: 열 때마다 고객 전체를 다시 받음 · 12시간에 한 번은 전체를 새로 맞춤)', 'a'],
+                ['🗄️ 자동 백업: 오늘 백업을 이미 확인했으면 켤 때마다 백업 목록을 다시 읽지 않아요', 'a']
+            ] },
             { v: 'V369', d: '2026-11-11', items: [
                 ['⚡ 재고 탭이 고객이 많을 때 몇 초씩 멈추던 것 (개통했는데 재고에 남은 단말 찾기 · 0.9초 → 0.02초)', 'a'],
                 ['🛠 요금제 변경 2: 예전 날짜 개통을 넣을 때 최근 약속을 덮어쓰던 것 · 예약 문자 목록에서 종류가 \'직접 예약\'으로 보이던 것', 'a'],
