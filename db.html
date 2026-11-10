@@ -3641,6 +3641,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const reopened = data[`prom${m[1]}Chk`] === false && cur[`prom${m[1]}Chk`] === true;
                 if (v !== String(cur[k] || '') || reopened) { out[`prom${m[1]}By`] = me; if (!(`prom${m[1]}Auto` in data) && cur[`prom${m[1]}Auto`]) out[`prom${m[1]}Auto`] = false; }   // 날짜가 그대로면 예전에 잡은 사람 그대로 · 직원이 고치면 '자동' 표시 뗌
             });
+            try {   // ✅ V357 약속을 완료하면 그 칸은 비우고, 완료한 약속은 promDone(완료 목록)으로 → 약속 달력 · 고객 카드 '완료한 약속'에 남음 (대납 · 송금은 예전처럼)
+                const add = [];
+                Object.keys(data).forEach(k => {
+                    const m = /^prom([A-Za-z0-9]+)Chk$/.exec(k); if (!m || data[k] !== true || cur[k] === true) return;
+                    const K = m[1], def = PROMISE_DEFS.find(t => t.key === K); if (!def || def.money) return;
+                    const pick = (f) => String((`prom${K}${f}` in data ? data[`prom${K}${f}`] : cur[`prom${K}${f}`]) || '');
+                    const d = pick('Date').slice(0, 10), mm = pick('Memo');
+                    if (d || mm) add.push({ k: K, l: def.label, d, m: mm.slice(0, 300), at: new Date().toISOString(), by: me || '' });
+                    Object.assign(out, { [`prom${K}Date`]: '', [`prom${K}Memo`]: '', [`prom${K}Chk`]: false, [`prom${K}By`]: '', [`prom${K}Auto`]: false, [`prom${K}DoneAt`]: '', [`prom${K}DoneBy`]: '' });
+                });
+                if (add.length) out.promDone = [...(Array.isArray(data.promDone) ? data.promDone : (Array.isArray(cur.promDone) ? cur.promDone : [])), ...add].slice(-60);
+            } catch (e) { console.warn('완료 약속 정리 실패', e); }
             if ('updatedAt' in data && !('updatedBy' in data) && me) out.updatedBy = me;
             // 📅 영업상태가 바뀐 날 (가망·방문약속 31일 자동 풀기 기준)
             const normSt = (x) => { const v = String(x || ''); return /^가망고객\(/.test(v) ? '가망고객' : v; };   // 예전 가망(문자)·가망(OB) → 가망고객은 '바뀐 것'으로 안 침 (31일 다시 시작 안 함)
@@ -11259,7 +11271,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 by: String(c[`prom${p.key}By`] || '').trim(), auto: !!c[`prom${p.key}Auto`],
                 money: p.money ? promMoneyLine(c, p.key, false) : '', doneBy: String(c[`prom${p.key}DoneBy`] || ''), doneAt: String(c[`prom${p.key}DoneAt`] || '')
             })).filter(x => x.date || x.memo || x.money);
-            if (items.length === 0) return profileEmpty('fa-calendar-check', '등록된 약속이 없어요.\n[수정]에서 요금제 변경·부가 해지 등 약속을 추가하세요.');
+            const doneList = Array.isArray(c.promDone) ? c.promDone.map((e, i) => ({ ...e, i })).filter(e => e && (e.d || e.m)).reverse() : [];
+            const doneHtml = doneList.length ? `<details class="mt-2 rounded-xl border border-gray-200 bg-gray-50/70"><summary class="px-3 py-2.5 text-[13px] font-bold text-gray-700 cursor-pointer">✅ 완료한 약속 ${doneList.length}건 <span class="font-normal text-gray-500">(약속 달력에도 남아요)</span></summary><div class="px-3 pb-2 divide-y divide-gray-100">${doneList.map(e => `<div class="py-2 flex items-start gap-2"><div class="flex-1 min-w-0"><p class="text-[13px] text-gray-500"><span class="font-bold text-gray-600">${escapeHtml(e.l || '')}</span> · ${escapeHtml(e.d || '날짜 없음')}${e.at ? ` · ${escapeHtml(String(e.at).slice(5, 10).replace('-', '/'))} ${escapeHtml(managerKey(e.by || '') || '')} 완료` : ''}</p>${e.m ? `<p class="text-xs text-gray-500 truncate">${escapeHtml(e.m)}</p>` : ''}</div><button type="button" data-prom-restore="${e.i}" class="h-9 px-2.5 flex-shrink-0 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">되살리기</button></div>`).join('')}</div></details>` : '';
+            if (items.length === 0) return doneList.length ? `<p class="text-sm text-gray-500 py-3">처리할 약속이 없어요.</p>${doneHtml}` : profileEmpty('fa-calendar-check', '등록된 약속이 없어요.\n[수정]에서 요금제 변경·부가 해지 등 약속을 추가하세요.');
 
             // 미처리 약속을 날짜 빠른 순으로 먼저, 완료한 약속은 아래로
             items.sort((a, b) => (Number(a.done) - Number(b.done)) || (a.date || '9999').localeCompare(b.date || '9999'));
@@ -11280,9 +11294,52 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${p.money ? `<p class="text-[13px] font-bold text-gray-800 mt-0.5">${escapeHtml(p.money)}</p>` : ''}${p.done && p.doneAt ? `<p class="text-[11px] text-emerald-700 mt-0.5">✅ ${escapeHtml(p.doneAt.slice(5, 10).replace('-', '/'))} ${escapeHtml(managerKey(p.doneBy) || '')} 처리</p>` : ''}
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
                     ${p.by ? `<p class="text-xs font-bold mt-0.5 ${!p.auto && !sameStaff(p.by, getStaffName()) ? 'text-orange-700' : 'text-gray-500'}">${!p.auto && !sameStaff(p.by, getStaffName()) ? '⚠️ ' : ''}${escapeHtml(managerKey(p.by))} ${p.auto ? '· 🤖 자동' : '등록'}</p>` : ''}
-                    ${canCal ? `<button type="button" data-cal-key="${p.key}" class="mt-2 inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</button>` : ''}
+                    <div class="mt-2 flex flex-wrap gap-1.5">${!p.done ? `<button type="button" data-prom-act="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800"><i class="fa-solid fa-pen"></i>완료 · 날짜 · 내용</button>` : ''}${p.done && !PROM_MONEY_KEYS.includes(p.key) ? `<button type="button" data-prom-tidy="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-solid fa-broom"></i>칸 비우기 (달력엔 남김)</button>` : ''}${canCal ? `<button type="button" data-cal-key="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</button>` : ''}</div>
                 </div>`;
-            }).join('');
+            }).join('') + doneHtml;
+        }
+        // ✏️ V357 고객 카드 약속 탭에서 바로: 완료(칸 비우고 달력에 남김) · 내일로 · 1주 뒤로 · 날짜 고르기 · 내용 고치기 · 지우기
+        async function promSave(c, patch, what) {
+            if (!(await lockGate(c, what || '약속 고치기'))) return false;
+            try { await saveUpdate(doc(db, 'smart_customers', c.id), { ...patch, updatedAt: new Date().toISOString() }); return true; }
+            catch (e) { customAlert(koreanError(e, '저장')); return false; }
+        }
+        function promPickDate(cur, done) {
+            const inp = document.createElement('input');
+            inp.type = 'date'; inp.value = cur || getTodayStr();
+            inp.style.cssText = 'position:fixed;left:50%;top:50%;opacity:0;width:1px;height:1px';
+            document.body.appendChild(inp);
+            const fin = () => { const v = inp.value; inp.remove(); if (v && v !== cur) done(v); };
+            inp.addEventListener('change', fin, { once: true });
+            inp.addEventListener('blur', () => setTimeout(() => { if (document.body.contains(inp)) inp.remove(); }, 300), { once: true });
+            try { inp.showPicker(); } catch (e) { inp.focus(); inp.click(); }
+        }
+        function promQuickEdit(c, key) {
+            const def = PROMISE_DEFS.find(t => t.key === key); if (!c || !def) return;
+            const date = String(c[`prom${key}Date`] || '').slice(0, 10), memo = String(c[`prom${key}Memo`] || ''), money = PROM_MONEY_KEYS.includes(key);
+            const base = date || getTodayStr();
+            const move = (n) => promSave(c, { [`prom${key}Date`]: addDaysStr(base, n), [`prom${key}Chk`]: false }, '약속 날짜 바꾸기');
+            openActionSheet(`${def.label}${date ? ' · ' + date : ''}`, [
+                { icon: 'fa-solid fa-check', label: money ? '처리 완료' : '완료 (칸 비우고 달력에 남기기)', sub: money ? '' : '고객 카드 · 약속 달력의 \'완료한 약속\'에서 볼 수 있어요', onClick: async () => { if (await promSave(c, { [`prom${key}Chk`]: true, ...(money ? { [`prom${key}DoneBy`]: getStaffName() || '', [`prom${key}DoneAt`]: new Date().toISOString() } : {}) }, '약속 처리') && money) afterSendDone(c, key); } },
+                { icon: 'fa-solid fa-forward', label: '내일로 미루기', sub: addDaysStr(base, 1), onClick: () => move(1) },
+                { icon: 'fa-solid fa-forward-fast', label: '1주 뒤로 미루기', sub: addDaysStr(base, 7), onClick: () => move(7) },
+                { icon: 'fa-regular fa-calendar', label: '날짜 고르기', onClick: () => promPickDate(date, (v) => promSave(c, { [`prom${key}Date`]: v, [`prom${key}Chk`]: false }, '약속 날짜 바꾸기')) },
+                { icon: 'fa-solid fa-pen', label: '내용 고치기', sub: memo ? memo.slice(0, 40) : '메모 없음', onClick: () => { const v = prompt(`${def.label} 내용`, memo); if (v !== null && v.trim() !== memo) promSave(c, { [`prom${key}Memo`]: v.trim().slice(0, 300) }, '약속 내용 고치기'); } },
+                ...(money ? [] : [{ icon: 'fa-solid fa-trash', label: '약속 지우기', sub: '완료 목록에도 남기지 않아요', onClick: async () => { if (await customConfirm(`${def.label} 약속을 지울까요?`)) promSave(c, { [`prom${key}Date`]: '', [`prom${key}Memo`]: '', [`prom${key}Chk`]: false, [`prom${key}Auto`]: false }, '약속 지우기'); } }])
+            ]);
+        }
+        function promTidy(c, key) {   // 예전에 체크만 해 둔 완료 약속 → 완료 목록으로 옮기고 칸 비우기
+            const def = PROMISE_DEFS.find(t => t.key === key); if (!c || !def || PROM_MONEY_KEYS.includes(key)) return;
+            const e = { k: key, l: def.label, d: String(c[`prom${key}Date`] || '').slice(0, 10), m: String(c[`prom${key}Memo`] || '').slice(0, 300), at: String(c[`prom${key}DoneAt`] || '') || new Date().toISOString(), by: String(c[`prom${key}DoneBy`] || c[`prom${key}By`] || '') };
+            promSave(c, { promDone: [...(Array.isArray(c.promDone) ? c.promDone : []), e].slice(-60), [`prom${key}Date`]: '', [`prom${key}Memo`]: '', [`prom${key}Chk`]: false, [`prom${key}Auto`]: false, [`prom${key}DoneAt`]: '', [`prom${key}DoneBy`]: '' }, '완료 약속 정리');
+        }
+        async function promRestore(c, idx) {
+            const list = Array.isArray(c.promDone) ? c.promDone.slice() : [], e = list[idx];
+            if (!e) return;
+            if (c[`prom${e.k}Date`] || c[`prom${e.k}Memo`]) return customAlert(`'${e.l}' 칸에 지금 다른 약속이 있어서 되살릴 수 없어요.\n그 약속을 먼저 처리하거나 지워 주세요.`);
+            if (!(await customConfirm(`'${e.l}' ${e.d || ''} 약속을 다시 처리 전으로 되살릴까요?`))) return;
+            list.splice(idx, 1);
+            promSave(c, { promDone: list, [`prom${e.k}Date`]: e.d || '', [`prom${e.k}Memo`]: e.m || '', [`prom${e.k}Chk`]: false }, '약속 되살리기');
         }
 
         // ═════════════════════════════════════════════
@@ -11869,6 +11926,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
 
+            { const pa = ev.target.closest('[data-prom-act], [data-prom-tidy], [data-prom-restore]'); if (pa && currentProfileId) {   // ✏️ V357
+                const cc = customerDB.find(x => x.id === currentProfileId);
+                if (cc) { if (pa.dataset.promAct) promQuickEdit(cc, pa.dataset.promAct); else if (pa.dataset.promTidy) promTidy(cc, pa.dataset.promTidy); else promRestore(cc, Number(pa.dataset.promRestore)); }
+                return;
+            } }
             const calBtn = ev.target.closest('[data-cal-key]');
             if (calBtn && currentProfileId) {
                 const cc = customerDB.find(x => x.id === currentProfileId);
@@ -19599,6 +19661,11 @@ familyStr + `\n` +
                     if (calState === 'open' && done) return;
                     out.push({ c, key: t.key, label: t.label, date: date.slice(0, 10), done, memo: String(c[`prom${t.key}Memo`] || '') });
                 });
+                if (calState !== 'open' && Array.isArray(c.promDone)) c.promDone.forEach((e, i) => {   // ✅ V357 완료해서 칸을 비운 약속도 달력에
+                    const date = String((e && e.d) || ''); if (date.length < 10 || (prefix && !date.startsWith(prefix))) return;
+                    if (calType !== 'all' && calType !== e.k) return;
+                    out.push({ c, key: e.k, label: e.l || (PROMISE_DEFS.find(t => t.key === e.k) || { label: '약속' }).label, date: date.slice(0, 10), done: true, memo: String(e.m || ''), arch: i });
+                });
             });
             return out;
         }
@@ -19702,11 +19769,11 @@ familyStr + `\n` +
             if (!dayList.length) html += `<p class="text-sm text-gray-500 text-center py-6">이 날은 ${calState === 'open' ? '처리할 ' : ''}약속이 없어요.</p>`;
             else html += `<div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">` + dayList.map((e, i) => (e.done && (i === 0 || !dayList[i - 1].done) ? `<div class="px-3 py-1.5 bg-gray-100 text-[12px] font-bold text-gray-500">✓ 완료한 약속 ${dayList.filter(x => x.done).length}건</div>` : '') + `
                     <div class="flex items-center gap-2 px-2 py-2 ${e.done ? 'bg-gray-50' : (e.date < today ? 'bg-red-50/50' : 'bg-white')}">
-                        <button type="button" data-cal-done="${e.c.id}|${e.key}" role="checkbox" aria-checked="${e.done}" aria-label="${escapeHtml(e.c.name || '')} ${e.label} 처리 표시" class="w-11 h-11 flex-shrink-0 flex items-center justify-center">
+                        <button type="button" data-cal-done="${e.c.id}|${e.key}"${e.arch !== undefined ? ` data-cal-arch="${e.arch}"` : ''} role="checkbox" aria-checked="${e.done}" aria-label="${escapeHtml(e.c.name || '')} ${e.label} 처리 표시" class="w-11 h-11 flex-shrink-0 flex items-center justify-center">
                             <span class="w-6 h-6 rounded-md border-2 ${e.done ? 'bg-green-600 border-green-600 text-white' : 'border-gray-300 bg-white'} flex items-center justify-center text-xs">${e.done ? '<i class="fa-solid fa-check"></i>' : ''}</span>
                         </button>
                         <button type="button" data-cal-open="${e.c.id}" class="flex-1 min-w-0 text-left py-1">
-                            <span class="flex items-center gap-1.5"><span class="text-[11px] font-bold rounded px-1.5 ${CAL_STYLE[e.key].cls}">${e.label}</span><span class="text-[15px] font-bold ${e.done ? 'text-gray-400 line-through' : 'text-gray-900'} truncate">${escapeHtml(e.c.name || '이름 없음')}</span></span>
+                            <span class="flex items-center gap-1.5"><span class="text-[11px] font-bold rounded px-1.5 ${(CAL_STYLE[e.key] || CAL_STYLE.Other).cls}">${e.label}</span><span class="text-[15px] font-bold ${e.done ? 'text-gray-400 line-through' : 'text-gray-900'} truncate">${escapeHtml(e.c.name || '이름 없음')}</span></span>
                             <span class="block text-xs text-gray-600 truncate">${escapeHtml(shownPhone(e.c))}${e.memo ? ' · ' + escapeHtml(e.memo) : ''}${managerKey(e.c.manager || '') ? ' · ' + escapeHtml(managerKey(e.c.manager)) : ''}</span>
                         </button>
                         <i class="fa-solid fa-chevron-right text-gray-300 text-xs flex-shrink-0 pr-1" aria-hidden="true"></i>
@@ -19732,6 +19799,7 @@ familyStr + `\n` +
                 const [id, key] = b.dataset.calDone.split('|');
                 const c = customerDB.find(x => x.id === id);
                 if (!c) return;
+                if (b.dataset.calArch !== undefined) return promRestore(c, Number(b.dataset.calArch));   // ✅ V357 완료 목록 → 되살리기
                 if (!(await lockGate(c, '약속 처리'))) return;
                 b.disabled = true;
                 try {
@@ -28296,7 +28364,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V356';
+        const APP_VER = 'V357';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28304,6 +28372,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V357', d: '2026-11-10', items: [
+                ['✏️ 고객 카드 → 약속 탭에서 바로 [완료 · 날짜 · 내용]: 완료 · 내일로 · 1주 뒤로 · 날짜 고르기 · 내용 고치기 · 지우기 (수정 화면을 안 열어도 돼요)', 'a'],
+                ['✅ 약속을 완료하면 그 칸은 비워지고 \'완료한 약속\'으로 옮겨져요 (고객 카드 약속 탭 아래 · 약속 달력에 그대로) · 잘못 눌렀으면 [되살리기] · 예전에 체크만 해 둔 약속은 [칸 비우기]', 'a']] },
             { v: 'V356', d: '2026-11-10', items: [
                 ['💰 개통보고 정책 칸 정리: 정책 금액은 [💰 정책 · 정산] 한 칸에서 계산 순서대로 (➕ 기본정책 → 부가 · 보험 · 그레이드 줄 → 추가 · 구두 / ➖ 유통망지원금 · 수수료 / = 정산금액 → 할인 → 마진) · 위 부가 · 보험 칸은 가입 내역 · 유지일만', 'a']] },
             { v: 'V355', d: '2026-11-10', items: [
