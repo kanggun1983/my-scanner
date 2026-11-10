@@ -21511,6 +21511,39 @@ familyStr + `\n` +
         }
         const STOCK_CAR_TONE = { 'LG U+': 'bg-pink-50 text-pink-700 border-pink-200', 'SKT': 'bg-orange-50 text-orange-700 border-orange-200', 'KT': 'bg-red-50 text-red-700 border-red-200' };
         const stockMD = (d) => (d ? String(d).slice(5).replace('-', '/').replace(/^0/, '').replace('/0', '/') : '');
+        // 📦 V361 개통 기록에는 있는데 재고에 '재고'로 남은 단말 찾기 (개통 저장은 됐는데 재고 반영만 실패했을 때) → [모두 개통 처리]
+        function stockStaleList(devs) {
+            const out = [];
+            if (!Array.isArray(devs) || !devs.length || !customerDB.length) return out;
+            devs.forEach(x => {
+                if (!x.serial || stockNorm(x.serial).length < 5) return;
+                const since = String(x.at || '').slice(0, 10);
+                for (const c of customerDB) {
+                    const a = actsOf(c).find(a => !a.canceled && a.serial && stockSerialMatch(x.serial, a.serial) && (!since || String(a.date || '') >= since));
+                    if (a) { out.push({ x, c, a }); break; }
+                }
+            });
+            return out;
+        }
+        function stockStaleHtml(devs) {
+            const L = stockStaleList(devs); stockStaleCache = L;
+            if (!L.length) return '';
+            return `<div class="rounded-2xl border-2 border-red-200 bg-red-50 px-3 py-2.5 text-[13px] text-red-900 leading-relaxed mb-2">
+                <p class="font-bold">⚠ 개통했는데 재고에 남아 있는 단말 ${L.length}대</p>
+                <p class="text-xs text-red-800/80">개통 저장 때 재고 반영이 실패했어요 (인터넷 · Firebase 한도 초과 등)</p>
+                <ul class="mt-1.5 space-y-0.5">${L.slice(0, 6).map(r => `<li>· ${escapeHtml(r.x.model || '')} ${escapeHtml(r.x.color || '')} <b>${escapeHtml(r.x.serial)}</b> → ${escapeHtml(r.c.name || '고객')} ${escapeHtml(String(r.a.date || '').slice(5).replace('-', '/'))} 개통</li>`).join('')}${L.length > 6 ? `<li>· 외 ${L.length - 6}대</li>` : ''}</ul>
+                <button type="button" id="stockStaleFix" class="mt-2 w-full h-11 rounded-xl bg-red-600 text-white text-[14px] font-bold">모두 '개통'으로 처리</button></div>`;
+        }
+        let stockStaleCache = [];
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#stockStaleFix')) return;
+            const L = stockStaleCache.slice(); if (!L.length) return;
+            const btn = e.target.closest('#stockStaleFix'); btn.disabled = true;
+            const map = new Map(L.map(r => [r.x.id, r]));
+            stockTx(cur => ({ ...cur, items: cur.items.map(x => { const r = map.get(x.id); return r && stockSt(x) === '재고' ? { ...x, st: '개통', sd: r.a.date || getTodayStr(), to: r.c.name || '', tp: r.c.id, sb: getStaffName() || '' } : x; }) }))
+                .then(() => stockToast(`✅ ${L.length}대를 개통으로 처리했어요`))
+                .catch(err => { console.warn(err); btn.disabled = false; stockToast('⚠ 처리하지 못했어요 · 인터넷 확인 후 다시 눌러 주세요'); });
+        });
         function renderStock() {
             { const rb = document.getElementById('stockResetBtn'); if (rb) { rb.classList.toggle('hidden', !isSuperAdmin); rb.classList.toggle('flex', !!isSuperAdmin); } }   // V198 (V201: 도구 줄은 재고 확인 · 받기 두 칸 + 대표는 초기화 한 줄)
             const all = stockItems(), live = all.filter(x => stockSt(x) === '재고');
@@ -21528,7 +21561,8 @@ familyStr + `\n` +
             const dealers = stockDealerNames().filter(n => live.some(x => stockKey(x.dealer) === stockKey(n)));
             // 👑 거래처 설정에 없는 곳 → 한 번에 추가 (통신사는 이름으로)
             const miss = dealers.filter(n => !dealerByName(n));
-            document.getElementById('stockDealerHint').innerHTML = miss.length && isSuperAdmin ? `<div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 leading-relaxed">🏢 거래처 설정에 없는 곳: <b>${miss.map(escapeHtml).join(' · ')}</b><br><span class="text-xs text-amber-800">설정에 넣어두면 개통등록에서 일련번호만 쳐도 통신사 · 요금제 · 부가·보험 약속까지 자동이에요.</span><button type="button" id="stockDealerAdd" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-sm font-bold">🏢 ${miss.length}곳 거래처 설정에 넣기</button>${stockDealerNames(true).length > 1 ? '<button type="button" id="stockDealerMerge" class="mt-1.5 w-full h-10 rounded-xl border border-amber-400 bg-white text-amber-900 text-sm font-bold">🔗 이미 있는 거래처와 같은 곳이면 합치기</button>' : ''}</div>` : '';
+            const staleHtml = stockStaleHtml(devs);   // 📦 V361 개통했는데 재고에 남은 단말 (재고 반영이 실패했던 것 · 인터넷 · Firebase 한도 초과 때)
+            document.getElementById('stockDealerHint').innerHTML = staleHtml + (miss.length && isSuperAdmin ? `<div class="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[13px] text-amber-900 leading-relaxed">🏢 거래처 설정에 없는 곳: <b>${miss.map(escapeHtml).join(' · ')}</b><br><span class="text-xs text-amber-800">설정에 넣어두면 개통등록에서 일련번호만 쳐도 통신사 · 요금제 · 부가·보험 약속까지 자동이에요.</span><button type="button" id="stockDealerAdd" class="mt-2 w-full h-10 rounded-xl bg-amber-500 text-white text-sm font-bold">🏢 ${miss.length}곳 거래처 설정에 넣기</button>${stockDealerNames(true).length > 1 ? '<button type="button" id="stockDealerMerge" class="mt-1.5 w-full h-10 rounded-xl border border-amber-400 bg-white text-amber-900 text-sm font-bold">🔗 이미 있는 거래처와 같은 곳이면 합치기</button>' : ''}</div>` : '');
             if (stockFilter && !stockFilter.startsWith('__') && !dealers.some(n => stockKey(n) === stockKey(stockFilter))) stockFilter = '';
             const today = getTodayStr(), ageOf = (x) => Math.max(0, Math.round((Date.parse(today) - Date.parse(x.at || today)) / 86400000));
             const old = devs.filter(x => ageOf(x) >= stockOldDays()), SA = stockAlerts();
@@ -28480,7 +28514,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V360';
+        const APP_VER = 'V361';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28488,6 +28522,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V361', d: '2026-11-10', items: [
+                ['📦 재고 탭: 개통 기록에는 있는데 재고에 \'재고\'로 남은 단말을 찾아 위에 빨간 칸으로 보여 줘요 → [모두 \'개통\'으로 처리] (개통 저장 때 인터넷 · Firebase 한도 초과로 재고 반영만 빠졌을 때)', 'a']] },
             { v: 'V360', d: '2026-11-10', items: [
                 ['📍 수정 화면 순서: 🗂 영업 상태 · 연락 → 📝 메모 → 🤝 약속 (연락하고 나서 고치는 것 먼저) → 📱 회선 → 💳 단말 → 👨‍👩‍👧 결합 → 👤 고객 정보 · 담당 · 개통점', 'a'],
                 ['📝 메모 칸을 크게 (8줄) · 자동 연락 타임라인은 고객 카드 [연락] 탭에 있어서 수정 화면에선 뺐어요', 'a']] },
