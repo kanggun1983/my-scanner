@@ -22559,11 +22559,15 @@ familyStr + `\n` +
         // 📦 V291 재고 바코드 = 상자 S/N(예: SMF971AV1165047) 끝 7자리 → 1165047 (앞자리가 0이어도 글자 그대로 · 길이 상관없이)
         const BC_STOCK_KINDS = ['stockadd', 'stockedit', 'stock'];
         BC_STOCK_KINDS.forEach(k => { BC_PAT_DEFAULT[k] = { cls: 'sn', len: 0, tail: BC_TAIL, any: 1 }; });
+        // 📷 V362 개통등록 · 안내서 단말기 바코드도 재고와 같은 모양(상자 S/N 끝 7자리)이 기본 — 예전엔 처음 고른 모양(IMEI 등)을 기억해서
+        //   상자의 IMEI 바코드가 먼저 읽히면 IMEI가 들어가 재고 번호와 안 맞았음 · 직접 다른 모양을 고르면 그건 기억
+        BC_PAT_DEFAULT.dev = { cls: 'sn', len: 0, tail: BC_TAIL, any: 1 };
+        const BC_DEV_FIELDS = ['ar-serial', 'gd-serial'];
         function bcPatStored(field) { try { const p = JSON.parse(localStorage.getItem('bcPat:' + field) || 'null'); return p && p.cls ? p : null; } catch (e) { return null; } }
-        function bcPatGet(field, kind) { if (BC_STOCK_KINDS.includes(kind)) { const st = bcPatStored(field); return st && st.manual ? st : BC_PAT_DEFAULT[kind]; } return bcPatStored(field) || BC_PAT_DEFAULT[kind] || null; }   // 📦 V291 재고는 S/N 끝 7자리가 기본 (직접 다른 모양을 고르면 그걸로)
-        function bcPatSet(field, c, tail) { if (!field || !c) return; try { const stk = ['st-serials', 'st-serial', 'stockSearch'].includes(field), def = stk && c.cls === 'sn' && tail === BC_TAIL; localStorage.setItem('bcPat:' + field, JSON.stringify({ cls: c.cls, len: c.len, tail: tail || 0, ...(stk && !def ? { manual: 1 } : {}), ...(def ? { any: 1 } : {}) })); } catch (e) { /* 저장 못 해도 OK */ } }
+        function bcPatGet(field, kind) { if (BC_STOCK_KINDS.includes(kind) || kind === 'dev') { const st = bcPatStored(field); return st && st.manual ? st : BC_PAT_DEFAULT[kind]; } return bcPatStored(field) || BC_PAT_DEFAULT[kind] || null; }   // 📦 V291 재고는 S/N 끝 7자리가 기본 (직접 다른 모양을 고르면 그걸로)
+        function bcPatSet(field, c, tail, manual) { if (!field || !c) return; try { const stk = ['st-serials', 'st-serial', 'stockSearch'].includes(field) || (BC_DEV_FIELDS.includes(field) && manual), def = stk && c.cls === 'sn' && tail === BC_TAIL; localStorage.setItem('bcPat:' + field, JSON.stringify({ cls: c.cls, len: c.len, tail: tail || 0, ...(stk && !def ? { manual: 1 } : {}), ...(def ? { any: 1 } : {}) })); } catch (e) { /* 저장 못 해도 OK */ } }
         const bcPatFits = (p, c) => !!p && !!c && c.cls === p.cls && c.cls !== 'etc' && (['imei', 'iccid'].includes(c.cls) || !!p.any || c.len === p.len);
-        const bcTailOf = (c, tail) => (tail && c.text.length > tail ? c.text.slice(-tail) : c.text);
+        const bcTailOf = (c, tail) => (tail && c.text.length > tail && !(c.cls === 'sn' && !new RegExp(`\\d{${tail}}$`).test(c.text)) ? c.text.slice(-tail) : c.text);   // 📷 V362 끝 7자리가 숫자가 아닌 S/N(아이폰 등)은 전체 그대로
         function bcPatLabel(p) { return p.tail ? `${p.cls === 'imei' ? 'IMEI' : '번호'} 끝 ${p.tail}자리` : ({ imei: 'IMEI', iccid: '유심 번호', sn: 'S/N', ean: '상품 코드' }[p.cls] || `숫자 ${p.len}자리`); }
         function bcBeep() {
             try { if (navigator.vibrate) navigator.vibrate(60); } catch (e) { /* 무시 */ }
@@ -22710,7 +22714,7 @@ familyStr + `\n` +
             S.done = true;
             if (c && !S.opts.noPat && (!auto || !bcPatStored(S.opts.field))) {   // 직접 고른 건 늘 · 자동(재고 맞음)은 처음 한 번만 기억
                 const sv = String(value).toUpperCase(), t = tail != null ? tail : (sv !== c.text.toUpperCase() && c.text.toUpperCase().endsWith(sv) ? sv.length : 0);
-                bcPatSet(S.opts.field, c, t);
+                bcPatSet(S.opts.field, c, t, !auto);
             }
             bcBeep();
             const cb = S.opts.onPick;
@@ -22860,7 +22864,7 @@ familyStr + `\n` +
             return null;
         }
         const BC_FIELD = {
-            'ar-serial': { kind: 'dev', title: '📷 단말기 일련번호', hint: '상자 라벨이나 폰 화면(*#06#)의 바코드를 비춰 주세요. 재고에 있는 단말이면 바로 들어가요.' },
+            'ar-serial': { kind: 'dev', title: '📷 단말기 일련번호', hint: '상자 옆 라벨 전체를 비춰 주세요 (IMEI · S/N 바코드가 같이 보이게). 재고에 있으면 재고 번호로, 없으면 S/N 끝 7자리가 자동으로 들어가요. 다른 번호가 필요하면 아래 목록에서 눌러 고르세요.' },
             'ar-usimserial': { kind: 'usim', title: '📷 유심 일련번호', hint: '유심 카드 · 포장의 바코드를 비춰 주세요.' },
             'ar-up-serial': { kind: 'used', title: '📷 중고폰 일련번호', hint: '중고폰에서 *#06# 을 누르면 IMEI 바코드가 떠요. 그 화면을 비춰 주세요.' },
             'st-serial': { kind: 'stockedit', title: '📷 재고 일련번호', hint: '상자 라벨의 바코드를 비춰 주세요.' }
@@ -24251,7 +24255,7 @@ familyStr + `\n` +
             if (del) { gd.promises.splice(+del.dataset.gdPdel, 1); gdDirty = true; document.getElementById('gdProms').innerHTML = gdPromRows(gd); return; }
             if (e.target.closest('[data-gd-scan]')) {
                 if (!bcPatStored('gd-serial') && bcPatStored('ar-serial')) { try { localStorage.setItem('bcPat:gd-serial', localStorage.getItem('bcPat:ar-serial')); } catch (err) { /* 무시 */ } }
-                openBarcode({ title: '📷 단말기 바코드', field: 'gd-serial', kind: 'dev', hint: '상자 라벨을 비추면 재고에서 모델 · 색상 · 거래처를 채워요.', note: bcStockNote, prefer: bcPreferStock,
+                openBarcode({ title: '📷 단말기 바코드', field: 'gd-serial', kind: 'dev', hint: '상자 옆 라벨 전체를 비춰 주세요 (IMEI · S/N 바코드가 같이 보이게). 재고에 있으면 모델 · 색상 · 거래처까지 채워요 · 없으면 S/N 끝 7자리', note: bcStockNote, prefer: bcPreferStock,
                     onPick: (v) => {
                         if (!gd) return;
                         gd.dev.serial = String(v).slice(0, 40); gdDirty = true;
@@ -28514,7 +28518,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V361';
+        const APP_VER = 'V362';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28522,6 +28526,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V362', d: '2026-11-10', items: [
+                ['📷 단말기 바코드(개통등록 · 안내서): 상자의 IMEI 바코드가 먼저 읽혀서 IMEI가 들어가던 것 고침 → 재고와 같은 상자 S/N 끝 7자리가 기본 · 재고에 있으면 재고 번호 그대로 · 아이폰처럼 끝이 숫자가 아닌 S/N은 전체', 'a']] },
             { v: 'V361', d: '2026-11-10', items: [
                 ['📦 재고 탭: 개통 기록에는 있는데 재고에 \'재고\'로 남은 단말을 찾아 위에 빨간 칸으로 보여 줘요 → [모두 \'개통\'으로 처리] (개통 저장 때 인터넷 · Firebase 한도 초과로 재고 반영만 빠졌을 때)', 'a']] },
             { v: 'V360', d: '2026-11-10', items: [
