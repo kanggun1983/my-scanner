@@ -22514,7 +22514,19 @@ familyStr + `\n` +
                         const fm = BC_FORMATS.filter(f => (sup || []).includes(f));
                         if (fm.length) {
                             const d = new window.BarcodeDetector({ formats: fm });
-                            return { kind: 'native', detect: async (src) => (await d.detect(src)).map(r => ({ text: String(r.rawValue || ''), fmt: String(r.format || ''), y: r.boundingBox ? r.boundingBox.y : 0 })) };
+                            // ⚡ V363 한 번은 화면 전체, 한 번은 네모 안만 크게 키워서 (상자 라벨의 가늘고 촘촘한 바코드가 더 잘 읽힘)
+                            const cv = document.createElement('canvas'), cx = cv.getContext('2d', { willReadFrequently: true }); let turn = 0;
+                            const map = (list, oy, k) => list.map(r => ({ text: String(r.rawValue || ''), fmt: String(r.format || ''), y: oy + (r.boundingBox ? r.boundingBox.y / k : 0) }));
+                            return { kind: 'native', detect: async (src, o = {}) => {
+                                const c = o.crop;
+                                if (c && !o.full && (turn++ % 2)) {
+                                    const [sx, sy, sw, sh] = c, k = Math.min(2, Math.max(1, 1600 / sw));
+                                    cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+                                    cx.imageSmoothingEnabled = true; cx.drawImage(src, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+                                    return map(await d.detect(cv), sy, k);
+                                }
+                                return map(await d.detect(src), 0, 1);
+                            } };
                         }
                     } catch (e) { /* 아래 ZXing으로 */ }
                 }
@@ -22639,7 +22651,7 @@ familyStr + `\n` +
             const detP = bcGetDetector().then(d => { S.det = d; return d; }, () => null);
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { bcMsg(S, '이 화면에선 카메라를 못 켜요 → 🖼 사진으로 찍어 주세요'); return; }
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 1440 } } });   // ⚡ V363 더 선명하게 (안 되는 폰은 알아서 낮춤)
                 if (bcState !== S) { stream.getTracks().forEach(t => t.stop()); return; }
                 S.stream = stream; S.track = stream.getVideoTracks()[0] || null;
                 v.srcObject = stream;
@@ -22647,7 +22659,11 @@ familyStr + `\n` +
                 const cap = S.track && S.track.getCapabilities ? S.track.getCapabilities() : {};
                 if (Array.isArray(cap.focusMode) && cap.focusMode.includes('continuous')) { try { await S.track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch (e) { /* 지원 안 함 */ } }
                 if (cap.torch) S.el.querySelector('[data-bc-torch]').classList.remove('hidden');
-                if (cap.zoom && cap.zoom.max >= 1.5) { S.zoomCap = cap.zoom; S.el.querySelector('[data-bc-zoom]').classList.remove('hidden'); }
+                if (cap.zoom && cap.zoom.max >= 1.5) {
+                    S.zoomCap = cap.zoom; const zb = S.el.querySelector('[data-bc-zoom]'); zb.classList.remove('hidden');
+                    // ⚡ V363 처음부터 2배 줌 (한 뼘 떨어져서 찍어도 바코드가 커서 초점 · 인식이 빨라요 · 버튼으로 1x · 3x)
+                    if (cap.zoom.max >= 2) { const lo = cap.zoom.min || 1, steps = [...new Set([1, 2, 3].map(z => Math.max(lo, Math.min(cap.zoom.max, z))))], zi = steps.indexOf(2); if (zi >= 0) { try { await S.track.applyConstraints({ advanced: [{ zoom: 2 }] }); S.zi = zi; zb.textContent = '2x'; } catch (e) { /* 지원 안 함 */ } } }
+                }
             } catch (e) {
                 bcMsg(S, e && (e.name === 'NotAllowedError' || e.name === 'SecurityError') ? '카메라 권한이 막혀 있어요 → 🖼 사진으로 찍거나, 주소창의 🔒에서 카메라 허용' : '카메라를 못 켰어요 → 🖼 사진으로 찍어 주세요');
                 return;
@@ -22655,7 +22671,7 @@ familyStr + `\n` +
             const det = await detP;
             if (bcState !== S) return;
             if (!det) { bcMsg(S, '바코드 읽는 도구를 못 불러왔어요 (인터넷 확인) → ⌨️ 직접 입력'); return; }
-            bcMsg(S, '바코드를 네모 안에 · 너무 가까우면 흐려요 (한 뼘쯤 떨어져서)');
+            bcMsg(S, S.zi && S.zoomCap ? '바코드를 네모 안에 · 2배 줌이라 한 뼘쯤 떨어져서 비춰 주세요' : '바코드를 네모 안에 · 너무 가까우면 흐려요 (한 뼘쯤 떨어져서)');
             bcLoop(S);
         }
         // 화면 네모 → 영상 속 위치 (ZXing은 네모 안만 읽어서 빠르게)
@@ -22679,7 +22695,7 @@ familyStr + `\n` +
                     try { const res = await S.det.detect(v, { crop: bcCrop(S, v) }); if (bcState === S) bcFound(S, res); } catch (e) { /* 다음 장면 */ }
                     S.busy = false;
                 }
-                if (bcState === S) S.timer = setTimeout(tick, S.det && S.det.kind === 'native' ? 150 : 60);
+                if (bcState === S) S.timer = setTimeout(tick, S.det && S.det.kind === 'native' ? 40 : 60);   // ⚡ V363 폰 바코드 읽기는 더 자주 (예전 0.15초 → 0.04초 · 읽는 중엔 겹치지 않음)
             };
             tick();
         }
@@ -28518,7 +28534,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V362';
+        const APP_VER = 'V363';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28526,6 +28542,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V363', d: '2026-11-10', items: [
+                ['⚡ 바코드 더 빠르고 잘 읽게: 카메라 더 선명하게(최대 2560×1440) · 처음부터 2배 줌(지원하는 폰) · 읽는 간격 0.15초 → 0.04초 · 한 번은 화면 전체, 한 번은 네모 안을 크게 키워서 (가늘고 촘촘한 상자 바코드)', 'a']] },
             { v: 'V362', d: '2026-11-10', items: [
                 ['📷 단말기 바코드(개통등록 · 안내서): 상자의 IMEI 바코드가 먼저 읽혀서 IMEI가 들어가던 것 고침 → 재고와 같은 상자 S/N 끝 7자리가 기본 · 재고에 있으면 재고 번호 그대로 · 아이폰처럼 끝이 숫자가 아닌 S/N은 전체', 'a']] },
             { v: 'V361', d: '2026-11-10', items: [
