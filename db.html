@@ -873,6 +873,15 @@
                             <button type="button" data-promo-mode="now" role="radio" class="h-10 rounded-lg text-sm font-bold">⚡ 즉시 발송</button>
                             <button type="button" data-promo-mode="resv" role="radio" class="h-10 rounded-lg text-sm font-bold">📅 예약 발송</button>
                         </div>
+                        <div>
+                            <p class="text-xs font-bold text-gray-600 mb-1">어떻게 보낼까요 <span class="font-normal text-gray-500">(🔔 푸시 = 명함 알림 켠 고객만 · 무료)</span></p>
+                            <div class="grid grid-cols-3 gap-1 p-1 rounded-xl bg-gray-100" role="radiogroup" aria-label="홍보 보내는 방법">
+                                <button type="button" data-promo-ch="sms" role="radio" class="h-10 rounded-lg text-sm font-bold">💬 문자만</button>
+                                <button type="button" data-promo-ch="both" role="radio" class="h-10 rounded-lg text-sm font-bold">💬+🔔 둘 다</button>
+                                <button type="button" data-promo-ch="push" role="radio" class="h-10 rounded-lg text-sm font-bold">🔔 푸시만</button>
+                            </div>
+                            <p id="promoChNote" class="mt-1 text-[12px] text-gray-600"></p>
+                        </div>
                         <div id="promoResvBox" class="grid grid-cols-2 gap-2">
                             <label class="text-xs font-bold text-gray-600">보낼 날 (시작)<input type="date" id="smsPromoDate" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
                             <label class="text-xs font-bold text-gray-600">보낼 시각<input type="time" id="smsPromoTime" step="300" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
@@ -12686,6 +12695,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         // 보내는 방법: 🔔 자동 푸시 / 💬 자동 문자 (각각 켜고 끔 · 둘 다 켜면 알림 켠 고객은 푸시와 문자 둘 다 받음)
         function autoPushOn() { return appSettings.autoChPush !== false; }
         function autoSmsOn() { return appSettings.autoChSms !== false; }
+        // 📢 V350 홍보는 따로 고름: 💬 문자만(기본) / 💬+🔔 문자+푸시 / 🔔 푸시만 — 푸시는 위 자동 푸시 설정과 상관없이 홍보에서 고른 대로 (명함 알림 켠 고객만)
+        function promoCh() { const v = String(appSettings.smsPromoCh || 'sms'); return v === 'both' || v === 'push' ? v : 'sms'; }
+        function promoSmsOn() { return autoSmsOn() && promoCh() !== 'push'; }
+        function promoPushOn() { return promoCh() !== 'sms'; }
         // 📷 사진 문자(MMS): 매장 공용 설정을 켜고 + 중계 서버가 v9(사진 문자 지원)일 때만
         let relayMmsOk = null;
         function noteRelayCaps(list) {
@@ -12724,10 +12737,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return '';
         }
         // 한 가지 안내를 켜진 방법대로 만들기 (푸시는 id 뒤에 -p, 서로 따로 예약·취소)
-        function autoItemsFor(c, base, push) {
+        function autoItemsFor(c, base, push, ch) {   // ch = { sms, push } 홍보처럼 따로 고른 방법 (없으면 자동 안내 '보내는 방법')
             const out = [];
-            if (autoSmsOn() && base.to) out.push(base);   // 문자는 휴대폰 번호가 있을 때만
-            if (autoPushOn() && c.pushSubscribed === true && c.cardId) {
+            const smsOk = ch ? !!ch.sms : autoSmsOn(), pushOk = ch ? !!ch.push : autoPushOn();
+            if (smsOk && base.to) out.push(base);   // 문자는 휴대폰 번호가 있을 때만
+            if (pushOk && c.pushSubscribed === true && c.cardId) {
                 // 문자를 따로 보내므로 푸시에는 번호를 안 넣음 (푸시가 안 돼도 문자로 한 번 더 가지 않게)
                 out.push({ id: `${base.id}-p`, channel: 'push', cardId: c.cardId, to: '', name: base.name, auto: true, sendAt: base.sendAt, heading: push.heading, text: push.text, image: push.image || '', icon: autoPushIconUrl(), url: push.url || cardPushUrl(c, base.id, push.heading, push.popBody || push.text, push.popImage || push.image, push.rv, false, push.pos) });   // url: 누르면 명함 + 🔔 받은 알림 창 (중계 서버 v10)
             }
@@ -12882,7 +12896,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function promoReachable(c) {   // 지금도 보내도 되는 고객인지 (삭제·수신거부·고객거부·연락처 없음 제외)
             if (!c || c.deletedAt || c.marketingDeny || c.salesStatus === '고객거부') return false;
-            return !!((autoSmsOn() && smsMobileDigits(c.phone)) || (autoPushOn() && c.pushSubscribed === true && c.cardId));   // 켜 둔 방법으로 실제 닿는 고객만
+            return !!((promoSmsOn() && smsMobileDigits(c.phone)) || (promoPushOn() && c.pushSubscribed === true && c.cardId));   // 홍보에서 고른 방법으로 실제 닿는 고객만 (V350)
         }
         function promoKey() { return `${String(smsSetting('smsPromoDate') || '')}${promoTime()}`; }
         function promoTimeOk(t) { const s0 = String(t || ''); if (!/^\d{2}:\d{2}$/.test(s0)) return false; const h = parseInt(s0, 10), m = parseInt(s0.slice(3), 10); return h >= 9 && (h < 20 || (h === 20 && m <= 40)); }   // 중계 서버가 아침 9시~밤 9시에만 보내고 최대 10분 늦을 수 있어서 9:00~20:40
@@ -12938,7 +12952,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const id = `${camp}${safeId}`;
                     const pImg = String(appSettings.smsPromoImage || '').trim(), pMms = mmsActive() && !!pImg;   // 📷 사진 문자면 링크 없는 문구 + 사진 (안 되면 서버가 링크 문구로)
                     items.push(...autoItemsFor(c, { id, to: smsMobileDigits(c.phone), name: c.name || '', auto: true, sendAt: smsSendAt(day, time), text: pMms ? promoText(c, false, { noLink: true }) : promoText(c, false), ...(pMms ? { mmsImage: pImg, linkText: promoText(c, false) } : {}) },
-                        { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: promoPushImg(), popImage: String(appSettings.smsPromoImage || ''), pos: promoImgPos() }).filter(it => !skip.has(it.id)));   // 🔔 V325 알림 = 잘라 둔 사진 · 명함 창 = 원래 사진 + 위치
+                        { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: promoPushImg(), popImage: String(appSettings.smsPromoImage || ''), pos: promoImgPos() }, { sms: promoSmsOn(), push: promoPushOn() }).filter(it => !skip.has(it.id)));   // 🔔 V325 알림 = 잘라 둔 사진 · 명함 창 = 원래 사진 + 위치
                 });
             }
             if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn && !famPhoneOn) return items;
@@ -13485,6 +13499,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 smsPromoDate: document.getElementById('smsPromoDate').value || '',
                 smsPromoTime: promoTimeOk(document.getElementById('smsPromoTime').value) ? document.getElementById('smsPromoTime').value : '',
                 smsPromoMode: promoModeUI,
+                smsPromoCh: promoCh(),
                 smsPromoIds: Array.isArray(appSettings.smsPromoIds) ? appSettings.smsPromoIds : [],
                 smsPromoKey: String(appSettings.smsPromoKey || ''),
                 ...promoFormVals(),
@@ -13613,6 +13628,20 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             renderPromoInfo();
             saveDoc(doc(db, 'smart_global', 'settings'), { smsPromoMode: promoModeUI }, { merge: true }).then(() => { appSettings = { ...appSettings, smsPromoMode: promoModeUI }; }).catch(e => console.error(e));
         }));
+        // 💬 문자만 / 💬+🔔 둘 다 / 🔔 푸시만 (V350 · 진행 중에도 바꿀 수 있음 → 아직 안 나간 것부터 적용)
+        document.querySelectorAll('[data-promo-ch]').forEach(b => b.addEventListener('click', async () => {
+            const v = b.dataset.promoCh;
+            if (promoCh() === v) return;
+            if (document.getElementById('smsAutoPromoOn').checked && !await customConfirm(`진행 중인 홍보를 '${b.textContent.trim()}'(으)로 바꿀까요?\n이미 나간 건 그대로, 아직 안 나간 것부터 바뀌어요.`)) return;
+            appSettings = { ...appSettings, smsPromoCh: v };
+            renderPromoInfo();
+            saveSmsSettings();
+        }));
+        function promoChSplit(list) {   // (💬 문자 N · 🔔 푸시 M) — 홍보에서 고른 방법으로 실제 가는 수
+            let sm = 0, pu = 0;
+            (list || []).forEach(c => { if (promoSmsOn() && smsMobileDigits(c.phone)) sm++; if (promoPushOn() && c.pushSubscribed === true && c.cardId) pu++; });
+            return ` <span class="text-gray-600">(${promoSmsOn() ? `💬 문자 ${sm}` : ''}${promoSmsOn() && promoPushOn() ? ' · ' : ''}${promoPushOn() ? `🔔 푸시 ${pu}` : ''})</span>`;
+        }
         function promoSentTodayAlready() {   // 오늘 이미 나간(또는 나가는 중인) 홍보가 있나
             if (!smsSetting('smsAutoPromoOn') || smsSetting('smsPromoDate') !== getTodayStr()) return false;
             const [hh, mm] = promoTime().split(':').map(n => parseInt(n, 10));
@@ -13853,6 +13882,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 b.className = `h-10 rounded-lg text-sm font-bold ${sel ? 'bg-white text-pink-700 shadow-sm' : 'text-gray-500'}`;
             });
             document.getElementById('promoResvBox').style.display = mode === 'now' ? 'none' : '';
+            const ch = promoCh();
+            document.querySelectorAll('[data-promo-ch]').forEach(b => {
+                const sel = b.dataset.promoCh === ch;
+                b.setAttribute('aria-checked', sel ? 'true' : 'false');
+                b.className = `h-10 rounded-lg text-sm font-bold ${sel ? 'bg-white text-pink-700 shadow-sm' : 'text-gray-500'}`;
+            });
+            const chNote = document.getElementById('promoChNote');
+            if (chNote) chNote.textContent = ch === 'push' ? '문자는 안 가요 · 명함 알림을 켠 고객에게만 푸시가 가요' : ch === 'both' ? '문자 + 명함 알림 켠 고객은 푸시도 같이 받아요' : '푸시는 안 가요 · 문자만 보내요' + (autoSmsOn() ? '' : " (⚠ 자동 안내 '보내는 방법'에서 💬 문자가 꺼져 있어요)");
             const go = document.getElementById('smsPromoGo'), stop = document.getElementById('smsPromoStop');
             stop.classList.toggle('hidden', !on);
             ['smsPromoDate', 'smsPromoTime', 'smsPromoTarget', 'smsPromoDaily', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk'].forEach(id => { const el = document.getElementById(id); el.disabled = on; el.title = on ? "진행 중에는 못 바꿔요 · '이 홍보 그만 보내기' 후 다시 시작" : ''; el.classList.toggle('opacity-50', on); });
@@ -13864,21 +13901,21 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (on) {   // 이미 진행 중인 홍보 (저장된 날짜·시각)
                 const R = promoPreview({ smsPromoDate: date, smsPromoTime: promoTimeOk(tv) ? tv : (appSettings.smsPromoTime || '') });
                 const nowMode = smsSetting('smsPromoMode') === 'now' && date === getTodayStr();
-                box.innerHTML = `<b>${nowMode ? '⚡ 즉시 발송함' : '📅 예약됨'}</b> · 대상 <b>${R.P.list.length}명</b>${promoFilterSummary() ? ` (${escapeHtml(promoFilterSummary())})` : ''} · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
+                box.innerHTML = `<b>${nowMode ? '⚡ 즉시 발송함' : '📅 예약됨'}</b> · 대상 <b>${R.P.list.length}명</b>${promoChSplit(R.P.list)}${promoFilterSummary() ? ` (${escapeHtml(promoFilterSummary())})` : ''} · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
                    <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
                    ${tail} <span class="text-gray-600">문구를 고치면 아직 안 나간 문자에 바로 반영돼요. 대상·날짜·하루 최대는 시작할 때 고정돼요 (바꾸려면 그만 보내기 후 다시 시작).</span>`;
                 return;
             }
             if (mode === 'now') {
                 const R = promoPreview({ smsPromoDate: getTodayStr(), smsPromoTime: nowHHMM() });
-                box.innerHTML = `지금 보내면 대상 <b>${R.P.list.length}명</b>${R.P.days > 1 ? ` · 하루 ${R.P.per}명씩 <b>${R.P.days}일</b>에 나눠 (다음 날부터 같은 시각)` : ''}<br>
+                box.innerHTML = `지금 보내면 대상 <b>${R.P.list.length}명</b>${promoChSplit(R.P.list)}${R.P.days > 1 ? ` · 하루 ${R.P.per}명씩 <b>${R.P.days}일</b>에 나눠 (다음 날부터 같은 시각)` : ''}<br>
                    <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
                    ${tail} <span class="text-gray-600">버튼을 누르면 서버가 10분 안에 보내요. 광고라서 오전 9시~저녁 8시 40분에만 즉시 발송돼요.</span>`;
                 return;
             }
             if (!date) { box.innerHTML = '보낼 날과 시각을 고르면 대상 수와 보내는 날이 여기 나와요.'; return; }
             const R = promoPreview({ smsPromoDate: date, smsPromoTime: promoTimeOk(tv) ? tv : '' });
-            box.innerHTML = `예약하면 대상 <b>${R.P.list.length}명</b> · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
+            box.innerHTML = `예약하면 대상 <b>${R.P.list.length}명</b>${promoChSplit(R.P.list)} · ${escapeHtml(date.slice(5).replace('-', '/'))} ${escapeHtml(R.t)}${R.P.days > 1 ? ` ~ ${escapeHtml(R.P.last.slice(5).replace('-', '/'))} (하루 ${R.P.per}명씩 ${R.P.days}일)` : ''}<br>
                <span class="text-gray-600">미리보기 (${escapeHtml(R.sample.name || '고객')}님):</span><br><span class="whitespace-pre-line text-gray-800">${escapeHtml(R.prev)}</span><br>
                ${tail} <span class="text-gray-600">광고라서 오전 9시~저녁 8시 40분 사이로만 예약돼요.</span>`;
         }
@@ -28129,7 +28166,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V349';
+        const APP_VER = 'V350';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28137,6 +28174,8 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V350', d: '2026-11-10', items: [
+                ['📢 홍보 문자에 [어떻게 보낼까요] 추가: 💬 문자만(기본) · 💬+🔔 둘 다 · 🔔 푸시만 — 필요할 때만 푸시도 같이 (푸시는 명함 알림 켠 고객만) · 대상 옆에 문자 몇 명 · 푸시 몇 명 표시 · 진행 중에도 바꾸면 아직 안 나간 것부터 적용', 'a']] },
             { v: 'V349', d: '2026-11-10', items: [
                 ['📞 콜매니저 [① 앱 받기]: 주소 끝에 버전을 붙여 늘 새 파일을 받고, 파일 이름도 kangcrm-call-v5.7.apk처럼 버전이 들어가요 (예전에 받은 파일을 잘못 여는 일 없게)', 'a']] },
             { v: 'V348', d: '2026-11-10', items: [
