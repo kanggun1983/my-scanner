@@ -460,7 +460,7 @@
                 <button type="button" id="dashWired" data-dash-filter="wired_target" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
                     <span class="text-xs font-medium text-gray-600 truncate">유선 만료</span>
                     <span class="text-xl font-bold leading-tight text-gray-900"><span id="dashWiredCount">0</span><span class="text-sm">명</span></span>
-                    <span id="dashWiredSub" class="text-xs text-gray-600 truncate">90일 안</span>
+                    <span id="dashWiredSub" class="text-xs text-gray-600 truncate">6개월 안</span>
                 </button>
                 <button type="button" id="dashBirthday" data-dash-filter="birthday" class="flex-1 min-w-[76px] text-left bg-white border border-gray-200 rounded-xl px-2.5 py-2 min-h-[72px] flex flex-col justify-center transition">
                     <span class="text-xs font-medium text-gray-600 truncate">생일</span>
@@ -4306,7 +4306,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
 
         // 📊 대시보드 타겟 기준 (매장 방침에 맞게 숫자만 바꾸면 대시보드/필터/배지에 모두 반영됨)
         const MOBILE_TARGET_MONTHS = 18;  // 무선 만료타겟: 개통 후 N개월 이상 사용 or 약정만료(해당없음)
-        const WIRED_TARGET_DAYS = 90;     // 유선 만료타겟: 36개월 약정 만료 N일 전부터 (이미 만료된 고객 포함)
+        const WIRED_TARGET_DAYS = 183;     // 유선 만료타겟: 36개월 약정 만료 N일 전부터 (이미 만료된 고객 포함) · 📶 V373 90일 → 6개월 (약정갱신은 만료 6개월 전부터 가능)
         const BIRTHDAY_DAYS_AHEAD = 7;    // 생일자: 오늘부터 N일 이내 생일
         const PROMISE_DAYS_AHEAD = 7;     // 약속: 지연·오늘 + 오늘부터 N일 안에 다가오는 약속도 대시보드에
 
@@ -5413,6 +5413,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             end.setMonth(end.getMonth() + 36);
             end.setHours(0, 0, 0, 0);
             return end;
+        }
+        function getWiredRenewFrom(dateStr) {   // 📶 V373 약정갱신 가능일 = 약정 만료 6개월 전
+            const end = getWiredEndDate(dateStr); if (!end) return null;
+            const d = new Date(end); d.setMonth(d.getMonth() - 6); d.setHours(0, 0, 0, 0); return d;
         }
         function getWiredDaysLeft(dateStr) {
             const end = getWiredEndDate(dateStr);
@@ -6760,7 +6764,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             setText('dashMobileCount', mobileCount);
             setText('dashMobileSub', `${MOBILE_TARGET_MONTHS}개월↑ · 12약정 12↑`);
             setText('dashWiredCount', wiredCount);
-            setText('dashWiredSub', wiredExpired > 0 ? `만료 ${wiredExpired}명` : `${WIRED_TARGET_DAYS}일 안`);
+            setText('dashWiredSub', wiredExpired > 0 ? `만료 ${wiredExpired}명` : '6개월 안 · 약갱 가능');
             setText('dashBirthdayCount', birthdayCount);
             setText('dashBirthdaySub', birthdayToday > 0 ? `오늘 ${birthdayToday}명` : `${BIRTHDAY_DAYS_AHEAD}일 안`);
 
@@ -11009,6 +11013,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 const cls = left < 0 ? 'bg-red-50 text-red-600' : (left <= WIRED_TARGET_DAYS ? 'bg-orange-50 text-orange-600' : 'bg-teal-50 text-teal-600');
                 const txt = left < 0 ? `만료 D+${Math.abs(left)}` : (left === 0 ? '오늘 만료' : `D-${left}`);
                 endHtml = `${endStr} <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded ${cls}">${txt}</span>`;
+                { const rf = getWiredRenewFrom(c.wiredDate), rs = rf ? `${rf.getMonth() + 1}/${rf.getDate()}` : '', today0 = new Date(); today0.setHours(0, 0, 0, 0);   // 📶 V373 약갱 가능일
+                  if (rf && left >= 0) endHtml += rf <= today0 ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">🔄 지금 약갱 가능</span>` : ` <span class="block mt-0.5 text-[11px] text-gray-500">🔄 약갱 가능 ${rf.getFullYear()}.${rs}부터 (만료 6개월 전 · 미리 하면 남은 위약금 유예)</span>`; }
             }
             return [
                 profileKV('인터넷', profileValue(c.internetProd)),
@@ -11202,7 +11208,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function wnCalcUrl(c, I) {
             const u = new URL('/telecom-calc/', location.href), q = u.searchParams;
-            q.set('from', 'crm'); if (c.name) q.set('name', String(c.name).slice(0, 20));
+            q.set('from', 'crm'); if (c.name) q.set('name', String(c.name).slice(0, 20)); if (['신규', '재약정', '약정갱신', '원스탑'].includes(c.wiredType)) q.set('type', c.wiredType);   // 📶 V373
             if (I) { const g = I.g; q.set('carrier', g.carrier); q.set('start', c.wiredDate); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredTvDate || ''))) q.set('ts', c.wiredTvDate); q.set('tab', g.tab); q.set('int', g.intId); q.set('wifi', g.wifiId); q.set('tv', g.tvId); q.set('stb', g.stbId); q.set('bundle', g.bundleId); if (g.tvCount === 2) q.set('tv2', '1'); }
             else { q.set('carrier', wnCarOf(c).ck); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) q.set('start', c.wiredDate); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredTvDate || ''))) q.set('ts', c.wiredTvDate); }
             return u.href;
@@ -20304,7 +20310,7 @@ familyStr + `\n` +
             ['prom', '약속', [['open', '처리할 약속 있음'], ['over', '지난 약속 (지연)'], ['week', '7일 안 약속']]],
             ['card', '명함', [['on', '명함 설치'], ['off', '명함 미설치'], ['push', '알림 켬']]],
             ['age', '나이', [['o65', '65세↑'], ['m40', '40~64세'], ['u39', '39세↓'], ['none', '나이 모름']]],
-            ['wired', '인터넷 · TV', [['has', '유선 있음'], ['exp', '유선 만료 90일 안'], ['none', '유선 없음']]]
+            ['wired', '인터넷 · TV', [['has', '유선 있음'], ['exp', '유선 만료 6개월 안 (약갱 가능)'], ['none', '유선 없음']]]
         ];
         function custHasWired(c) { const ok = (v) => v && String(v).trim() && String(v).trim() !== '-' && !/해당없음|없음|미적용/.test(String(v)); return !!(ok(c.internetProd) || ok(c.tvProd) || ok(c.wiredDate) || ok(c.wiredFee)); }
         function custCondPass(c) {
@@ -20360,7 +20366,7 @@ familyStr + `\n` +
             document.getElementById('calcSheetBody').innerHTML = `
                 <div class="rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2 text-[13px] text-indigo-900 flex items-center gap-2"><span class="flex-1">지금 조건에 맞는 고객 <b class="text-[16px]">${customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length}명</b></span><span class="text-xs text-indigo-700">버튼 옆 숫자 = 그걸 고르면 몇 명</span></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">자주 쓰는 조합</p>
-                    <div class="flex flex-wrap gap-1.5">${[['m18', '🔁 기변 대상 (18개월↑)'], ['senior', '👵 65세↑ · 명함 미설치'], ['wexp', '🏠 유선 만료 90일 안'], ['over', '⏰ 지난 약속']].map(([k, l]) => `<button type="button" data-cpre="${k}" class="h-10 px-3 rounded-full border border-dashed border-indigo-400 bg-white text-sm font-bold text-indigo-800">${l}</button>`).join('')}</div></div>
+                    <div class="flex flex-wrap gap-1.5">${[['m18', '🔁 기변 대상 (18개월↑)'], ['senior', '👵 65세↑ · 명함 미설치'], ['wexp', '🏠 유선 약갱 가능 (만료 6개월 안)'], ['over', '⏰ 지난 약속']].map(([k, l]) => `<button type="button" data-cpre="${k}" class="h-10 px-3 rounded-full border border-dashed border-indigo-400 bg-white text-sm font-bold text-indigo-800">${l}</button>`).join('')}</div></div>
                 ${CUST_COND.map(([k, label, opts]) => { const list = opts || statuses.map(v => [v, v]); return `<div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">${label}</p><div class="flex flex-wrap gap-1.5">${chip('data-cond', `${k}|`, '전체', !custCond[k])}${list.map(([v, l]) => chip('data-cond', `${k}|${v}`, `${l} ${condCount(k, v)}`, custCond[k] === v)).join('')}</div></div>`; }).join('')}
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기준 날짜</p>
                     <div class="grid grid-cols-3 gap-1.5">${LIST_BASES.map(([k, l]) => `<button type="button" data-rbase="${k}" class="h-11 rounded-xl border text-sm font-bold ${listRange.base === k ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-gray-300 bg-white text-gray-700'}">${l}</button>`).join('')}</div></div>
@@ -28841,7 +28847,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V372';
+        const APP_VER = 'V373';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28849,6 +28855,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V373', d: '2026-11-11', items: [
+                ['🔄 유선 만료타겟을 만료 90일 전 → 6개월 전부터 (약정갱신은 만료 6개월 전부터 할 수 있어서) · 대시보드 · 목록 필터 · 홍보 문자 조건 · 조건으로 찾기가 같이', 'a'],
+                ['📅 고객카드 유선 칸에 약갱 가능일 (만료 6개월 전 · 미리 하면 남은 위약금 유예 · 갱신일부터 다시 3년) · 🧮 유선계산기에도 약정 만료일 · 약갱 가능일 · 유형 표시', 'a']
+            ] },
             { v: 'V372', d: '2026-11-11', items: [
                 ['📶 홈상품 등록 유형에 「재약정3년」 추가 · 유형(신규 · 재약정 · 약정갱신 · 원스탑)과 기존 통신사가 고객카드에 저장돼요 (예전: 보고서 문구에만) · 재약정일 · 갱신일 안내', 'a'],
                 ['📺 TV 약정 시작일 칸 (TV만 따로 재약정했거나 나중에 단 고객) → 고객카드 유선 위약금 · 🧮 유선계산기에 TV는 그 날짜로 계산 · 수정 화면에서도 고칠 수 있어요', 'a']
