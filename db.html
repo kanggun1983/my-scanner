@@ -418,7 +418,7 @@
 
             <!-- ☀️ V358 오늘 카드: 할 일 · 약속 · 명함 · 실적을 탭 하나로 (아래 조각들을 열 때 이 안으로 옮김) -->
             <section id="todayCard" class="bg-white border border-gray-200 rounded-2xl mb-2.5 overflow-hidden" aria-label="오늘">
-                <div class="flex items-center gap-2 px-3 pt-2.5 pb-1.5"><b class="text-[16px] text-gray-900">☀️ 오늘</b><span id="todayCardDate" class="text-xs text-gray-500"></span><span class="flex-1"></span><button type="button" id="todayCardCal" class="h-8 px-2 rounded-lg text-[13px] font-bold text-indigo-700 hover:bg-indigo-50">약속 달력 ›</button></div>
+                <div class="flex items-center gap-2 px-3 pt-2.5 pb-1.5"><b class="text-[16px] text-gray-900">☀️ 오늘</b><span id="todayCardDate" class="text-xs text-gray-500"></span><span class="flex-1"></span><button type="button" id="moneyListBtn" class="h-8 px-2 rounded-lg text-[13px] font-bold text-emerald-700 hover:bg-emerald-50">💸 송금<span id="moneyListN" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-emerald-600 text-white text-[11px] leading-[18px]"></span></button><button type="button" id="todayCardCal" class="h-8 px-2 rounded-lg text-[13px] font-bold text-indigo-700 hover:bg-indigo-50">약속 달력 ›</button></div>
                 <div class="flex gap-1 mx-2.5 mb-2 p-1 rounded-xl bg-gray-100" role="group" aria-label="오늘 보기">
                     <button type="button" data-today-tab="todo" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">할 일<span data-today-badge="todo" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-red-600 text-white text-[11px] leading-[18px]"></span></button>
                     <button type="button" data-today-tab="prom" class="flex-1 h-9 rounded-lg text-[13.5px] font-bold">약속<span data-today-badge="prom" class="hidden ml-1 inline-block min-w-[19px] px-1 rounded-full bg-orange-500 text-white text-[11px] leading-[18px]"></span></button>
@@ -4173,7 +4173,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         /* ↩️ V207: 코드로 만들었다 지우는 작은 창들도 폰 [뒤로]로 닫히게
            · 창이 화면에 붙으면 기록 한 칸 · ✕로 닫으면 그 한 칸 되돌림 · [뒤로]면 맨 위 창의 ✕를 대신 눌러줌 */
-        const BACK_SHEETS = ['bkSheet', 'docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet', 'planInfoSheet'];
+        const BACK_SHEETS = ['moneySheet', 'bkSheet', 'docViewSheet', 'recSheet', 'incSheet', 'docsSheet', 'todoStatusPick', 'todoSheet', 'quickLinksSheet', 'goalSheet', 'wiredReviewSheet', 'editLogSheet', 'settleSheet', 'actSettleSheet', 'pushStatsSheet', 'tplTestSheet', 'stockExpSheet', 'stockResetSheet', 'stockMergeSheet', 'bcAuditSheet', 'gdAdminSheet', 'whatsNewSheet', 'accessSheet', 'paySheet', 'payCfgSheet', 'payAdjSheet', 'payStaffSheet', 'payEditSheet', 'planInfoSheet'];
         const backSheetOn = new Set(), backSheetPopped = new Set();
         function backSheetSync() {
             BACK_SHEETS.forEach(id => {
@@ -4750,7 +4750,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (!document.getElementById('settingsView').classList.contains('hidden')) renderTrashList();
                 if (!document.getElementById('stockView').classList.contains('hidden')) { clearTimeout(window.__stkRt); window.__stkRt = setTimeout(() => { try { renderStock(); } catch (e) { /* 준비 전 */ } }, 150); }   // 📦 V365 중고폰 · 개통 처리처럼 고객 쪽이 바뀌면 재고 탭도 바로 (예전엔 탭을 다시 열어야 보였음)
                 try { renderGlobalStatsUI(); } catch (e) { /* 준비 전 */ }   // 📞 오늘 연락 숫자 = 연락 기록 기준 (V194)
-                try { gdBadge(); } catch (e) { /* 준비 전 */ }   // 📝 안내서 탭 숫자 (V202 · 어느 탭에 있든)
+                try { gdBadge(); } catch (e) { /* 준비 전 */ }
+                try { moneyBadge(); if (document.getElementById('moneySheet')) { /* 열려 있으면 그대로 · 처리하면 다시 그림 */ } } catch (e) { /* 준비 전 */ }   // 💸 V382   // 📝 안내서 탭 숫자 (V202 · 어느 탭에 있든)
                 if (!wnShownThisLoad) setTimeout(() => { try { maybeShowWhatsNew(); } catch (e) { console.warn(e); } }, 1500);   // 📢 업데이트 소식 (V199)
                 scheduleContactFlush();
                 checkPendingCallResult();
@@ -12007,6 +12008,74 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             txCustomerUpdate(c.id, (cur) => ({ contactHistory: appendLine(cur.contactHistory, line), __audit: '송금 완료 알림' })).catch(e => console.warn(e));
             return sendAt;
         }
+        /* 💸 V382 송금 · 대납 목록 — 모든 고객의 매장대납 · 고객송금(1 · 2번 칸)을 한곳에 (보낼 것 · 보낸 것)
+             · [✅ 처리] = 약속 달력 체크와 같음 (누가 언제 · 고객송금이면 완료 알림 문자) · 계좌 복사 · 고객카드 */
+        const MONEY_LAB = { Pay: '매장대납', Send: '고객송금', Pay2: '매장대납 2', Send2: '고객송금 2' };
+        function moneyRows() {
+            const out = [];
+            customerDB.forEach(c => PROM_MONEY_KEYS.forEach(k => {
+                const d = String(c[`prom${k}Date`] || '').slice(0, 10), amt = parseInt(String(c[`prom${k}Amt`] || '').replace(/\D/g, ''), 10) || 0, acct = String(c[`prom${k}Acct`] || '').trim();
+                if (!d && !amt && !acct) return;
+                out.push({ c, k, d, amt, acct, bank: String(c[`prom${k}Bank`] || '').trim(), holder: String(c[`prom${k}Holder`] || '').trim(), memo: String(c[`prom${k}Memo`] || '').trim(), done: !!c[`prom${k}Chk`], doneAt: String(c[`prom${k}DoneAt`] || ''), doneBy: String(c[`prom${k}DoneBy`] || '') });
+            }));
+            return out;
+        }
+        function moneyBadge() {
+            const n = moneyRows().filter(r => !r.done).length, el = document.getElementById('moneyListN');
+            if (el) { el.textContent = n > 99 ? '99+' : String(n); el.classList.toggle('hidden', !n); }
+        }
+        let moneyTab = 'todo';
+        function moneySheet() {
+            let sh = document.getElementById('moneySheet'); if (sh) sh.remove();
+            sh = document.createElement('div'); sh.id = 'moneySheet';
+            sh.className = 'fixed inset-0 z-[61] flex items-end sm:items-center justify-center bg-black/50';
+            const W = (n) => `${Number(n || 0).toLocaleString('ko-KR')}원`, today = getTodayStr();
+            const draw = () => {
+                const all = moneyRows(), todo = all.filter(r => !r.done).sort((a, b) => (a.d || '9999').localeCompare(b.d || '9999')), cut = addDaysStr(today, -90);
+                const done = all.filter(r => r.done && (r.doneAt || r.d || '').slice(0, 10) >= cut).sort((a, b) => (b.doneAt || b.d).localeCompare(a.doneAt || a.d));
+                const L = moneyTab === 'todo' ? todo : done, sum = (A) => A.reduce((t, r) => t + r.amt, 0), month = today.slice(0, 7);
+                const row = (r) => {
+                    const dd = r.d ? daysFromToday(r.d) : null, late = !r.done && dd !== null && dd < 0;
+                    const when = r.d ? `${r.d.slice(5).replace('-', '/')}${r.done ? '' : (dd === 0 ? ' · 오늘' : (dd < 0 ? ` · ${-dd}일 지남` : ` · D-${dd}`))}` : '날짜 없음';
+                    return `<div class="rounded-2xl border ${late ? 'border-red-300 bg-red-50/50' : 'border-gray-200 bg-white'} p-3 space-y-1.5">
+                        <div class="flex items-center gap-2"><span class="text-[11px] font-bold rounded px-1.5 py-0.5 ${/Pay/.test(r.k) ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'}">${MONEY_LAB[r.k]}</span><b class="text-[15px] text-gray-900 truncate">${escapeHtml(r.c.name || '고객')}</b><span class="text-xs text-gray-500">${escapeHtml(formatPhone(r.c.phone || r.c.id))}</span><span class="flex-1"></span><b class="text-[16px] ${late ? 'text-red-700' : 'text-gray-900'}">${r.amt ? W(r.amt) : '-'}</b></div>
+                        <div class="text-[13px] ${late ? 'text-red-700 font-bold' : 'text-gray-700'}">📅 ${when}${r.done ? ` · ✅ ${r.doneAt ? r.doneAt.slice(5, 10).replace('-', '/') + ' ' : ''}${escapeHtml(r.doneBy || '')} 처리` : ''}</div>
+                        ${r.bank || r.holder || r.acct ? `<div class="flex items-center gap-2 text-[13px] text-gray-800"><span class="flex-1 min-w-0 truncate">🏦 ${escapeHtml([r.bank, r.holder, r.acct].filter(Boolean).join(' '))}</span>${r.acct ? `<button type="button" data-mn-copy="${escapeHtml([r.bank, r.acct, r.holder].filter(Boolean).join(' '))}" class="flex-shrink-0 h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">📋 복사</button>` : ''}</div>` : ''}
+                        ${r.memo ? `<p class="text-[12px] text-gray-500 truncate">${escapeHtml(r.memo)}</p>` : ''}
+                        <div class="grid grid-cols-2 gap-1.5"><button type="button" data-mn-card="${escapeHtml(r.c.id)}" class="h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">👤 고객카드</button><button type="button" data-mn-done="${escapeHtml(r.c.id)}|${r.k}" class="h-10 rounded-xl text-[13px] font-bold ${r.done ? 'border border-gray-300 bg-white text-gray-700' : 'bg-emerald-600 text-white'}">${r.done ? '↩ 처리 취소' : '✅ 처리했어요'}</button></div>
+                    </div>`;
+                };
+                sh.innerHTML = `<div class="w-full sm:max-w-md bg-gray-50 rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto">
+                    <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 pt-3 pb-2 space-y-2">
+                        <div class="flex items-center justify-between"><p class="text-[17px] font-bold text-gray-900">💸 송금 · 대납 목록</p><button type="button" data-mn-close class="w-10 h-10 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
+                        <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100">${[['todo', `보낼 것 ${todo.length}`], ['done', `보낸 것 ${done.length}`]].map(([k, l]) => `<button type="button" data-mn-tab="${k}" aria-pressed="${moneyTab === k}" class="h-9 rounded-lg text-[13.5px] font-bold ${moneyTab === k ? 'bg-white text-emerald-800 shadow-sm' : 'text-gray-500'}">${l}</button>`).join('')}</div>
+                        <p class="text-[12.5px] font-bold text-gray-700">${moneyTab === 'todo' ? `보낼 돈 합계 <span class="text-emerald-800">${W(sum(todo))}</span>${todo.some(r => r.d && r.d < today) ? ` · <span class="text-red-700">지난 것 ${todo.filter(r => r.d && r.d < today).length}건</span>` : ''}` : `이번 달 보낸 돈 <span class="text-emerald-800">${W(sum(done.filter(r => (r.doneAt || r.d).slice(0, 7) === month)))}</span> · 최근 90일`}</p>
+                    </div>
+                    <div class="p-3 space-y-2">${L.length ? L.map(row).join('') : `<p class="py-10 text-center text-sm text-gray-500">${moneyTab === 'todo' ? '보낼 송금 · 대납이 없어요 ✅' : '최근 90일 보낸 기록이 없어요'}</p>`}
+                        <p class="text-[11.5px] text-gray-500 px-1">안내서 서명 · 고객카드 약속 칸(매장대납 · 고객송금)에 넣은 것이 모여요 · 처리하면 약속 달력에도 체크돼요</p></div>
+                </div>`;
+            };
+            sh.addEventListener('click', async (e) => {
+                if (e.target === sh || e.target.closest('[data-mn-close]')) { sh.remove(); return; }
+                const tb = e.target.closest('[data-mn-tab]'); if (tb) { moneyTab = tb.dataset.mnTab; draw(); return; }
+                const cp = e.target.closest('[data-mn-copy]'); if (cp) { const ok = await copyTextSafe(cp.dataset.mnCopy); stockToast(ok ? '📋 계좌를 복사했어요' : '복사하지 못했어요'); return; }
+                const cd = e.target.closest('[data-mn-card]'); if (cd) { sh.remove(); openProfileCard(cd.dataset.mnCard); return; }
+                const dn = e.target.closest('[data-mn-done]'); if (!dn) return;
+                const [id, key] = dn.dataset.mnDone.split('|'), c = customerDB.find(x => x.id === id); if (!c) return;
+                if (!(await lockGate(c, '약속 처리'))) return;
+                const on = !c[`prom${key}Chk`];
+                if (!on && !(await customConfirm(`${c.name || '고객'} ${MONEY_LAB[key]} 처리를 취소할까요? (보낼 것으로 돌아가요)`))) return;
+                dn.disabled = true;
+                try {
+                    await saveUpdate(doc(db, 'smart_customers', id), { [`prom${key}Chk`]: on, [`prom${key}DoneBy`]: on ? (getStaffName() || '') : '', [`prom${key}DoneAt`]: on ? new Date().toISOString() : '', updatedAt: new Date().toISOString(), __audit: on ? '송금 · 대납 처리' : '송금 · 대납 처리 취소' });
+                    c[`prom${key}Chk`] = on; c[`prom${key}DoneBy`] = on ? (getStaffName() || '') : ''; c[`prom${key}DoneAt`] = on ? new Date().toISOString() : '';
+                    stockToast(on ? `✅ ${MONEY_LAB[key]} 처리했어요` : '↩ 보낼 것으로 돌렸어요'); draw(); moneyBadge();
+                    if (on) afterSendDone(c, key);
+                } catch (err) { dn.disabled = false; customAlert(koreanError(err, '저장')); }
+            });
+            document.body.appendChild(sh); draw();
+        }
+        document.addEventListener('click', (e) => { if (e.target.closest('#moneyListBtn, [data-money-list]')) moneySheet(); });
         function afterSendDone(c, k) {   // 고객송금 처리 체크한 직후 (고객 수정 저장 · 약속 달력 체크)
             if (!c || !/^Send2?$/.test(k)) return;
             const mode = appSettings.sendDoneMode || 'ask';
@@ -28973,7 +29042,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V381';
+        const APP_VER = 'V382';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28981,6 +29050,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V382', d: '2026-11-11', items: [
+                ['💸 송금 · 대납 목록: 고객 탭 \'오늘\' 카드 위 [💸 송금] → 모든 고객의 매장대납 · 고객송금을 한곳에 (보낼 것 · 보낸 것 · 합계 · 지난 날짜 빨간색) · 계좌 📋 복사 · [✅ 처리했어요] (고객송금이면 완료 알림 문자도) · 고객카드 바로가기', 'a']
+            ] },
             { v: 'V381', d: '2026-11-11', items: [
                 ['🛠 예전 개통이 있는 고객의 새 개통을 [개통 취소 → 카드 값 되돌리기] 하면 통신사 · 단말기 · 요금제 · 개통일이 다 빈칸이 되던 것 → 이제 예전 개통일로 돌아가고 칸을 비우지 않아요 · 빈칸이 되는 칸이 있으면 확인 창에 경고', 'a'],
                 ['↩ 이미 빈칸이 된 고객: 개통 기록의 취소된 줄에 [↩ 비워진 칸 원래대로] (변경 기록 · 예전 개통 보관 카드에서 원래 값을 찾아요 · 월 요금 · 출고가도)', 'a'],
