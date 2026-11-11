@@ -21410,6 +21410,14 @@ familyStr + `\n` +
                 const actTarget = arActTarget || arAutoTarget(dayActs);   // V193: 같은 날이라도 기종이 다르면 따로
                 const sameAct = actTarget && actTarget !== 'new' ? dayActs.find(a => a.id === actTarget) || null : null;
                 freshAct = !sameAct;   // 새 개통 → 그 개통 칸(부가·보험·미비서류·중고폰·월요금…)은 이번 값으로 (V195)
+                if (freshAct) {   // 🛠 V374 예전 개통과 같은 폰(일련번호 · 모델)인데 새 날짜로 저장하려 하면 한 번 물어봄 (예전 개통을 고치려다 오늘 개통으로 바뀌던 것)
+                    const sn = arVal('ar-serial'), prev = prevActs.filter(a => !a.canceled && a.kind !== '유선' && a.date < d).sort((x, y) => String(x.date).localeCompare(String(y.date))).pop();
+                    const samePhone = prev && ((sn && prev.serial && stockSerialMatch(prev.serial, sn)) || (!sn && model && ((prev.model && stockKey(prev.model) === stockKey(model)) || (!prev.model && prev.device && stockKey(prev.device).startsWith(stockKey(model))))));
+                    if (samePhone && !(await customConfirm(`📜 ${stockMD(prev.date)}에 개통한 같은 폰(${prev.device || prev.model || ''})이에요.\n\n그 개통을 고치려던 거면 [취소] → 위 노란 칸의 [✏️ ${stockMD(prev.date)} 개통 고치기]를 눌러 주세요.\n\n[확인]을 누르면 ${stockMD(d)} 새 개통으로 따로 저장돼요 (개통일이 ${stockMD(d)}로 바뀌어요).`))) {
+                        const note = document.getElementById('ar-act-note'); if (note) note.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        return;
+                    }
+                }
                 if (freshAct) { if (!(arNum('ar-realpay') > 0)) upd.realPay = ''; if (!(arNum('ar-targetreal') > 0)) upd.targetRealPay = ''; if (!(arNum('ar-planfee') > 0)) upd.planFee = ''; if (!(arNum('ar-targetfee') > 0)) upd.targetPlanFee = ''; if (!arUsedPhone()) upd.usedPhone = null; }
                 const settleBlank = ['ar-base', 'ar-add', 'ar-fee', 'ar-disc', 'ar-oral1', 'ar-oral2'].every(id => !arVal(id)) && !arItems.some(it => Number(it.amount)) && !r.used;
                 const usimHit = stockUsimBySerial(arVal('ar-usimserial')) || (arVal('ar-usim') ? arUsimFind(arVal('ar-usim'), arVal('ar-store'), arVal('ar-carrier')) : null);   // 💳 V292 찍은 번호가 재고에 있으면 그 유심부터
@@ -25917,7 +25925,7 @@ familyStr + `\n` +
             if (!list.length) {
                 if (arActPrefilled) { arClearPrefill(); arActPrefilled = ''; }
                 arActTarget = '';
-                const recent = !newer && acts.filter(a => !a.canceled && a.kind !== '유선' && a.date < d && a.date >= addDaysStr(d, -60)).pop();
+                const recent = !newer && acts.filter(a => !a.canceled && a.kind !== '유선' && a.date < d && a.date >= addDaysStr(d, -1100)).pop();   // 🛠 V374 60일 → 3년 (3월 개통을 고치러 왔는데 안내가 안 떠서 오늘 새 개통으로 저장됐음)
                 if (recent) {   // ✏️ V298 다른 날 개통을 고치러 왔는데 날짜가 오늘이면 새 개통으로 저장돼요 → 그날로 바꾸는 버튼
                     note.className = 'col-span-2 text-xs font-bold rounded-lg px-2.5 py-2 leading-relaxed border bg-amber-50 border-amber-300 text-amber-900';
                     note.innerHTML = `📜 이 분은 ${stockMD(recent.date)}에 개통했어요 (${escapeHtml(recent.device || recent.plan || '')}). <b>그 개통을 고치려면</b> 아래를 누르세요 — 지금 날짜(${stockMD(d)})로 저장하면 <b>새 개통</b>으로 따로 남아요.<div class="mt-1.5"><button type="button" data-ar-goact="${escapeHtml(recent.id)}|${recent.date}" class="min-h-[36px] px-3 rounded-lg bg-amber-500 text-white text-[12px] font-bold">✏️ ${stockMD(recent.date)} 개통 고치기 (날짜를 그날로)</button></div>`;
@@ -28847,7 +28855,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V373';
+        const APP_VER = 'V374';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28855,6 +28863,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V374', d: '2026-11-11', items: [
+                ['🛠 예전 개통을 고치려고 개통등록을 열었는데 오늘 새 개통으로 저장되던 것: 「✏️ 그 개통 고치기」 안내가 60일 안 개통에만 떴음 → 3년 안 개통까지 · 예전 개통과 같은 폰을 새 날짜로 저장하면 한 번 더 물어봐요', 'a']
+            ] },
             { v: 'V373', d: '2026-11-11', items: [
                 ['🔄 유선 만료타겟을 만료 90일 전 → 6개월 전부터 (약정갱신은 만료 6개월 전부터 할 수 있어서) · 대시보드 · 목록 필터 · 홍보 문자 조건 · 조건으로 찾기가 같이', 'a'],
                 ['📅 고객카드 유선 칸에 약갱 가능일 (만료 6개월 전 · 미리 하면 남은 위약금 유예 · 갱신일부터 다시 3년) · 🧮 유선계산기에도 약정 만료일 · 약갱 가능일 · 유형 표시', 'a']
