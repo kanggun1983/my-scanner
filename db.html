@@ -23770,6 +23770,23 @@ familyStr + `\n` +
             const addFee = (g.promises || []).filter(x => x && (x.kind === '부가' || x.kind === '보험')).reduce((t, x) => t + gdNum(x.fee), 0);   // 부가·보험 월 금액 (유지 기간 동안 · 별도)
             return { price, pub, icard, loan, n, month, fee, pfee, sel, wel, comb, card, planRaw, planNet, addFee, total: month + planNet };
         }
+        function gdAfterPay(g, fee) {   // 📶 V377 바꾼 요금제의 매달 내실 금액 (휴대폰 할부는 그대로 · 선약 → 결합 → 복지 → 요금 할인 카드 순서는 지금 요금과 같게)
+            fee = gdNum(fee); if (!(fee > 0) || !g || g.kind === 'wired') return null;
+            const C = gdCalc(g), p = g.plan || {}, sel = g.sup === '선약' ? Math.round(fee * 0.25) : 0, after = Math.max(0, fee - sel);
+            const comb = gdNum(p.comb), wb = gdWelBase(g, after, comb), wa = gdWelAutoOn(g) ? gdWelAuto(p.welType, wb, gdWelVer(g)) : (p.welType ? gdNum(p.wel) : 0);
+            const wel = Math.min(wb, wa || 0), card = gdNum(p.card), planNet = Math.max(0, after - wel - comb - card);
+            return { fee, sel, comb, wel, card, planNet, inst: C.month, total: C.month + planNet };
+        }
+        function gdAfterLine(A) {   // '매달 약 10,425원 (휴대폰 0원 + 요금 10,425원)'
+            if (!A) return '';
+            const W = (n) => `${Math.round(n).toLocaleString('ko-KR')}원`;
+            return `매달 약 ${W(A.total)} (휴대폰 ${W(A.inst)} + 요금 ${W(A.planNet)})`;
+        }
+        function gdAfterDetail(A) {   // '37,000 − 선약 9,250 − 결합 6,900 − 복지 10,425'
+            if (!A) return '';
+            const w = (n) => Math.round(n).toLocaleString('ko-KR');
+            return [w(A.fee), A.sel ? `선약 ${w(A.sel)}` : '', A.comb ? `결합 ${w(A.comb)}` : '', A.wel ? `복지 ${w(A.wel)}` : '', A.card ? `카드 ${w(A.card)}` : ''].filter(Boolean).join(' − ');
+        }
         function gdCalcCar(car) { const C = calcData && calcData.carriers ? calcData.carriers[car] : null; return C && Array.isArray(C.models) ? C : null; }
         // 💰 V208: 우리 매장 개통 기록(개통등록 월요금 · 변경 후 월요금)에서 요금제 → 월정액 (모든 폰 같이)
         function planFeeBook() {
@@ -24062,9 +24079,10 @@ familyStr + `\n` +
                 const ls = [];
                 if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(KE.code)} 유지${KE.dist ? ' (유통망지원금 조건)' : ''} → ${gdDot(kd)}부터 바꿀 수 있어요`);
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
+                { const A = gdAfterPay(g, g.keep.targetFee); if (A) ls.push(`바꾼 뒤 ${gdAfterLine(A)}`); }   // 📶 V377 변경 후 실납부
                 const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
                 if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
-                const k2 = gdK2(g); if (k2 && (k2.date || k2.target)) ls.push(`2차 변경: ${k2.date ? `${gdDot(k2.date)}부터 ` : ''}${gdK2Txt(k2, W)}${k2.date ? '로 바꿀 수 있어요' : ''}`);   // 📶 V368
+                const k2 = gdK2(g); if (k2 && (k2.date || k2.target)) { ls.push(`2차 변경: ${k2.date ? `${gdDot(k2.date)}부터 ` : ''}${gdK2Txt(k2, W)}${k2.date ? '로 바꿀 수 있어요' : ''}`); const A2 = gdAfterPay(g, k2.fee); if (A2) ls.push(`2차 뒤 ${gdAfterLine(A2)}`); }   // 📶 V368 · V377
                 panel('요금제 유지 · 변경 안내', ls, { fill: '#EEF2FF', stroke: '#C7D2FE', titleColor: '#312E81', color: '#1E1B4B' });
             }
             const pl = (g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${p.kind} ${String(p.name || '').trim() || '(이름 없음)'}${gdNum(p.fee) ? ` (월 ${W(gdNum(p.fee))})` : ''}${p.code ? ` · ${keepLabel(p.code)} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; });
@@ -24405,11 +24423,13 @@ familyStr + `\n` +
                 <div id="gdPlanWarn">${gdPlanWarn(g, c)}</div>`);
             h += gdSec('요금제 유지 · 바꿀 요금제', `<div class="grid gap-2 items-end" style="grid-template-columns: minmax(0, 1fr) auto">${gdLbl('요금제 유지', `<select data-gd="keep.code" class="${gdCls}">${gdKeepOpts(g.keep.code)}</select>`)}<p id="gdKeepDate" class="pb-3 text-[13px] font-bold text-purple-800">${kd ? `${gdDot(kd)}부터 변경` : ''}</p></div>
                 <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('유지 후 바꿀 요금제', gdInp('keep.target', g.keep.target, { list: 'gdPlanList', ph: '예) 5G 라이트' }))}${gdLbl('변경 후 월요금', gdInp('keep.targetFee', g.keep.targetFee, { money: true }))}</div>
+                <p id="gdKeepAfter" class="${gdAfterPay(g, g.keep.targetFee) ? '' : 'hidden'} rounded-xl bg-purple-50 px-3 py-2 text-[13px] font-bold text-purple-900">${gdAfterPay(g, g.keep.targetFee) ? `💳 바꾼 뒤 ${gdAfterLine(gdAfterPay(g, g.keep.targetFee))}<span class="block text-[11.5px] font-medium text-purple-800">${gdAfterDetail(gdAfterPay(g, g.keep.targetFee))}</span>` : ''}</p>
                 <div id="gdKeepInfo">${planInfoHtml(g.carrier, g.keep.target ? planInfoFind(g.carrier, g.keep.target) : null, { title: '(바꿀 요금제)', short: true })}</div>
                 ${g.keep2 && g.keep2.on ? `<div class="rounded-xl border border-dashed border-purple-300 bg-purple-50/60 p-2.5 space-y-2">
                     <div class="grid gap-2 items-end" style="grid-template-columns: minmax(0, 1fr) auto auto">${gdLbl('2차 변경 시기 <span class="font-normal text-gray-500">(개통일부터)</span>', `<select data-gd="keep2.code" class="${gdCls}">${gdKeepOpts(g.keep2.code || '')}</select>`)}<p id="gdKeep2Date" class="pb-3 text-[13px] font-bold text-purple-800">${gdK2(g) && gdK2(g).date ? `${gdDot(gdK2(g).date)}부터` : ''}</p><button type="button" data-gd-k2del aria-label="2차 변경 빼기" class="mb-1 w-11 h-11 rounded-xl border border-purple-200 bg-white text-purple-700"><i class="fa-solid fa-xmark"></i></button></div>
                     <p id="gdKeep2Warn" class="hidden -mt-1 text-[12px] font-bold text-red-600">⚠ 2차 날짜가 1차 변경일보다 빠르거나 같아요</p>
                     <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('2차로 바꿀 요금제', gdInp('keep2.target', g.keep2.target || '', { list: 'gdPlanList', ph: '예) 33 요금제' }))}${gdLbl('2차 월요금', gdInp('keep2.targetFee', g.keep2.targetFee || 0, { money: true }))}</div>
+                    <p id="gdKeep2After" class="${gdAfterPay(g, g.keep2.targetFee) ? '' : 'hidden'} text-[13px] font-bold text-purple-900">${gdAfterPay(g, g.keep2.targetFee) ? `💳 2차 뒤 ${gdAfterLine(gdAfterPay(g, g.keep2.targetFee))}<span class="block text-[11.5px] font-medium text-purple-800">${gdAfterDetail(gdAfterPay(g, g.keep2.targetFee))}</span>` : ''}</p>
                 </div>` : `<button type="button" data-gd-k2add class="w-full h-11 rounded-xl border border-dashed border-purple-300 bg-white text-[14px] font-bold text-purple-800"><i class="fa-solid fa-plus mr-1"></i>요금제 변경 한 번 더 (예: 3개월 85 → 그 뒤 저가)</button>`}`);
             h += gdSec('C · 유심 · 부가 · 보험', `<div class="grid grid-cols-2 gap-2">${gdLbl('유심비', gdInp('usim.fee', g.usim.fee, { money: true }))}${gdLbl('유심 납부', `<select data-gd="usim.pay" class="${gdCls}">${GD_USIM_PAY.map(v => `<option value="${v}" ${g.usim.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}</div>
                 <div id="gdProms" class="space-y-1.5">${gdPromRows(g)}</div>
@@ -24431,6 +24451,7 @@ familyStr + `\n` +
             if (w && gdWelAutoOn(gd) && document.activeElement !== w) w.value = c.wel ? arWon(c.wel) : '';
             const kd = gd.keep.code ? computeKeepDate(gd.date, gd.keep.code) : '';
             set('gdKeepDate', kd ? `${gdDot(kd)}부터 변경` : '');
+            [['gdKeepAfter', gd.keep && gd.keep.targetFee, '💳 바꾼 뒤 '], ['gdKeep2After', gd.keep2 && gd.keep2.on && gd.keep2.targetFee, '💳 2차 뒤 ']].forEach(([id, f, pre]) => { const el = document.getElementById(id); if (!el) return; const A = gdAfterPay(gd, f); el.classList.toggle('hidden', !A); el.innerHTML = A ? `${pre}${gdAfterLine(A)}<span class="block text-[11.5px] font-medium text-purple-800">${gdAfterDetail(A)}</span>` : ''; });   // 📶 V377
             { const k2 = gdK2(gd); set('gdKeep2Date', k2 && k2.date ? `${gdDot(k2.date)}부터` : ''); const wn = document.getElementById('gdKeep2Warn'); if (wn) wn.classList.toggle('hidden', !(k2 && k2.date && kd && k2.date <= kd)); }   // 📶 V368
             (gd.promises || []).forEach((p, i) => { const el = gdInner.querySelector(`[data-gd-pdate="${i}"]`); if (el) { const d = p.code ? computeKeepDate(gd.date, p.code) : ''; el.innerHTML = d ? `${gdDot(d)}부터<br>해지 가능` : ''; } });
             set('gdAddFee', c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : '');
@@ -24805,7 +24826,7 @@ familyStr + `\n` +
             const kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             const proms = [
                 ...(kd ? [`요금제 <b>${escapeHtml(g.plan.name || '')}</b> · ${escapeHtml(keepLabel(g.keep.code))} 유지 (${escapeHtml(gdDateKo(kd))}부터 변경 가능)`] : []),
-                ...(g.keep.target ? [`바꿀 요금제: ${escapeHtml(g.keep.target)}${gdNum(g.keep.targetFee) ? ` · 월 ${arWon(gdNum(g.keep.targetFee))}원` : ''}`] : []),
+                ...(g.keep.target ? [`바꿀 요금제: ${escapeHtml(g.keep.target)}${gdNum(g.keep.targetFee) ? ` · 월 ${arWon(gdNum(g.keep.targetFee))}원` : ''}${gdAfterPay(g, g.keep.targetFee) ? ` → 바꾼 뒤 <b>${escapeHtml(gdAfterLine(gdAfterPay(g, g.keep.targetFee)))}</b>` : ''}`] : []),
                 ...((k2 => k2 && (k2.date || k2.target) ? [`2차 변경: ${k2.date ? `${escapeHtml(gdDateKo(k2.date))}부터 ` : ''}<b>${escapeHtml(k2.target || '다른 요금제')}</b>${k2.fee ? ` · 월 ${arWon(k2.fee)}원` : ''}`] : [])(gdK2(g))),   // 📶 V368
                 ...(g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${escapeHtml(p.kind)} <b>${escapeHtml(String(p.name || '').trim() || '(이름 없음)')}</b>${gdNum(p.fee) ? ` 월 ${arWon(gdNum(p.fee))}원` : ''}${p.code ? ` · ${escapeHtml(keepLabel(p.code))} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; }),
                 ...(g.gift ? [`사은품: ${escapeHtml(g.gift)}`] : [])
@@ -24917,7 +24938,7 @@ familyStr + `\n` +
             const c = gdCalc(g), kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             const ls = [`[${g.store.name || msgStoreName()}] ${g.name ? `${g.name}님, ` : ''}구매 안내서를 보내드려요.`, `· ${gdTitle(g)}`, `· 매달 약 ${arWon(c.total)}원${c.n ? ` (할부 ${c.n}개월)` : ''}`];
             if (c.addFee) ls.push(`· 부가 · 보험 월 ${arWon(c.addFee)}원 (유지 기간 동안)`);
-            if (kd) ls.push(`· 요금제는 ${gdDot(kd)}부터 바꿀 수 있어요${g.keep.target ? ` (${g.keep.target})` : ''}`);
+            if (kd) ls.push(`· 요금제는 ${gdDot(kd)}부터 바꿀 수 있어요${g.keep.target ? ` (${g.keep.target})` : ''}${gdAfterPay(g, g.keep.targetFee) ? ` → 바꾼 뒤 매달 약 ${arWon(gdAfterPay(g, g.keep.targetFee).total)}원` : ''}`);
             { const k2 = gdK2(g); if (k2 && k2.date) ls.push(`· 2차 변경은 ${gdDot(k2.date)}부터${k2.target ? ` (${k2.target})` : ''}`); }   // 📶 V368
             if (g.store.tel) ls.push(`문의 ${g.store.tel}`);
             return ls.join('\n');
@@ -28861,7 +28882,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V376';
+        const APP_VER = 'V377';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28869,6 +28890,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V377', d: '2026-11-11', items: [
+                ['💳 구매 안내서: 바꿀 요금제의 월정액을 넣으면 \'바꾼 뒤 매달 약 ○○원 (휴대폰 + 요금)\'이 바로 나와요 (선약 · 결합 · 복지 · 요금 할인 카드를 지금과 같은 순서로 빼서) · 안내서 그림 · 오늘 개통 내용 · 안내 문자 · 2차 변경에도', 'a']
+            ] },
             { v: 'V376', d: '2026-11-11', items: [
                 ['🤝 고객카드에 결합 할인 금액(월) 칸: 수정 화면 \'가족결합\' 아래 · 개통보고 \'결합 · 복지\' 옆 · 안내서로 채우면 안내서 결합 할인이 그대로 → 매달 내실 금액 · 실납부금 자동 계산에서 요금에서만 빠져요 (기기 할부는 고정)', 'a']
             ] },
