@@ -3591,7 +3591,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
            · 메모 · 연락 기록은 '지운 줄'이 있을 때만 남김 (이어 쓰기는 안 남김) · 자동 처리는 '자동'
            · 고객마다 최근 60건 (80건이 되면 오래된 것부터 정리)
            ===================================================================== */
-        const AUDIT_FIELDS = { combination: '가족결합', welfare: '복지할인', name: '이름', dob: '생년월일', carrier: '통신사', device: '단말기', plan: '요금제', activationDate: '개통일', openStore: '개통점', openDealer: '개통거래처', salesStatus: '영업상태', manager: '담당자', repManager: '개통자', wiredRepManager: '홈상품 개통자', regBy: '등록한 직원', regDate: '등록일', regStore: '등록점', installment: '할부', installment2: '이중할부', discountType: '할인', wiredDate: '유선 약정일', internetProd: '인터넷·TV', legalName: '법정대리인', lockOff: '함께 관리', marketingDeny: '마케팅 거부' };
+        const AUDIT_FIELDS = { combination: '가족결합', welfare: '복지할인', name: '이름', dob: '생년월일', carrier: '통신사', device: '단말기', plan: '요금제', activationDate: '개통일', openStore: '개통점', openDealer: '개통거래처', salesStatus: '영업상태', manager: '담당자', repManager: '개통자', wiredRepManager: '홈상품 개통자', regBy: '등록한 직원', regDate: '등록일', regStore: '등록점', installment: '할부', installment2: '이중할부', discountType: '할인', fee: '월 요금', planFee: '요금제 금액', realPay: '실납부금', targetRealPay: '변경 후 실납부', combDisc: '결합 할인 (월)',   /* 🛠 V381 금액 칸도 변경 기록에 → 되돌릴 때 원래대로 */ wiredDate: '유선 약정일', internetProd: '인터넷·TV', legalName: '법정대리인', lockOff: '함께 관리', marketingDeny: '마케팅 거부' };
         const AUDIT_OWN = new Set(['manager', 'repManager', 'wiredRepManager', 'regBy']);
         const AUDIT_LINES = { memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', contactHistory: '연락 기록', repFamily: '가족 정보' };
         const EDITLOG_MAX = 80, EDITLOG_KEEP = 60;
@@ -8514,6 +8514,57 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         ACT_SNAP_KEYS.push(...ACT_DETAIL_KEYS);
         Object.assign(ACT_SNAP_LAB, { prevCarrier: '전통신사', devicePrice: '출고가', publicSupport: '공통지원금', distSupport: '유통망지원금', switchSupport: '전환지원금', tradeInDiscount: '중고보상할인', etcDiscount: '추가할인', instCardName: '할부카드', instCardDiscount: '할부카드 할인', loanPrincipal: '할부원금', addons: '부가서비스', insurance: '단말기보험', discountCard: '제휴카드', discountCardAmt: '카드 월 할인', usimModel: '유심', usimSerial: '유심 일련번호', policyItems: '부가 · 보험 유지', installmentBaseDate: '할부 기준일' });
         const actSame = (x, y) => JSON.stringify(x ?? '') === JSON.stringify(y ?? '') || ((x === '' || x == null || (Array.isArray(x) && !x.length)) && (y === '' || y == null || (Array.isArray(y) && !y.length)));
+        // 🛠 V381 이 개통을 저장하기 전 개통일 (변경 기록 '개통일 A → 이 날짜') · 있으면 첫 개통이 아님 (취소해도 카드 값 · 개통일을 비우지 않음)
+        function actPrevDate(c, a) {
+            if (!c || !a || !a.date) return '';
+            const e = editLogOf(c).slice().reverse().find(e => e.c.some(x => x.l === '개통일' && x.t === a.date && /^\d{4}-\d{2}-\d{2}$/.test(x.f || '') && x.f < a.date));
+            return e ? e.c.find(x => x.l === '개통일' && x.t === a.date).f : '';
+        }
+        // 🛠 V381 [개통 취소 · 카드 값 되돌리기]로 비워진 칸을 원래대로 (취소 뒤 변경 기록에서 '값 → 빈칸'인 칸만)
+        function actRedoVals(c, a) {
+            if (!c || !a || !a.canceled) return null;
+            const inv = {}; Object.entries(AUDIT_FIELDS).forEach(([k, l]) => { inv[l] = k; });
+            const since = a.cancelAt ? new Date(Date.parse(a.cancelAt) - 120000).toISOString() : '', v = {};
+            editLogOf(c).filter(e => e.at >= since && (e.src === '개통 전 값으로 되돌림' || e.src === '개통 취소')).forEach(e => e.c.forEach(x => {
+                const k = inv[x.l]; if (!k || x.t !== '' || !x.f || String(x.f).endsWith('…') || !(ACT_SNAP_KEYS.includes(k) || ACT_DETAIL_KEYS.includes(k))) return;
+                if (actSame(c[k], '') || c[k] === undefined) { if ((k === 'installment' || k === 'installment2') && /^[{[]/.test(String(x.f))) { try { v[k] = JSON.parse(x.f); } catch (err) { /* 건너뜀 */ } return; } v[k] = x.f; }
+            }));
+            { const pd = actPrevDate(c, a); if (pd && !c.activationDate) v.activationDate = pd;   // 개통일은 이 개통 전 날짜로
+              const snap = pd && c.actCards && c.actCards[pd];   // 📜 V285 새 개통 때 보관한 예전 개통 카드 (월 요금 · 출고가 · 부가 …) → 변경 기록에 없던 칸도
+              const isBlank = (x) => x === undefined || x === null || String(x).trim() === '' || (Array.isArray(x) && !x.length);
+              if (snap) Object.entries(snap).forEach(([k, x]) => { if (k === 'at' || k in v || isBlank(x) || !isBlank(c[k]) || !(ACT_SNAP_KEYS.includes(k) || ACT_DETAIL_KEYS.includes(k) || k === 'actType')) return; v[k] = x; });
+              if (v.fee && isBlank(c.planFee) && !('planFee' in v)) { const n = Number(String(v.fee).replace(/[^\d]/g, '')) || 0; if (n > 0) v.planFee = n; } }
+            return Object.keys(v).length ? v : null;
+        }
+        // 🛠 V381 최근 개통 기록 값(+ 되돌리기로 비워진 칸의 변경 기록)으로 비어 있는 고객카드 칸 채우기
+        function actFillVals(c) {
+            if (!c) return null;
+            const live = actsOf(c).filter(x => !x.canceled && x.kind !== '유선'), t = live[live.length - 1];
+            if (!t || (c.activationDate && c.activationDate !== t.date)) return null;
+            const blank = (k) => c[k] === undefined || c[k] === null || String(c[k]).trim() === '' || (Array.isArray(c[k]) && !c[k].length);
+            const inv = {}; Object.entries(AUDIT_FIELDS).forEach(([k, l]) => { inv[l] = k; });
+            const fromLog = {};
+            editLogOf(c).filter(e => e.src === '개통 전 값으로 되돌림' && e.at >= String(t.at || t.date)).forEach(e => e.c.forEach(x => { const k = inv[x.l]; if (k && x.t === '' && x.f && !String(x.f).endsWith('…') && (ACT_SNAP_KEYS.includes(k) || ACT_DETAIL_KEYS.includes(k))) { if (/^[{[]/.test(String(x.f))) { try { fromLog[k] = JSON.parse(x.f); } catch (err) { /* 건너뜀 */ } } else fromLog[k] = x.f; } }));
+            const src = { carrier: t.carrier, mvnoBrand: t.mvno, actType: t.actType, plan: t.plan, device: t.device, deviceSerial: t.serial, openDealer: t.store, openStore: t.shop, usimModel: t.usim, ...(Number(t.planFee) > 0 ? { planFee: t.planFee, fee: `${arWon(t.planFee)}원` } : {}), ...fromLog, ...(c.activationDate ? {} : { activationDate: t.date }) };
+            const v = {}; Object.entries(src).forEach(([k, x]) => { if (x !== undefined && x !== null && String(x).trim() !== '' && blank(k)) v[k] = x; });
+            return Object.keys(v).length ? v : null;
+        }
+        async function fillFromAct(cid) {
+            const c = customerDB.find(x => x.id === cid), v = actFillVals(c);
+            if (!v) return customAlert('개통 기록에서 채울 값이 없어요. [수정해서 채우기]로 직접 넣어 주세요.');
+            const lines = Object.entries(v).map(([k, x]) => `· ${ACT_SNAP_LAB[k] || DETAIL_LABELS[k] || AUDIT_FIELDS[k] || ({ usimModel: '유심' })[k] || k}: ${actPrevShow(k, x)}`).join('\n');
+            if (!(await customConfirm(`비어 있는 칸을 개통 기록 값으로 채울까요?\n\n${lines}`))) return;
+            try { await txCustomerUpdate(cid, () => ({ ...v, updatedAt: new Date().toISOString(), __audit: '개통 기록 값으로 채움' })); if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ } stockToast('📜 개통 기록 값으로 채웠어요'); }
+            catch (err) { customAlert(koreanError(err, '저장')); }
+        }
+        async function redoActCard(cid, aid) {
+            const c = customerDB.find(x => x.id === cid), a = c && actsOf(c).find(x => x.id === aid), v = actRedoVals(c, a);
+            if (!v) return customAlert('원래대로 돌릴 값을 찾지 못했어요.\n고객카드 → 📝 변경 기록에서 예전 값을 보고 [수정]으로 고쳐 주세요.');
+            const lines = Object.entries(v).map(([k, x]) => `· ${ACT_SNAP_LAB[k] || AUDIT_FIELDS[k] || k}: (빈칸) → ${actPrevShow(k, x)}`).join('\n');
+            if (!(await customConfirm(`비워진 칸을 원래대로 돌릴까요?\n\n${lines}`))) return;
+            try { await txCustomerUpdate(cid, () => ({ ...v, updatedAt: new Date().toISOString(), __audit: '되돌리기 취소 (원래 값)' })); if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ } stockToast('↩ 비워진 칸을 원래대로 돌렸어요'); }
+            catch (err) { customAlert(koreanError(err, '저장')); }
+        }
         function actPrevFor(c, a) {
             if (!c || !a || a.kind === '유선') return null;
             let v = null, src = '';
@@ -8527,7 +8578,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
             // 🧾 V287 취소한 개통 뒤 남은 무선 개통이 없으면, 그 개통으로 들어온 개통 상세(출고가 · 할부원금 · 부가 …)는 비우기 (보관 값이 없을 때)
             const liveM = actsOf(c).filter(x => !x.canceled && x.kind !== '유선');
-            if (a.canceled && !liveM.length) { v = v || {}; src = src || 'log'; [...ACT_DETAIL_KEYS, 'actType'].forEach(k => { if (!(k in v) && c[k] !== undefined && !actSame(c[k], '')) v[k] = Array.isArray(c[k]) ? [] : ''; }); }
+            if (a.canceled && !liveM.length && !actPrevDate(c, a)) { v = v || {}; src = src || 'log';   // 🛠 V381 그 전에 개통일이 있었으면(첫 개통 아님) 비우지 않음
+                 [...ACT_DETAIL_KEYS, 'actType'].forEach(k => { if (!(k in v) && c[k] !== undefined && !actSame(c[k], '')) v[k] = Array.isArray(c[k]) ? [] : ''; }); }
             if (!v) return null;
             Object.keys(v).forEach(k => { if (actSame(c[k], v[k])) delete v[k]; });   // 이미 그 값이면 뺌 (되돌린 뒤 버튼 사라짐)
             return Object.keys(v).length ? { v, src } : null;
@@ -8598,8 +8650,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const c = customerDB.find(x => x.id === cid); if (!c) return false;
             const a = actsOf(c).find(x => x.id === aid) || { date: (c.actPrev || {}).date, kind: '무선' }, P = actPrevFor(c, a);
             if (!P) { if (!ask) customAlert('되돌릴 개통 전 값을 찾지 못했어요.\n고객카드 → 📝 변경 기록에서 예전 값을 보고 [수정]으로 고쳐 주세요.'); return false; }
-            const lines = Object.entries(P.v).map(([k, x]) => `· ${ACT_SNAP_LAB[k] || k}: ${actPrevShow(k, c[k])} → ${actPrevShow(k, x)}`).join('\n');
-            if (!(await customConfirm(`${c.name || ''} 카드 값도 개통 전으로 되돌릴까요?\n\n${lines}${P.src === 'log' ? '\n\n(변경 기록에서 찾은 값 · 월 요금처럼 기록 안 된 칸은 그대로)' : ''}`))) return false;
+            const lines = Object.entries(P.v).map(([k, x]) => `· ${ACT_SNAP_LAB[k] || k}: ${actPrevShow(k, c[k])} → ${actPrevShow(k, x)}`).join('\n'), blanks = Object.values(P.v).filter(x => x === '' || x === null || (Array.isArray(x) && !x.length)).length;
+            const warnB = blanks ? `\n\n⚠️ ${blanks}칸이 빈칸이 돼요 · 예전 개통이 있는 고객이면 [취소]를 누르고 개통 기록에서 그 개통을 고쳐 주세요` : '';
+            if (!(await customConfirm(`${c.name || ''} 카드 값도 개통 전으로 되돌릴까요?\n\n${lines}${P.src === 'log' ? '\n\n(변경 기록에서 찾은 값 · 월 요금처럼 기록 안 된 칸은 그대로)' : ''}${warnB}`))) return false;
             try { await txCustomerUpdate(cid, () => ({ ...P.v, actPrev: null, updatedAt: new Date().toISOString(), __audit: '개통 전 값으로 되돌림' }));
                 if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ }
                 stockToast('↩ 카드 값을 개통 전으로 되돌렸어요'); return true;
@@ -8612,7 +8665,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const stockOf = (x) => stockIsDev(x) && stockSt(x) === '개통' && x.tp === cid && (x.id === a.stockId || (!a.stockId && a.serial && stockSerialMatch(x.serial, a.serial)));   // 그 개통의 재고만 (V193)
             const stockN = stockItems().filter(stockOf).length;
             if (!(await customConfirm(`${c.name || ''} ${stockMD(a.date)} ${a.kind} 개통(${a.device || a.plan || ''})을 취소할까요?\n\n· 개통 수·매출에서 빠져요 (기록은 '취소됨'으로 남아요)${stockN ? `\n· 재고 ${stockN}대는 다시 재고로` : ''}${a.usimStockId ? '\n· 유심 재고 1개 되돌리기' : ''}\n· 이 개통으로 생긴 자동 약속(아직 안 한 것)은 지워요`))) return;
-            const now = new Date(), two = (x) => String(x).padStart(2, '0');
+            const now = new Date(), two = (x) => String(x).padStart(2, '0'), prevDay = actPrevDate(c, a);   // 🛠 V381 이 개통 전 개통일 (남은 개통 기록이 없을 때 그 날짜로)
             try {
                 await txCustomerUpdate(cid, (cur) => {
                     const list = storableActs(actsOf(cur));
@@ -8621,7 +8674,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     Object.assign(t, { canceled: true, cancelAt: now.toISOString(), cancelBy: getStaffName() || '' });
                     const patch = { acts: list, updatedAt: now.toISOString(), __audit: '개통 취소' };
                     const liveM = list.filter(x => !x.canceled && x.kind !== '유선'), liveW = list.filter(x => !x.canceled && x.kind === '유선');
-                    if (t.kind !== '유선' && cur.activationDate === t.date) patch.activationDate = liveM.length ? liveM[liveM.length - 1].date : '';
+                    if (t.kind !== '유선' && cur.activationDate === t.date) patch.activationDate = liveM.length ? liveM[liveM.length - 1].date : (prevDay || '');
                     if (t.kind === '유선' && cur.wiredDate === t.date) patch.wiredDate = liveW.length ? liveW[liveW.length - 1].date : '';
                     if (!liveM.length && !liveW.length && cur.salesStatus === '판매성공') { patch.salesStatus = '미정'; patch.salesStatusAt = getTodayStr(); }
                     const lp = latestPoncle(list); patch.poncle = lp || { 미입력: true };
@@ -8641,7 +8694,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             } catch (err) { customAlert(koreanError(err, '저장')); }
         }
         async function restoreAct(cid, aid) {
-            const a0 = actsOf(customerDB.find(x => x.id === cid)).find(x => x.id === aid);
+            const c0 = customerDB.find(x => x.id === cid), a0 = actsOf(c0).find(x => x.id === aid);
+            const redo0 = a0 && a0.kind !== '유선' ? (actRedoVals(c0, a0) || {}) : {};   // 🛠 V381 취소 · 되돌리기로 비워진 칸 (변경 기록에서)
             if (!(await customConfirm(a0 && a0.notSale ? '이 유선을 다시 개통으로 셀까요? (동시 개통 수에 다시 들어가요)' : '취소한 개통을 되살릴까요? (매출·개통 수에 다시 들어가요)'))) return;
             try {
                 await txCustomerUpdate(cid, (cur) => {
@@ -8654,6 +8708,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     if (t.kind === '유선' && (!cur.wiredDate || t.date > cur.wiredDate)) patch.wiredDate = t.date;
                     if (cur.salesStatus !== '판매성공') { patch.salesStatus = '판매성공'; patch.salesStatusAt = t.date; }
                     const lp = latestPoncle(list); if (lp) patch.poncle = lp;
+                    if (t.kind !== '유선' && !list.some(x => !x.canceled && x.kind !== '유선' && x.date > t.date)) {   // 🛠 V381 되살린 개통이 최근 개통이면 비워진 고객카드 칸을 그 개통 값으로 다시 채움 (비어 있는 칸만)
+                        const blank = (k) => cur[k] === undefined || cur[k] === null || String(cur[k]).trim() === '' || (Array.isArray(cur[k]) && !cur[k].length);
+                        const fill = { carrier: t.carrier, mvnoBrand: t.mvno, actType: t.actType, plan: t.plan, device: t.device, deviceSerial: t.serial, openDealer: t.store, openStore: t.shop, usimModel: t.usim, ...(Number(t.planFee) > 0 ? { planFee: t.planFee, fee: `${arWon(t.planFee)}원` } : {}), ...redo0 };
+                        Object.entries(fill).forEach(([k, v]) => { if (k !== 'activationDate' && v !== undefined && v !== null && String(v).trim() !== '' && blank(k)) patch[k] = v; });
+                    }
                     return patch;
                 });
                 renderGoalRow(); if (currentProfileId === cid) try { renderProfileCard(); } catch (err) { /* 무시 */ }
@@ -10584,14 +10643,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const gn = ev.target.closest('[data-dm-gnew]'); if (gn) { if (c && !protectGate(c)) return; gdNew(gn.dataset.dmGnew, c || null); return; }
             const go = ev.target.closest('[data-dm-gopen]'); if (go) { gdOpenById(go.dataset.dmGopen); return; }
             if (!ev.target.closest('#dmPaneActs')) return;
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"], [data-paction="actedit"], [data-paction="actundoedit"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actredocard"], [data-paction="actview"], [data-paction="actedit"], [data-paction="actundoedit"]');
             if (x) {
                 const aid = x.dataset.aid;
                 if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
                 if (x.dataset.paction === 'actview') return openActView(cid, aid);   // 📜 V285
                 if (x.dataset.paction === 'actundoedit') { if (!can('cancelAct')) return noPerm('개통 고치기 되돌리기'); return undoActEdit(cid, aid); }   // ↩ V304
                 if (x.dataset.paction === 'actedit') { const cc = customerDB.find(y => y.id === cid), aa = cc && actsOf(cc).find(y => y.id === aid); if (!cc || !aa) return; if (!(await lockGate(cc, '개통 고치기'))) return; try { if (profileModal.style.display && profileModal.style.display !== 'none') closeProfileCard(); } catch (err) { /* 없음 */ } openActReg(cc, 'mobile'); setTimeout(() => arGoAct(aid, aa.date), 150); return; }   // ✏️ V298 그 개통을 불러와서 고치기
-                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
+                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); } if (x.dataset.paction === 'actredocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return redoActCard(cid, aid); }   // 🛠 V381   // ↩ V284
                 if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
                 if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
                 if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
@@ -10849,7 +10908,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     return `<div class="mx-3 mt-3 rounded-2xl border ${r.problems ? 'border-red-200 bg-red-50/40' : 'border-green-200 bg-green-50/60'} p-3.5">
                         <div class="flex items-center justify-between gap-2 mb-1">
                             <h4 class="text-[14px] font-bold ${r.problems ? 'text-red-800' : 'text-green-800'}">🔍 개통 점검 ${r.problems ? `· 빠짐 ${r.miss.length} · 확인 ${r.check.length}` : '· 모두 확인 ✅'}</h4>
-                            ${r.problems ? `<button type="button" data-paction="edit" class="flex-shrink-0 h-9 px-3 rounded-lg bg-gray-900 text-white text-xs font-bold">수정해서 채우기</button>` : ''}
+                            ${r.problems ? `<span class="flex gap-1.5 flex-shrink-0">${actFillVals(c) ? '<button type="button" data-paction="actfill" class="h-9 px-3 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-800 text-xs font-bold">📜 개통 기록 값으로</button>' : ''}<button type="button" data-paction="edit" class="h-9 px-3 rounded-lg bg-gray-900 text-white text-xs font-bold">수정해서 채우기</button></span>` : ''}
                         </div>
                         <ul>${rows}</ul>
                     </div>`;
@@ -12088,6 +12147,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 { icon: 'fa-solid fa-paper-plane', label: '명함 보내기', sub: '인사말 + 명함 링크 한 통', onClick: () => sendBizCard(customerDB.find(x => x.id === id)) }
             ]);
             else if (action === 'legal') logActionAndCall(id, 'tel', c.legalPhone, '법대');
+            else if (action === 'actfill') { fillFromAct(id); }   // 🛠 V381
             else if (action === 'edit') { lockGate(c, '수정').then(ok => { if (ok) { closeProfileCard(); openDetailModal(id); } }); }
             else if (action === 'bizcard') toggleBizCard(id);
             else if (action === 'sendcard') sendBizCard(customerDB.find(x => x.id === id));
@@ -26073,7 +26133,7 @@ familyStr + `\n` +
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
-                        <span class="ml-auto flex gap-1"><button type="button" data-paction="actview" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">🔍 자세히</button>${!a.canceled && a.prevEdit && a.prevEdit.a ? `<button type="button" data-paction="actundoedit" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-bold text-amber-800">↩ 고치기 전으로</button>` : ''}${!a.canceled && a.kind !== '유선' && !opt.tab ? `<button type="button" data-paction="actedit" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">✏️ 고치기</button>` : ''}${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled && !a.notSale && actPrevFor(c, a) ? `<button type="button" data-paction="actundocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-indigo-300 bg-indigo-50 text-xs font-bold text-indigo-800">↩ 카드 값 되돌리기</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
+                        <span class="ml-auto flex gap-1"><button type="button" data-paction="actview" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">🔍 자세히</button>${!a.canceled && a.prevEdit && a.prevEdit.a ? `<button type="button" data-paction="actundoedit" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-bold text-amber-800">↩ 고치기 전으로</button>` : ''}${!a.canceled && a.kind !== '유선' && !opt.tab ? `<button type="button" data-paction="actedit" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">✏️ 고치기</button>` : ''}${money && can('editSettle') && !a.canceled ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-800">${a.settle ? '정산 고치기' : '정산 입력'}</button>` : ''}${isSuperAdmin && isWiredSuspect(a, acts) ? `<button type="button" data-paction="wirednot" data-date="${a.date}" class="h-8 px-2.5 rounded-lg border border-sky-300 bg-sky-50 text-xs font-bold text-sky-800">📺 개통 아님</button>` : ''}${a.canceled && !a.notSale && actPrevFor(c, a) ? `<button type="button" data-paction="actundocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-indigo-300 bg-indigo-50 text-xs font-bold text-indigo-800">↩ 카드 값 되돌리기</button>` : ''}${a.canceled && !a.notSale && !actPrevFor(c, a) && actRedoVals(c, a) ? `<button type="button" data-paction="actredocard" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-amber-300 bg-amber-50 text-xs font-bold text-amber-800">↩ 비워진 칸 원래대로</button>` : ''}${a.canceled ? `<button type="button" data-paction="actrestore" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">↩ ${a.notSale ? '유선 개통으로' : '되살리기'}</button>` : `<button type="button" data-paction="actcancel" data-aid="${escapeHtml(a.id)}" class="h-8 px-2.5 rounded-lg border border-red-200 bg-white text-xs font-bold text-red-700">❌ 개통 취소</button>`}</span></div>
                 </div>`; }).join('')}</div>`;
             }
             if (!can('cancelAct')) hList = hList.replace(/<button type="button" data-paction="act(?:cancel|restore)"[^>]*>[\s\S]*?<\/button>/g, '');   // 🎖 V247 권한 없으면 버튼 숨김
@@ -26088,14 +26148,14 @@ familyStr + `\n` +
             return h;
         }
         profileModal.addEventListener('click', async (ev) => {
-            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actview"], [data-paction="actedit"], [data-paction="actundoedit"]');
+            const x = ev.target.closest('[data-paction="actcancel"], [data-paction="actsettle"], [data-paction="actrestore"], [data-paction="actundocard"], [data-paction="actredocard"], [data-paction="actview"], [data-paction="actedit"], [data-paction="actundoedit"]');
             if (!x || !currentProfileId) return;
             const cid = currentProfileId, aid = x.dataset.aid, c = customerDB.find(y => y.id === cid);
             if (x.dataset.paction === 'actsettle') return openActSettle(cid, aid);
                 if (x.dataset.paction === 'actview') return openActView(cid, aid);   // 📜 V285
                 if (x.dataset.paction === 'actundoedit') { if (!can('cancelAct')) return noPerm('개통 고치기 되돌리기'); return undoActEdit(cid, aid); }   // ↩ V304
                 if (x.dataset.paction === 'actedit') { const cc = customerDB.find(y => y.id === cid), aa = cc && actsOf(cc).find(y => y.id === aid); if (!cc || !aa) return; if (!(await lockGate(cc, '개통 고치기'))) return; try { if (profileModal.style.display && profileModal.style.display !== 'none') closeProfileCard(); } catch (err) { /* 없음 */ } openActReg(cc, 'mobile'); setTimeout(() => arGoAct(aid, aa.date), 150); return; }   // ✏️ V298 그 개통을 불러와서 고치기
-                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); }   // ↩ V284
+                if (x.dataset.paction === 'actundocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return undoActCard(cid, aid, false); } if (x.dataset.paction === 'actredocard') { if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기'); return redoActCard(cid, aid); }   // 🛠 V381   // ↩ V284
             if (!can('cancelAct')) return noPerm('개통 취소 · 되살리기');   // 🎖 V247
             if (c && !(await lockGate(c, x.dataset.paction === 'actcancel' ? '개통 취소' : '개통 되살리기'))) return;
             if (x.dataset.paction === 'actcancel') cancelAct(cid, aid); else restoreAct(cid, aid);
@@ -28913,7 +28973,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V380';
+        const APP_VER = 'V381';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28921,6 +28981,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V381', d: '2026-11-11', items: [
+                ['🛠 예전 개통이 있는 고객의 새 개통을 [개통 취소 → 카드 값 되돌리기] 하면 통신사 · 단말기 · 요금제 · 개통일이 다 빈칸이 되던 것 → 이제 예전 개통일로 돌아가고 칸을 비우지 않아요 · 빈칸이 되는 칸이 있으면 확인 창에 경고', 'a'],
+                ['↩ 이미 빈칸이 된 고객: 개통 기록의 취소된 줄에 [↩ 비워진 칸 원래대로] (변경 기록 · 예전 개통 보관 카드에서 원래 값을 찾아요 · 월 요금 · 출고가도)', 'a'],
+                ['📝 월 요금 · 요금제 금액 · 실납부금 · 결합 할인도 변경 기록에 남아요 (앞으로 되돌릴 때 원래대로)', 'a'],
+                ['📜 취소한 개통을 [↩ 되살리기] 하면 비워진 칸(통신사 · 단말기 · 요금제 · 할인 · 할부 · 개통점)도 그 개통 값으로 다시 채워요 · 이미 되살렸는데 비어 있으면 개통 점검의 [📜 개통 기록 값으로]', 'a']
+            ] },
             { v: 'V380', d: '2026-11-11', items: [
                 ['📶 알뜰폰 개통은 \'요금제 유지\'가 아니라 \'가입 유지\'로 약속을 잡아요 (기타 칸 · 그 뒤 해지 · 번호이동 가능) · 브랜드 요금제 하향 제한이 더 짧으면 요금제 칸에 따로 · 개통보고 칸 이름도 \'가입 유지\'', 'a'],
                 ['↩ 예전에 \'요금제 유지\'로 잡힌 알뜰폰 고객은 개통 기록 [✏️ 고치기]로 다시 저장하면 가입 유지로 바뀌어요', 'a']
