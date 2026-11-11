@@ -21584,7 +21584,9 @@ familyStr + `\n` +
                 // 최근 개통보다 예전 날짜면: 개통 기록에만 넣고 고객 정보(기종·요금제·약속)는 최근 개통 그대로
                 const newerLive = prevActs.filter(a => !a.canceled && a.kind !== '유선' && a.date > d).map(a => a.date).sort().pop();   // (같은 날 다른 기종은 '최근'과 같은 날이라 여기 안 걸림)
                 if (newerLive && await customConfirm(`이 개통일(${stockMD(d)})은 최근 개통(${stockMD(newerLive)})보다 예전이에요.\n\n개통 기록에만 추가하고, 고객 정보(기종·요금제·약속)는 최근 개통 그대로 둘까요?\n(취소를 누르면 이 개통으로 고객 정보를 바꿔요)`)) keepLatest = true;
-                if (isMvno(arVal('ar-carrier')) && cur && !cur.promPlanChk && /^자동: 요금제 유지 끝/.test(String(cur.promPlanMemo || '')) && !arKeepPlan().some(k => k.key === 'Plan')) Object.assign(upd, { promPlanDate: '', promPlanMemo: '' });   // 📶 V380 예전에 '요금제 유지'로 잘못 잡힌 알뜰폰 약속은 비움 (가입 유지로 다시 잡힘)
+                { const ks = arKeepPlan().map(k => k.key);   // 🛠 V388 같은 개통을 고쳐 저장할 때 이번에 안 생기는 자동 유지 약속은 지움 (알뜰폰 → 일반 통신사로 고치면 '가입 유지' · 하향 제한이 없어지면 그 약속 · 2차 변경을 빼면 요금제2) · V380 알뜰폰 '요금제 유지 끝'도 여기서
+                  if (cur && (sameAct || cur.activationDate === d)) ['Plan', 'Plan2', 'Other'].forEach(k => { if (!ks.includes(k) && !cur[`prom${k}Chk`] && /^자동: (요금제 유지 끝|요금제 하향 제한 끝|알뜰폰 가입 유지 끝|2차 요금제 변경)/.test(String(cur[`prom${k}Memo`] || ''))) Object.assign(upd, { [`prom${k}Date`]: '', [`prom${k}Memo`]: '' }); });
+                  else if (isMvno(arVal('ar-carrier')) && cur && !cur.promPlanChk && /^자동: 요금제 유지 끝/.test(String(cur.promPlanMemo || '')) && !ks.includes('Plan')) Object.assign(upd, { promPlanDate: '', promPlanMemo: '' }); }
                 arKeepPlan().forEach(k => { const done = !!(cur && cur[`prom${k.key}Chk`] && cur[`prom${k.key}Date`] === k.date && cur[`prom${k.key}Memo`] === k.memo); Object.assign(upd, { [`prom${k.key}Date`]: k.date, [`prom${k.key}Memo`]: k.memo, [`prom${k.key}Chk`]: done }); });
                 { const up = arUsedPhone(); if (up) upd.usedPhone = { ...up, date: d }; }   // 📱 중고폰 (V191)
                 upd.policyItems = arItems.filter(it => it.name || it.amount || it.days || it.code).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: arItemCode(it), date: it.date || '', ...(it.auto ? { auto: it.auto } : {}) }));
@@ -29063,7 +29065,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V387';
+        const APP_VER = 'V388';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29071,6 +29073,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V388', d: '2026-11-11', items: [
+                ['🛠 점검 수정: 개통을 고쳐 저장할 때 이번에 안 생기는 자동 유지 약속이 남던 것 — 알뜰폰을 일반 통신사로 고치면 \'가입 유지\' · 하향 제한이 없어지면 그 약속 · 2차 요금제 변경을 빼면 요금제2 약속 (직접 적은 약속 · 다른 날 개통의 약속은 그대로)', 'a']
+            ] },
             { v: 'V387', d: '2026-11-11', items: [
                 ['⏱ 영업 전화 부재 → 자동 재연락(명함 문자) 기본 보내는 때를 \'10분 뒤\'로 · 설정 → 자동 안내 → 부재 고객에서 바꿀 수 있어요 · 📞 콜매니저 v6.0 결과 창에도 [10분 뒤] 버튼', 'a']
             ] },
