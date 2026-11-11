@@ -24545,6 +24545,38 @@ familyStr + `\n` +
            · 녹음은 이 폰 메모리에 → 서명 완료하면 고객 서류(드라이브 · 안내서 날짜 폴더)에 올림 · 안내서에 rec 기록
            ===================================================================== */
         const gdRecMem = new Map();   // 안내서 id → { blob, mime, dur, ok, total, down, at }
+        /* 🎙 V371 녹음은 폰 저장소(IndexedDB)에도 바로 보관 → 앱을 닫거나 새로고침해도 남음 (개통보고는 고객이 간 뒤라 그 전에 닫을 수 있음)
+             · 고객 서류(구글 드라이브)에 올라가면 폰에서 지움 · 서명까지 끝났는데 못 올린 녹음은 다음에 열 때 자동으로 다시 올림 · 60일 지나면 정리 */
+        const GD_REC_DB = 'kangcrmRec', GD_REC_ST = 'rec';
+        function gdRecIdb() { return new Promise((res, rej) => { try { const q = indexedDB.open(GD_REC_DB, 1); q.onupgradeneeded = () => { if (!q.result.objectStoreNames.contains(GD_REC_ST)) q.result.createObjectStore(GD_REC_ST, { keyPath: 'id' }); }; q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); } catch (e) { rej(e); } }); }
+        async function gdRecIdbDo(mode, fn) {
+            const d = await gdRecIdb();
+            return new Promise((res, rej) => { let out; try { const tx = d.transaction(GD_REC_ST, mode), q = fn(tx.objectStore(GD_REC_ST)); if (q) q.onsuccess = () => { out = q.result; }; tx.oncomplete = () => { d.close(); res(out); }; tx.onerror = tx.onabort = () => { d.close(); rej(tx.error); }; } catch (e) { d.close(); rej(e); } });
+        }
+        function gdRecKeep(id, m, g) { if (!id || !m || !m.blob) return Promise.resolve(); const { url, ...rest } = m; void url; return gdRecIdbDo('readwrite', st => st.put({ ...rest, id, name: (g && g.name) || '', phone: (g && g.phone) || '', saved: new Date().toISOString() })).catch(e => console.warn('녹음 폰 저장 실패', e)); }
+        function gdRecForget(id) { return gdRecIdbDo('readwrite', st => st.delete(id)).catch(() => {}); }
+        let gdRecRestored = false;
+        async function gdRecRestore() {
+            if (gdRecRestored || typeof indexedDB === 'undefined') return; gdRecRestored = true;
+            let all = []; try { all = (await gdRecIdbDo('readonly', st => st.getAll())) || []; } catch (e) { return; }
+            const cut = Date.now() - 60 * 86400e3;
+            all.forEach(x => {
+                if (!x || !x.id || !x.blob) return;
+                if ((Date.parse(x.saved || x.at || '') || 0) < cut) { gdRecForget(x.id); return; }
+                if (!gdRecMem.has(x.id)) gdRecMem.set(x.id, { blob: x.blob, mime: x.mime, url: URL.createObjectURL(x.blob), dur: x.dur, ok: x.ok, total: x.total, down: x.down, at: x.at });
+            });
+            let up = 0, left = 0;
+            for (const id of [...gdRecMem.keys()]) {
+                const g = await gdGet(id); if (!g) continue;
+                if (g.rec) { const m = gdRecMem.get(id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(id); gdRecForget(id); continue; }   // 다른 데서 이미 올림
+                if (g.st === 'draft' || !g.signed) continue;   // 서명 전 → 안내서를 다시 열면 이 녹음으로 이어서
+                const msg = await gdRecUpload(g);
+                if (/^🎙/.test(msg || '')) up++; else left++;
+            }
+            if (up) stockToast(`🎙 지난번에 못 올린 녹음 ${up}개를 고객 서류에 올렸어요`);
+            else if (left) stockToast(`🎙 아직 고객 서류에 못 올린 녹음이 ${left}개 있어요 · 안내서 탭에서 확인해 주세요`);
+            try { gdRenderList(); } catch (e) { /* 준비 전 */ }
+        }
         let gdRecSt = null;           // { g, items, i, mr, chunks, t0, timer, oks:Set, stream, done }
         const gdRecEl = document.createElement('div');
         gdRecEl.id = 'gdRecModal';
@@ -24667,6 +24699,7 @@ familyStr + `\n` +
                         const type = (mr.mimeType || 'audio/webm').split(';')[0], blob = new Blob(S.chunks, { type });
                         const old = gdRecMem.get(S.g.id); if (old && old.url) URL.revokeObjectURL(old.url);
                         gdRecMem.set(S.g.id, { blob, mime: type, url: URL.createObjectURL(blob), dur: gdRecEl2(S), ok: S.oks.size, total: S.items.length, down: S.items.some(x => x.k === 'down') && [...S.oks].some(j => S.items[j] && S.items[j].k === 'down'), at: new Date().toISOString() });
+                        gdRecKeep(S.g.id, gdRecMem.get(S.g.id), S.g);   // 🎙 V371 폰 저장소에도 (앱을 닫아도 남음)
                     }
                     res();
                 };
@@ -24678,7 +24711,7 @@ familyStr + `\n` +
             const S = gdRecSt, a = b.dataset.rec;
             if (a === 'close') { if (S.mr && !(await customConfirm('녹음을 그만둘까요? 지금까지 녹음한 건 지워져요.'))) return; await gdRecStop(false); gdRecHide(); gdRecSt = null; return; }
             if (a === 'skip') { gdRecHide(); const go = S.go; gdRecSt = null; go(); return; }
-            if (a === 'start' || a === 'redo') { if (a === 'redo') { gdRecEl.querySelectorAll('audio').forEach(x => { try { x.pause(); } catch (e) { /* 무시 */ } }); const m = gdRecMem.get(S.g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(S.g.id); } gdRecReady(); return; }
+            if (a === 'start' || a === 'redo') { if (a === 'redo') { gdRecEl.querySelectorAll('audio').forEach(x => { try { x.pause(); } catch (e) { /* 무시 */ } }); const m = gdRecMem.get(S.g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(S.g.id); gdRecForget(S.g.id); } gdRecReady(); return; }
             if (a === 'go' && S.stage === 'rec' && !S.mr) { await gdRecStartRec(); return; }
             if (a === 'pause' && S.mr && !S.pausedAt) { try { S.mr.pause(); } catch (e) { /* 무시 */ } S.pausedAt = Date.now(); gdRecRender(); return; }
             if (a === 'resume' && S.mr && S.pausedAt) { try { S.mr.resume(); } catch (e) { /* 무시 */ } S.pausedMs = (S.pausedMs || 0) + Date.now() - S.pausedAt; S.pausedAt = 0; gdRecRender(); return; }
@@ -24689,7 +24722,7 @@ familyStr + `\n` +
         // 서명 완료 → 녹음을 고객 서류로 (안내서 날짜 폴더) · 안내서 · 고객카드에 기록
         async function gdRecUpload(g) {
             const m = gdRecMem.get(g.id); if (!m || !g.custId || driveMode() === 'off') return '';
-            if (driveMode() === 'self' && !driveTokenValid()) return '⚠️ 구글 드라이브 연결이 끊겨서 녹음을 못 올렸어요. 연결한 뒤 [☁️ 다시 올리기]를 누르거나 [📥 이 폰에 저장]해 주세요 (앱을 닫으면 사라져요).';
+            if (driveMode() === 'self' && !driveTokenValid()) return '⚠️ 구글 드라이브 연결이 끊겨서 녹음을 못 올렸어요. 연결한 뒤 [☁️ 다시 올리기]를 누르거나 [📥 이 폰에 저장]해 주세요 (폰에는 보관돼 있어서 다음에 앱을 열면 다시 올려요).';
             const ext = /mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm');
             const f = new File([m.blob], `녹음_구매확인_${String(g.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || getTodayStr()).replace(/-/g, '')}_확인${m.ok}of${m.total}${m.down ? '_하향안내' : ''}.${ext}`, { type: m.mime });
             try {
@@ -24701,7 +24734,7 @@ familyStr + `\n` +
                 setDoc(doc(db, 'smart_guides', g.id), { rec }, { merge: true }).catch(e => console.warn(e)); g.rec = rec;
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 🎙 구매 내용 확인 녹음 ${gdRecFmt(m.dur)} · 확인 ${m.ok}/${m.total}${m.down ? ' · 하향 제한 안내 ✓' : ''}`;
                 txCustomerUpdate(g.custId, (cur) => ({ contactHistory: appendLine(cur.contactHistory, line), __audit: '구매 안내서' })).catch(e => console.warn(e));
-                URL.revokeObjectURL(m.url); gdRecMem.delete(g.id);
+                URL.revokeObjectURL(m.url); gdRecMem.delete(g.id); gdRecForget(g.id);   // 🎙 V371 올렸으니 폰에서 지움
                 return '🎙 녹음도 고객 서류에 올렸어요.';
             } catch (e) { try { hideUploadToast(); } catch (e2) { /* 무시 */ } console.warn('녹음 올리기 실패', e); return '⚠️ 녹음을 서류에 못 올렸어요.'; }
         }
@@ -24915,7 +24948,7 @@ familyStr + `\n` +
                     <p class="text-[16px] font-extrabold ${gdStage === 'done' ? 'text-emerald-900' : 'text-gray-900'}">${gdStage === 'done' ? '✅ 서명 받았어요 · 저장했어요' : `✍ ${escapeHtml(gdTitle(g))}`}</p>
                     <p class="text-[13px] text-gray-700 mt-0.5 leading-relaxed">${escapeHtml(g.name || '이름 없음')} · ${escapeHtml(formatPhone(phoneDigits(g.phone)))}<br>${g.signed ? `${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명 · ${escapeHtml(g.signed.by || '')}` : ''}${sentTxt ? ` · ${sentTxt}` : ''}<br>${g.act ? `<span class="font-bold text-emerald-800">✅ ${gdMD(g.act.date)} 개통등록 됨</span>` : '<span class="font-bold text-amber-800">⏳ 아직 개통등록 전</span>'}</p></section>
                 ${!gdRecMem.has(g.id) && !g.rec && g.st !== 'draft' && driveMode() !== 'off' ? `<section class="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 space-y-2"><p class="text-[13px] font-bold text-indigo-900">🎙 구매 내용 확인 녹음이 아직 없어요</p><button type="button" data-gd-reclater class="w-full h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">🎙 지금 녹음하기 (고객과 같이)</button><p class="text-[11px] text-indigo-800">안내서 내용으로 대본이 나와요 · 끝나면 고객 서류에 올라가요</p></section>` : ''}
-                ${gdRecMem.has(g.id) && !g.rec ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 p-3 space-y-2"><p class="text-[13px] font-bold text-amber-900">🎙 구매 확인 녹음이 아직 고객 서류에 안 올라갔어요${driveMode() === 'off' ? ' (서류 보관(구글 드라이브)이 꺼져 있어요)' : ''} · 앱을 닫으면 사라져요</p><div class="grid grid-cols-2 gap-2">${driveMode() !== 'off' ? '<button type="button" data-gd-recup class="h-11 rounded-xl bg-amber-500 text-white text-[13px] font-bold">☁️ 다시 올리기</button>' : ''}<button type="button" data-gd-recdl class="h-11 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900 ${driveMode() === 'off' ? 'col-span-2' : ''}">📥 이 폰에 파일로 저장</button></div></section>` : ''}
+                ${gdRecMem.has(g.id) && !g.rec ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 p-3 space-y-2"><p class="text-[13px] font-bold text-amber-900">🎙 구매 확인 녹음이 아직 고객 서류에 안 올라갔어요${driveMode() === 'off' ? ' (서류 보관(구글 드라이브)이 꺼져 있어요)' : ''} · 이 폰에 보관 중이에요 ${driveMode() === 'off' ? '(서류 보관을 켜면 올릴 수 있어요)' : '(다음에 앱을 열면 다시 올려요)'}</p><div class="grid grid-cols-2 gap-2">${driveMode() !== 'off' ? '<button type="button" data-gd-recup class="h-11 rounded-xl bg-amber-500 text-white text-[13px] font-bold">☁️ 다시 올리기</button>' : ''}<button type="button" data-gd-recdl class="h-11 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900 ${driveMode() === 'off' ? 'col-span-2' : ''}">📥 이 폰에 파일로 저장</button></div></section>` : ''}
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
                     <h3 class="text-[15px] font-bold text-gray-900">고객에게 보내기</h3>
@@ -24956,7 +24989,7 @@ familyStr + `\n` +
                 if (!gdCanDel(g)) return customAlert('이 안내서는 지울 수 없어요 (👑 대표가 정한 규칙).');
                 if (!(await customConfirm(`${g.name || '이 고객'} · ${gdTitle(g)}\n서명한 안내서를 지울까요? (되돌릴 수 없어요)`))) return;
                 try {
-                    await deleteDoc(doc(db, 'smart_guides', g.id));
+                    await deleteDoc(doc(db, 'smart_guides', g.id)); { const m = gdRecMem.get(g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(g.id); gdRecForget(g.id); }
                     deleteDoc(doc(db, 'smart_guide_signs', g.id)).catch(err => console.warn(err));
                     if (g.custId) txCustomerUpdate(g.custId, (cur) => (Array.isArray(cur.guides) && cur.guides.some(x => x && x.id === g.id) ? { guides: cur.guides.filter(x => x && x.id !== g.id), __audit: '구매 안내서' } : {})).catch(err => console.warn(err));
                     gdList = gdList.filter(x => x.id !== g.id);
@@ -25095,7 +25128,9 @@ familyStr + `\n` +
             let n = 0; customerDB.forEach(c => { gdPendingFor(c).forEach(e => { if (isSuperAdmin || !e.by || e.by === me) n++; }); });
             return n;
         }
+        let gdRecRestoreAt = 0;
         function gdBadge() {
+            if (!gdRecRestoreAt && dbLoaded && db) { gdRecRestoreAt = Date.now(); setTimeout(() => { gdRecRestore().catch(e => console.warn('녹음 되살리기', e)); }, 4000); }   // 🎙 V371 폰에 남은 녹음 → 서명 끝난 건 다시 올리기 (앱을 열고 한 번)
             if (!gdUnsub) { const v = document.getElementById('guideView'); if (v && !v.classList.contains('hidden') && dbLoaded) { gdListen(); gdRenderList(); } }
             const n = gdPendCount();
             [['navGuideBadge', n > 9 ? '9+' : String(n)], ['tabGuideBadge', String(n)]].forEach(([id, t]) => { const el = document.getElementById(id); if (el) { el.textContent = t; el.classList.toggle('hidden', !n); } });
@@ -25113,7 +25148,7 @@ familyStr + `\n` +
             return !!by && by === (getStaffName() || '') && !g.act;
         }
         async function gdDeleteOne(g) {
-            await deleteDoc(doc(db, 'smart_guides', g.id));
+            await deleteDoc(doc(db, 'smart_guides', g.id)); { const m = gdRecMem.get(g.id); if (m && m.url) URL.revokeObjectURL(m.url); gdRecMem.delete(g.id); gdRecForget(g.id); }
             deleteDoc(doc(db, 'smart_guide_signs', g.id)).catch(err => console.warn(err));
             if (g.custId) txCustomerUpdate(g.custId, (cur) => (Array.isArray(cur.guides) && cur.guides.some(x => x && x.id === g.id) ? { guides: cur.guides.filter(x => x && x.id !== g.id), __audit: '구매 안내서' } : {})).catch(err => console.warn(err));
             gdList = gdList.filter(x => x.id !== g.id);
@@ -25153,7 +25188,7 @@ familyStr + `\n` +
             const selBar = gdSel ? `<div class="sticky top-0 z-10 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2"><span class="flex-1 min-w-0 text-[14px] font-bold text-red-900">${gdSel.size ? `${gdSel.size}개 골랐어요` : '지울 안내서를 눌러서 골라요'}</span><button type="button" data-gd-selall class="h-9 px-2.5 rounded-lg border border-red-200 bg-white text-[12px] font-bold text-red-800">전체</button><button type="button" data-gd-seldel ${gdSel.size ? '' : 'disabled'} class="h-9 px-3 rounded-lg bg-red-600 text-white text-[13px] font-bold disabled:opacity-40">🗑 삭제</button><button type="button" data-gd-selx class="w-9 h-9 rounded-lg text-red-800 text-[15px] font-bold" aria-label="고르기 끝">✕</button></div>` : '';
             box.innerHTML = selBar + (rows.length ? rows.slice(0, 150).map(g => {
                 const c = g.calc || gdCalc(g), badge = g.st === 'draft' ? '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">💾 임시 저장</span>'
-                    : `${g.sent ? '<span class="text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">📩 보냄</span>' : '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">✍ 서명</span>'} ${g.act ? '<span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 rounded px-1.5 py-0.5">✅ 개통등록</span>' : (gdIsPending(g) ? '<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">⏳ 개통등록 전</span>' : '')}`;
+                    : `${g.sent ? '<span class="text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">📩 보냄</span>' : '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">✍ 서명</span>'}${gdRecMem.has(g.id) && !g.rec ? ' <span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">🎙 녹음 못 올림</span>' : ''} ${g.act ? '<span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 rounded px-1.5 py-0.5">✅ 개통등록</span>' : (gdIsPending(g) ? '<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">⏳ 개통등록 전</span>' : '')}`;
                 const canDel = gdCanDel(g), picked = !!(gdSel && gdSel.has(g.id));   // 🗑 V232
                 return `<div class="flex items-stretch gap-1.5"><button type="button" ${gdSel ? 'data-gd-pick' : 'data-gd-open'}="${escapeHtml(g.id)}" ${gdSel ? `aria-pressed="${picked}"` : ''} ${gdSel && !canDel ? 'disabled' : ''} class="flex-1 min-w-0 text-left rounded-2xl border px-3 py-2.5 flex items-center gap-3 disabled:opacity-40 ${picked ? 'bg-red-50 border-red-400 ring-2 ring-red-200' : 'bg-white border-gray-200 hover:bg-gray-50'}">${gdSel ? `<span class="flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${picked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 bg-white'}" aria-hidden="true">${picked ? '<i class="fa-solid fa-check text-[12px]"></i>' : ''}</span>` : ''}
                     <span class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${g.kind === 'usim' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}"><i class="fa-solid ${g.kind === 'usim' ? 'fa-sim-card' : 'fa-mobile-screen-button'}" aria-hidden="true"></i></span>
@@ -28787,7 +28822,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V370';
+        const APP_VER = 'V371';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28795,6 +28830,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V371', d: '2026-11-11', items: [
+                ['🎙 안내서 녹음을 폰에도 바로 보관해요: 개통보고 전에 앱을 닫거나 새로고침해도 녹음이 남아요 (예전: 고객 서류에 못 올라가면 앱을 닫는 순간 사라짐)', 'a'],
+                ['☁️ 서명까지 끝났는데 못 올린 녹음은 다음에 앱을 열면 저절로 고객 서류에 다시 올려요 · 안내서 목록에 「🎙 녹음 못 올림」 표시 · 서명 전에 닫았으면 그 안내서를 다시 열어 이어서 서명', 'a']
+            ] },
             { v: 'V370', d: '2026-11-11', items: [
                 ['📖 Firebase 무료 읽기 아끼기: 고객 목록은 폰에 저장된 것부터 바로 열고, 서버에서는 바뀐 고객만 받아요 (예전: 열 때마다 고객 전체를 다시 받음 · 12시간에 한 번은 전체를 새로 맞춤)', 'a'],
                 ['🗄️ 자동 백업: 오늘 백업을 이미 확인했으면 켤 때마다 백업 목록을 다시 읽지 않아요', 'a']
