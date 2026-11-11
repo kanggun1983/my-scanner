@@ -25130,6 +25130,15 @@ familyStr + `\n` +
             want.forEach(p => { const k = key(p.kind, p.name); if (have.has(k)) { const it = arItems.find(x => key(x.kind, x.name) === k); if (it && p.code) it.code = p.code; return; } arItems.push({ kind: p.kind, name: String(p.name || '').trim(), amount: 0, code: p.code || '', days: 0, autoDate: true, touched: true }); });
             const extra = [g.gift ? `사은품: ${g.gift}` : '', ...(g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && gdNum(p.fee)).map(p => `${p.kind} ${String(p.name || '').trim() || ''} 월 ${arWon(gdNum(p.fee))}원`), ...(g.promises || []).filter(p => p.kind === '기타' && String(p.name || '').trim()).map(p => `약속: ${p.name}${p.code ? ` (${keepLabel(p.code)})` : ''}`)].filter(Boolean).join(' · ');
             const memo = document.getElementById('ar-memo'); if (memo && extra && !memo.value.includes(extra)) memo.value = [memo.value.trim(), `📝 안내서 · ${extra}`].filter(Boolean).join('\n');
+            {   // 💸 V378 안내서의 고객송금 · 매장대납 · 매장 추가할인 = 매장이 내는 돈 → 정산 '고객 할인금액'으로 (판매마진에서 빠짐 · 이미 적어 둔 금액은 그대로)
+                const mk = gdMoneyOn(g) ? g.money.kind : '', mAmt = mk ? gdNum(g.money.amt) : 0, etc = g.kind !== 'usim' ? gdNum(g.dev && g.dev.etc) : 0, sum = mAmt + etc;
+                const de = document.getElementById('ar-disc');
+                if (de && sum > 0) {
+                    if (!arNum('ar-disc')) de.value = arWon(sum);
+                    let nt = document.getElementById('ar-disc-note'); if (!nt) { nt = document.createElement('p'); nt.id = 'ar-disc-note'; nt.className = 'mt-1 text-[11px] font-bold text-amber-800'; (de.closest('label') || de).after(nt); }
+                    nt.textContent = `📝 안내서: ${[mAmt ? `${mk === 'Pay' ? '매장대납' : '고객송금'} ${arWon(mAmt)}원` : '', etc ? `매장 추가할인 ${arWon(etc)}원` : ''].filter(Boolean).join(' + ')} → 판매마진에서 빠져요${arNum('ar-disc') !== sum ? ` (지금 칸 ${arWon(arNum('ar-disc'))}원 · 맞는지 확인)` : ''}`;
+                }
+            }
             try { renderArItems(); arSyncVis(); arRecalc(); } catch (e) { console.warn(e); }
             gdArId = g.id; gdArG = { id: g.id, custId: g.custId || '', phone: phoneDigits(g.phone), name: g.name || '' };
             const fp = phoneDigits(arVal('ar-phone')), gp = phoneDigits(g.phone), nameDiff = arVal('ar-name') && g.name && arVal('ar-name').replace(/\s/g, '') !== String(g.name).replace(/\s/g, '');
@@ -28882,7 +28891,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V377';
+        const APP_VER = 'V378';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28890,6 +28899,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V378', d: '2026-11-11', items: [
+                ['💸 안내서로 개통보고를 채우면 고객송금 · 매장대납 · 매장 추가할인 금액이 정산의 \'고객 할인금액\'에 들어가요 → 판매마진 · 실마진에서 빠짐 (예전: 안 빠져서 마진이 크게 잡혔음 · 이미 적어 둔 금액은 그대로)', 'a']
+            ] },
             { v: 'V377', d: '2026-11-11', items: [
                 ['💳 구매 안내서: 바꿀 요금제의 월정액을 넣으면 \'바꾼 뒤 매달 약 ○○원 (휴대폰 + 요금)\'이 바로 나와요 (선약 · 결합 · 복지 · 요금 할인 카드를 지금과 같은 순서로 빼서) · 안내서 그림 · 오늘 개통 내용 · 안내 문자 · 2차 변경에도', 'a']
             ] },
