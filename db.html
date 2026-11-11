@@ -21137,7 +21137,12 @@ familyStr + `\n` +
             if (pd) {   // 메모: 지금 요금제(월요금) → 바꿀 요금제(월요금)
                 const won = (id) => arNum(id) > 0 ? ` ${arWon(arNum(id))}원` : '';
                 const now = arVal('ar-plan') ? `${arVal('ar-plan')}${won('ar-planfee')}` : '', next = arVal('ar-target') ? `${arVal('ar-target')}${won('ar-targetfee')}` : '';
-                out.push({ key: 'Plan', label: '요금제', date: pd, memo: `자동: 요금제 유지 끝 (${keepLabel(planCode)})${now || next ? ' · ' + [now || '지금 요금제', next].filter(Boolean).join(' → ') : ''}` });
+                if (isMvno(arVal('ar-carrier'))) {   // 📶 V380 알뜰폰은 '요금제 유지'가 아니라 '가입 유지' (그 뒤 해지 · 번호이동 가능) → 기타 칸 · 요금제 하향 제한이 더 짧으면 요금제 칸에 따로
+                    const brand = arVal('ar-mvno'), mr = mvnoRuleFor(arVal('ar-carrier'), brand, arDealer), dn = mr ? mvnoDownCode(mr) : '', dd = dn ? computeKeepDate(d, dn) : '';
+                    const c0 = arCust || {}, otherTaken = !!c0.promOtherDate && !c0.promOtherChk && !/^자동/.test(String(c0.promOtherMemo || ''));   // 직접 잡은 기타 약속이 있으면 덮지 않고 요금제 칸에
+                    out.push({ key: otherTaken ? 'Plan' : 'Other', label: '가입 유지', main: true, date: pd, memo: `자동: 알뜰폰 가입 유지 끝 (${keepLabel(planCode)})${brand ? ' · ' + brand : ''}${now ? ' · ' + now : ''} · 그 뒤 해지 · 번호이동 가능` });
+                    if (dd && dd < pd && !otherTaken) out.push({ key: 'Plan', label: '요금제', date: dd, memo: `자동: 요금제 하향 제한 끝 (${keepLabel(dn)})${now ? ' · ' + now : ''}${next ? ' → ' + next : ''}` });
+                } else out.push({ key: 'Plan', label: '요금제', main: true, date: pd, memo: `자동: 요금제 유지 끝 (${keepLabel(planCode)})${now || next ? ' · ' + [now || '지금 요금제', next].filter(Boolean).join(' → ') : ''}` });
             }
             {   // 📶 V367 2차 변경 (1차 요금제 → 2차 요금제)
                 const w2 = document.getElementById('ar-plan2-wrap'), code2 = w2 && !w2.classList.contains('hidden') ? arVal('ar-k-plan2') : '';
@@ -21166,7 +21171,9 @@ familyStr + `\n` +
                 const rows = arItems.filter(it => it.kind === kind && it.date);
                 if (rows.length) {
                     rows.sort((a, b) => a.date.localeCompare(b.date));
-                    out.push({ key, label: kind, date: rows[0].date, memo: `자동: ${title} · ` + rows.map(it => `${it.name || kind}(${it.date.slice(5).replace('-', '/')})`).join(', ') });
+                    const txt = rows.map(it => `${it.name || kind}(${it.date.slice(5).replace('-', '/')})`).join(', '), same = out.find(k => k.key === key);
+                    if (same) { same.memo += ` · ${title} ${txt}`; return; }   // 📶 V380 기타 칸에 알뜰폰 가입 유지가 이미 있으면 메모에 같이
+                    out.push({ key, label: kind, date: rows[0].date, memo: `자동: ${title} · ` + txt });
                 } else if (sel) {
                     const dt = computeKeepDate(d, arVal(sel));
                     if (dt) out.push({ key, label: kind, date: dt, memo: `자동: ${title} (${keepLabel(arVal(sel))})` });
@@ -21239,7 +21246,8 @@ familyStr + `\n` +
                 const ks = arKeepPlan();
                 const kd = document.getElementById('ar-k-dates');
                 if (kd) kd.innerHTML = ks.length ? ks.map(k => `<span class="inline-flex items-center gap-1 h-7 px-2.5 rounded-full bg-white border border-indigo-200 text-[12px] font-bold text-indigo-900">${escapeHtml(k.label)} <span class="text-indigo-600">${escapeHtml(formatShortDate(k.date))}</span></span>`).join('') : '<span class="text-xs text-gray-500">아직 없어요 · 요금제 유지나 부가·보험 유지를 정하면 여기 보여요</span>';
-                const pdEl = document.getElementById('ar-k-plan-date'), pk = ks.find(k => k.key === 'Plan');
+                const pdEl = document.getElementById('ar-k-plan-date'), pk = ks.find(k => k.main) || ks.find(k => k.key === 'Plan');   // 📶 V380 알뜰폰은 가입 유지
+                { const kp = document.getElementById('ar-k-plan'), lb = kp && kp.previousElementSibling; if (lb) lb.textContent = isMvno(arVal('ar-carrier')) ? '가입 유지' : '요금제 유지'; }
                 if (pdEl) pdEl.textContent = pk ? `→ ${formatShortDate(pk.date)}` : '';
                 {   // 📶 V367
                     const p2 = ks.find(k => k.key === 'Plan2'), p2El = document.getElementById('ar-k-plan2-date'), wn = document.getElementById('ar-plan2-warn');
@@ -21437,6 +21445,7 @@ familyStr + `\n` +
                 // 최근 개통보다 예전 날짜면: 개통 기록에만 넣고 고객 정보(기종·요금제·약속)는 최근 개통 그대로
                 const newerLive = prevActs.filter(a => !a.canceled && a.kind !== '유선' && a.date > d).map(a => a.date).sort().pop();   // (같은 날 다른 기종은 '최근'과 같은 날이라 여기 안 걸림)
                 if (newerLive && await customConfirm(`이 개통일(${stockMD(d)})은 최근 개통(${stockMD(newerLive)})보다 예전이에요.\n\n개통 기록에만 추가하고, 고객 정보(기종·요금제·약속)는 최근 개통 그대로 둘까요?\n(취소를 누르면 이 개통으로 고객 정보를 바꿔요)`)) keepLatest = true;
+                if (isMvno(arVal('ar-carrier')) && cur && !cur.promPlanChk && /^자동: 요금제 유지 끝/.test(String(cur.promPlanMemo || '')) && !arKeepPlan().some(k => k.key === 'Plan')) Object.assign(upd, { promPlanDate: '', promPlanMemo: '' });   // 📶 V380 예전에 '요금제 유지'로 잘못 잡힌 알뜰폰 약속은 비움 (가입 유지로 다시 잡힘)
                 arKeepPlan().forEach(k => { const done = !!(cur && cur[`prom${k.key}Chk`] && cur[`prom${k.key}Date`] === k.date && cur[`prom${k.key}Memo`] === k.memo); Object.assign(upd, { [`prom${k.key}Date`]: k.date, [`prom${k.key}Memo`]: k.memo, [`prom${k.key}Chk`]: done }); });
                 { const up = arUsedPhone(); if (up) upd.usedPhone = { ...up, date: d }; }   // 📱 중고폰 (V191)
                 upd.policyItems = arItems.filter(it => it.name || it.amount || it.days || it.code).map(it => ({ kind: it.kind, name: it.name, amount: Number(it.amount) || 0, days: Number(it.days) || 0, code: arItemCode(it), date: it.date || '', ...(it.auto ? { auto: it.auto } : {}) }));
@@ -28904,7 +28913,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V379';
+        const APP_VER = 'V380';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28912,6 +28921,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V380', d: '2026-11-11', items: [
+                ['📶 알뜰폰 개통은 \'요금제 유지\'가 아니라 \'가입 유지\'로 약속을 잡아요 (기타 칸 · 그 뒤 해지 · 번호이동 가능) · 브랜드 요금제 하향 제한이 더 짧으면 요금제 칸에 따로 · 개통보고 칸 이름도 \'가입 유지\'', 'a'],
+                ['↩ 예전에 \'요금제 유지\'로 잡힌 알뜰폰 고객은 개통 기록 [✏️ 고치기]로 다시 저장하면 가입 유지로 바뀌어요', 'a']
+            ] },
             { v: 'V379', d: '2026-11-11', items: [
                 ['📎 서명한 안내서 서류 자동 첨부를 못 했을 때(구글 드라이브 연결 끊김 등) 다시 할 방법: 안내서 화면 [📎 고객 서류에 첨부] · 안내서 목록에 「📎 서류 미첨부」 표시 (예전: 다운받아 직접 올려야 했음)', 'a']
             ] },
