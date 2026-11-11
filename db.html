@@ -16475,14 +16475,18 @@ ${AI_TONES[aiSmsTone]}
                 add(actCheckMeaningful(c.carrier) ? 'ok' : 'miss', '통신사');
                 add(actCheckMeaningful(c.device) ? 'ok' : 'miss', '단말기');
                 add(actCheckMeaningful(c.plan) ? 'ok' : 'miss', '요금제');
-                add(actCheckMeaningful(c.discountType) ? 'ok' : 'miss', '할인유형 (공시·선약)');
+                const mv = isMvno(c.carrier);   // 📶 V386 알뜰폰은 공시·선약이 없어요 → 할인유형 빼고, 요금제 대신 가입 유지 약속을 봐요
+                if (!mv) add(actCheckMeaningful(c.discountType) ? 'ok' : 'miss', '할인유형 (공시·선약)');
                 {   // 💰 V205: 개통등록 [월요금] → 고객카드 월 요금 · 변경 후 요금도 같이 보여줌
                     const feeTxt = actCheckMeaningful(c.fee) ? String(c.fee).trim() : (Number(c.planFee) > 0 ? `${Number(c.planFee).toLocaleString('ko-KR')}원` : '');
                     const tgt = Number(c.targetPlanFee) > 0 ? ` → 변경 후 ${actCheckMeaningful(c.repTargetPlan) ? String(c.repTargetPlan).trim() + ' ' : ''}${Number(c.targetPlanFee).toLocaleString('ko-KR')}원` : '';
                     add(feeTxt ? 'ok' : 'check', '월 요금', feeTxt ? feeTxt + tgt : '개통등록 [월요금] 칸에 넣으면 저절로 들어가요');
                 }
-                add(actCheckMeaningful(c.repPrincipal) || actCheckMeaningful(c.installment) || actCheckMeaningful(c.repInstallment) ? 'ok' : 'check', '할부 정보', '완납이면 괜찮아요');
-                add(openPromise('Plan') ? 'ok' : 'check', '요금제 변경 약속', openPromise('Plan') ? formatShortDate(c.promPlanDate) : '유지 조건이 없으면 괜찮아요');
+                if (!/^유심/.test(String(c.device || '').trim())) add(actCheckMeaningful(c.repPrincipal) || actCheckMeaningful(c.installment) || actCheckMeaningful(c.repInstallment) ? 'ok' : 'check', '할부 정보', '완납이면 괜찮아요');   // V386 유심만 개통은 할부가 없어요
+                if (mv) {
+                    add(openPromise('Other') ? 'ok' : 'check', '가입 유지 약속', openPromise('Other') ? formatShortDate(c.promOtherDate) : '유지 조건이 없으면 괜찮아요');
+                    if (openPromise('Plan')) add('ok', '요금제 유지 약속', formatShortDate(c.promPlanDate));
+                } else add(openPromise('Plan') ? 'ok' : 'check', '요금제 변경 약속', openPromise('Plan') ? formatShortDate(c.promPlanDate) : '유지 조건이 없으면 괜찮아요');
                 const addonTxt = c.repAddons || c.addons, insTxt = c.repInsurance || c.insurance;
                 const addonKey = ['Addon', 'Addon2', 'Addon3', 'Addon4'].find(k => openPromise(k));
                 if (actCheckMeaningful(addonTxt)) add(addonKey ? 'ok' : 'miss', '부가서비스 해지 약속', addonKey ? formatShortDate(c[`prom${addonKey}Date`]) : `가입한 부가서비스: ${String(addonTxt).trim()}`);
@@ -29054,7 +29058,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V385';
+        const APP_VER = 'V386';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29062,6 +29066,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V386', d: '2026-11-11', items: [
+                ['📶 알뜰폰 개통 점검에서 \'할인유형 (공시·선약)\' 빠짐이 안 떠요 · 요금제 변경 약속 대신 가입 유지 약속을 봐요 · 유심만 개통은 \'할부 정보\' 확인도 안 떠요', 'a']
+            ] },
             { v: 'V385', d: '2026-11-11', items: [
                 ['📶 고객 명함 \'내 폰 정보\': 알뜰폰 무약정 · 유심만 개통한 고객이 오늘 개통해도 \'지금 기변 시기\'로 보이던 것 → 가입 유지 · 요금제 유지 약속이 끝나는 달로 · 📞 콜매니저 v5.9도 같게 (가입 유지 D-○ 줄)', 'a']
             ] },
