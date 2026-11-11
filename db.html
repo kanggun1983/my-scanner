@@ -23531,6 +23531,7 @@ familyStr + `\n` +
             const dc0 = dealerDistCode(d, g.carrier), dc = dc0 && dc0 !== 'NONE' ? dc0 : DEALER_DIST_DEFAULT, dd = g.date ? computeKeepDate(g.date, dc) : '', kd = g.keep && g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             const icn = String(dv.cardName || '').trim(), pcn = String(pl.cardName || '').trim();
             const map = { 유통망지원금: W(gdNum(dv.extra)), 유통망유지일: dd ? gdDot(dd) : '정해진 날', 유통망유지기간: keepLabel(dc), 할부카드: icn ? `(${icn})` : '', 할부카드할인: W(gdNum(dv.card)), 요금카드: pcn ? `(${pcn})` : '', 요금카드할인: `월 ${W(gdNum(pl.card))}`, 공시지원금: W(gdNum(dv.pub)), 중고보상: W(gdNum(dv.used)), 요금제유지일: kd ? gdDot(kd) : '안내한 날짜' };
+            if (gdMvTxt(g) && /^요금제는 \{요금제유지일\}까지 유지해 주세요/.test(String(t))) t = '가입은 {요금제유지일}까지 유지해 주세요. 그 전에 해지 · 번호이동 · 요금제를 낮추면 매장 지원금이 청구될 수 있어요.';   // 📶 V384 알뜰폰
             return String(t).replace(/\{([^{}]+)\}/g, (m, k) => (map[k] !== undefined ? map[k] : m));
         }
         /* ⚠️ V267 요금제 하향 제한 (안내서 빨간 경고 칸 · 녹음 대본 6-1) — 통신사 하향 기준(설정 → 명함 폰값계산 → 위약금 기준) · 유통망 유지일 · 요금제 유지일 */
@@ -23769,9 +23770,11 @@ familyStr + `\n` +
         // 📄 V234 선택약정 12+12 (V236: LG U+ · SKT만): 12개월마다 위약금이 끝나고, 첫 약정이 끝나면 자동으로 12개월 연장 (두 번째 12개월도 12개월 약정 기준)
         function gd1212Ok(g) { return ['LG U+', 'SKT'].includes(g && g.carrier); }
         // 📌 V322 약정 기간을 안내서에 크게 (무선 2년 · 유선 3년 — '몰랐다'는 고객 없게)
+        // 📶 V384 알뜰폰은 '요금제 유지'가 아니라 '가입 유지' (그 날까지 해지 · 번호이동 · 요금제 낮추기 안 됨) — 새로 쓰는 안내서 · 이 버전부터 서명한 안내서만 (예전 서명본 문구는 그대로)
+        function gdMvTxt(g) { return !!g && g.kind !== 'wired' && g.carrier === '알뜰폰' && (g.st === 'draft' || !!g.mvTxt); }
         function gdTermInfo(g) {
             if (g.kind === 'wired') { const t = String((g.w || {}).term || '3년 약정'), y = Number((t.match(/(\d)\s*년/) || [])[1]) || 3; return { chip: `약정 ${y}년`, line: `인터넷 · TV 약정 ${y}년 (${y * 12}개월)입니다. 약정 기간 안에 해지하시면 받은 할인 · 면제받은 설치비를 돌려내는 위약금(할인반환금)이 청구됩니다.` }; }
-            if (g.sup === '없음') return { chip: '무약정', line: '약정 없이 가입해요. 언제 해지해도 위약금은 없어요.' };
+            if (g.sup === '없음') { const kd = gdMvTxt(g) ? gdKeepEff(g).date : ''; return { chip: '무약정', line: kd ? `통신사 약정은 없어요. 다만 ${gdDot(kd)}까지는 해지 · 번호이동 · 정지 없이 가입을 유지해 주셔야 해요 (매장 개통 조건).` : '약정 없이 가입해요. 언제 해지해도 위약금은 없어요.' }; }
             if (g.term === '12+12') return { chip: '약정 12+12개월', line: '선택약정 12개월 + 12개월 다시 약정 (모두 24개월)입니다. 약정 기간 안에 해지하시면 받은 요금 할인을 돌려내는 할인반환금이 청구됩니다.' };
             const n = Number(g.term) || 24, yr = n % 12 ? `${n}개월` : `${n / 12}년`;
             return { chip: `약정 ${yr}`, line: g.sup === '공시' ? `공통지원금(공시) ${yr} (${n}개월) 약정입니다. 약정 기간 안에 해지 · 번호이동 · 요금제를 낮추면 받은 지원금 일부를 돌려내는 위약금이 청구됩니다.` : `선택약정 ${yr} (${n}개월)입니다. 약정 기간 안에 해지 · 번호이동하시면 그동안 받은 요금 할인을 돌려내는 할인반환금이 청구됩니다.` };
@@ -24209,13 +24212,13 @@ familyStr + `\n` +
             const KE = gdKeepEff(g), kd = KE.date;   // 📅 V267 유통망이 있으면 유통망 유지일과 같게
             if (kd || g.keep.target) {
                 const ls = [];
-                if (kd) ls.push(`${g.plan.name || '요금제'} · ${keepLabel(KE.code)} 유지${KE.dist ? ' (유통망지원금 조건)' : ''} → ${gdDot(kd)}부터 바꿀 수 있어요`);
+                if (kd) ls.push(gdMvTxt(g) ? `${String(g.mvnoName || '').trim() || '알뜰폰'} · ${keepLabel(KE.code)} 가입 유지 → ${gdDot(kd)}부터 해지 · 번호이동 · 요금제 변경 가능` : `${g.plan.name || '요금제'} · ${keepLabel(KE.code)} 유지${KE.dist ? ' (유통망지원금 조건)' : ''} → ${gdDot(kd)}부터 바꿀 수 있어요`);
                 if (g.keep.target) ls.push(`바꿀 요금제: ${g.keep.target}${gdNum(g.keep.targetFee) ? ` · 변경 후 월요금 ${W(gdNum(g.keep.targetFee))}` : ''}`);
                 { const A = gdAfterPay(g, g.keep.targetFee); if (A) ls.push(`바꾼 뒤 ${gdAfterLine(A)}`); }   // 📶 V377 변경 후 실납부
                 const piK = g.keep.target ? gdPiOf(g, 'keep') : null;   // 📶 V236
                 if (piK) ls.push(`바꿀 요금제 기본 제공: ${[piLab('음성', piK.v), piLab('문자', piK.s), piLab('데이터', piK.d), piK.x, piK.sh].filter(Boolean).join(' · ')}`);
                 const k2 = gdK2(g); if (k2 && (k2.date || k2.target)) { ls.push(`2차 변경: ${k2.date ? `${gdDot(k2.date)}부터 ` : ''}${gdK2Txt(k2, W)}${k2.date ? '로 바꿀 수 있어요' : ''}`); const A2 = gdAfterPay(g, k2.fee); if (A2) ls.push(`2차 뒤 ${gdAfterLine(A2)}`); }   // 📶 V368 · V377
-                panel('요금제 유지 · 변경 안내', ls, { fill: '#EEF2FF', stroke: '#C7D2FE', titleColor: '#312E81', color: '#1E1B4B' });
+                panel(gdMvTxt(g) ? '가입 유지 · 변경 안내' : '요금제 유지 · 변경 안내', ls, { fill: '#EEF2FF', stroke: '#C7D2FE', titleColor: '#312E81', color: '#1E1B4B' });
             }
             const pl = (g.promises || []).filter(p => String(p.name || '').trim() || p.code || gdNum(p.fee)).map(p => { const d = p.code ? computeKeepDate(g.date, p.code) : ''; return `${p.kind} ${String(p.name || '').trim() || '(이름 없음)'}${gdNum(p.fee) ? ` (월 ${W(gdNum(p.fee))})` : ''}${p.code ? ` · ${keepLabel(p.code)} 유지${d ? ` (${gdDot(d)}부터 해지 가능)` : ''}` : ''}`; });
             if (g.gift) pl.push(`사은품: ${g.gift}`);
@@ -24809,6 +24812,7 @@ familyStr + `\n` +
             if (g.sup === '공시') add('term', '약정 기간 · 위약금', `공통지원금을 받으셔서 ${g.term || 24}개월 약정입니다. 약정 기간 안에 해지 · 번호이동 하시면 남은 기간만큼 지원금을 위약금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
             else if (g.sup === '선약') add('term', '약정 기간 · 할인반환금', `선택약정 ${g.term || 24}개월입니다. 중간에 해지하시면 그동안 받은 요금 할인 일부를 할인반환금으로 내실 수 있습니다.`, '네, 이해했습니다', true);
             const kd = gdKeepEff(g).date;   // 📅 유통망이 있으면 유통망 유지일
+            if (gdMvTxt(g) && kd) add('plan', '요금제 · 가입 유지', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다. 통신사 약정은 없지만 ${gdDateKo(kd)}까지는 해지 · 번호이동 · 요금제 낮추기 없이 가입을 유지하셔야 합니다.`, '네, 이해했습니다', true); else   // 📶 V384 알뜰폰
             add('plan', '요금제 · 유지 기간', `요금제는 ${String(pl.name || '').trim() || '안내드린 요금제'}${c.pfee ? ` 월 ${W(c.pfee)}` : ''}입니다.${kd ? ` ${gdDateKo(kd)}부터${g.keep.target ? ` ${g.keep.target}${gdNum(g.keep.targetFee) ? `(월 ${W(gdNum(g.keep.targetFee))})` : ''}로` : ' 다른 요금제로'} 바꾸실 수 있고, 그 전에는 지금 요금제를 유지하셔야 합니다.` : ''}${(() => { const k2 = gdK2(g); return k2 && k2.date ? ` 그 뒤 ${gdDateKo(k2.date)}부터는 ${gdK2Txt(k2, W)}로 한 번 더 바꾸실 수 있습니다.` : ''; })()}`);
             const down = gdDownLines(g).map(gdSpeak);
             if (down.length) add('down', '⚠️ 요금제 하향 제한 (필수)', down.join(' '), '네, 이해했습니다', true);
@@ -25035,6 +25039,7 @@ familyStr + `\n` +
                 g.custId = await gdEnsureCustomer(g);
                 g.st = 'signed'; g.signed = { at: now, by: me }; g.updatedAt = now;
                 if (!g.createdAt) g.createdAt = now; if (!g.createdBy) g.createdBy = me;
+                if (g.carrier === '알뜰폰') g.mvTxt = 1;   // 📶 V384 가입 유지 문구로 서명
                 g.notes = gdNotesFor(g); g.notesV = 2; g.down = gdDownLines(g); g.pi = gdPiSnap(g);   // ⚠️ V267 하향 제한 문구도 그때 것 그대로
                 if (g.plan) g.plan.welV = 5;   // 🛠 V289 · V343 ver 5 이 줄이 주석 안에 들어가 있었음 (예전 임시저장 안내서는 서명 뒤 복지할인이 옛 계산으로 바뀔 수 있었음) · 🤝 지금 복지할인 계산으로 서명 (V240 생계 28,600원까지 · 선약 → 결합 → 복지)   // 📶 V236 그때 요금제 혜택도   // 그때의 유의사항 그대로 남김 (📌 V212 조건별까지)
                 await setDoc(doc(db, 'smart_guide_signs', g.id), { img, at: now, by: me, custId: g.custId });
@@ -25070,7 +25075,7 @@ familyStr + `\n` +
             const c = gdCalc(g), kd = g.keep.code ? computeKeepDate(g.date, g.keep.code) : '';
             const ls = [`[${g.store.name || msgStoreName()}] ${g.name ? `${g.name}님, ` : ''}구매 안내서를 보내드려요.`, `· ${gdTitle(g)}`, `· 매달 약 ${arWon(c.total)}원${c.n ? ` (할부 ${c.n}개월)` : ''}`];
             if (c.addFee) ls.push(`· 부가 · 보험 월 ${arWon(c.addFee)}원 (유지 기간 동안)`);
-            if (kd) ls.push(`· 요금제는 ${gdDot(kd)}부터 바꿀 수 있어요${g.keep.target ? ` (${g.keep.target})` : ''}${gdAfterPay(g, g.keep.targetFee) ? ` → 바꾼 뒤 매달 약 ${arWon(gdAfterPay(g, g.keep.targetFee).total)}원` : ''}`);
+            if (kd && gdMvTxt(g)) ls.push(`· ${gdDot(kd)}까지 가입 유지 (해지 · 번호이동 · 요금제 낮추기 안 돼요)`); else if (kd) ls.push(`· 요금제는 ${gdDot(kd)}부터 바꿀 수 있어요${g.keep.target ? ` (${g.keep.target})` : ''}${gdAfterPay(g, g.keep.targetFee) ? ` → 바꾼 뒤 매달 약 ${arWon(gdAfterPay(g, g.keep.targetFee).total)}원` : ''}`);
             { const k2 = gdK2(g); if (k2 && k2.date) ls.push(`· 2차 변경은 ${gdDot(k2.date)}부터${k2.target ? ` (${k2.target})` : ''}`); }   // 📶 V368
             if (g.store.tel) ls.push(`문의 ${g.store.tel}`);
             return ls.join('\n');
@@ -29047,7 +29052,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V383';
+        const APP_VER = 'V384';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29055,6 +29060,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V384', d: '2026-11-11', items: [
+                ['📶 알뜰폰 구매 안내서: \'요금제 유지\' 대신 \'가입 유지\' (○○까지 해지 · 번호이동 · 요금제 낮추기 안 돼요) · 무약정이어도 \'언제 해지해도 위약금 없어요\' 대신 가입 유지 날짜 안내 · 유의사항 · 확인 녹음 · 안내 문자도 (이미 서명한 안내서 문구는 그대로)', 'a']
+            ] },
             { v: 'V383', d: '2026-11-11', items: [
                 ['🛠 알뜰폰 고객을 개통 기록 [✏️ 고치기]로 다시 저장해도 예전 \'요금제 유지 끝\' 약속이 안 지워지던 것 (V380) · 개통보고에서 약속을 비우는 저장이 빈칸 정리 규칙에 걸려 빠지던 것', 'a'],
                 ['💳 고객카드 \'바꾸면 매달 ○원\'이 안내서와 다르게(예: 461원) 나오던 것: 안내서와 같은 계산으로 · 변경 후 월요금 칸에 할인 뒤 금액이나 매달 내실 금액을 적었으면(요금표 월정액과 다르면) 그 값 그대로', 'a']
