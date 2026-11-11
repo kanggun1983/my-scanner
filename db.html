@@ -10936,7 +10936,10 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const m = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(getDynamicInstallment(c.installment || '', getInstallmentBaseInfo(c).date) || ''));
             if (m) { const P = Number(m[1].replace(/,/g, '')), L = Number(m[2]); if (P > 0 && L > 0) { const r = 0.059 / 12; inst = Math.floor(P * r / (1 - Math.pow(1 + r, -L)) / 10) * 10; left = L; } }
             const rp = Number(c.realPay) || 0, trp = Number(c.targetRealPay) || 0;   // 💳 V341 직접 넣은 실납부금이 있으면 그 금액으로
-            const out = { src: 'card', inst, left, pfee: pf, sel, comb: 0, wel: 0, card: 0, planNet: rp ? Math.max(0, rp - inst) : pf - sel, total: rp || inst + pf - sel, plan: c.plan || '', adds: [] };
+            // 🛠 V375 복지할인도 빼고 (수정 화면 자동 계산과 같게) · 직접 넣은 실납부금이 할부금보다 적으면(예전 값이 남은 것) 믿지 않고 계산값으로
+            const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, wel = wt ? (gdWelAuto(wt, a0, 5) || 0) : 0, calcNet = Math.floor(Math.max(0, a0 - wel) / 10) * 10;
+            const rpOk = rp > 0 && rp >= inst;
+            const out = { src: 'card', inst, left, pfee: pf, sel, comb: 0, wel: rpOk ? 0 : wel, card: 0, planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
             if (trp && String(c.repTargetPlan || '').trim()) { const kd = c.promPlanDate || ''; out.after = { total: trp }; out.tgt = c.repTargetPlan; out.kd = kd; if (kd && getTodayStr() >= kd) { out.changed = true; out.total = trp; out.plan = c.repTargetPlan; out.planNet = Math.max(0, trp - inst); out.afterTxt = '직접 넣은 변경 후 실납부금'; } }
             return out;
         }
@@ -10951,7 +10954,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${P.adds.map(a => `<div class="flex justify-between gap-2 text-gray-600"><span>+ ${escapeHtml(a.kind)} ${escapeHtml(a.name)}</span><span>${W(a.fee)}${a.until ? ` <span class="text-[11px]">(${a.until.replace(/-/g, '.')}까지)</span>` : ''}</span></div>`).join('')}
                 </div>
                 ${P.after ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-indigo-900 font-bold">🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${escapeHtml(P.tgt)}로 바꾸면</span><span class="font-extrabold text-indigo-800">매달 ${W(P.after.total)}</span></div>` : ''}
-                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : '<span>고객카드 값으로 계산 · 결합 · 복지 할인 전 · 대략</span>'}</div>
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부 + 요금 − 선약${P.wel ? ' − 복지' : ''} · 결합 할인 전 · 대략`}</span>`}</div>
             </div>`;
         }
         function payBoxHtml(c) {
@@ -28855,7 +28858,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V374';
+        const APP_VER = 'V375';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28863,6 +28866,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V375', d: '2026-11-11', items: [
+                ['🛠 고객카드 \'매달 내실 금액\': 실납부금 칸에 할부금보다 적은 예전 값이 남아 있으면 요금이 0원 · 합계가 할부금보다 적게 나오던 것 → 계산값으로 보여 주고 확인하라고 알려요', 'a'],
+                ['🤝 안내서가 없는 고객도 복지할인(기초연금 · 장애 · 유공 …)을 빼서 계산해요 (수정 화면 자동 계산과 같게) · 결합 할인은 금액 칸이 없어서 빼지 않아요', 'a']
+            ] },
             { v: 'V374', d: '2026-11-11', items: [
                 ['🛠 예전 개통을 고치려고 개통등록을 열었는데 오늘 새 개통으로 저장되던 것: 「✏️ 그 개통 고치기」 안내가 60일 안 개통에만 떴음 → 3년 안 개통까지 · 예전 개통과 같은 폰을 새 날짜로 저장하면 한 번 더 물어봐요', 'a']
             ] },
