@@ -10945,8 +10945,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             let after = null;
             if (tgt && tf) {
                 const pf = planTableFee(g.carrier, tgt) || gdPlanFee(g.carrier, tgt);   // 공식 요금표 먼저 (예전에 적은 '변경 후 월요금'이 섞이지 않게)
-                if (pf && pf !== tf && tf > pf) after = { total: tf, planNet: Math.max(0, tf - C.month), txt: '' };   // 안내서에 '변경 후 매달 내실 금액'으로 적은 경우
-                else { const sel2 = g.sup === '선약' ? Math.round(tf * 0.25) : 0, a2 = Math.max(0, tf - sel2), wb2 = Math.max(0, a2 - C.comb), w2 = C.wel ? Math.min(wb2, gdWelAuto(g.plan.welType, wb2, gdWelVer(g)) ?? C.wel) : 0, net2 = Math.max(0, a2 - C.comb - w2 - C.card); after = { total: inst + net2, planNet: net2, txt: `${W(tf)}${sel2 ? ' −선약 ' + W(sel2) : ''}${C.comb ? ' −결합 ' + W(C.comb) : ''}${w2 ? ' −복지 ' + W(w2) : ''}` }; }
+                { const A = gdAfterPay(g, tf); if (A) after = { planNet: A.planNet, total: A.tot ? A.total : inst + A.planNet, txt: A.tot ? '' : A.net ? `할인 뒤 ${W(A.planNet)} (안내서에 적은 값)` : `${W(A.fee)}${A.sel ? ' −선약 ' + W(A.sel) : ''}${A.comb ? ' −결합 ' + W(A.comb) : ''}${A.wel ? ' −복지 ' + W(A.wel) : ''}${A.card ? ' −카드 ' + W(A.card) : ''}` }; }   // 🛠 V383 안내서와 같은 계산 (gdAfterPay)
             }
             const changed = after && kd && today >= kd;
             const adds = (g.promises || []).filter(x => x && (x.kind === '부가' || x.kind === '보험') && gdNum(x.fee)).map(x => ({ kind: x.kind, name: String(x.name || '').trim(), fee: gdNum(x.fee), until: x.code ? computeKeepDate(g.date, x.code) : '' })).filter(x => !x.until || today < x.until);
@@ -21636,7 +21635,7 @@ familyStr + `\n` +
             upd.repManager = isM ? (keepStaff || (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager'))) : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
-                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !/^prom[A-Za-z0-9]+(Date|Memo)$/.test(k) && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (isM && freshAct && !keepLatest) { const ad = arVal('ar-date'); upd.visitDate = /^\d{4}-\d{2}-\d{2}$/.test(ad) && ad <= today ? ad : today; }   // 📅 V300 기존 고객이 새로 개통하면 방문일도 그날로 (예전엔 처음 방문일 그대로)
                 if (cur.deletedAt) upd.deletedAt = '';
@@ -23899,6 +23898,10 @@ familyStr + `\n` +
         }
         function gdAfterPay(g, fee) {   // 📶 V377 바꾼 요금제의 매달 내실 금액 (휴대폰 할부는 그대로 · 선약 → 결합 → 복지 → 요금 할인 카드 순서는 지금 요금과 같게)
             fee = gdNum(fee); if (!(fee > 0) || !g || g.kind === 'wired') return null;
+            const off = g.keep && g.keep.target ? (planTableFee(g.carrier, g.keep.target) || gdPlanFee(g.carrier, g.keep.target)) : 0;
+            if (off && fee !== off && fee === gdNum(g.keep.targetFee)) { const C0 = gdCalc(g);   // 🛠 V383 요금표 월정액(off)과 다르게 적었으면 — 적으면 할인 뒤 요금, 크면 매달 내실 금액(할부 포함)으로 적은 것 (또 빼면 461원처럼 됨)
+                if (fee < off) return { fee, sel: 0, comb: 0, wel: 0, card: 0, planNet: fee, inst: C0.month, total: C0.month + fee, net: true, off };
+                return { fee, sel: 0, comb: 0, wel: 0, card: 0, planNet: Math.max(0, fee - C0.month), inst: C0.month, total: fee, tot: true, off }; }   // 🛠 V383 요금표 월정액(off)보다 적게 적었으면 할인 뒤 금액으로 봄 (또 빼면 461원처럼 됨)
             const C = gdCalc(g), p = g.plan || {}, sel = g.sup === '선약' ? Math.round(fee * 0.25) : 0, after = Math.max(0, fee - sel);
             const comb = gdNum(p.comb), wb = gdWelBase(g, after, comb), wa = gdWelAutoOn(g) ? gdWelAuto(p.welType, wb, gdWelVer(g)) : (p.welType ? gdNum(p.wel) : 0);
             const wel = Math.min(wb, wa || 0), card = gdNum(p.card), planNet = Math.max(0, after - wel - comb - card);
@@ -23912,6 +23915,8 @@ familyStr + `\n` +
         function gdAfterDetail(A) {   // '37,000 − 선약 9,250 − 결합 6,900 − 복지 10,425'
             if (!A) return '';
             const w = (n) => Math.round(n).toLocaleString('ko-KR');
+            if (A.net) return `할인 뒤 금액으로 적은 값 그대로 (요금표 월정액 ${w(A.off)}원)`;
+            if (A.tot) return `매달 내실 금액으로 적은 값 그대로 (요금표 월정액 ${w(A.off)}원)`;
             return [w(A.fee), A.sel ? `선약 ${w(A.sel)}` : '', A.comb ? `결합 ${w(A.comb)}` : '', A.wel ? `복지 ${w(A.wel)}` : '', A.card ? `카드 ${w(A.card)}` : ''].filter(Boolean).join(' − ');
         }
         function gdCalcCar(car) { const C = calcData && calcData.carriers ? calcData.carriers[car] : null; return C && Array.isArray(C.models) ? C : null; }
@@ -29042,7 +29047,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V382';
+        const APP_VER = 'V383';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29050,6 +29055,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V383', d: '2026-11-11', items: [
+                ['🛠 알뜰폰 고객을 개통 기록 [✏️ 고치기]로 다시 저장해도 예전 \'요금제 유지 끝\' 약속이 안 지워지던 것 (V380) · 개통보고에서 약속을 비우는 저장이 빈칸 정리 규칙에 걸려 빠지던 것', 'a'],
+                ['💳 고객카드 \'바꾸면 매달 ○원\'이 안내서와 다르게(예: 461원) 나오던 것: 안내서와 같은 계산으로 · 변경 후 월요금 칸에 할인 뒤 금액이나 매달 내실 금액을 적었으면(요금표 월정액과 다르면) 그 값 그대로', 'a']
+            ] },
             { v: 'V382', d: '2026-11-11', items: [
                 ['💸 송금 · 대납 목록: 고객 탭 \'오늘\' 카드 위 [💸 송금] → 모든 고객의 매장대납 · 고객송금을 한곳에 (보낼 것 · 보낸 것 · 합계 · 지난 날짜 빨간색) · 계좌 📋 복사 · [✅ 처리했어요] (고객송금이면 완료 알림 문자도) · 고객카드 바로가기', 'a']
             ] },
