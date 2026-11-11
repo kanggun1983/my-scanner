@@ -3074,6 +3074,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <input type="date" id="modalWiredDate" class="modal-input text-xs sm:text-sm w-32">
                             <span id="modalWiredBadge" class="text-[10px] sm:text-xs font-bold text-teal-600 ml-auto whitespace-nowrap bg-white px-1 rounded border border-teal-100"></span>
                         </div>
+                        <div class="flex items-center gap-1 mt-2">   <!-- 📶 V372 유형 · TV만 따로 약정한 날 -->
+                            <select id="modalWiredType" aria-label="유선 약정 유형" class="modal-input text-xs sm:text-sm w-24"><option value="">유형</option><option>신규</option><option>재약정</option><option>약정갱신</option><option>원스탑</option></select>
+                            <span class="text-[10px] sm:text-xs text-teal-600 whitespace-nowrap ml-1">📺 TV 약정일:</span>
+                            <input type="date" id="modalWiredTvDate" aria-label="TV만 따로 약정한 날" class="modal-input text-xs sm:text-sm w-32">
+                        </div>
                     </div>
 
                     <div class="bg-pink-50/40 p-2 sm:p-3 rounded-lg border border-pink-200 focus-within:border-pink-500 col-span-2">
@@ -10244,6 +10249,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('modalWiredFee').value = c.wiredFee || '';
             
             document.getElementById('modalWiredDate').value = c.wiredDate || '';
+            { const t = document.getElementById('modalWiredType'); if (t) t.value = ['신규', '재약정', '약정갱신', '원스탑'].includes(c.wiredType) ? c.wiredType : ''; const tv = document.getElementById('modalWiredTvDate'); if (tv) tv.value = c.wiredTvDate || ''; }   // 📶 V372
             document.getElementById('modalWiredBadge').textContent = c.wiredDate ? getWiredRemainingDays(c.wiredDate) : '';
 
             const discountSelect = document.getElementById('modalDiscount');
@@ -11008,7 +11014,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 profileKV('인터넷', profileValue(c.internetProd)),
                 profileKV('TV', profileValue(c.tvProd)),
                 profileKV('유선 월요금', profileValue(c.wiredFee)),
-                profileKV('가입/재약정일', profileValue(c.wiredDate)),
+                profileKV('가입/재약정일', c.wiredDate ? `${escapeHtml(c.wiredDate)}${c.wiredType ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-bold">${escapeHtml(c.wiredType)}${c.wiredPrevCar ? ` · ${escapeHtml(c.wiredPrevCar)}에서` : ''}</span>` : ''}` : PROFILE_DASH),   // 📶 V372
+                ...(c.wiredTvDate ? [profileKV('📺 TV 약정 시작일', profileValue(c.wiredTvDate))] : []),
                 profileKV('약정 만료(36개월)', endHtml)
             ].join('') + wiredNowHtml(c);
         }
@@ -11190,14 +11197,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!window.WiredCalc || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) return null;
             const car = wnCarOf(c), g = WiredCalc.guess(car.ck, { internet: c.internetProd, tv: c.tvProd, combo: c.combination });
             if (!g) return null;
-            const r = WiredCalc.estimate({ ...g, start: c.wiredDate, end: getTodayStr() });
+            const r = WiredCalc.estimate({ ...g, start: c.wiredDate, tvStart: c.wiredTvDate || '', end: getTodayStr() });   // 📺 V372 TV만 따로 약정한 날
             return r ? { car, g, r } : null;
         }
         function wnCalcUrl(c, I) {
             const u = new URL('/telecom-calc/', location.href), q = u.searchParams;
             q.set('from', 'crm'); if (c.name) q.set('name', String(c.name).slice(0, 20));
-            if (I) { const g = I.g; q.set('carrier', g.carrier); q.set('start', c.wiredDate); q.set('tab', g.tab); q.set('int', g.intId); q.set('wifi', g.wifiId); q.set('tv', g.tvId); q.set('stb', g.stbId); q.set('bundle', g.bundleId); if (g.tvCount === 2) q.set('tv2', '1'); }
-            else { q.set('carrier', wnCarOf(c).ck); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) q.set('start', c.wiredDate); }
+            if (I) { const g = I.g; q.set('carrier', g.carrier); q.set('start', c.wiredDate); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredTvDate || ''))) q.set('ts', c.wiredTvDate); q.set('tab', g.tab); q.set('int', g.intId); q.set('wifi', g.wifiId); q.set('tv', g.tvId); q.set('stb', g.stbId); q.set('bundle', g.bundleId); if (g.tvCount === 2) q.set('tv2', '1'); }
+            else { q.set('carrier', wnCarOf(c).ck); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) q.set('start', c.wiredDate); if (/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredTvDate || ''))) q.set('ts', c.wiredTvDate); }
             return u.href;
         }
         function wnText(c, I) {
@@ -11237,7 +11244,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         const wnChkOpen = {};
         function wnImplied(I, chk) {
             if (!chk || !(chk.amt > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(chk.date || '')) return null;
-            const g = I.g, r = WiredCalc.estimate({ ...g, start: I.start, end: chk.date }); if (!r) return null;
+            const g = I.g, r = WiredCalc.estimate({ ...g, start: I.start, tvStart: I.tvStart || '', end: chk.date }); if (!r) return null;
             const c = WiredCalc.CARRIER_DATA[g.carrier], intObj = ((c.internet || {})[g.tab] || []).find(x => x.id === g.intId); if (!intObj) return { r };
             const vx = c.vatExNet ? 1 / 1.1 : 1, f = WiredCalc.penalty(r.ptype, 1, r.days, g.carrier) * vx;
             const rest = chk.amt - r.p.tv - r.p.bundle - r.p.equip, nc = f > 0 ? Math.round((intObj.price + rest / f) / 100) * 100 : 0;
@@ -11247,7 +11254,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const chk = c.wiredPenChk && c.wiredPenChk.amt > 0 ? c.wiredPenChk : null, open = wnChkOpen[c.id];
             let h = '';
             if (chk) {
-                const M = wnImplied({ ...I, start: c.wiredDate }, chk), diff = M ? chk.amt - M.r.total : 0;
+                const M = wnImplied({ ...I, start: c.wiredDate, tvStart: c.wiredTvDate || '' }, chk), diff = M ? chk.amt - M.r.total : 0;
                 h += `<div class="mt-2 rounded-lg bg-white border border-sky-100 px-2.5 py-2 text-[12px] text-gray-800 leading-relaxed">📞 <b>통신사 조회 ${arWon(chk.amt)}원</b> <span class="text-gray-500">(${gdDot(chk.date)}${chk.by ? ' · ' + escapeHtml(chk.by) : ''})</span>`
                     + (M ? `<br>그날 계산기 ${arWon(M.r.total)}원 · ${Math.abs(diff) < 1000 ? '<b class="text-emerald-700">거의 같아요 ✅</b>' : `<b class="text-amber-700">${diff > 0 ? '+' : '−'}${arWon(Math.abs(diff))}원 차이</b>`}` : '')
                     + (M && M.nc && Math.abs(diff) >= 1000 && M.nc !== M.intObj.noContract ? `<br>인터넷 무약정이 <b>${arWon(M.nc)}원</b>이면 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(M.intObj.name)} ${arWon(M.intObj.noContract)}원)</span>${can('editPolicy') ? `<button type="button" data-wn-fix="${M.nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(M.nc)}원으로 고치기</button>` : ''}` : '')
@@ -15921,7 +15928,7 @@ ${AI_TONES[aiSmsTone]}
                 repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 realPay: (Number(v('modalRealPay').replace(/[^\d]/g, '')) || 0) || '', targetRealPay: (Number(v('modalTargetRealPay').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V341 실납부금
                 combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
-                wiredDate: v('modalWiredDate'), repFamily: v('modalFamily'),
+                wiredDate: v('modalWiredDate'), wiredType: v('modalWiredType'), wiredTvDate: v('modalWiredTvDate'), repFamily: v('modalFamily'),
                 legalName: v('modalLegalName'), legalPhone: v('modalLegalPhone'), legalDob: v('modalLegalDob'),
                 marketingDeny: ck('modalMarketingDeny'), bizCardInstalled: ck('modalBizCard'),
                 salesStatus: v('modalSalesStatus'), lastContactDate: v('modalContactDate'), contactManager: v('modalContactManager'),
@@ -15940,7 +15947,7 @@ ${AI_TONES[aiSmsTone]}
             return f;
         }
         let detailFormBase = null;
-        const DETAIL_LABELS = { mvnoBrand: '알뜰폰 브랜드', openStore: '개통점', openDealer: '개통거래처', regStore: '등록점', publicSupport: '공통지원금', distSupport: '유통망지원금', fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 기본료', realPay: '실납부금', targetRealPay: '변경 후 실납부금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
+        const DETAIL_LABELS = { wiredType: '유선 약정 유형', wiredTvDate: 'TV 약정 시작일', mvnoBrand: '알뜰폰 브랜드', openStore: '개통점', openDealer: '개통거래처', regStore: '등록점', publicSupport: '공통지원금', distSupport: '유통망지원금', fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 기본료', realPay: '실납부금', targetRealPay: '변경 후 실납부금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
         function detailFieldLabel(k) {
             if (DETAIL_LABELS[k]) return DETAIL_LABELS[k];
             const m = /^prom([A-Za-z0-9]+)(Date|Memo|Chk)$/.exec(k);
@@ -20964,10 +20971,12 @@ familyStr + `\n` +
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
                     </div>${legalHtml}`);
                 html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
-                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
+                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
+                    <p id="hr-type-hint" class="col-span-2 -mt-1 text-[11px] font-bold text-teal-800"></p>
                     ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
                     ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', '', { ph: '예) UHD4' })}
                     ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', '', { ph: '예) UHD3' })}
+                    ${arIn('hr-tvdate', '📺 TV 약정 시작일 (TV만 따로 약정했을 때만)', c.wiredTvDate || '', { type: 'date', span: true })}
                     ${arMoney('hr-fee', '월 요금')}
                     ${arIn('hr-comb', '결합', prefCombo, { span: true })}${arIn('hr-subsidy', '지원금 (보고서용)', '', { span: true, ph: '예) 위약금 640,000원 + 설치비 70,000원' })}</div>
                     <p class="text-xs font-bold text-gray-600 pt-1">💸 지원금 송금 <span class="font-normal text-gray-500">(송금할 게 있을 때만 · 보고서에 들어가요)</span></p>
@@ -20998,6 +21007,14 @@ familyStr + `\n` +
                 if (e.target.id === 'ar-realpay' || e.target.id === 'ar-targetreal') { e.target.dataset.manual = String(e.target.value).trim() ? '1' : ''; e.target.dataset.auto = ''; }   // 💳 V341 비우면 다시 자동   // 📱 V211 손으로 고친 수수료는 그대로
                 if (e.target.id === 'ar-card' || e.target.id === 'ar-icardname') { clearTimeout(arRecalc.t); arRecalc.t = setTimeout(arRecalc, 250); }   // 💳 카드를 적는 대로 카드 유치 줄
             }, true);
+            if (arMode === 'home') {   // 📶 V372 유형마다 안내 (재약정 = 3년 연장 + 요금 할인 · 약정갱신 = 요금 그대로)
+                const ty = document.getElementById('hr-type'), hint = document.getElementById('hr-type-hint'), dl = document.getElementById('hr-date');
+                const lab = dl && dl.closest('label') ? dl.closest('label').querySelector('span') : null;
+                const sync = () => { const t = ty ? ty.value : '';
+                    if (hint) hint.textContent = /^재약정/.test(t) ? '🔁 재약정: 그날부터 3년 다시 · 할인 들어간 새 월 요금을 넣어 주세요 · 위약금은 재약정일부터 계산' : (/^약정갱신/.test(t) ? '🔄 약정갱신: 그날부터 3년 다시 · 요금 변동이 없으면 월 요금 칸은 비워 두세요 (기존 요금 그대로)' : (/^원스탑/.test(t) ? '🚚 원스탑: 기존 통신사를 적어 주세요' : ''));
+                    if (lab) lab.textContent = /^재약정/.test(t) ? '재약정일 (완료 시)' : (/^약정갱신/.test(t) ? '갱신일 (완료 시)' : '개통일 (완료 시)'); };
+                if (ty) { ty.addEventListener('change', sync); sync(); }
+            }
             if (arMode === 'mobile') {   // 💰 V208 요금제 → 월요금 · 변경후 요금제 → 변경후 월요금 저절로 (손으로 고친 금액은 그대로)
                 let dl = document.getElementById('arPlanList'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'arPlanList'; body.appendChild(dl); }
                 const fillDl = () => { dl.innerHTML = gdPlanNames(arVal('ar-carrier')).map(n => `<option value="${escapeHtml(n)}"></option>`).join(''); };
@@ -21438,6 +21455,8 @@ familyStr + `\n` +
                     ...(arNum('hr-fee') ? { wiredFee: `${arWon(arNum('hr-fee'))}원` } : {}),
                     ...(done ? { wiredDate: arVal('hr-date'), salesStatus: '판매성공', salesStatusAt: arVal('hr-date') } : {}),
                     wiredRepManager: arVal('hr-manager'),
+                    ...(done ? { wiredType: arVal('hr-type').replace(/3년$/, ''), wiredPrevCar: /^원스탑/.test(arVal('hr-type')) ? arVal('hr-prevcar') : '' } : {}),   // 📶 V372 신규 · 재약정 · 약정갱신 · 원스탑
+                    ...(/^\d{4}-\d{2}-\d{2}$/.test(arVal('hr-tvdate')) ? { wiredTvDate: arVal('hr-tvdate') } : (done && items.includes('TV') ? { wiredTvDate: '' } : {})),   // 📺 V372 TV만 따로 약정한 날 (비우면 인터넷과 같은 날)
                     repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('hr-addr'), repBranch: arVal('hr-store'), repCombination: arVal('hr-comb')
                 });
                 if (arVal('hr-extratv') && upd.tvProd) upd.tvProd += ` (추가 ${arVal('hr-extratv')})`;
@@ -21446,7 +21465,7 @@ familyStr + `\n` +
                 const hBlank = ['hr-base', 'hr-add', 'hr-dist', 'hr-disc'].every(id => !arVal(id));
                 if (canSeeSettle() && !hBlank) upd.wiredSettle = { 정책금액: arNum('hr-base'), 추가정책: arNum('hr-add'), 유통지원: arNum('hr-dist'), 할인금액: arNum('hr-disc'), 정산금액: r.settle, 판매마진: r.margin, 정산부가세: r.vat, 실판매마진: r.real };
                 if (done && /^\d{4}-\d{2}-\d{2}$/.test(arVal('hr-date'))) {   // 📜 유선 개통 기록 (V192)
-                    const rec = { date: arVal('hr-date'), kind: '유선', staff: arVal('hr-manager') || getStaffName() || '', store: arVal('hr-store'), device: items.join('+'), plan: [arVal('hr-internet'), arVal('hr-tv')].filter(Boolean).join(' + '), src: '홈상품', at: now, by: getStaffName() || '' };
+                    const rec = { date: arVal('hr-date'), kind: '유선', actType: arVal('hr-type').replace(/3년$/, ''), staff: arVal('hr-manager') || getStaffName() || '', store: arVal('hr-store'), device: items.join('+'), plan: [arVal('hr-internet'), arVal('hr-tv')].filter(Boolean).join(' + '), src: '홈상품', at: now, by: getStaffName() || '' };
                     if (upd.wiredSettle) rec.settle = upd.wiredSettle;
                     upd.acts = storableActs(mergeAct(cur ? actsOf(cur) : [], rec));
                 }
@@ -21459,7 +21478,7 @@ familyStr + `\n` +
             upd.repManager = isM ? (keepStaff || (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager'))) : (arVal('hr-manager') || (cur && cur.repManager) || '');
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
-                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (isM && freshAct && !keepLatest) { const ad = arVal('ar-date'); upd.visitDate = /^\d{4}-\d{2}-\d{2}$/.test(ad) && ad <= today ? ad : today; }   // 📅 V300 기존 고객이 새로 개통하면 방문일도 그날로 (예전엔 처음 방문일 그대로)
                 if (cur.deletedAt) upd.deletedAt = '';
@@ -28822,7 +28841,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V371';
+        const APP_VER = 'V372';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28830,6 +28849,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V372', d: '2026-11-11', items: [
+                ['📶 홈상품 등록 유형에 「재약정3년」 추가 · 유형(신규 · 재약정 · 약정갱신 · 원스탑)과 기존 통신사가 고객카드에 저장돼요 (예전: 보고서 문구에만) · 재약정일 · 갱신일 안내', 'a'],
+                ['📺 TV 약정 시작일 칸 (TV만 따로 재약정했거나 나중에 단 고객) → 고객카드 유선 위약금 · 🧮 유선계산기에 TV는 그 날짜로 계산 · 수정 화면에서도 고칠 수 있어요', 'a']
+            ] },
             { v: 'V371', d: '2026-11-11', items: [
                 ['🎙 안내서 녹음을 폰에도 바로 보관해요: 개통보고 전에 앱을 닫거나 새로고침해도 녹음이 남아요 (예전: 고객 서류에 못 올라가면 앱을 닫는 순간 사라짐)', 'a'],
                 ['☁️ 서명까지 끝났는데 못 올린 녹음은 다음에 앱을 열면 저절로 고객 서류에 다시 올려요 · 안내서 목록에 「🎙 녹음 못 올림」 표시 · 서명 전에 닫았으면 그 안내서를 다시 열어 이어서 서명', 'a']
