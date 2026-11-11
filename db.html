@@ -3045,6 +3045,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                         <div>
                             <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">가족결합</span>
                             <input type="text" id="modalCombinationOnly" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="결합 정보">
+                            <input type="text" id="modalCombDisc" inputmode="numeric" data-won="1" aria-label="결합 할인 금액 (매달)" class="modal-input text-xs sm:text-sm text-blue-800 text-right mt-1" placeholder="결합 할인 (월 · 원)">   <!-- 🤝 V376 -->
                         </div>
                         <div>
                             <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">복지할인</span>
@@ -10243,7 +10244,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             // 결합/복지, 인터넷/TV를 각각 독립된 필드로 그대로 로드 (합쳤다 쪼개는 파싱 없음 → 데이터 유실 방지)
             { const okv = (x) => x && x !== '해당없음' && x !== '-' && x !== '미적용' ? x : '', S = splitCombWel(okv(c.combination));   // 🩹 V345 예전에 '결합'에 같이 들어간 복지는 복지 칸으로 나눠서 보여줌
               document.getElementById('modalCombinationOnly').value = S.comb;
-              document.getElementById('modalWelfareOnly').value = okv(c.welfare) || S.wel; }
+              document.getElementById('modalWelfareOnly').value = okv(c.welfare) || S.wel;
+              { const cd = document.getElementById('modalCombDisc'); if (cd) cd.value = Number(c.combDisc) > 0 ? applyComma(String(c.combDisc)) : ''; } }   // 🤝 V376 결합 할인 (월)
 
             // 새롭게 연동된 가족 정보
             document.getElementById('modalFamily').value = c.repFamily || '';
@@ -10916,18 +10918,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
         }
         function renderCombWelSub() { const sec = document.getElementById('setCombWelSec'); if (!sec) return; sec.classList.toggle('hidden', !isSuperAdmin); const el = document.getElementById('combWelSub'); if (el && isSuperAdmin) { const n = combWelTargets().length; el.textContent = n ? `정리할 고객 ${n}명 · 누르면 예시를 먼저 보여 줘요` : '정리할 고객이 없어요 ✅'; } }
         function welTypeOf(t) { t = String(t || ''); return /기초\s*연금|연금/.test(t) ? 'pension' : (/생계|의료|기초\s*생활|수급/.test(t) ? 'basic' : (/차상위/.test(t) ? 'near' : (/장애/.test(t) ? 'disabled' : (/유공|국가/.test(t) ? 'merit' : '')))); }
-        function realPayOf(inst, fee, sel, welType) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), w = welType ? (gdWelAuto(welType, a, 5) || 0) : 0; return (Number(inst) || 0) + Math.floor(Math.max(0, a - w) / 10) * 10; }   // 💳 V344 요금은 10원 아래 버림 (청구서처럼)
+        function realPayOf(inst, fee, sel, welType, comb) { fee = Number(fee) || 0; if (!(fee > 0)) return 0; comb = Number(comb) || 0; const a = fee - (sel ? Math.round(fee * 0.25) : 0), wb = Math.max(0, a - comb), w = welType ? Math.min(wb, gdWelAuto(welType, wb, 5) || 0) : 0; return (Number(inst) || 0) + Math.floor(Math.max(0, a - comb - w) / 10) * 10; }   // 🤝 V376 결합 할인(월)도 · 복지는 결합 뺀 요금에서 (안내서와 같게) · 기기 할부는 고정   // 💳 V344 요금은 10원 아래 버림 (청구서처럼)
         function realPayFromForm() {   // 고객카드 수정 화면 값으로
             const v = (id) => (document.getElementById(id) || {}).value || '';
             const num = (t) => Number(String(t).replace(/[^\d]/g, '')) || 0;
             const m = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(v('modalInstallment')));
-            const inst = m ? instMonthly(num(m[1]), Number(m[2])) : 0, sel = /선택약정|선약/.test(v('modalDiscount')), wt = welTypeOf(v('modalWelfareOnly'));
-            return { inst, sel, wt, now: realPayOf(inst, num(v('modalFee')), sel, wt), after: realPayOf(inst, num(v('modalTargetFee')), sel, wt) };
+            const inst = m ? instMonthly(num(m[1]), Number(m[2])) : 0, sel = /선택약정|선약/.test(v('modalDiscount')), wt = welTypeOf(v('modalWelfareOnly')), cb = num(v('modalCombDisc'));
+            return { inst, sel, wt, cb, now: realPayOf(inst, num(v('modalFee')), sel, wt, cb), after: realPayOf(inst, num(v('modalTargetFee')), sel, wt, cb) };
         }
         function realPayHint() {
             const h = document.getElementById('modalRealHint'); if (!h) return;
             const R = realPayFromForm(), W = (n) => arWon(n);
-            h.textContent = R.now ? `자동 계산: 할부 ${W(R.inst)} + 요금 ${W(R.now - R.inst)}${R.sel ? ' (선약 25%' : ''}${R.wt ? (R.sel ? ' · ' : ' (') + '복지할인' : ''}${R.sel || R.wt ? ' 뺌)' : ''} = ${W(R.now)}원${R.after ? ` · 변경 후 ${W(R.after)}원` : ''} · 결합 할인은 직접 빼서 넣어요` : '할부 · 기본료를 넣으면 자동 계산돼요';
+            h.textContent = R.now ? `자동 계산: 할부 ${W(R.inst)} + 요금 ${W(R.now - R.inst)}${[R.sel ? '선약 25%' : '', R.cb ? `결합 ${W(R.cb)}` : '', R.wt ? '복지할인' : ''].filter(Boolean).length ? ` (${[R.sel ? '선약 25%' : '', R.cb ? `결합 ${W(R.cb)}` : '', R.wt ? '복지할인' : ''].filter(Boolean).join(' · ')} 뺌)` : ''} = ${W(R.now)}원${R.after ? ` · 변경 후 ${W(R.after)}원` : ''}${R.cb ? '' : ' · 결합 할인은 가족결합 아래 칸에 금액을 넣으면 빠져요'}` : '할부 · 기본료를 넣으면 자동 계산돼요';
         }
         function payFromCustomer(c) {
             const pf = Number(c.planFee) || Number(String(c.fee || '').replace(/[^\d]/g, '')) || 0; if (!pf) return null;
@@ -10937,9 +10939,9 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (m) { const P = Number(m[1].replace(/,/g, '')), L = Number(m[2]); if (P > 0 && L > 0) { const r = 0.059 / 12; inst = Math.floor(P * r / (1 - Math.pow(1 + r, -L)) / 10) * 10; left = L; } }
             const rp = Number(c.realPay) || 0, trp = Number(c.targetRealPay) || 0;   // 💳 V341 직접 넣은 실납부금이 있으면 그 금액으로
             // 🛠 V375 복지할인도 빼고 (수정 화면 자동 계산과 같게) · 직접 넣은 실납부금이 할부금보다 적으면(예전 값이 남은 것) 믿지 않고 계산값으로
-            const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, wel = wt ? (gdWelAuto(wt, a0, 5) || 0) : 0, calcNet = Math.floor(Math.max(0, a0 - wel) / 10) * 10;
+            const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, cb = Math.min(a0, Number(c.combDisc) || 0), wel = wt ? Math.min(a0 - cb, gdWelAuto(wt, a0 - cb, 5) || 0) : 0, calcNet = Math.floor(Math.max(0, a0 - cb - wel) / 10) * 10;   // 🤝 V376 결합 할인(월) → 복지는 결합 뺀 요금에서
             const rpOk = rp > 0 && rp >= inst;
-            const out = { src: 'card', inst, left, pfee: pf, sel, comb: 0, wel: rpOk ? 0 : wel, card: 0, planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
+            const out = { src: 'card', inst, left, pfee: pf, sel, comb: rpOk ? 0 : cb, wel: rpOk ? 0 : wel, card: 0, planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
             if (trp && String(c.repTargetPlan || '').trim()) { const kd = c.promPlanDate || ''; out.after = { total: trp }; out.tgt = c.repTargetPlan; out.kd = kd; if (kd && getTodayStr() >= kd) { out.changed = true; out.total = trp; out.plan = c.repTargetPlan; out.planNet = Math.max(0, trp - inst); out.afterTxt = '직접 넣은 변경 후 실납부금'; } }
             return out;
         }
@@ -10954,7 +10956,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     ${P.adds.map(a => `<div class="flex justify-between gap-2 text-gray-600"><span>+ ${escapeHtml(a.kind)} ${escapeHtml(a.name)}</span><span>${W(a.fee)}${a.until ? ` <span class="text-[11px]">(${a.until.replace(/-/g, '.')}까지)</span>` : ''}</span></div>`).join('')}
                 </div>
                 ${P.after ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-indigo-900 font-bold">🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${escapeHtml(P.tgt)}로 바꾸면</span><span class="font-extrabold text-indigo-800">매달 ${W(P.after.total)}</span></div>` : ''}
-                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부 + 요금 − 선약${P.wel ? ' − 복지' : ''} · 결합 할인 전 · 대략`}</span>`}</div>
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
             </div>`;
         }
         function payBoxHtml(c) {
@@ -10998,7 +11000,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 profileKV('할부 잔여', instHtml),
                 ...(String(c.installment2 || '').trim() ? [profileKV('💳 이중할부', (() => { const b = inst2BaseOf(c), d = String(getDynamicInstallment(c.installment2, b) || ''); return `<span class="text-pink-600">${escapeHtml(d.includes('완납') ? '완납' : d)}</span>${d !== c.installment2 ? `<br><span class="text-[11px] text-gray-400 font-medium">${escapeHtml(b || '기준일 미상')} 기준: ${escapeHtml(c.installment2)}</span>` : ''}`; })())] : []),
                 profileKV('평균 사용량', profileValue(c.usage)),
-                profileKV('가족결합', profileValue(c.combination)),
+                profileKV('가족결합', `${profileValue(c.combination)}${Number(c.combDisc) > 0 ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 font-bold">월 −${arWon(c.combDisc)}원</span>` : ''}`),   // 🤝 V376
                 profileKV('복지할인', profileValue(c.welfare)),
                 profileKV('가족 정보', c.repFamily && c.repFamily.trim() ? `<span class="font-medium whitespace-pre-wrap">${escapeHtml(c.repFamily)}</span>` : PROFILE_DASH)
             ].join('') + changeNowHtml(c) + buildActDetailHtml(c);
@@ -15915,7 +15917,7 @@ ${AI_TONES[aiSmsTone]}
             if (R.after) document.getElementById('modalTargetRealPay').value = applyComma(String(R.after));
             detailDirty = true; realPayHint();
         };
-        ['modalInstallment', 'modalFee', 'modalTargetFee', 'modalDiscount', 'modalWelfareOnly'].forEach(id => { const el = document.getElementById(id); if (el) { el.addEventListener('input', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); el.addEventListener('change', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); } });
+        ['modalInstallment', 'modalFee', 'modalTargetFee', 'modalDiscount', 'modalWelfareOnly', 'modalCombDisc'].forEach(id => { const el = document.getElementById(id); if (el) { el.addEventListener('input', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); el.addEventListener('change', () => { try { realPayHint(); } catch (e) { /* 무시 */ } }); } });
         document.getElementById('combWelCleanBtn').addEventListener('click', () => cleanCombWel());   // 🧹 V347
         document.getElementById('btnTodayContact').onclick = () => { document.getElementById('modalContactDate').value = getTodayStr(); detailDirty = true; };
         document.getElementById('modalDeleteBtn').onclick = () => { if(currentDetailId) window.deleteCustomer(currentDetailId); };
@@ -15936,7 +15938,7 @@ ${AI_TONES[aiSmsTone]}
                 discountType: v('modalDiscount'), publicSupport: subsidyNum('modalPubSupport') || '', distSupport: subsidyNum('modalDistSupport') || '', plan: v('modalPlan'), fee: v('modalFee'), wiredFee: v('modalWiredFee'), usage: v('modalUsage'),
                 repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 realPay: (Number(v('modalRealPay').replace(/[^\d]/g, '')) || 0) || '', targetRealPay: (Number(v('modalTargetRealPay').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V341 실납부금
-                combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
+                combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', combDisc: (Number(v('modalCombDisc').replace(/[^\d]/g, '')) || 0) || '', internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
                 wiredDate: v('modalWiredDate'), wiredType: v('modalWiredType'), wiredTvDate: v('modalWiredTvDate'), repFamily: v('modalFamily'),
                 legalName: v('modalLegalName'), legalPhone: v('modalLegalPhone'), legalDob: v('modalLegalDob'),
                 marketingDeny: ck('modalMarketingDeny'), bizCardInstalled: ck('modalBizCard'),
@@ -15956,7 +15958,7 @@ ${AI_TONES[aiSmsTone]}
             return f;
         }
         let detailFormBase = null;
-        const DETAIL_LABELS = { wiredType: '유선 약정 유형', wiredTvDate: 'TV 약정 시작일', mvnoBrand: '알뜰폰 브랜드', openStore: '개통점', openDealer: '개통거래처', regStore: '등록점', publicSupport: '공통지원금', distSupport: '유통망지원금', fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 기본료', realPay: '실납부금', targetRealPay: '변경 후 실납부금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
+        const DETAIL_LABELS = { combDisc: '결합 할인 (월)', wiredType: '유선 약정 유형', wiredTvDate: 'TV 약정 시작일', mvnoBrand: '알뜰폰 브랜드', openStore: '개통점', openDealer: '개통거래처', regStore: '등록점', publicSupport: '공통지원금', distSupport: '유통망지원금', fee: '월 요금', repTargetPlan: '변경 후 요금제', targetPlanFee: '변경 후 기본료', realPay: '실납부금', targetRealPay: '변경 후 실납부금', interestModel: '관심 기종', name: '이름', phone: '번호', manager: '담당자', salesStatus: '영업상태', memo: '메모', obMemo: 'OB 메모', prospectMemo: '상담 메모', lastContactDate: '최근 연락일', contactManager: '연락 담당', device: '단말기', plan: '요금제', carrier: '통신사', activationDate: '개통일', marketingDeny: '마케팅 거부', visitDate: '방문일', visitPurpose: '방문 목적', installment2: '이중할부' };
         function detailFieldLabel(k) {
             if (DETAIL_LABELS[k]) return DETAIL_LABELS[k];
             const m = /^prom([A-Za-z0-9]+)(Date|Memo|Chk)$/.exec(k);
@@ -20744,10 +20746,10 @@ familyStr + `\n` +
         // 📱 V211 번호이동 → 수수료 칸에 MNP 수수료 (손으로 고친 금액은 그대로 · 번호이동이 아니게 되면 자동으로 넣은 것만 비움)
         // 💳 V341 실납부금 (개통등록): 할부원금 · 개월 → 월 할부금 + 기본료 − 선약 25% · 손으로 고친 칸은 그대로
         function arRealAuto() {
-            const r = arCalc(), n = parseInt(arVal('ar-inst'), 10) || 0, inst = instMonthly(r.loan, n), sel = r.sup !== '공시' && arVal('ar-term') !== '무약정', wt = welTypeOf(arVal('ar-comb'));   // 🤝 V343 복지도
-            const now = realPayOf(inst, arNum('ar-planfee'), sel, wt), after = realPayOf(inst, arNum('ar-targetfee'), sel, wt);
+            const r = arCalc(), n = parseInt(arVal('ar-inst'), 10) || 0, inst = instMonthly(r.loan, n), sel = r.sup !== '공시' && arVal('ar-term') !== '무약정', wt = welTypeOf(arVal('ar-comb')), cb = arNum('ar-combdisc');   // 🤝 V343 복지도 · V376 결합 할인(월)도
+            const now = realPayOf(inst, arNum('ar-planfee'), sel, wt, cb), after = realPayOf(inst, arNum('ar-targetfee'), sel, wt, cb);
             [['ar-realpay', now], ['ar-targetreal', after]].forEach(([id, v]) => { const f = document.getElementById(id); if (!f || f.dataset.manual === '1') return; f.value = v ? arWon(v) : ''; f.dataset.auto = '1'; });
-            const h = document.getElementById('ar-realpay-hint'); if (h) h.textContent = now ? `할부 ${arWon(inst)}${n ? ` (${n}개월)` : ''} + 요금 ${arWon(now - inst)}${sel || wt ? ` (${[sel ? '선약 25%' : '', wt ? '복지할인' : ''].filter(Boolean).join(' · ')} 뺌)` : ''} · 결합 할인이 있으면 직접 고쳐요` : '기본료를 넣으면 자동으로 채워져요';
+            const h = document.getElementById('ar-realpay-hint'); if (h) h.textContent = now ? `할부 ${arWon(inst)}${n ? ` (${n}개월)` : ''} + 요금 ${arWon(now - inst)}${sel || wt || cb ? ` (${[sel ? '선약 25%' : '', cb ? `결합 ${arWon(cb)}원` : '', wt ? '복지할인' : ''].filter(Boolean).join(' · ')} 뺌)` : ''}${cb ? '' : ' · 결합 할인은 [결합 · 복지] 옆 칸에 넣어요'}` : '기본료를 넣으면 자동으로 채워져요';
         }
         function arFeeAuto() {
             const f = document.getElementById('ar-fee'); if (!f || arMode !== 'mobile') return;
@@ -20863,7 +20865,7 @@ familyStr + `\n` +
                     ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
                     </div>
                     <div data-tg="ar-tg-comb" class="col-span-2 grid grid-cols-2 gap-2 ${tgComb ? '' : 'hidden'}">
-                        ${arIn('ar-comb', '결합 · 복지', prefCombo, { span: true, ph: '예) 가족결합 / 복지(장애)' })}
+                        ${arIn('ar-comb', '결합 · 복지', prefCombo, { ph: '예) 가족결합 / 복지(장애)' })}${arMoney('ar-combdisc', '결합 할인 (월)')}
                         ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
                         ${arMoney('ar-cardamt', '카드 월 할인')}
                         ${arSel('ar-k-card', '카드 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
@@ -21397,7 +21399,8 @@ familyStr + `\n` +
                 // (V195) 예전엔 적기만 해도 유선 약정일이 개통일로 바뀌어 '동시개통'·정산 미입력(유선)으로 잡혔음 → '오늘 새로 개통' 체크했을 때만
                 if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', ...((document.getElementById('ar-itv-new') || {}).checked ? { wiredDate: d } : {}) });
                 const cmb = arVal('ar-comb');
-                if (cmb && cmb !== arPrefill.combo) { const S = splitCombWel(cmb); Object.assign(upd, { combination: S.comb, welfare: S.wel }); }   // 🩹 V345 '결합 · 복지' 한 칸 → 가족결합 · 복지할인 따로 (예전엔 복지까지 결합 칸에)
+                if (cmb && cmb !== arPrefill.combo) { const S = splitCombWel(cmb); Object.assign(upd, { combination: S.comb, welfare: S.wel }); }
+                if (arNum('ar-combdisc') > 0) upd.combDisc = arNum('ar-combdisc');   // 🤝 V376 결합 할인 (월)   // 🩹 V345 '결합 · 복지' 한 칸 → 가족결합 · 복지할인 따로 (예전엔 복지까지 결합 칸에)
                 if (model) Object.assign(upd, {
                     device: [model, arVal('ar-color')].filter(Boolean).join(' '), deviceSerial: arVal('ar-serial'),
                     repDevice: [[model, arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / '), repPrincipal: r.loan ? arWon(r.loan) : '0',
@@ -25097,7 +25100,7 @@ familyStr + `\n` +
                 if (g.dev.serial) set('ar-serial', g.dev.serial);
             }
             const comb = [g.plan.combName && gdNum(g.plan.comb) ? g.plan.combName : '', g.plan.welType ? `복지(${gdWelLabel(g)})` : ''].filter(Boolean).join(' / ');
-            if (comb || g.plan.cardName || gdNum(g.plan.card)) { check('ar-tg-comb', true); if (comb) set('ar-comb', comb); if (g.plan.cardName) set('ar-card', g.plan.cardName); if (gdNum(g.plan.card)) money('ar-cardamt', g.plan.card); }   // 💳 V290 요금DC카드 월 할인 금액도
+            if (comb || g.plan.cardName || gdNum(g.plan.card) || gdNum(g.plan.comb)) { check('ar-tg-comb', true); if (comb) set('ar-comb', comb); if (gdNum(g.plan.comb)) money('ar-combdisc', g.plan.comb); /* 🤝 V376 안내서 결합 할인 금액도 */ if (g.plan.cardName) set('ar-card', g.plan.cardName); if (gdNum(g.plan.card)) money('ar-cardamt', g.plan.card); }   // 💳 V290 요금DC카드 월 할인 금액도
             // 부가 · 보험 약속: 거래처 자동 줄 중 안내서에서 뺀 건 빼고, 안내서에 직접 넣은 줄은 더함
             const want = (g.promises || []).filter(p => p.kind !== '기타' && (String(p.name || '').trim() || p.code));
             const key = (k, n) => `${k}|${stockKey(n)}`, wantKeys = new Set(want.map(p => key(p.kind, p.name)));
@@ -28858,7 +28861,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V375';
+        const APP_VER = 'V376';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28866,6 +28869,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V376', d: '2026-11-11', items: [
+                ['🤝 고객카드에 결합 할인 금액(월) 칸: 수정 화면 \'가족결합\' 아래 · 개통보고 \'결합 · 복지\' 옆 · 안내서로 채우면 안내서 결합 할인이 그대로 → 매달 내실 금액 · 실납부금 자동 계산에서 요금에서만 빠져요 (기기 할부는 고정)', 'a']
+            ] },
             { v: 'V375', d: '2026-11-11', items: [
                 ['🛠 고객카드 \'매달 내실 금액\': 실납부금 칸에 할부금보다 적은 예전 값이 남아 있으면 요금이 0원 · 합계가 할부금보다 적게 나오던 것 → 계산값으로 보여 주고 확인하라고 알려요', 'a'],
                 ['🤝 안내서가 없는 고객도 복지할인(기초연금 · 장애 · 유공 …)을 빼서 계산해요 (수정 화면 자동 계산과 같게) · 결합 할인은 금액 칸이 없어서 빼지 않아요', 'a']
