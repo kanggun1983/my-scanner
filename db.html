@@ -21521,19 +21521,8 @@ familyStr + `\n` +
                 closeActReg();
                 // 📎 V265 서명한 안내서 → 그림(JPG)으로 만들어 서류에 자동 첨부 (한 번만 · 다운받아 다시 올릴 필요 없음)
                 let gdUp = '';
-                if (gdAttachWant && gdAfterActId) {
-                    try {
-                        const g = await gdGet(gdAfterActId);
-                        if (g && g.st === 'signed' && !g.docAt && !(driveMode() === 'self' && !driveTokenValid())) {
-                            showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
-                            const url = await gdImage(g), blob = await (await fetch(url)).blob();
-                            const gf = new File([blob], `구매안내서_${String(g.name || upd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || arVal('ar-date') || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
-                            const gr = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, [gf], null, { bundle: false, date: actDay });
-                            if (gr && gr.ok) { gdUp = '\n📎 서명한 안내서도 서류에 첨부했어요.'; setDoc(doc(db, 'smart_guides', g.id), { docAt: new Date().toISOString() }, { merge: true }).catch(e => console.warn(e)); }
-                            else gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요. 안내서 화면에서 [다운] 뒤 직접 첨부해 주세요.';
-                            hideUploadToast();
-                        } else if (g && g.st === 'signed' && !g.docAt) gdUp = '\n⚠️ 구글 드라이브 연결이 끊겨서 서명한 안내서는 첨부하지 못했어요.';
-                    } catch (e) { console.warn('안내서 자동 첨부 실패', e); try { hideUploadToast(); } catch (e2) { /* 무시 */ } gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요.'; }
+                if (gdAttachWant && gdAfterActId) {   // 📎 V379 공통 함수로 (못 하면 안내서 화면에서 다시)
+                    try { const g = await gdGet(gdAfterActId); const R = await gdAttachToDocs(g, { id: digits, name: upd.name, phone: upd.phone }, actDay, false); if (R.msg) gdUp = '\n' + R.msg; } catch (e) { console.warn('안내서 자동 첨부 실패', e); gdUp = '\n⚠️ 서명한 안내서를 서류에 못 올렸어요.'; }
                 }
                 if (files.length) {
                     showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
@@ -25008,6 +24997,7 @@ familyStr + `\n` +
                     <p class="text-[16px] font-extrabold ${gdStage === 'done' ? 'text-emerald-900' : 'text-gray-900'}">${gdStage === 'done' ? '✅ 서명 받았어요 · 저장했어요' : `✍ ${escapeHtml(gdTitle(g))}`}</p>
                     <p class="text-[13px] text-gray-700 mt-0.5 leading-relaxed">${escapeHtml(g.name || '이름 없음')} · ${escapeHtml(formatPhone(phoneDigits(g.phone)))}<br>${g.signed ? `${gdDot(g.signed.at)} ${gdHM(g.signed.at)} 서명 · ${escapeHtml(g.signed.by || '')}` : ''}${sentTxt ? ` · ${sentTxt}` : ''}<br>${g.act ? `<span class="font-bold text-emerald-800">✅ ${gdMD(g.act.date)} 개통등록 됨</span>` : '<span class="font-bold text-amber-800">⏳ 아직 개통등록 전</span>'}</p></section>
                 ${!gdRecMem.has(g.id) && !g.rec && g.st !== 'draft' && driveMode() !== 'off' ? `<section class="rounded-2xl border border-indigo-200 bg-indigo-50 p-3 space-y-2"><p class="text-[13px] font-bold text-indigo-900">🎙 구매 내용 확인 녹음이 아직 없어요</p><button type="button" data-gd-reclater class="w-full h-11 rounded-xl bg-indigo-600 text-white text-[14px] font-bold">🎙 지금 녹음하기 (고객과 같이)</button><p class="text-[11px] text-indigo-800">안내서 내용으로 대본이 나와요 · 끝나면 고객 서류에 올라가요</p></section>` : ''}
+                ${g.st === 'signed' && !g.docAt && driveMode() !== 'off' && (g.act || gdStage !== 'done') ? `<section class="rounded-2xl border border-teal-200 bg-teal-50 p-3 space-y-2"><p class="text-[13px] font-bold text-teal-900">📎 서명한 안내서가 아직 고객 서류에 첨부되지 않았어요${g.act ? ' (개통등록은 됐어요)' : ''}</p><button type="button" data-gd-docup class="w-full h-11 rounded-xl bg-teal-600 text-white text-[14px] font-bold">📎 고객 서류에 첨부</button></section>` : ''}
                 ${gdRecMem.has(g.id) && !g.rec ? `<section class="rounded-2xl border border-amber-300 bg-amber-50 p-3 space-y-2"><p class="text-[13px] font-bold text-amber-900">🎙 구매 확인 녹음이 아직 고객 서류에 안 올라갔어요${driveMode() === 'off' ? ' (서류 보관(구글 드라이브)이 꺼져 있어요)' : ''} · 이 폰에 보관 중이에요 ${driveMode() === 'off' ? '(서류 보관을 켜면 올릴 수 있어요)' : '(다음에 앱을 열면 다시 올려요)'}</p><div class="grid grid-cols-2 gap-2">${driveMode() !== 'off' ? '<button type="button" data-gd-recup class="h-11 rounded-xl bg-amber-500 text-white text-[13px] font-bold">☁️ 다시 올리기</button>' : ''}<button type="button" data-gd-recdl class="h-11 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900 ${driveMode() === 'off' ? 'col-span-2' : ''}">📥 이 폰에 파일로 저장</button></div></section>` : ''}
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
@@ -25036,6 +25026,7 @@ familyStr + `\n` +
                 const g = gd; gdRecSt = { g, later: true, stage: 'intro', go: async () => { const msg = await gdRecUpload(g); if (msg) stockToast(msg); gdRender(); } };
                 gdRecRender(); gdRecEl.style.display = 'flex'; return;
             }
+            if (e.target.closest('[data-gd-docup]') && gd) { const b = e.target.closest('[data-gd-docup]'); b.disabled = true; const R = await gdAttachToDocs(gd, null, '', true); stockToast(R.msg || (R.ok ? '📎 첨부했어요' : '⚠️ 첨부하지 못했어요')); gdRender(); return; }   // 📎 V379 서류 첨부 다시
             if (e.target.closest('[data-gd-recup]') && gd) { const msg = await gdRecUpload(gd); if (msg) stockToast(msg); gdRender(); return; }   // 🎙 V289 녹음 다시 올리기
             if (e.target.closest('[data-gd-recdl]') && gd) { const m = gdRecMem.get(gd.id); if (!m) return; const a = document.createElement('a'); a.href = m.url || URL.createObjectURL(m.blob); a.download = `녹음_구매확인_${String(gd.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(gd.date || getTodayStr()).replace(/-/g, '')}.${/mp4/.test(m.mime) ? 'm4a' : (/ogg/.test(m.mime) ? 'ogg' : 'webm')}`; document.body.appendChild(a); a.click(); a.remove(); stockToast('📥 녹음 파일을 이 폰에 저장했어요'); return; }
             if (gdStage !== 'done' && gdStage !== 'view') return;
@@ -25154,6 +25145,28 @@ familyStr + `\n` +
         // 저장한 개통을 안내서와 묶기 · info = { usimOnly, model, serial } (개통등록 칸 값)
         //  3️⃣ [채우기]를 안 눌렀으면: 3일 안 · 같은 종류(단말/유심) · 단말이면 기종이나 일련번호가 맞는 안내서가 딱 하나일 때만 자동으로
         //  4️⃣ [채우기]를 눌렀는데 개통번호가 안내서 번호와 다르면: 묶을지 한 번 물어봄 (아니오 → 안 묶음)
+        /* 📎 V379 서명한 안내서 → 그림(JPG)으로 고객 서류에 첨부 (개통등록 저장 때 자동 · 못 했으면 안내서 화면 [📎 서류에 첨부]로 다시)
+             반환: { ok, msg } · 각자 드라이브인데 연결이 끊겼으면 ask=true일 때 연결부터 */
+        async function gdAttachToDocs(g, cust, actDay, ask) {
+            if (!g || g.st !== 'signed') return { ok: false, msg: '' };
+            if (g.docAt) return { ok: true, msg: '' };
+            if (driveMode() === 'off') return { ok: false, msg: '⚠️ 서류 보관(구글 드라이브)이 꺼져 있어서 안내서를 첨부하지 못했어요.' };
+            if (driveMode() === 'self' && !driveTokenValid()) {
+                if (!ask) return { ok: false, msg: '⚠️ 구글 드라이브 연결이 끊겨서 서명한 안내서는 첨부하지 못했어요 · 안내서 화면에서 [📎 서류에 첨부]를 눌러 주세요.' };
+                try { await getDriveToken(false); } catch (e) { return { ok: false, msg: `⚠️ ${e.message || '구글 드라이브에 연결하지 못했어요.'}` }; }
+            }
+            const c = cust || customerDB.find(x => x.id === (g.custId || phoneDigits(g.phone)));
+            if (!c) return { ok: false, msg: '⚠️ 안내서 고객이 고객 목록에 없어서 첨부하지 못했어요.' };
+            try {
+                showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
+                const url = await gdImage(g), blob = await (await fetch(url)).blob();
+                const gf = new File([blob], `구매안내서_${String(g.name || c.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || actDay || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
+                const gr = await uploadDocFiles({ id: c.id, name: c.name || g.name || '', phone: c.phone || g.phone || '' }, [gf], null, { bundle: false, date: actDay || (g.act && g.act.date) || g.date });
+                hideUploadToast();
+                if (gr && gr.ok) { const at = new Date().toISOString(); g.docAt = at; const hit = gdList.find(x => x.id === g.id); if (hit) hit.docAt = at; setDoc(doc(db, 'smart_guides', g.id), { docAt: at }, { merge: true }).catch(e => console.warn(e)); return { ok: true, msg: '📎 서명한 안내서도 서류에 첨부했어요.' }; }
+                return { ok: false, msg: '⚠️ 서명한 안내서를 서류에 못 올렸어요 · 안내서 화면에서 [📎 서류에 첨부]를 다시 눌러 주세요.' };
+            } catch (e) { try { hideUploadToast(); } catch (e2) { /* 무시 */ } console.warn('안내서 첨부 실패', e); return { ok: false, msg: '⚠️ 서명한 안내서를 서류에 못 올렸어요 · 안내서 화면에서 [📎 서류에 첨부]를 다시 눌러 주세요.' }; }
+        }
         let gdAfterActId = '';
         async function gdAfterAct(custId, date, info = {}) {
             gdAfterActId = '';
@@ -25257,7 +25270,7 @@ familyStr + `\n` +
             const selBar = gdSel ? `<div class="sticky top-0 z-10 rounded-2xl border border-red-200 bg-red-50 px-3 py-2 flex items-center gap-2"><span class="flex-1 min-w-0 text-[14px] font-bold text-red-900">${gdSel.size ? `${gdSel.size}개 골랐어요` : '지울 안내서를 눌러서 골라요'}</span><button type="button" data-gd-selall class="h-9 px-2.5 rounded-lg border border-red-200 bg-white text-[12px] font-bold text-red-800">전체</button><button type="button" data-gd-seldel ${gdSel.size ? '' : 'disabled'} class="h-9 px-3 rounded-lg bg-red-600 text-white text-[13px] font-bold disabled:opacity-40">🗑 삭제</button><button type="button" data-gd-selx class="w-9 h-9 rounded-lg text-red-800 text-[15px] font-bold" aria-label="고르기 끝">✕</button></div>` : '';
             box.innerHTML = selBar + (rows.length ? rows.slice(0, 150).map(g => {
                 const c = g.calc || gdCalc(g), badge = g.st === 'draft' ? '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">💾 임시 저장</span>'
-                    : `${g.sent ? '<span class="text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">📩 보냄</span>' : '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">✍ 서명</span>'}${gdRecMem.has(g.id) && !g.rec ? ' <span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">🎙 녹음 못 올림</span>' : ''} ${g.act ? '<span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 rounded px-1.5 py-0.5">✅ 개통등록</span>' : (gdIsPending(g) ? '<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">⏳ 개통등록 전</span>' : '')}`;
+                    : `${g.sent ? '<span class="text-[11px] font-bold text-indigo-800 bg-indigo-50 rounded px-1.5 py-0.5">📩 보냄</span>' : '<span class="text-[11px] font-bold text-gray-700 bg-gray-100 rounded px-1.5 py-0.5">✍ 서명</span>'}${gdRecMem.has(g.id) && !g.rec ? ' <span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">🎙 녹음 못 올림</span>' : ''}${g.act && !g.docAt && g.st === 'signed' && driveMode() !== 'off' ? ' <span class="text-[11px] font-bold text-teal-900 bg-teal-50 rounded px-1.5 py-0.5">📎 서류 미첨부</span>' : ''} ${g.act ? '<span class="text-[11px] font-bold text-emerald-800 bg-emerald-50 rounded px-1.5 py-0.5">✅ 개통등록</span>' : (gdIsPending(g) ? '<span class="text-[11px] font-bold text-amber-900 bg-amber-100 rounded px-1.5 py-0.5">⏳ 개통등록 전</span>' : '')}`;
                 const canDel = gdCanDel(g), picked = !!(gdSel && gdSel.has(g.id));   // 🗑 V232
                 return `<div class="flex items-stretch gap-1.5"><button type="button" ${gdSel ? 'data-gd-pick' : 'data-gd-open'}="${escapeHtml(g.id)}" ${gdSel ? `aria-pressed="${picked}"` : ''} ${gdSel && !canDel ? 'disabled' : ''} class="flex-1 min-w-0 text-left rounded-2xl border px-3 py-2.5 flex items-center gap-3 disabled:opacity-40 ${picked ? 'bg-red-50 border-red-400 ring-2 ring-red-200' : 'bg-white border-gray-200 hover:bg-gray-50'}">${gdSel ? `<span class="flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center ${picked ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 bg-white'}" aria-hidden="true">${picked ? '<i class="fa-solid fa-check text-[12px]"></i>' : ''}</span>` : ''}
                     <span class="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${g.kind === 'usim' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}"><i class="fa-solid ${g.kind === 'usim' ? 'fa-sim-card' : 'fa-mobile-screen-button'}" aria-hidden="true"></i></span>
@@ -28891,7 +28904,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V378';
+        const APP_VER = 'V379';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -28899,6 +28912,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V379', d: '2026-11-11', items: [
+                ['📎 서명한 안내서 서류 자동 첨부를 못 했을 때(구글 드라이브 연결 끊김 등) 다시 할 방법: 안내서 화면 [📎 고객 서류에 첨부] · 안내서 목록에 「📎 서류 미첨부」 표시 (예전: 다운받아 직접 올려야 했음)', 'a']
+            ] },
             { v: 'V378', d: '2026-11-11', items: [
                 ['💸 안내서로 개통보고를 채우면 고객송금 · 매장대납 · 매장 추가할인 금액이 정산의 \'고객 할인금액\'에 들어가요 → 판매마진 · 실마진에서 빠짐 (예전: 안 빠져서 마진이 크게 잡혔음 · 이미 적어 둔 금액은 그대로)', 'a']
             ] },
