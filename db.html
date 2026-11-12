@@ -1198,6 +1198,22 @@
                             <p class="text-xs font-bold text-red-700 leading-relaxed">이 암호문은 어디에도 저장되지 않아요. 두 곳에 똑같이 넣기 전에 창을 닫았으면 새로 만들어주세요. 두 값이 다르면 매장 폰에서 문자를 못 풀어서 실패해요. 캡처해서 다른 곳에 올리지 마세요.</p>
                         </div>
                     </div>
+                    <div class="rounded-xl border border-sky-200 bg-sky-50/60 p-3 space-y-2" id="smsDevBox">
+                        <p class="text-[13px] font-bold text-gray-800">👤 자동문자를 담당자 폰으로 <span class="font-normal text-gray-500">(중계 서버 v12)</span></p>
+                        <p class="text-xs text-gray-600 leading-relaxed">고객카드 담당자의 폰 번호 · 담당자 명함으로 자동문자가 나가요 (부재 재연락은 전화 건 직원). 담당자가 없거나 대표 · 폰이 연결 안 된 직원이면 매장 폰. 직원 폰이 1시간 넘게 연결이 없으면 매장 폰으로 대신 보내요.</p>
+                        <ol class="text-xs text-gray-700 leading-relaxed list-decimal pl-5 space-y-1">
+                            <li>중계 서버를 v12로 배포 → 아래 [폰 목록 불러오기] → <b>매장 폰</b>을 골라 [저장] <span class="text-red-700 font-bold">(직원 폰을 문자 앱에 추가하기 전에 먼저!)</span></li>
+                            <li>직원 폰에 SMS Gateway 앱 설치 → 매장 폰 앱 Cloud server 화면의 코드로 같은 계정에 추가 · 암호문(Passphrase)도 매장 폰과 똑같이</li>
+                            <li>[폰 목록 불러오기] → 그 폰에 직원 이름을 골라 [저장] → [시험] → 아래 스위치 켜기</li>
+                        </ol>
+                        <button type="button" id="smsDevLoadBtn" class="w-full h-11 rounded-xl border border-sky-300 bg-white text-sm font-bold text-sky-800">📱 폰 목록 불러오기</button>
+                        <div id="smsDevList" class="space-y-2"></div>
+                        <label class="flex items-center justify-between gap-3 min-h-[44px]"><span class="text-[13px] font-bold text-gray-800">직원 폰 하루 한도</span><input type="number" id="smsDevLimit" min="1" max="500" inputmode="numeric" class="w-24 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 text-right" value="50"></label>
+                        <button type="button" id="smsDevSaveBtn" class="w-full h-11 rounded-xl bg-sky-600 text-white text-sm font-bold disabled:opacity-40" disabled>저장</button>
+                        <label class="flex items-center justify-between gap-3 min-h-[44px] border-t border-sky-100 pt-2"><span class="text-[13px] font-bold text-gray-800">자동문자를 담당자 폰으로 보내기<span class="block text-xs font-normal text-gray-500">약속일 · 생일 · 방문 전날 · 개통 안부 · 부재 재연락 · 송금 완료</span></span><input type="checkbox" id="smsDevOn" class="w-6 h-6 accent-sky-600 flex-shrink-0"></label>
+                        <label class="flex items-center justify-between gap-3 min-h-[44px]"><span class="text-[13px] font-bold text-gray-800">홍보 · 가족 안내 문자도 담당자 폰으로<span class="block text-xs font-normal text-gray-500">개인 번호로 광고가 많이 나가면 스팸 신고 위험 · 직원 폰 한도를 넘으면 다음 날</span></span><input type="checkbox" id="smsDevPromo" class="w-6 h-6 accent-sky-600 flex-shrink-0"></label>
+                        <p id="smsDevNote" role="status" class="text-xs font-medium text-gray-600 leading-relaxed"></p>
+                    </div>
                 </div>
             </section>
             <section class="space-y-2" aria-labelledby="subPushConnTitle">
@@ -3765,6 +3781,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (handled.has(k)) return;
                 const p = P[k], o = O[k];
                 if (k === 'memo' || k === 'obMemo' || k === 'prospectMemo') { out[k] = joinText(p, o); return; }
+                if (k === 'consultLog') { const all = [...(Array.isArray(o) ? o : []), ...(Array.isArray(p) ? p : [])], seen = new Set(); out[k] = all.filter(x => x && x.id && !seen.has(x.id) && seen.add(x.id)).sort((a, b) => String(a.at || '').localeCompare(String(b.at || ''))).slice(-CONSULT_MAX); return; }   // 📝 V390 상담일지 (중복 고객 합치기)
                 if (k === 'contactHistory') {
                     const lines = [...new Set([...String(o || '').split('\n'), ...String(p || '').split('\n')].map(s => s.trim()).filter(Boolean))];
                     lines.sort((a, b) => { const sa = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(a) || [])[1] || '', sb = (/^\[(\d{4}\.\d{2}\.\d{2} \d{2}:\d{2})\]/.exec(b) || [])[1] || ''; return sa < sb ? -1 : (sa > sb ? 1 : 0); });
@@ -7467,7 +7484,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (notSale) Object.assign(t, { canceled: true, notSale: true, cancelAt: now.toISOString(), cancelBy: who });
                 else t.reviewed = true;
                 const patch = { acts: list, updatedAt: now.toISOString(), __audit: '유선 개통 점검' };
-                if (notSale) patch.memo = appendLine(cur.memo, `[유선 개통 아님 ${date.slice(5).replace('-', '/')}] ${t.device || '인터넷·TV'} — 인터넷+TV 칸 정보 (${now.getMonth() + 1}/${now.getDate()} ${who} 정리)`);
+                if (notSale) patch.contactHistory = appendLine(cur.contactHistory, `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ` + `[유선 개통 아님 ${date.slice(5).replace('-', '/')}] ${t.device || '인터넷·TV'} — 인터넷+TV 칸 정보 (${now.getMonth() + 1}/${now.getDate()} ${who} 정리)`);
                 return patch;
             });
         }
@@ -8687,7 +8704,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const lp = latestPoncle(list); patch.poncle = lp || { 미입력: true };
                     const keepKeys = new Set(list.filter(x => !x.canceled && x.id !== t.id && x.date >= t.date).flatMap(x => x.promKeys || []));   // 남은 개통이 쓰는 약속은 그대로
                     (t.promKeys || []).forEach(k => { if (!keepKeys.has(k) && !cur[`prom${k}Chk`] && String(cur[`prom${k}Memo`] || '').startsWith('자동')) { patch[`prom${k}Date`] = ''; patch[`prom${k}Memo`] = ''; } });
-                    patch.memo = appendLine(cur.memo, `[개통취소 ${t.date.slice(5).replace('-', '/')}] ${[t.kind, t.device || t.plan].filter(Boolean).join(' · ')} (${now.getMonth() + 1}/${now.getDate()} ${two(now.getHours())}:${two(now.getMinutes())} ${getStaffName() || ''})`);
+                    patch.contactHistory = appendLine(cur.contactHistory, `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ↩ ` + `[개통취소 ${t.date.slice(5).replace('-', '/')}] ${[t.kind, t.device || t.plan].filter(Boolean).join(' · ')} (${now.getMonth() + 1}/${now.getDate()} ${two(now.getHours())}:${two(now.getMinutes())} ${getStaffName() || ''})`);
                     return patch;
                 });
                 if (stockN || a.usimStockId) await stockTx(cur => ({ ...cur, items: cur.items.map(x => {
@@ -8835,7 +8852,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 // 이름·번호·법대·담당자 + 단말기·요금제·메모·가족정보·결합·인터넷/TV로도 검색
                 const qDigits = query.replace(/-/g, ''), qSn = query.replace(/[\s-]/g, '');
                 const matchSearch = !query
-                    || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.openDealer, c.cardId, c.visitPurpose, c.regStore]
+                    || [c.name, c.legalName, c.manager, c.contactManager, c.device, c.plan, c.memo, consultText(c), c.obMemo, c.repFamily, c.combination, c.welfare, c.internetProd, c.tvProd, c.openStore, c.openDealer, c.cardId, c.visitPurpose, c.regStore]
                         .some(v => String(v || '').toLowerCase().includes(query))
                     || (qDigits && (String(c.phone || '').replace(/-/g, '').includes(qDigits) || String(c.legalPhone || '').replace(/-/g, '').includes(qDigits)))
                     || (/^\d{4,}$/.test(qDigits) && prevIdsOf(c).some(p => p.includes(qDigits)))   // 📱 예전 번호로도 찾기
@@ -10921,10 +10938,62 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     </div>`;
                 })() : ''}
                 ${buildRefBox(c)}
+                ${buildNoteBox(c)}
                 <div class="px-3 pt-3">${tabsHtml}</div>
                 <div class="px-3 pt-2 pb-4"><div class="bg-white border border-gray-200 rounded-2xl px-3.5 py-1.5">${tabContent}</div></div>`;
         }
 
+        // 📝 V390 상담일지 — 고객카드 탭 위 · 날짜별로 쌓임 (기기를 바꿔도 지우지 않음 · 기록마다 그때 기기 · 개통일)
+        //   c.consultLog = [{ id, at, by, text, tag, editedAt?, editedBy? }] · 개통보고에서 적으면 저절로 한 줄 · 여기서 적기 · 고치기 · 지우기
+        const CONSULT_MAX = 200;
+        let noteEdit = null, noteAllId = '';   // { cid, eid ('new' = 새로 적기) } · 전체 보기 중인 고객
+        let noteOpen = (() => { try { return localStorage.getItem('consultOpen') === '1'; } catch (e) { return false; } })();   // 접기 · 펴기 (이 폰에 기억 · 처음엔 접힘)
+        function consultLogOf(c) { return (Array.isArray(c && c.consultLog) ? c.consultLog : []).filter(x => x && x.id && String(x.text || '').trim()); }
+        function consultText(c) { return consultLogOf(c).map(x => x.text).join(' '); }
+        function consultTag(device, actDate) { const d = String(device || '').trim(), a = String(actDate || '').slice(0, 10); return [d, /^\d{4}-\d{2}-\d{2}$/.test(a) ? `${a.slice(2).replace(/-/g, '.')} 개통` : ''].filter(Boolean).join(' · ').slice(0, 60); }
+        function consultEntry(text, tag) { return { id: `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, at: new Date().toISOString(), by: getStaffName() || '', text: String(text || '').trim().slice(0, 2000), tag: tag || '' }; }
+        function buildNoteBox(c) {
+            const L = consultLogOf(c).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
+            const ed = noteEdit && noteEdit.cid === c.id ? noteEdit : null;
+            const area = (val, ph) => `<textarea id="profileNoteInput" rows="4" maxlength="2000" placeholder="${ph}" class="w-full px-3 py-2 border border-amber-300 rounded-xl text-[15px] text-gray-900 bg-white leading-relaxed">${escapeHtml(val || '')}</textarea>`;
+            const btns = (del) => `<div class="grid ${del ? 'grid-cols-3' : 'grid-cols-2'} gap-2">${del ? '<button type="button" data-paction="notedel" class="h-11 rounded-xl border border-red-200 bg-white text-sm font-bold text-red-700">지우기</button>' : ''}<button type="button" data-paction="notecancel" class="h-11 rounded-xl border border-gray-300 bg-white text-sm font-bold text-gray-700">취소</button><button type="button" data-paction="notesave" class="h-11 rounded-xl bg-amber-600 text-white text-sm font-bold">저장</button></div>`;
+            const when = (x) => { const d = new Date(x.at); return isNaN(d) ? '' : `${String(d.getFullYear()).slice(2)}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
+            const row = (x) => ed && ed.eid === x.id
+                ? `<li class="py-2 space-y-2">${area(x.text, '')}${btns(true)}</li>`
+                : `<li class="py-2 border-t border-amber-200/70 first:border-0">
+                    <div class="flex items-start justify-between gap-2"><p class="text-xs font-bold text-amber-900/80 min-w-0">${escapeHtml(when(x))}${x.by ? ' · ' + escapeHtml(managerKey(x.by)) : ''}${x.tag ? ` <span class="inline-block ml-0.5 px-1.5 rounded-md bg-white border border-amber-200 font-medium text-amber-900">📱 ${escapeHtml(x.tag)}</span>` : ''}${x.editedAt ? ' <span class="font-medium text-amber-800/70">(고침)</span>' : ''}</p>
+                    <button type="button" data-paction="noteedit" data-eid="${escapeHtml(x.id)}" aria-label="이 기록 고치기" class="h-8 px-2 -mt-1 rounded-lg text-xs font-bold text-amber-900 flex-shrink-0">✏️</button></div>
+                    <p class="text-[15px] text-gray-900 leading-relaxed whitespace-pre-wrap break-words">${escapeHtml(x.text)}</p></li>`;
+            const all = noteAllId === c.id, open = noteOpen || !!ed, shown = !open ? [] : (all ? L : L.slice(0, 3));
+            if (!L.length && !ed) return `<div class="mx-3 mt-3"><button type="button" data-paction="noteedit" data-eid="new" class="w-full min-h-[44px] rounded-2xl border border-dashed border-amber-300 bg-amber-50/40 text-[13px] font-bold text-amber-800">＋ 상담일지 · 특이사항 적기</button></div>`;
+            return `<div class="mx-3 mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-3.5">
+                    <div class="flex items-center justify-between gap-2"><button type="button" data-paction="notefold" aria-expanded="${open}" class="min-w-0 flex-1 flex items-center gap-1.5 min-h-[36px] text-left"><h4 class="text-[14px] font-bold text-amber-900">📝 상담일지 · 특이사항${L.length ? ` <span class="text-xs font-medium">${L.length}</span>` : ''}</h4><span class="text-amber-800 text-xs">${open ? '▲' : '▼'}</span></button>${ed && ed.eid === 'new' ? '' : '<button type="button" data-paction="noteedit" data-eid="new" class="h-9 px-3 rounded-lg border border-amber-300 bg-white text-xs font-bold text-amber-900 flex-shrink-0">＋ 적기</button>'}</div>
+                    ${!open && L[0] ? `<button type="button" data-paction="notefold" class="block w-full text-left mt-1"><p class="text-xs font-bold text-amber-900/80">${escapeHtml(when(L[0]))}${L[0].by ? ' · ' + escapeHtml(managerKey(L[0].by)) : ''} · 최근</p><p class="text-[14px] text-gray-900 leading-snug truncate">${escapeHtml(String(L[0].text).replace(/\s+/g, ' '))}</p></button>` : ''}
+                    ${ed && ed.eid === 'new' ? `<div class="py-2 space-y-2">${area('', '예) 자녀가 대신 연락 · 오후에만 통화 가능 · 다음 달 인터넷 이전 예정')}${btns(false)}</div>` : ''}
+                    <ul>${shown.map(row).join('')}</ul>
+                    ${open && L.length > 3 ? `<button type="button" data-paction="noteall" class="w-full h-9 mt-1 rounded-lg text-xs font-bold text-amber-900">${all ? '접기 ▲' : `지난 기록 ${L.length - 3}개 더 보기 ▼`}</button>` : ''}
+                </div>`;
+        }
+        async function saveProfileNote(cid, del) {
+            const ed = noteEdit; if (!ed || ed.cid !== cid) return;
+            const el = document.getElementById('profileNoteInput');
+            const v = el ? el.value.replace(/\s+$/g, '').slice(0, 2000) : '';
+            if (!del && !v.trim()) { if (ed.eid === 'new') { noteEdit = null; renderProfileCard(); return; } del = true; }
+            if (del && !(await customConfirm('이 상담 기록을 지울까요?'))) return;
+            const me = getStaffName() || '', now = new Date().toISOString();
+            try {
+                let next = null;
+                await txCustomerUpdate(cid, (cur) => {
+                    const L = consultLogOf(cur);
+                    if (ed.eid === 'new') next = [...L, consultEntry(v, consultTag(cur.device, cur.activationDate))];
+                    else if (del) next = L.filter(x => x.id !== ed.eid);
+                    else next = L.map(x => x.id === ed.eid ? { ...x, text: v, editedAt: now, editedBy: me } : x);
+                    return { consultLog: next.slice(-CONSULT_MAX), updatedAt: now, __audit: '상담일지' };
+                });
+                const cur = customerDB.find(x => x.id === cid); if (cur && next) cur.consultLog = next.slice(-CONSULT_MAX);
+                noteEdit = null; renderProfileCard(); stockToast(del ? '📝 기록을 지웠어요' : '📝 상담일지를 저장했어요');
+            } catch (e) { customAlert(`저장하지 못했어요: ${e.message || e}`); }
+        }
         function profileKV(label, valueHtml) {
             return `<div class="flex items-start justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">
                 <span class="text-[13px] text-gray-400 whitespace-nowrap">${label}</span>
@@ -12008,7 +12077,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             if (!pushRelayReady()) throw new Error('문자 중계 서버가 연결 안 돼 있어요 (설정 → 🔌 연결).');
             const sendAt = missQuiet(Math.max(Number(atMs) || 0, Date.now() + 60 * 1000));
             const id = `asd-${String(c.id).replace(/[^A-Za-z0-9_-]/g, '')}-${k}-${Date.now().toString(36)}`, text = sendDoneText(c, k);
-            await callSms('schedule', { items: [{ id, to, name: c.name || '', auto: false, sendAt, text }] });
+            const dev = smsDevFor(ownerOf(c), 'task');   // 👤 V389
+            await callSms('schedule', { items: [{ id, to, name: c.name || '', auto: false, sendAt, text, ...(dev ? { dev } : {}) }] });
             const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 💰 송금 완료 알림 문자 ${fmtSmsWhen(sendAt)} 예약 · ${getStaffName() || '-'}`;
             txCustomerUpdate(c.id, (cur) => ({ contactHistory: appendLine(cur.contactHistory, line), __audit: '송금 완료 알림' })).catch(e => console.warn(e));
             return sendAt;
@@ -12214,6 +12284,11 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const c = customerDB.find(x => x.id === id);
             if (!c) return;
             const action = actBtn.dataset.paction;
+            if (action === 'noteedit') { noteEdit = { cid: id, eid: actBtn.dataset.eid || 'new' }; renderProfileCard(); setTimeout(() => { const t = document.getElementById('profileNoteInput'); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }, 50); return; }   // 📝 V390 상담일지
+            if (action === 'notecancel') { noteEdit = null; renderProfileCard(); return; }
+            if (action === 'notesave' || action === 'notedel') { saveProfileNote(id, action === 'notedel'); return; }
+            if (action === 'noteall') { noteAllId = noteAllId === id ? '' : id; renderProfileCard(); return; }
+            if (action === 'notefold') { noteOpen = !noteOpen; try { localStorage.setItem('consultOpen', noteOpen ? '1' : '0'); } catch (e) { /* 무시 */ } renderProfileCard(); return; }
             if (action === 'tel') logActionAndCall(id, 'tel', c.phone);
             else if (action === 'sms') openActionSheet(`💬 문자 · ${c.name || '고객'}`, [   // 💬 V359 고객 카드 [문자]도 직접 · AI · 명함 중에
                 { icon: 'fa-solid fa-pen', label: '직접 쓰기', sub: '문자앱을 바로 열어요', onClick: () => logActionAndCall(id, 'sms', c.phone) },
@@ -13428,7 +13503,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 if (missOn && phone && !c.marketingDeny && !c.missOptOut && c.salesStatus !== '고객거부') {
                     const M = missPlan(c, safeId, today, lastStr);
                     if (M) {
-                        const mText = missText(c, M.phrase, M.ad);   // 📵 V228 (광고) · 연락 이유 · 고객 전용 명함 링크 · 수신거부
+                        const mc = c.missBy && !sameStaff(c.missBy, ownerOf(c)) ? { ...c, manager: c.missBy } : c;   // 👤 V389 전화 건 직원 이름 · 명함
+                        const mText = missText(mc, M.phrase, M.ad);   // 📵 V228 (광고) · 연락 이유 · 고객 전용 명함 링크 · 수신거부
                         items.push(...autoItemsFor(c, { id: M.id, to: phone, name: c.name || '', auto: true, sendAt: M.sendAt, text: mText }, { heading: '📞 전화 드렸어요', text: mText }).filter(it => !skip.has(it.id)));
                     }
                 }
@@ -13605,6 +13681,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     }
                     return true;
                 });
+                if (relayVer() >= 12) desired.forEach(d => { const r = smsDevForItem(d, custBySafe); if (r.dev) d.dev = r.dev; if (r.promo) d.promo = true; });   // 👤 V389 보낼 폰
                 const desiredIds = new Set(desired.map(d => d.id));
                 const sigNow = autoTextSigs(), sigOld = (appSettings.smsTextSig && typeof appSettings.smsTextSig === 'object') ? appSettings.smsTextSig : {};
                 // V179: 문구 끝·명함 링크·리뷰 주소만 바뀌어도 다시 넣기 (예전 서버용)
@@ -13623,6 +13700,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                     const qAt = Number(q.sendAt) || 0, bothDue = qAt <= nowMs + 2 * 60 * 1000 && d.sendAt <= nowMs + 2 * 60 * 1000;
                     const timeOff = !bothDue && Math.abs(qAt - d.sendAt) > 5 * 60 * 1000;
                     if (digits(q.to) !== digits(smsIntl(d.to)) || (q.channel || 'sms') !== (d.channel || 'sms') || timeOff) return true;
+                    if (relayVer() >= 12 && (q.dev || '') !== (d.dev || '')) return true;   // 👤 V389 담당자(폰)가 바뀌면 다시 예약
                     if (q.h) return q.h !== autoItemHash(d);   // 중계 서버 v11: 내용이 정말 바뀐 것만
                     const kk = smsKindOf(d);
                     if (rewrite.has((kk.push ? 'p.' : 's.') + kk.kind)) return true;
@@ -13718,6 +13796,34 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             else if (x && x.auto) { kind = 'task'; label = '자동 안내'; }
             return { kind, label, push, custId, ...SMS_KIND_STYLE[kind] };
         }
+        // 👤 V389 자동문자를 담당자 폰으로 (중계 서버 v12) ─────────────────
+        //   appSettings.smsDev = { store: 매장 폰 id, map: { 폰 id: 직원 이름 }, names: { 폰 id: 폰 이름 }, staffLimit } · smsDevOn · smsDevPromo
+        function relayVer() { try { return Number(localStorage.getItem('relayVersion') || 0) || 0; } catch (e) { return 0; } }
+        function smsDevCfg() { const d = appSettings.smsDev; return d && typeof d === 'object' ? d : {}; }
+        function smsDevFor(who, kind) {   // 그 직원 폰 id · 매장 폰으로 보낼 거면 ''
+            if (!appSettings.smsDevOn || relayVer() < 12) return '';
+            if (kind === 'promo' && !appSettings.smsDevPromo) return '';
+            const own = managerKey(who || '');
+            if (!own || LOCK_EMPTY.has(own) || staffIsBoss(own)) return '';
+            const D = smsDevCfg(), hit = Object.entries(D.map || {}).find(([id, nm]) => id !== D.store && nm && sameStaff(nm, own));
+            return hit ? hit[0] : '';
+        }
+        // 예약 문자 하나 → { dev, promo } (부재 재연락은 전화 건 직원 · 가족 안내는 본인 고객의 담당자 · 홍보로 봄)
+        function smsDevForItem(d, custBySafe) {
+            if (!d || d.channel === 'push' || !d.to) return { dev: '', promo: false };
+            const id = String(d.id || ''), fam = /^af-([^-]+)-/.exec(id), k = smsKindOf(d);
+            const cid = fam ? fam[1] : k.custId, c = cid ? custBySafe.get(cid) : null;
+            const promo = k.kind === 'promo' || !!fam;
+            if (!c) return { dev: '', promo };
+            return { dev: smsDevFor(k.kind === 'miss' && c.missBy ? c.missBy : ownerOf(c), promo ? 'promo' : k.kind), promo };
+        }
+        function smsDevName(id) { const D = smsDevCfg(); if (!id || id === D.store) return '매장 폰'; return (D.map || {})[id] || (D.names || {})[id] || '직원 폰'; }
+        function smsDevBadge(x) {
+            if (!x || x.channel === 'push') return '';
+            if (x.fb) return ` <span class="inline-flex items-center text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-px">📱 매장 폰으로 대신 (${escapeHtml(smsDevName(x.want))} ${x.fb === 'limit' ? '하루 한도' : '연결 없음'})</span>`;
+            if (x.dev) return ` <span class="inline-flex items-center text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded-md px-1.5 py-px">👤 ${escapeHtml(smsDevName(x.dev))} 폰</span>`;
+            return appSettings.smsDevOn ? ' <span class="inline-flex items-center text-[11px] font-bold text-gray-700 bg-gray-100 rounded-md px-1.5 py-px">📱 매장 폰</span>' : '';
+        }
         function smsKindBadges(k) {
             return `<span class="inline-flex items-center gap-0.5 text-[11px] font-bold border rounded-md px-1.5 py-px ${k.cls}">${k.icon} ${escapeHtml(k.label)}</span>`
                 + (k.push ? ' <span class="inline-flex items-center text-[11px] font-bold text-white bg-indigo-500 rounded-md px-1.5 py-px">🔔 푸시</span>' : ' <span class="inline-flex items-center text-[11px] font-bold text-gray-700 bg-gray-100 rounded-md px-1.5 py-px">💬 문자</span>');
@@ -13768,14 +13874,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             const q = shown.map(({ x, k }) => `<div class="flex items-start gap-2 p-3 rounded-xl border border-gray-200 bg-white">
                     <div class="min-w-0 flex-1 space-y-1">
                         <p class="text-[13px] font-bold text-gray-900">${whoHtml(x, k)} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sendAt))}</span></p>
-                        <p class="flex flex-wrap gap-1">${smsKindBadges(k)}${x.mms ? ' <span class="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-px">📷 사진 문자</span>' : ''}</p>
+                        <p class="flex flex-wrap gap-1">${smsKindBadges(k)}${smsDevBadge(x)}${x.mms ? ' <span class="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-px">📷 사진 문자</span>' : ''}</p>
                         <p class="text-[13px] text-gray-700 leading-snug" ${clamp}>${escapeHtml(previewOf(x))}</p>
                     </div>
                     <button type="button" data-sms-cancel="${escapeHtml(x.id)}" data-sms-auto="${x.auto ? 1 : 0}" class="flex-shrink-0 h-9 px-3 rounded-lg border border-red-200 text-xs font-bold text-red-700 bg-white">취소</button>
                 </div>`).join('') || `<p class="text-sm text-gray-500 py-2">${smsListFilter === 'all' ? '보낼 예정인 문자가 없어요.' : '이 종류로 보낼 예정인 건 없어요.'}</p>`;
             const sent = sentRows.filter(fdef[2]).map(({ x, k }) => `<div class="p-3 rounded-xl ${x.ok ? 'bg-gray-50' : 'bg-red-50'} space-y-1">
                     <p class="text-[13px] font-bold text-gray-900">${x.state === 'sending' ? '⏳' : (x.ok ? '✅' : '❌')} ${whoHtml(x, k)} <span class="font-medium text-gray-500">· ${escapeHtml(fmtSmsWhen(x.sentAt))}</span> ${x.encrypted ? '<span class="text-[10px] font-bold text-emerald-800 bg-emerald-100 rounded px-1">🔐</span>' : ''}</p>
-                    ${x.id ? `<p class="flex flex-wrap gap-1">${smsKindBadges(k)}${x.mms ? ' <span class="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-px">📷 사진 문자</span>' : ''}${x.mmsFallback ? ' <span class="inline-flex items-center text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-px">🔗 사진 대신 링크</span>' : ''}</p>` : (x.channel === 'push' ? '<p><span class="text-[11px] font-bold text-white bg-indigo-500 rounded-md px-1.5 py-px">🔔 푸시</span></p>' : '')}
+                    ${x.id ? `<p class="flex flex-wrap gap-1">${smsKindBadges(k)}${smsDevBadge(x)}${x.mms ? ' <span class="inline-flex items-center text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-1.5 py-px">📷 사진 문자</span>' : ''}${x.mmsFallback ? ' <span class="inline-flex items-center text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-px">🔗 사진 대신 링크</span>' : ''}</p>` : (x.channel === 'push' ? '<p><span class="text-[11px] font-bold text-white bg-indigo-500 rounded-md px-1.5 py-px">🔔 푸시</span></p>' : '')}
                     <p class="text-[13px] text-gray-700 leading-snug" ${clamp}>${escapeHtml(smsNicePreview(x.preview || ''))}</p>
                     ${x.ok ? '' : (x.state === 'sending' ? '<p class="text-xs text-gray-600">보내는 중이에요. 오래 이대로면 SMSGate 앱 MESSAGES에서 확인해주세요.</p>' : `<p class="text-xs text-red-700">${escapeHtml(x.error || '보내지 못했어요')}</p>`)}
                 </div>`).join('') || '<p class="text-sm text-gray-500 py-2">아직 보낸 문자가 없어요.</p>';
@@ -13850,6 +13956,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             { const rc = document.getElementById('smsMissRecall'); if (rc) rc.checked = smsSetting('smsMissRecall') !== false; renderMissReasons(); }   // 📵 V228
             { const am = document.getElementById('smsMissAdMark'), at = document.getElementById('smsMissAdToggle'); if (am) { am.checked = smsSetting('smsMissAdMark') !== false; am.disabled = !isSuperAdmin; } if (at) { at.checked = smsSetting('smsMissAdToggle') === true; at.disabled = !isSuperAdmin; } }   // 📢 V229
             ['smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsPhoneMonths', 'smsTplPhone', 'smsMissCount', 'smsMissDays', 'smsTplMiss'].forEach(id => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = smsSetting(id) || SMS_AUTO_DEFAULTS[id] || ''; });
+            try { renderSmsDevBox(); } catch (e) { /* 준비 전 */ }   // 👤 V389
             try { promoStaffOptions(); } catch (e) { console.error(e); }   // V323 담당자 목록 먼저 (저장된 담당자 값이 들어가게)
             [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime'], ['smsTplPromo', 'smsTplPromo'], ['smsPromoDate', 'smsPromoDate'], ['smsPromoTime', 'smsPromoTime'], ['smsPromoTarget', 'smsPromoTarget'], ['smsPromoDaily', 'smsPromoDaily'], ['smsPromoOptout', 'smsPromoOptout'], ...PROMO_FILTER_IDS.map(k => [k, k])].forEach(([id, key]) => {
                 const el = document.getElementById(id);
@@ -14458,6 +14565,88 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             }
             finally { btn.disabled = false; }
         });
+
+        /* ---------- 👤 V389 자동문자를 담당자 폰으로 — 폰 목록 · 매장 폰 / 직원 연결 · 스위치 ---------- */
+        let smsDevRows = null;   // [{ id, name, lastSeen }] (마지막으로 불러온 목록)
+        function smsDevStaffNames() {
+            const out = [];
+            [...Object.values(staffByEmail()), ...Object.values((teamData && teamData.staff) || {}).map(p => p.key || p.name)].forEach(n => { const v = String(n || '').trim(); if (v && !out.some(o => sameStaff(o, v))) out.push(v); });
+            return out;
+        }
+        function smsDevAgo(ms, now) { if (!ms) return '연결 기록 없음'; const m = Math.max(0, Math.round((now - ms) / 60000)); return m < 1 ? '방금 연결' : m < 60 ? `${m}분 전 연결` : m < 1440 ? `${Math.round(m / 60)}시간 전 연결` : `${Math.round(m / 1440)}일 전 연결`; }
+        function renderSmsDevBox(now = Date.now()) {
+            const D = smsDevCfg(), box = document.getElementById('smsDevList'); if (!box) return;
+            const on = document.getElementById('smsDevOn'), pr = document.getElementById('smsDevPromo'), lim = document.getElementById('smsDevLimit');
+            if (on) on.checked = !!appSettings.smsDevOn; if (pr) { pr.checked = !!appSettings.smsDevPromo; pr.disabled = !appSettings.smsDevOn; }
+            if (lim && document.activeElement !== lim) lim.value = String(Number(D.staffLimit) || 50);
+            const rows = smsDevRows || Object.keys({ ...(D.names || {}), ...(D.map || {}), ...(D.store ? { [D.store]: 1 } : {}) }).map(id => ({ id, name: (D.names || {})[id] || '', lastSeen: 0, saved: true }));
+            const staff = smsDevStaffNames();
+            box.innerHTML = rows.map(r => {
+                const cur = r.id === D.store ? '__store' : ((D.map || {})[r.id] || '');
+                const off = smsDevRows && r.id !== D.store && now - r.lastSeen > 60 * 60 * 1000;
+                return `<div class="flex items-center gap-2 p-2 rounded-lg bg-white border ${off ? 'border-amber-300' : 'border-gray-200'}">
+                    <div class="min-w-0 flex-1"><p class="text-[13px] font-bold text-gray-900 truncate">📱 ${escapeHtml(r.name || '이름 없는 폰')}</p><p class="text-xs ${off ? 'text-amber-800 font-bold' : 'text-gray-500'}">${smsDevRows ? escapeHtml(smsDevAgo(r.lastSeen, now)) : '저장된 연결 · [폰 목록 불러오기]로 상태 확인'}</p></div>
+                    <select data-smsdev="${escapeHtml(r.id)}" aria-label="${escapeHtml(r.name || '폰')} 연결" class="h-11 max-w-[42%] px-2 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white">
+                        <option value="">안 씀</option><option value="__store"${cur === '__store' ? ' selected' : ''}>🏪 매장 폰</option>
+                        ${staff.map(n => `<option value="${escapeHtml(n)}"${cur && cur !== '__store' && sameStaff(cur, n) ? ' selected' : ''}>👤 ${escapeHtml(n)}</option>`).join('')}
+                    </select>
+                    <button type="button" data-smsdev-test="${escapeHtml(r.id)}" class="h-11 px-2 rounded-xl border border-sky-300 text-xs font-bold text-sky-800 flex-shrink-0">시험</button>
+                </div>`;
+            }).join('') || '<p class="text-xs text-gray-500">아직 불러온 폰이 없어요.</p>';
+            const note = document.getElementById('smsDevNote');
+            if (note) note.textContent = relayVer() && relayVer() < 12 ? `⚠️ 중계 서버가 v${relayVer()}이에요. v12로 바꿔 배포해야 담당자 폰으로 보낼 수 있어요 (지금은 모두 매장 폰).`
+                : !D.store ? '먼저 매장 폰을 골라 저장해 주세요.'
+                : appSettings.smsDevOn ? `켜짐 · 연결된 직원 ${Object.entries(D.map || {}).filter(([id, n]) => id !== D.store && n).length}명 · 직원 폰 하루 ${Number(D.staffLimit) || 50}건` : '꺼짐 · 지금은 모든 자동문자가 매장 폰으로 나가요.';
+            const save = document.getElementById('smsDevSaveBtn'); if (save) save.disabled = !rows.length;
+        }
+        document.getElementById('smsDevLoadBtn').addEventListener('click', async (ev) => {
+            if (!pushRelayReady()) return customAlert('먼저 설정 → 🔌 연결 → 명함 푸시 · 중계 서버를 연결해주세요.');
+            const btn = ev.currentTarget; btn.disabled = true; btn.textContent = '불러오는 중…';
+            try {
+                const r = await callSms('devices');
+                if (!Array.isArray(r.devices)) throw new Error('중계 서버가 아직 v12가 아니에요. kangcrm-push-worker.js(v12)를 붙여넣고 [배포]해 주세요.');
+                try { localStorage.setItem('relayVersion', '12'); } catch (e) { /* 무시 */ }
+                smsDevRows = r.devices; renderSmsDevBox(Number(r.now) || Date.now());
+                if (r.cfg && r.cfg.store && smsDevCfg().store && r.cfg.store !== smsDevCfg().store) customAlert('⚠️ 중계 서버에 저장된 매장 폰과 강CRM 설정이 달라요. 매장 폰을 다시 골라 [저장]해 주세요.');
+            } catch (e) { customAlert(/알 수 없는 문자 요청/.test(e.message || '') ? '중계 서버가 아직 v12가 아니에요. kangcrm-push-worker.js(v12)를 붙여넣고 [배포]해 주세요.' : `폰 목록을 못 불러왔어요: ${e.message}`); }
+            finally { btn.disabled = false; btn.textContent = '📱 폰 목록 불러오기'; }
+        });
+        document.getElementById('smsDevSaveBtn').addEventListener('click', async (ev) => {
+            const sel = [...document.querySelectorAll('#smsDevList select[data-smsdev]')];
+            const stores = sel.filter(x => x.value === '__store');
+            if (stores.length !== 1) return customAlert(stores.length ? '매장 폰은 하나만 골라주세요.' : '매장 폰을 하나 골라주세요.\n(담당자 폰이 안 될 때 대신 보내는 폰이에요)');
+            const map = {}, names = {};
+            sel.forEach(x => { const id = x.dataset.smsdev, r = (smsDevRows || []).find(d => d.id === id); names[id] = (r && r.name) || (smsDevCfg().names || {})[id] || ''; if (x.value && x.value !== '__store') map[id] = x.value; });
+            const dupe = Object.values(map).find((n, i, a) => a.findIndex(m => sameStaff(m, n)) !== i);
+            if (dupe && !(await customConfirm(`${dupe}님에게 폰이 두 대 연결돼요. 첫 번째 폰으로만 보내요. 그대로 저장할까요?`))) return;
+            const staffLimit = Math.max(1, Math.min(500, parseInt(document.getElementById('smsDevLimit').value, 10) || 50));
+            const store = stores[0].dataset.smsdev, btn = ev.currentTarget; btn.disabled = true;
+            try {
+                await callSms('devcfg', { store, staffLimit });
+                const smsDev = { store, map, names, staffLimit, at: new Date().toISOString() };
+                await saveDoc(doc(db, 'smart_global', 'settings'), { smsDev }, { merge: true });
+                appSettings = { ...appSettings, smsDev }; renderSmsDevBox(); stockToast('👤 문자 폰 연결을 저장했어요');
+                try { localStorage.removeItem('smsAutoSyncAt'); } catch (e) { /* 무시 */ } syncAutoSms({ force: true });
+            } catch (e) { customAlert(/알 수 없는 문자 요청/.test(e.message || '') ? '중계 서버가 아직 v12가 아니에요. kangcrm-push-worker.js(v12)를 붙여넣고 [배포]해 주세요.' : `저장하지 못했어요: ${e.message}`); }
+            finally { btn.disabled = false; }
+        });
+        document.getElementById('smsDevList').addEventListener('click', async (ev) => {
+            const b = ev.target.closest('[data-smsdev-test]'); if (!b) return;
+            const to = prompt('시험 문자를 받을 휴대폰 번호 (본인 번호 추천)', ''); if (to === null) return;
+            if (!smsMobileDigits(to)) return customAlert('휴대폰 번호(010…)를 확인해주세요.');
+            b.disabled = true;
+            try { const r = await callSms('test', { to, dev: b.dataset.smsdevTest, text: `강CRM 담당자 폰 시험이에요 ✅\n${fmtSmsWhen(Date.now())}` }); customAlert(r.dev === b.dataset.smsdevTest ? '✅ 그 폰으로 보냈어요. 1~2분 안에 오면 성공이에요.\n(오는 번호가 그 폰 번호인지 확인해 주세요)' : '⚠️ 중계 서버가 v12가 아니라 폰을 고르지 못하고 보냈어요. v12로 배포해 주세요.'); }
+            catch (e) { customAlert(`❌ ${e.message}`); }
+            finally { b.disabled = false; }
+        });
+        ['smsDevOn', 'smsDevPromo'].forEach(idn => document.getElementById(idn).addEventListener('change', async (ev) => {
+            const el = ev.currentTarget, v = el.checked;
+            if (v && idn === 'smsDevOn' && (!smsDevCfg().store || relayVer() < 12)) { el.checked = false; return customAlert('먼저 중계 서버를 v12로 배포하고, [폰 목록 불러오기] → 매장 폰 · 직원 폰을 골라 [저장]해 주세요.'); }
+            if (v && idn === 'smsDevPromo' && !(await customConfirm('홍보 문자도 직원 개인 번호로 나가요.\n광고 문자가 많이 나가면 그 번호가 스팸 신고를 받을 수 있어요. 켤까요?'))) { el.checked = false; return; }
+            const data = idn === 'smsDevOn' ? { smsDevOn: v, ...(v ? {} : { smsDevPromo: false }) } : { smsDevPromo: v };
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), data, { merge: true }); appSettings = { ...appSettings, ...data }; renderSmsDevBox(); try { localStorage.removeItem('smsAutoSyncAt'); } catch (e) { /* 무시 */ } syncAutoSms({ force: true }); }
+            catch (e) { el.checked = !v; customAlert(`저장하지 못했어요: ${e.message}`); }
+        }));
 
         /* ---------- 🧪 자동 문자·푸시 미리보기 · 나한테 보내보기 (V177) ----------
            · 고객이 받는 것과 똑같이 채워서 보여주고: 💬 문자는 매장 폰 → 내 번호로 바로 · 🔔 푸시는 이 폰으로 (명함견적 → '이 폰으로 알림 받기'를 켠 폰)
@@ -21104,7 +21293,8 @@ familyStr + `\n` +
                         </div>
                     </div>
                     <div data-tg="ar-missing" class="hidden">${arIn('ar-missing-text', '미비서류 내용', '', { ph: '예) 신분증 사본' })}</div>
-                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>
+                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">📝 상담일지 · 특이사항 <span class="font-normal text-gray-500">(고객카드 맨 위에 기록으로 남아요 · 기기를 바꿔도 계속)</span></span><textarea id="ar-snote" rows="3" maxlength="2000" placeholder="예) 자녀가 대신 연락 · 오후에만 통화 가능" class="w-full px-3 py-2 border border-amber-300 rounded-xl text-[15px] text-gray-900 bg-amber-50/40"></textarea></label>
+                    <label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모 <span class="font-normal text-gray-500">(연락 기록 한 줄에 붙어요)</span></span><textarea id="ar-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>
                     ${driveOn ? `<label data-tg="ar-tg-file" class="hidden block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`,
                     arTogs([['ar-tg-acc', '🌸 악세 예약', accOpen], ['ar-missing', '미비서류', false], ...(driveOn ? [['ar-tg-file', '☁️ 서류 첨부', false]] : [])]));
             } else {
@@ -21646,6 +21836,11 @@ familyStr + `\n` +
             const minorOn = document.getElementById('ar-minor') && document.getElementById('ar-minor').checked;
             if (minorOn) Object.assign(upd, { legalName: arVal('ar-legal-name'), legalPhone: arVal('ar-legal-phone'), legalDob: arVal('ar-legal-dob') });
             upd.repManager = isM ? (keepStaff || (keepLatest && cur && cur.repManager ? cur.repManager : arVal('ar-manager'))) : (arVal('hr-manager') || (cur && cur.repManager) || '');
+            {   // 📝 V390 상담일지 (예전 기록에 이어서 · 무선 = 그 기기 · 유선 = 인터넷 · TV)
+                const sn = arVal('ar-snote');
+                if (sn) { const tag = isM ? consultTag(upd.device || [arVal('ar-model'), arVal('ar-color')].filter(Boolean).join(' ') || (arVal('ar-usim') ? `유심 ${arVal('ar-usim')}` : ''), arVal('ar-date')) : consultTag(upd.internetProd || upd.tvProd || '인터넷 · TV', upd.wiredDate || arVal('ar-date'));
+                    upd.consultLog = [...consultLogOf(cur || {}), consultEntry(sn, tag)].slice(-CONSULT_MAX); }
+            }
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
                 Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !/^prom[A-Za-z0-9]+(Date|Memo)$/.test(k) && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
@@ -21656,7 +21851,7 @@ familyStr + `\n` +
             } else {
                 Object.assign(upd, { manager: (isM ? arVal('ar-manager') : arVal('hr-manager')) || getStaffName() || '', regStore: msgStoreName(), regDate: today, regBy: getStaffName() || '', visitDate: today, createdAt: now });
             }
-            upd.memo = [pcStr(cur && cur.memo), note].filter(Boolean).join('\n');
+            upd.contactHistory = appendLine(cur && cur.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 📱 ${note} (담당: ${getStaffName() || '직원'})`);   // 🛠 V391 개통 기록은 일반 메모가 아니라 연락 기록에
             upd.__audit = isM ? '개통등록' : '홈상품 등록';
             const btn = document.getElementById('arSave');
             btn.disabled = true;
@@ -25037,7 +25232,7 @@ familyStr + `\n` +
             if (c) return c.id;
             const t = trashDB.find(x => x.id === d || phoneDigits(x.phone) === d);
             if (t) { await saveDoc(doc(db, 'smart_customers', t.id), { deletedAt: '', deletedBy: '', ...keepRegFields(t), updatedAt: now, __audit: '구매 안내서' }, { merge: true }); return t.id; }
-            await saveDoc(doc(db, 'smart_customers', d), { name: g.name || '', phone: formatPhone(d), salesStatus: '판매성공', salesStatusAt: getTodayStr(), visitDate: getTodayStr(), regStore: msgStoreName(), manager: me, contactManager: me, memo: '📝 구매 안내서로 등록', regDate: getTodayStr(), regBy: me, createdAt: now, updatedAt: now, __audit: '구매 안내서' }, { merge: true });
+            await saveDoc(doc(db, 'smart_customers', d), { name: g.name || '', phone: formatPhone(d), salesStatus: '판매성공', salesStatusAt: getTodayStr(), visitDate: getTodayStr(), regStore: msgStoreName(), manager: me, contactManager: me, contactHistory: `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서로 등록 (담당: ${me || '직원'})`, regDate: getTodayStr(), regBy: me, createdAt: now, updatedAt: now, __audit: '구매 안내서' }, { merge: true });
             return d;
         }
         async function gdFinishSign(btn) {
@@ -27510,7 +27705,7 @@ familyStr + `\n` +
             const locked = ownerLockOn() && !!own && !cur.lockOff && !sameStaff(own, E.who);
             const up = { contactHistory: appendLine(cur.contactHistory, E.entry), updatedAt: new Date().toISOString(), __audit: '통화 결과 (콜매니저)' };
             if (L.direction !== 'missed' && String(cur.lastContactDate || '') <= E.date) { up.lastContactDate = E.date; up.contactManager = E.who; }
-            if (key === 'missed') up.missedCalls = (parseInt(cur.missedCalls, 10) || 0) + 1;
+            if (key === 'missed') { up.missedCalls = (parseInt(cur.missedCalls, 10) || 0) + 1; if (!locked && E.who) up.missBy = E.who; }   // 👤 V389 부재 재연락은 전화 건 직원 폰 · 명함으로
             else if (r) up.missedCalls = 0;
             // 📵 V228 콜매니저 결과 창에서 고른 부재 재연락 (명함 문자) · 그 뒤 통화가 되면 취소
             const reAt = key === 'missed' && !locked && L.missWhen && L.missWhen !== 'none' ? (L.missWhen === 'at' ? missCustomAt(L.missAt, E.d.getTime()) : missAtFor(String(L.missWhen), E.d.getTime())) : 0;   // ⏰ V229 'at' = 직접 고른 시각
@@ -29065,7 +29260,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V388';
+        const APP_VER = 'V391';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29073,6 +29268,15 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V391', d: '2026-11-12', items: [
+                ['🛠 개통등록 · 홈상품 등록 · 개통 취소 · 구매 안내서 등록 기록이 \'일반 상담 메모\'에 쌓이던 것 → 연락 기록(연락 탭)에 한 줄로 · 일반 메모는 직접 적은 내용만 (이미 들어간 줄은 그대로 · 필요하면 지워 주세요)', 'a']
+            ] },
+            { v: 'V390', d: '2026-11-12', items: [
+                ['📝 고객카드 상담일지 · 특이사항: 탭 위에 날짜별로 쌓여요 (누가 · 언제 · 그때 기기) · [＋ 적기] · ✏️로 바로 고치기 · 지우기 · 접기 · 펴기 (접으면 최근 한 줄만) · 개통보고 \'상담일지\' 칸에 적으면 저절로 한 줄 · 기기를 바꿔도 예전 기록은 그대로', 'a']
+            ] },
+            { v: 'V389', d: '2026-11-12', items: [
+                ['👤 자동문자를 담당자 폰 · 담당자 명함으로: 설정 → 📨 매장 폰 문자 앱 → [폰 목록 불러오기] → 매장 폰 · 직원 폰 연결 → 스위치 켜기 · 담당자가 없거나 대표면 매장 폰 · 직원 폰이 1시간 넘게 연결이 없으면 매장 폰으로 대신 · 부재 재연락은 전화 건 직원 폰 · 명함 · 홍보 · 가족 안내는 따로 켜기 (중계 서버 v12 필요)', 'a']
+            ] },
             { v: 'V388', d: '2026-11-11', items: [
                 ['🛠 점검 수정: 개통을 고쳐 저장할 때 이번에 안 생기는 자동 유지 약속이 남던 것 — 알뜰폰을 일반 통신사로 고치면 \'가입 유지\' · 하향 제한이 없어지면 그 약속 · 2차 요금제 변경을 빼면 요금제2 약속 (직접 적은 약속 · 다른 날 개통의 약속은 그대로)', 'a']
             ] },
