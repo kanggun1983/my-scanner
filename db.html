@@ -241,6 +241,10 @@
                                 <button type="button" onclick="document.getElementById('galleryUpload').click()" class="bg-gray-700 hover:bg-gray-800 text-white font-bold py-3 px-4 rounded-lg shadow-md transition flex items-center justify-center gap-2 w-full">
                                     <i class="fa-regular fa-image"></i> 갤러리/스샷 첨부
                                 </button>
+                                <div class="grid grid-cols-2 gap-2 pt-1 border-t border-gray-200 mt-1">
+                                    <button type="button" id="sheetUploadBtn" class="min-h-[48px] px-2 rounded-lg border-2 border-amber-400 bg-amber-50 text-amber-900 text-sm font-bold">📝 기록지 올리기</button>
+                                    <button type="button" id="sheetPrintBtn" class="min-h-[48px] px-2 rounded-lg border border-gray-300 bg-white text-gray-800 text-sm font-bold">🖨 기록지 인쇄</button>
+                                </div>
                             </div>
                         </div>
                         <img id="imagePreview" class="absolute inset-0 w-full h-full object-contain hidden bg-black/5 z-0 cursor-zoom-in" onclick="openImageModal()" />
@@ -253,6 +257,7 @@
                         </div>
                         <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="hidden" />
                         <input type="file" id="galleryUpload" accept="image/*" class="hidden" />
+                        <input type="file" id="sheetUpload" accept="image/*" class="hidden" />
                     </div>
                     <button id="resetBtn" class="mt-4 w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition hidden">다시 찍기</button>
                 </div>
@@ -5625,6 +5630,233 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 await extractInformation(base64.split(',')[1], "image/jpeg");
             });
         }
+        /* ---------- 📝 V392 상담 기록지 — 인쇄 (A4 한 장 · QR) · 사진 올리면 AI가 읽어 스캔 칸 채우기 ----------
+           · QR = 강CRM 주소#sheet=v1-날짜-번호 → 폰 카메라로 찍으면 강CRM 스캔 화면 + [📝 상담 기록지 올리기]
+           · 상담 메모 · 예상 위약금 · 다음 연락 → 상담 메모 칸 → 저장할 때 상담일지로 (일반 메모엔 안 넣음) */
+        const SHEET_CSS = `
+@page{size:A4;margin:0}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans-serif;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;height:296mm;overflow:hidden;padding:10mm 10mm 8mm;position:relative}
+.mk{position:absolute;width:7mm;height:7mm;background:#000}
+.mk.tl{top:4mm;left:4mm}.mk.tr{top:4mm;right:4mm}.mk.bl{bottom:4mm;left:4mm}.mk.br{bottom:4mm;right:4mm}
+.head{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:2mm;margin-bottom:2.5mm}
+.head h1{font-size:19pt;margin:0;letter-spacing:-.5px}
+.head .sub{font-size:10pt;color:#444;margin-top:1mm}
+.meta{display:flex;gap:4mm;align-items:center}
+.meta table{border-collapse:collapse;font-size:9pt}
+.meta td{border:1px solid #111;padding:1mm 2mm;height:7mm}
+.meta td.k{background:#eee;font-weight:700;width:14mm;text-align:center}
+.meta td.v{width:30mm}
+.qr{width:18mm;height:18mm;border:1px solid #111;display:grid;place-items:center;font-size:7pt;color:#666;background:repeating-linear-gradient(45deg,#ddd 0 2px,#fff 2px 5px)}
+.sec{border:1.3px solid #111;border-radius:2mm;margin-bottom:2.2mm;overflow:hidden}
+.sec h2{margin:0;font-size:12pt;background:#111;color:#fff;padding:1mm 3mm;letter-spacing:-.3px}
+.sec .b{padding:1.6mm 3mm}
+.row{display:flex;align-items:center;gap:2.5mm;min-height:7.9mm;flex-wrap:wrap}
+.row+.row{border-top:1px dashed #bbb}
+.lab{font-size:11pt;font-weight:700;width:27mm;flex-shrink:0}
+.lab small{display:block;font-weight:400;font-size:7pt;color:#555}
+.ck{display:inline-flex;align-items:center;gap:1.4mm;font-size:11.5pt;margin-right:3mm;white-space:nowrap}
+.ck i{width:5mm;height:5mm;border:1.4px solid #111;display:inline-block;border-radius:.6mm}
+.line{flex:1;border-bottom:1px solid #111;height:6mm;min-width:20mm}
+.blank{display:inline-block;border-bottom:1.3px solid #111;height:7mm;flex-shrink:0}
+.box i{width:5.6mm;height:7mm;border:1px solid #111;border-left-width:0;display:inline-block}
+.box i:first-child{border-left-width:1px}
+.sep{font-size:12pt;font-weight:700;margin:0 .8mm}
+.unit{font-size:10.5pt;color:#222;margin-left:1mm}
+.memo{height:25mm;border:1.3px solid #111;border-radius:1.5mm;background:repeating-linear-gradient(#fff 0 8.2mm,#cfcfcf 8.2mm calc(8.2mm + 1px))}
+.foot{display:flex;justify-content:space-between;padding:0 6mm;font-size:9pt;color:#444;margin-top:1.6mm}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:2.2mm}
+.two .ck{font-size:10pt;margin-right:1.3mm;gap:.8mm}
+.two .ck i{width:4.4mm;height:4.4mm}
+.two .lab{width:16mm!important;font-size:10pt}
+`;
+        function sheetQrSvg(text) {
+            try { const q = window.kQR(text, 'M'); let d = ''; for (let r = 0; r < q.n; r++) for (let c = 0; c < q.n; c++) if (q.dark(r, c)) d += `M${c} ${r}h1v1h-1z`; return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${q.n} ${q.n}" style="width:17mm;height:17mm;display:block" shape-rendering="crispEdges"><path d="${d}" fill="#000"/></svg>`; }
+            catch (e) { return ''; }
+        }
+        function sheetHtml() {
+            const esc = escapeHtml, t = new Date(), ymd = getTodayStr();
+            const sid = `${ymd.replace(/-/g, '')}-${Math.random().toString(36).slice(2, 6)}`;
+            const day = `${t.getFullYear()} . ${t.getMonth() + 1} . ${t.getDate()}`, staff = getStaffName() || '', store = msgStoreName();
+            const qr = sheetQrSvg(`${location.origin}${location.pathname}#sheet=v1-${sid}`);
+            return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>상담 기록지</title><style>${SHEET_CSS}</style></head><body><div class="page">
+<div class="mk tl"></div><div class="mk tr"></div><div class="mk bl"></div><div class="mk br"></div>
+<div class="head">
+  <div><h1>📝 상담 기록지</h1><div class="sub">${esc(store)} · 체크는 ✔ · 숫자는 또박또박 · 다 쓰면 QR 찍고 올리기</div></div>
+  <div class="meta"><table><tr><td class="k">날짜</td><td class="v">${esc(day)}</td></tr><tr><td class="k">담당</td><td class="v">${esc(staff)}</td></tr></table><div style="text-align:center;margin-right:5mm;margin-top:1mm"><div id="qr">${qr}</div><div style="font-size:6pt;color:#444;margin-top:.3mm">찍으면 바로 올리기</div></div></div>
+</div>
+
+<div class="sec"><h2>① 방문 목적 <span style="font-weight:400;font-size:8pt">(여러 개 가능)</span></h2><div class="b">
+  <div class="row"><span class="ck"><i></i>단순CS</span><span class="ck"><i></i>휴대폰 문의</span><span class="ck"><i></i>변경업무</span><span class="ck"><i></i>요금수납</span><span class="ck"><i></i>인터넷·TV</span><span class="ck"><i></i>기타</span></div>
+  <div class="row"><span class="lab">관심 기종</span><span class="line"></span></div>
+</div></div>
+
+<div class="sec"><h2>② 고객 정보</h2><div class="b">
+  <div class="row"><span class="lab">고객명</span><span class="line" style="max-width:60mm"></span><span class="ck" style="margin-left:6mm"><i></i>마케팅(광고) 문자 거부</span></div>
+  <div class="row"><span class="lab">전화번호</span><span style="font-size:15pt;font-weight:800;letter-spacing:1px">010</span><span class="sep">-</span><span class="blank" style="width:26.0mm"></span><span class="sep">-</span><span class="blank" style="width:26.0mm"></span></div>
+  <div class="row"><span class="lab">생년월일</span><span class="blank" style="width:26.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span></div>
+  <div class="row"><span class="lab">통신사</span><span class="ck"><i></i>SKT</span><span class="ck"><i></i>KT</span><span class="ck"><i></i>LG U+</span><span class="ck"><i></i>알뜰 SK</span><span class="ck"><i></i>알뜰 KT</span><span class="ck"><i></i>알뜰 LG</span></div>
+  <div class="row"><span class="lab">알뜰 브랜드</span><span class="line" style="max-width:70mm"></span><span class="unit">(알뜰폰이면 · 예: 헬로모바일)</span></div>
+  <div class="row"><span class="lab">미성년</span><span class="ck"><i></i>예</span><span class="unit">법정대리인</span><span class="blank" style="width:32mm"></span><span class="unit" style="margin-left:2mm">번호 010 -</span><span class="blank" style="width:40mm"></span></div>
+</div></div>
+
+<div class="sec"><h2>③ 지금 휴대폰</h2><div class="b">
+  <div class="row"><span class="lab">사용 단말기</span><span class="line"></span><span class="lab" style="width:auto">개통일</span><span class="blank" style="width:26.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span></div>
+  <div class="row"><span class="lab">할인 유형</span><span class="ck"><i></i>선택약정</span><span class="ck"><i></i>공통지원금</span><span class="ck"><i></i>해당없음 (만료·무약정)</span><span class="ck"><i></i>모름</span></div>
+  <div class="row"><span class="lab">요금제</span><span class="line"></span><span class="lab" style="width:auto">월 청구</span><span class="blank" style="width:39.0mm"></span><span class="unit">원</span></div>
+  <div class="row"><span class="lab">잔여 할부</span><span class="blank" style="width:45.5mm"></span><span class="unit">원 /</span><span class="blank" style="width:13.0mm"></span><span class="unit">개월</span><span class="ck" style="margin-left:4mm"><i></i>이중할부</span><span class="ck"><i></i>완납</span></div>
+  <div class="row"><span class="lab">평균 사용량 <small>3개월</small></span><span class="unit">데이터</span><span class="blank" style="width:19.5mm"></span><span class="unit">GB</span><span class="ck" style="margin-left:2mm"><i></i>무제한</span><span class="unit" style="margin-left:6mm">통화</span><span class="blank" style="width:26.0mm"></span><span class="unit">분</span></div>
+  <div class="row"><span class="lab">예상 위약금</span><span class="blank" style="width:42mm"></span><span class="unit">원</span><span class="unit" style="margin-left:3mm">(공시 · 선약 반환금 + 남은 할부)</span><span class="ck" style="margin-left:3mm"><i></i>없음</span></div>
+</div></div>
+
+<div class="two">
+<div class="sec" style="margin-bottom:0"><h2>④ 결합 · 복지</h2><div class="b">
+  <div class="row"><span class="lab">가족 결합</span><span class="ck"><i></i>없음</span><span class="ck"><i></i>가족</span><span class="ck"><i></i>인터넷</span><span class="ck"><i></i>모름</span></div>
+  <div class="row"><span class="lab">결합 상품</span><span class="line"></span></div>
+  <div class="row"><span class="lab">결합 가족 <small>관계·번호</small></span><span class="line"></span></div>
+  <div class="row"><span class="lab">복지</span><span class="ck"><i></i>없음</span><span class="ck"><i></i>기초연금</span><span class="ck"><i></i>장애인</span></div>
+  <div class="row"><span class="lab"></span><span class="ck"><i></i>유공자</span><span class="ck"><i></i>기초생활</span><span class="ck"><i></i>차상위</span></div>
+</div></div>
+<div class="sec" style="margin-bottom:0"><h2>⑤ 집 인터넷 · TV</h2><div class="b">
+  <div class="row"><span class="ck"><i></i>없음</span><span class="ck"><i></i>SK</span><span class="ck"><i></i>KT</span><span class="ck"><i></i>LG</span><span class="ck"><i></i>기타</span></div>
+  <div class="row"><span class="lab">상품</span><span class="ck"><i></i>인터넷</span><span class="ck"><i></i>TV</span><span class="unit">속도</span><span class="line" style="min-width:12mm"></span></div>
+  <div class="row"><span class="lab">약정 시작</span><span class="blank" style="width:26.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span></div>
+  <div class="row"><span class="lab">위약금 <small>예상</small></span><span class="blank" style="width:30mm"></span><span class="unit">원</span><span class="ck" style="margin-left:2mm"><i></i>없음</span></div>
+  
+</div></div>
+</div>
+
+<div class="sec" style="margin-top:2.2mm"><h2>⑥ 상담 메모 <span style="font-weight:400;font-size:8pt">(방문 이유 · 고객 성향 · 다음에 할 일 · 특이사항 → 상담일지에 남아요)</span></h2><div class="b"><div class="memo"></div>
+  <div class="row" style="border:0"><span class="lab">다음 연락</span><span class="blank" style="width:13.0mm"></span><span class="sep">/</span><span class="blank" style="width:13.0mm"></span><span class="unit">(월/일)</span><span class="ck" style="margin-left:4mm"><i></i>전화</span><span class="ck"><i></i>방문 약속</span><span class="ck"><i></i>문자</span></div>
+</div></div>
+
+<div class="foot"><span>※ 이 기록지는 상담용이에요. 사진을 올린 뒤에는 매장에서 파기해 주세요.</span><span>강CRM 상담 기록지 v1 · ${esc(sid)}</span></div>
+</div></body></html>`;
+        }
+        let sheetUsed = false;   // 이번 스캔 칸을 기록지로 채웠는지 (저장할 때 상담 메모 → 상담일지)
+        function printSheet() {
+            const html = sheetHtml();
+            const w = window.open('', '_blank');
+            if (w && w.document) { w.document.open(); w.document.write(html + '<script>window.onload=function(){setTimeout(function(){window.print()},300)}<\/script>'); w.document.close(); return; }
+            try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' })); a.download = `상담기록지-${getTodayStr()}.html`; document.body.appendChild(a); a.click(); a.remove(); customAlert('새 창이 막혀서 파일로 받았어요. 열어서 인쇄해 주세요.'); }
+            catch (e) { customAlert('인쇄 창을 열지 못했어요. 팝업 차단을 꺼 주세요.'); }
+        }
+        document.getElementById('sheetPrintBtn').addEventListener('click', printSheet);
+        document.getElementById('sheetUploadBtn').addEventListener('click', () => document.getElementById('sheetUpload').click());
+        document.getElementById('sheetUpload').addEventListener('change', (e) => {
+            const f = e.target.files && e.target.files[0]; if (!f) return;
+            if (!geminiApiKey) { e.target.value = ''; return customAlert('설정 탭에서 [AI 키]를 먼저 넣어주세요.'); }
+            document.getElementById('uploadPrompt').classList.add('hidden');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('resetBtn').classList.remove('hidden');
+            if (!valDateTouched) document.getElementById('val-date').value = getTodayStr();
+            compressImage(f, async (base64) => {
+                e.target.value = '';
+                if (!base64) { document.getElementById('loadingOverlay').style.display = 'none'; document.getElementById('uploadPrompt').classList.remove('hidden'); document.getElementById('resetBtn').classList.add('hidden'); return customAlert('사진을 열 수 없어요. 카메라로 다시 찍어 주세요.'); }
+                document.getElementById('imagePreview').src = base64; document.getElementById('imagePreview').classList.remove('hidden'); document.getElementById('zoomHint').classList.remove('hidden');
+                await extractSheet(base64.split(',')[1]);
+            }, 2400);
+        });
+        const SHEET_SCHEMA = { type: 'OBJECT', properties: {
+            purposes: { type: 'ARRAY', items: { type: 'STRING' } }, interest: { type: 'STRING' }, name: { type: 'STRING' }, phoneRest: { type: 'STRING' }, dob: { type: 'STRING' }, marketingDeny: { type: 'BOOLEAN' },
+            carrier: { type: 'STRING' }, mvno: { type: 'STRING' }, minor: { type: 'BOOLEAN' }, legalName: { type: 'STRING' }, legalPhoneRest: { type: 'STRING' },
+            device: { type: 'STRING' }, activationDate: { type: 'STRING' }, discountType: { type: 'STRING' }, plan: { type: 'STRING' }, fee: { type: 'STRING' },
+            instAmount: { type: 'STRING' }, instMonths: { type: 'STRING' }, instDouble: { type: 'BOOLEAN' }, instPaid: { type: 'BOOLEAN' }, dataGB: { type: 'STRING' }, dataUnlimited: { type: 'BOOLEAN' }, callMin: { type: 'STRING' },
+            penaltyMobile: { type: 'STRING' }, penaltyMobileNone: { type: 'BOOLEAN' },
+            combType: { type: 'STRING' }, combination: { type: 'STRING' }, combFam: { type: 'STRING' }, welfare: { type: 'ARRAY', items: { type: 'STRING' } },
+            wiredCarrier: { type: 'STRING' }, wiredInternet: { type: 'BOOLEAN' }, wiredTv: { type: 'BOOLEAN' }, wiredSpeed: { type: 'STRING' }, wiredStart: { type: 'STRING' }, penaltyWired: { type: 'STRING' }, penaltyWiredNone: { type: 'BOOLEAN' },
+            memo: { type: 'STRING' }, nextDate: { type: 'STRING' }, nextWays: { type: 'ARRAY', items: { type: 'STRING' } }, unsure: { type: 'ARRAY', items: { type: 'STRING' } }
+        } };
+        async function extractSheet(b64) {
+            const prompt = `휴대폰 매장의 '상담 기록지'(A4 인쇄 양식)에 직원이 손으로 쓴 사진이야. 칸별로 읽어서 JSON으로 줘.
+규칙:
+- ☐ 체크 칸은 ✔ · ✓ · V · O · 색칠 · X 표시가 있으면 체크된 것. 빈 칸은 체크 아님.
+- 손글씨는 보이는 그대로. 추측해서 지어내지 말고, 안 보이거나 비어 있으면 빈 문자열(또는 false · 빈 배열).
+- 숫자는 숫자만 (쉼표 · 원 · 개월 · GB · 분 빼고). 날짜는 YYYY-MM-DD (연도를 두 자리로 썼으면 20XX · 19XX 중 맞는 쪽).
+- 전화번호 칸은 '010 - ____ - ____' 이라 뒤 8자리만 phoneRest 로 (숫자만). 법정대리인 번호도 뒤 8자리만 legalPhoneRest.
+항목:
+① 방문 목적 purposes: ['단순CS','휴대폰문의','변경업무','요금수납','인터넷TV','기타'] 중 체크된 것 · interest 관심 기종
+② name 고객명 · phoneRest · dob 생년월일 · marketingDeny '마케팅(광고) 문자 거부' 체크 · carrier: 'SKT','KT','LG U+','알뜰폰(SK)','알뜰폰(KT)','알뜰폰(LG)' 중 체크된 하나 (알뜰 SK → 알뜰폰(SK)) · mvno 알뜰 브랜드 · minor 미성년 '예' 체크 · legalName 법정대리인
+③ device 사용 단말기 · activationDate 개통일 · discountType: '선택약정','공시지원금'(공통지원금),'해당없음' 중 체크된 것 ('모름'이면 빈 문자열) · plan 요금제 · fee 월 청구 · instAmount 잔여 할부 금액 · instMonths 잔여 개월 · instDouble 이중할부 · instPaid 완납 · dataGB · dataUnlimited 무제한 · callMin 통화 분 · penaltyMobile 예상 위약금 · penaltyMobileNone '없음' 체크
+④ combType: 가족 결합 '없음'=none,'가족'=family,'인터넷'=net,'모름'=unk · combination 결합 상품 · combFam 결합 가족 · welfare: ['없음','기초연금','장애인','국가유공자','기초생활','차상위'] 중 체크된 것 (유공자 = 국가유공자)
+⑤ wiredCarrier: '없음','SK','KT','LG','기타' 중 체크 · wiredInternet · wiredTv · wiredSpeed 속도 · wiredStart 약정 시작 YYYY-MM · penaltyWired 위약금(예상) · penaltyWiredNone '없음' 체크
+⑥ memo 상담 메모 (줄바꿈 유지) · nextDate 다음 연락 MM-DD · nextWays ['전화','방문 약속','문자'] 중 체크
+unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들 (위 항목 키 그대로).`;
+            const loadingTextEl = document.getElementById('loadingText'), loadingDefault = loadingTextEl.textContent;
+            loadingTextEl.textContent = '📝 기록지 읽는 중…';
+            try {
+                const { text } = await callGemini({ contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: b64 } }] }], generationConfig: { responseMimeType: 'application/json', responseSchema: SHEET_SCHEMA, temperature: 0 } }, { timeoutMs: 90000, onRetry: (l) => { loadingTextEl.textContent = `AI가 바빠서 ${l}(으)로 다시 읽는 중…`; } });
+                let d; try { d = JSON.parse(text); } catch (e) { throw aiError('AI가 기록지를 제대로 읽지 못했어요.\n종이 전체가 반듯하게 나오게 다시 찍어 주세요.', 'PARSE'); }
+                applySheet(d);
+            } catch (error) {
+                console.error('기록지 읽기 실패:', error);
+                customAlert(`🚨 기록지 읽기 실패\n\n${error.reason || error.message || '다시 해 주세요.'}`);
+            } finally { loadingTextEl.textContent = loadingDefault; document.getElementById('loadingOverlay').style.display = 'none'; }
+        }
+        function applySheet(d) {
+            const set = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null && String(v).trim() !== '') { el.value = String(v).trim(); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+            const num = (v) => String(v || '').replace(/[^0-9]/g, ''), won = (v) => num(v) ? Number(num(v)).toLocaleString('ko-KR') : '';
+            const okDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : '';
+            const extra = [];
+            // ① 방문 목적
+            (Array.isArray(d.purposes) ? d.purposes : []).forEach(p => { const v = String(p).replace(/\s/g, ''); if (SCAN_PURPOSES.includes(v)) scanPicked.add(v); else if (v) extra.push(`방문 목적: ${v === '인터넷TV' ? '인터넷 · TV' : v}`); });
+            renderScanPurposes();
+            set('val-interest', d.interest);
+            // ② 고객
+            set('val-name', d.name);
+            { const r = num(d.phoneRest); if (r.length === 8) set('val-phone', formatPhone('010' + r)); else if (r.length >= 10) set('val-phone', formatPhone(r)); }
+            if (okDate(d.dob)) set('val-dob', formatDob(d.dob));
+            if (d.marketingDeny) document.getElementById('val-marketing-deny').checked = true;
+            if (['SKT', 'KT', 'LG U+', '알뜰폰(SK)', '알뜰폰(KT)', '알뜰폰(LG)'].includes(d.carrier)) { const sel = document.getElementById('val-carrier'); sel.value = d.carrier; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+            set('val-mvno', d.mvno);
+            if (d.minor || d.legalName) { set('val-legal-name', d.legalName); const r = num(d.legalPhoneRest); if (r.length === 8) set('val-legal-phone', formatPhone('010' + r)); }
+            // ③ 지금 휴대폰
+            set('val-device', d.device);
+            if (okDate(d.activationDate)) { set('val-activation', d.activationDate); const c = getDdayAndMonths(d.activationDate); document.getElementById('val-dday').textContent = `D+${c.days}일`; }
+            if (['선택약정', '공시지원금', '해당없음'].includes(d.discountType)) restoreDiscountTypeUI(d.discountType);
+            set('val-plan', d.plan);
+            if (won(d.fee)) set('val-fee', `${won(d.fee)}원`);
+            if (d.instPaid) set('val-installment', '완납'); else if (won(d.instAmount)) set('val-installment', `${won(d.instAmount)}원${num(d.instMonths) ? ` / ${num(d.instMonths)}개월` : ''}`);
+            if (d.instDouble) { setScanInst2Open(true); extra.push('이중할부 있음 (예전 폰 잔여 할부 확인 필요)'); }
+            { const dt = d.dataUnlimited ? '무제한' : (num(d.dataGB) ? `${num(d.dataGB)}GB` : ''), cl = num(d.callMin) ? `${num(d.callMin)}분` : ''; if (dt || cl) set('val-usage', [dt, cl].filter(Boolean).join(' / ')); }
+            // ④ 결합 · 복지
+            if (['none', 'family', 'net', 'unk'].includes(d.combType)) document.getElementById('val-comb-type').value = d.combType;
+            set('val-combination', d.combination); set('val-comb-fam', d.combFam);
+            { const W = { 기초연금: 'pension', 장애인: 'disabled', 국가유공자: 'merit', 유공자: 'merit', 기초생활: 'basic', 차상위: 'near' }; const ws = (Array.isArray(d.welfare) ? d.welfare : []).map(x => W[String(x).replace(/\s/g, '')]).filter(Boolean); if (ws.length) document.getElementById('val-wel-type').value = ws[0]; if (ws.length > 1) extra.push(`복지 여러 개 체크: ${d.welfare.join(', ')}`); }
+            // ⑤ 집 인터넷 · TV
+            if (d.wiredCarrier && d.wiredCarrier !== '없음') {
+                const car = d.wiredCarrier === '기타' ? '' : d.wiredCarrier;
+                if (d.wiredInternet || d.wiredSpeed) set('val-internet', [car, d.wiredSpeed, '인터넷'].filter(Boolean).join(' '));
+                if (d.wiredTv) set('val-tv', [car, 'TV'].filter(Boolean).join(' '));
+                if (/^\d{4}-\d{2}$/.test(String(d.wiredStart || ''))) { set('val-wireddate', `${d.wiredStart}-01`); document.getElementById('val-wired-dday').textContent = getWiredRemainingDays(`${d.wiredStart}-01`); }
+            }
+            // 위약금 · 다음 연락 · 메모 → 상담 메모 칸 (저장하면 상담일지)
+            if (d.penaltyMobileNone) extra.push('예상 위약금(휴대폰): 없음'); else if (won(d.penaltyMobile)) extra.push(`예상 위약금(휴대폰): ${won(d.penaltyMobile)}원`);
+            if (d.penaltyWiredNone) extra.push('예상 위약금(인터넷·TV): 없음'); else if (won(d.penaltyWired)) extra.push(`예상 위약금(인터넷·TV): ${won(d.penaltyWired)}원`);
+            if (/^\d{1,2}-\d{1,2}$/.test(String(d.nextDate || ''))) { const [m, dd] = d.nextDate.split('-'); extra.push(`다음 연락: ${Number(m)}/${Number(dd)}${(d.nextWays || []).length ? ' · ' + d.nextWays.join(' · ') : ''}`); }
+            const memo = [String(d.memo || '').trim(), ...extra].filter(Boolean).join('\n');
+            if (memo) { const mp = document.getElementById('memoPad'); mp.value = [mp.value.trim(), memo].filter(Boolean).join('\n'); }
+            sheetUsed = true;
+            scSync();
+            setTimeout(() => {
+                markScanBlanks();
+                const U = { name: 'val-name', phoneRest: 'val-phone', dob: 'val-dob', carrier: 'val-carrier', mvno: 'val-mvno', device: 'val-device', activationDate: 'val-activation', plan: 'val-plan', fee: 'val-fee', instAmount: 'val-installment', instMonths: 'val-installment', interest: 'val-interest', combination: 'val-combination', combFam: 'val-comb-fam', legalName: 'val-legal-name', wiredSpeed: 'val-internet', wiredStart: 'val-wireddate', memo: 'memoPad' };
+                const uns = [...new Set((Array.isArray(d.unsure) ? d.unsure : []).map(k => U[k]).filter(Boolean))];
+                uns.forEach(id => { const el = document.getElementById(id); if (el) el.classList.add('scan-blank'); });
+                const hint = document.getElementById('scanBlankHint');
+                if (hint) { hint.textContent = `📝 기록지에서 읽었어요 · 사진과 비교해서 확인해 주세요${uns.length ? ` · 노란 칸 ${uns.length}개는 글씨가 애매했어요` : ''} · 상담 메모는 저장하면 상담일지에 남아요`; hint.classList.remove('hidden'); }
+            }, 0);
+            document.getElementById('saveDbBtn').classList.remove('hidden');
+            lastScannerLookupPhone = ''; checkScannerExistingCustomer();
+        }
+        // QR로 열었으면 (…#sheet=v1-…) 스캔 화면 + 올리기 안내
+        try {
+            if (String(location.hash).startsWith('#sheet=')) {
+                history.replaceState(history.state, '', location.pathname + location.search);
+                setTimeout(() => { try { switchTab('scanner'); } catch (e) { /* 준비 전 */ } customConfirm('📝 상담 기록지를 올릴까요?\n종이 전체가 반듯하게 나오게 찍어 주세요.').then(ok => { if (ok) document.getElementById('sheetUpload').click(); }); }, 1500);
+            }
+        } catch (e) { /* 무시 */ }
         // 🌙 앱을 밤새 켜둔 뒤 다음 날 다시 열면: 비어 있는 스캔 칸의 날짜와 대시보드 '오늘' 숫자를 오늘 기준으로
         let lastSeenDay = getTodayStr();
         document.addEventListener('visibilitychange', () => {
@@ -6103,7 +6335,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             document.getElementById('val-carrier').value = '미정';
             { const mv = document.getElementById('val-mvno'); if (mv) mv.value = ''; const dl = document.getElementById('scMvnoList'); if (dl) dl.innerHTML = ''; }
             document.getElementById('val-reg-store').value = msgStoreName(); regStoreAuto = true;
-            clearScanBlanks();
+            clearScanBlanks(); sheetUsed = false;
             scanPicked.clear(); renderScanPurposes();
             
             if(document.getElementById('val-marketing-deny')) document.getElementById('val-marketing-deny').checked = false;
@@ -6448,13 +6680,18 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                 updatedAt: new Date().toISOString(), __audit: '스캔 저장'
             };
 
+            if (sheetUsed) {   // 📝 V392 상담 기록지로 채웠으면 상담 메모 → 상담일지 (일반 메모는 그대로)
+                const t = document.getElementById('memoPad').value.trim();
+                savedData.memo = existingCustomer ? (existingCustomer.memo || '') : '';
+                if (t) savedData.consultLog = [...consultLogOf(existingCustomer || {}), { ...consultEntry(t, consultTag(document.getElementById('val-device').value, document.getElementById('val-activation').value)), src: '상담 기록지' }].slice(-CONSULT_MAX);
+            }
             try {
                 if (existingCustomer) Object.assign(savedData, keepRegFields(existingCustomer));
                 else { savedData.regDate = getTodayStr(); savedData.regBy = savedData.manager || getStaffName(); }
                 await saveDoc(doc(db, 'smart_customers', docId), savedData, { merge: true });
                 customAlert((phoneDigits ? "저장 성공!" : "저장 성공!\n전화번호가 없어 임시번호로 저장됐어요. 고객 상세카드에서 번호를 입력해주세요.") + (restoringFromTrash ? "\n(휴지통에 있던 고객이라 함께 복구했어요)" : "")); 
                 document.getElementById('saveDbBtn').classList.add('hidden'); 
-                clearScanBlanks();
+                clearScanBlanks(); sheetUsed = false;
                 scanPicked.clear(); renderScanPurposes();
                 const famTxt = document.getElementById('val-comb-fam').value.trim(), famNo = (famTxt.match(/01\d[-\s]?\d{3,4}[-\s]?\d{4}/) || [])[0];
                 switchTab('db');
@@ -29260,7 +29497,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V391';
+        const APP_VER = 'V392';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29268,6 +29505,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V392', d: '2026-11-12', items: [
+                ['📝 상담 기록지: 스캔 화면 [🖨 상담 기록지 인쇄] (A4 한 장 · 날짜 · 담당자 · QR) → 상담하면서 손으로 쓰고 → [📝 상담 기록지 올리기] 또는 QR을 폰 카메라로 → AI가 체크 · 손글씨를 읽어 칸을 채워요 (애매한 칸은 노란색) · 상담 메모 · 예상 위약금 · 다음 연락은 저장하면 상담일지에', 'a']
+            ] },
             { v: 'V391', d: '2026-11-12', items: [
                 ['🛠 개통등록 · 홈상품 등록 · 개통 취소 · 구매 안내서 등록 기록이 \'일반 상담 메모\'에 쌓이던 것 → 연락 기록(연락 탭)에 한 줄로 · 일반 메모는 직접 적은 내용만 (이미 들어간 줄은 그대로 · 필요하면 지워 주세요)', 'a']
             ] },
