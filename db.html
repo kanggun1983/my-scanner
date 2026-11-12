@@ -26749,7 +26749,7 @@ familyStr + `\n` +
             const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
                 kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('추가할인', won(c.etcDiscount)), kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')), kv('할부원금', won(c.loanPrincipal)),
                 kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : (c.repUsedPhone || ((Array.isArray(c.usedOnly) && c.usedOnly.length) ? `${usedPhoneText(c.usedOnly[c.usedOnly.length - 1])} (개통 없음 · ${String(c.usedOnly[c.usedOnly.length - 1].date || '').slice(5).replace('-', '/')})` : ''))), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
-                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}${canSeeSettle() && it.amount ? ` (${arWon(it.amount)}원)` : ''}`)) : [])].join('');
+                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name && !(canSeeSettle() && (it.kind === '그레이드' || it.kind === '기타'))).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}`)) : [])].join('');   // 🧾 V397 정책 금액 · 그레이드 · 기타 정책 줄은 정산정보 안에서
             if (rows) hRows = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
             const acts = actsOf(c), money = canSeeSettle();
             const lastM = acts.filter(a => !a.canceled && a.kind !== '유선').pop();
@@ -26758,7 +26758,21 @@ familyStr + `\n` +
                 if (lastM.settle) {
                     const S = lastM.settle, sv = actSales(lastM);
                     hMoney = `<div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-amber-800">정산정보 · ${ymd2(lastM.date)} 개통${isSuperAdmin && appSettings.hideSettleFromStaff ? ' · 🔒 직원에게 숨김' : ''}</p>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="text-xs font-bold text-amber-800 underline underline-offset-2">고치기</button>` : ''}</div>
-                        ${[['기본정책', S.기본정책], ['추가정책', S.추가정책], ['정산금액', S.정산금액], ['판매마진', S.판매마진], ['실판매마진', S.실판매마진], ...(Number(S.중고폰) ? [['📱 중고폰 판매 (세금 X)', S.중고폰]] : []), ['💰 총매출', sv.gross], ['실마진 (세금 제외)', sv.real]].filter(([, v]) => v || v === 0).map(([l, v]) => `<div class="flex justify-between text-[13px] py-0.5"><span class="text-amber-900/70">${l}</span><b class="text-amber-950">${arWon(v)}원</b></div>`).join('')}</div>`;
+                        ${(() => {   // 🧾 V397 정산금액이 어떻게 나왔는지 한눈에: 기본정책 + 정책 줄(그레이드 · 부가 · 기타…) + 추가정책 + 구두추가 − 유통망지원금 − 수수료 = 정산금액
+                            const PI = (Array.isArray(lastM.policyItems) ? lastM.policyItems : (Array.isArray(c.policyItems) ? c.policyItems : [])).filter(it => it && (Number(it.amount) || it.kind === '그레이드' || it.kind === '기타'));   // 부가 · 보험 · 카드는 정책 금액이 있을 때만 (가입 내역은 위 개통 상세에)
+                            const ln = (l, v, o = {}) => `<div class="flex justify-between gap-2 text-[13px] py-0.5 ${o.sub ? 'pl-2' : ''}"><span class="min-w-0 truncate ${o.warn ? 'text-amber-700 font-bold' : 'text-amber-900/70'}">${l}</span><b class="flex-shrink-0 ${o.warn ? 'text-amber-700' : (o.neg ? 'text-red-700' : 'text-amber-950')}">${o.txt || `${o.neg ? '−' : (o.plus ? '+' : '')}${arWon(Math.abs(Number(v) || 0))}원`}</b></div>`;
+                            const out = [ln('기본정책', S.기본정책)];
+                            PI.forEach(it => { const a = Number(it.amount) || 0, nm = `${it.kind === '그레이드' ? '⭐' : (it.kind === '부가' ? '📦' : (it.kind === '보험' ? '🛡' : (it.kind === '제휴카드' ? '💳' : '🏷')))} ${escapeHtml(it.kind === it.name || !it.name ? it.kind : `${it.kind} · ${it.name}`)}`; out.push(a ? ln(nm, a, { sub: true, plus: true }) : ln(nm, 0, { sub: true, warn: true, txt: '금액 없음' })); });
+                            if (Number(S.추가정책)) out.push(ln('추가정책', S.추가정책, { plus: true }));
+                            if (Number(S.구두추가1)) out.push(ln('구두추가 1', S.구두추가1, { plus: true }));
+                            if (Number(S.구두추가2)) out.push(ln('구두추가 2', S.구두추가2, { plus: true }));
+                            if (Number(S.유통망지원금)) out.push(ln('유통망지원금', S.유통망지원금, { neg: true }));
+                            if (Number(S.수수료)) out.push(ln('수수료', S.수수료, { neg: true }));
+                            out.push(`<div class="border-t border-amber-300 mt-1 pt-1">${ln('<b class="text-amber-950">= 정산금액</b>', S.정산금액)}</div>`);
+                            if (Number(S.할인금액)) out.push(ln('고객 할인금액', S.할인금액, { neg: true }));
+                            [['판매마진', S.판매마진], ['실판매마진', S.실판매마진], ...(Number(S.중고폰) ? [['📱 중고폰 판매 (세금 X)', S.중고폰]] : []), ['💰 총매출', sv.gross], ['실마진 (세금 제외)', sv.real]].filter(([, v]) => v || v === 0).forEach(([l, v]) => out.push(ln(l, v)));
+                            return out.join('');
+                        })()}</div>`;
                 } else hMoney = `<div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-center gap-2"><span class="flex-1 text-[13px] font-bold text-amber-900">💰 ${ymd2(lastM.date)} 개통 정산 미입력<span class="block text-[11px] font-medium text-amber-800">넣어야 매출 목표에 들어가요</span></span>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold">정산 입력</button>` : ''}</div>`;
             }
             if (acts.length) {
@@ -29607,7 +29621,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V396';
+        const APP_VER = 'V397';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29615,6 +29629,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V397', d: '2026-11-12', items: [
+                ['🧾 고객카드 정산정보에 정산금액이 어떻게 나왔는지: 기본정책 + 그레이드 · 기타 정책 줄(금액 없으면 주황 \'금액 없음\') + 추가정책 · 구두추가 − 유통망지원금 − 수수료 = 정산금액 · 그레이드 · 기타 줄은 개통 상세에서 정산정보 안으로', 'a']
+            ] },
             { v: 'V396', d: '2026-11-12', items: [
                 ['💸 매장대납은 송금과 다르게 (계좌 안 받음): 무엇을(통신사 + 위약금 · 할부금 · 요금 · 유선) · 어떻게(💳 매장 카드 + 카드명 / 💵 현금 수납) · 날짜 · 금액 여러 번 나눠서 (송금·대납 목록에서 날짜마다 따로 처리 · 다 처리하면 약속 끝 · 고객 수정 화면에서도 날짜 추가 · 고치기) · 💡 위약금은 이동한 통신사에서 선납 · 할부금은 기존 통신사에 수납 · 안내서 · 고객카드 약속 · 송금·대납 목록 모두 (고객송금은 그대로 계좌)', 'a']
             ] },
