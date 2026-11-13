@@ -35,6 +35,14 @@
         .dz-up b { display: block; font-size: 14px; font-weight: 700; color: #18181b; } .dz-up small { display: block; font-size: 12.5px; color: #71717a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .dz-btn { height: 48px; border-radius: 12px; font-weight: 700; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 6px; }
         .dz-btn.p { background: #18181b; color: #fff; } .dz-btn.s { background: #fff; border: 1px solid #e4e4e7; color: #18181b; } .dz-btn.o { background: #fff; border: 1px solid #fdba74; color: #c2410c; }
+        .dz-bd.green { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+        .dz-row { display: flex; gap: 12px; align-items: flex-start; background: #fff; border: 1px solid #e4e4e7; border-radius: 16px; padding: 14px 14px 12px; }
+        .dz-row.dz-off { background: #fafafa; }
+        .dz-row .dz-av { width: 42px; height: 42px; font-size: 16px; }
+        .dz-row .dz-bd { font-size: 11.5px; padding: 1px 8px; }
+        .dz-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .dz-ic { min-width: 40px; height: 40px; padding: 0 8px; border-radius: 11px; border: 1px solid #e4e4e7; background: #fff; color: #18181b; font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+        .dz-ic.p { background: #18181b; border-color: #18181b; color: #fff; } .dz-ic.o { border-color: #fdba74; color: #c2410c; font-size: 13px; }
         .dz-note { background: #fff !important; border-color: #e4e4e7 !important; }
         .dz-note .text-amber-900, .dz-note .text-amber-800 { color: #18181b !important; } .dz-note .text-amber-900\/80 { color: #71717a !important; } .dz-note .border-amber-200\/70 { border-color: #f4f4f5 !important; } .dz-note .border-amber-200 { border-color: #e4e4e7 !important; }
         .dz-note .border-amber-300 { border-color: #d4d4d8 !important; }
@@ -9681,31 +9689,23 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 + (missed > 0 ? `<span class="font-bold text-amber-700">부재 ${missed}회</span>` : '');
 
             const { facts, warn } = getCardFacts(c);
-            const chipCls = 'text-[13px] leading-5 px-2 py-0.5 rounded-lg border max-w-full truncate';
             // 🔒 담당자 잠금 · ⚠️ 다른 직원이 잡은 약속 (두 사람이 같은 고객에게 겹치지 않게)
             const meKey = managerKey(getStaffName());
             const lockedForMe = isLockedFor(c), ownerName = ownerOf(c);
             const otherBy = [...new Set(tasks.filter(t => t.by && !t.auto && !sameStaff(t.by, meKey)).map(t => managerKey(t.by)))];   // 🤖 자동 약속은 경고 안 함
             const guardHtml = (lockedForMe || otherBy.length) ? `<div class="flex flex-wrap gap-1.5">${lockedForMe ? `<span class="text-xs font-bold text-amber-900 bg-amber-50 border border-amber-300 rounded-md px-1.5 py-0.5"><i class="fa-solid fa-lock"></i> ${escapeHtml(ownerName)} 담당 · 보기·연락만</span>` : ''}${otherBy.length ? `<span class="text-xs font-bold text-orange-800 bg-orange-50 border border-orange-300 rounded-md px-1.5 py-0.5">⚠️ ${escapeHtml(otherBy.join('·'))}님이 잡은 약속 ${tasks.filter(t => t.by && !sameStaff(t.by, meKey)).length}건</span>` : ''}</div>` : '';
-            const factsHtml = facts.map(f => `<span class="${chipCls} ${refused ? 'bg-gray-100 border-transparent text-gray-600' : 'bg-gray-50 border-gray-100 text-gray-700'}">${escapeHtml(f)}</span>`).join('')
-                + (warn ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold">${escapeHtml(warn)}</span>` : '')
-                + (() => { const n = docCountOf(c); return n ? `<span class="${chipCls} bg-green-50 border-green-200 text-green-800 font-bold"><i class="fa-solid fa-paperclip"></i> 서류 ${n}</span>` : (c.salesStatus === '판매성공' ? `<span class="${chipCls} bg-amber-50 border-amber-200 text-amber-800 font-bold"><i class="fa-solid fa-paperclip"></i> 서류 없음</span>` : ''); })();
 
             let taskHtml = '';
-            if (top) {
-                const tone = TASK_TONES[top.tone];
-                taskHtml = `<div class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl ${tone.box}">
-                    <span class="flex-shrink-0 text-xs font-bold text-white ${tone.badge} rounded-md px-2 py-0.5">${escapeHtml(top.badge)}</span>
-                    <span class="flex-1 min-w-0 flex flex-col">
-                        <span class="text-sm font-bold ${tone.title} truncate">${escapeHtml(top.title)}</span>
-                        ${top.sub ? `<span class="text-[13px] ${tone.sub} truncate">${escapeHtml(top.sub)}</span>` : ''}
-                        ${top.by ? `<span class="text-[12px] font-bold ${!top.auto && !sameStaff(top.by, meKey) ? 'text-orange-700' : tone.sub} truncate">${!top.auto && !sameStaff(top.by, meKey) ? '⚠️ ' : ''}${escapeHtml(managerKey(top.by))} ${top.auto ? '· 🤖 자동' : '등록'}</span>` : ''}
-                    </span>
-                    ${tasks.length > 1 ? `<span class="flex-shrink-0 text-xs font-medium ${tone.sub}">외 ${tasks.length - 1}건</span>` : ''}
-                </div>`;
+            if (top) {   // 🎨 V399 새 모양: 색 배지 + 한 줄 (지연 빨강 · 오늘 주황 · 앞으로 파랑)
+                const tb = { red: 'red', orange: 'amber', indigo: 'blue' }[top.tone] || '';
+                const other = top.by && !top.auto && !sameStaff(top.by, meKey);
+                taskHtml = `<div class="flex items-center gap-2 min-w-0">
+                    <span class="dz-bd ${tb} flex-shrink-0">${escapeHtml(top.badge)}</span>
+                    <span class="flex-1 min-w-0 truncate text-[13.5px] text-gray-600"><b class="font-bold text-gray-900">${escapeHtml(top.title)}</b>${top.sub ? ` · ${escapeHtml(top.sub)}` : ''}</span>
+                    ${tasks.length > 1 ? `<span class="flex-shrink-0 text-xs font-bold text-gray-400">외 ${tasks.length - 1}</span>` : ''}
+                </div>${top.by ? `<span class="text-[12px] font-bold ${other ? 'text-orange-700' : 'text-gray-500'} truncate">${other ? '⚠️ ' : ''}${escapeHtml(managerKey(top.by))} ${top.auto ? '· 🤖 자동' : '등록'}</span>` : ''}`;
             }
 
-            const callCls = refused ? 'border border-gray-300 bg-white text-gray-700' : 'bg-green-700 hover:bg-green-800 text-white';
             if (currentFilter === 'today_act' || currentFilter === 'yday_act') {
                 const r = actCheckSummary(c);
                 const chipsHtml = [...r.miss.map(i => `<span class="text-xs font-bold text-red-800 bg-red-50 border border-red-200 rounded-md px-1.5 py-0.5">빠짐 · ${escapeHtml(i.label)}</span>`),
@@ -9714,30 +9714,40 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     ? `<button type="button" data-card-action="profile" data-id="${escapeHtml(c.id)}" class="text-left px-3 py-2.5 rounded-xl bg-red-50/60 border border-red-200"><p class="text-[13px] font-bold text-red-800 mb-1">🔍 개통 점검 · 빠짐 ${r.miss.length} · 확인 ${r.check.length} <span class="font-medium text-red-700">(눌러서 보기)</span></p><div class="flex flex-wrap gap-1">${chipsHtml}</div></button>`
                     : `<div class="px-3 py-2.5 rounded-xl bg-green-50 border border-green-200 text-[13px] font-bold text-green-800">✅ 개통 점검 완료 (${r.ok}개 항목)</div>`;
             }
-            return `<article class="rounded-2xl border p-3.5 pb-3 flex flex-col gap-2.5 ${refused ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200'}">
-                <div class="flex items-start justify-between gap-2">
-                    <button type="button" data-card-action="profile" data-id="${idAttr}" class="min-w-0 text-left flex flex-col gap-0.5 rounded-lg -m-1 p-1 active:bg-gray-100">
-                        <span class="flex items-center gap-1.5 flex-wrap">
-                            <span class="text-[17px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(c.name || '이름 없음')}</span>
-                            ${carrier ? `<span class="text-xs font-medium text-gray-700 bg-gray-100 rounded-md px-1.5 py-0.5">${escapeHtml(carrier)}</span>` : ''}
-                            ${isMinor ? `<span class="text-xs font-bold text-orange-800 border border-orange-200 rounded-md px-1.5">미성년</span>` : ''}
-                            ${isSenior ? `<span class="text-xs font-bold text-teal-800 border border-teal-200 rounded-md px-1.5">시니어</span>` : ''}
-                            ${c.marketingDeny ? `<span class="text-xs font-bold text-red-700 border border-red-200 rounded-md px-1.5">마케팅 거부</span>` : ''}
-                            ${c.bizCardInstalled === true ? (isCardOff(c) ? `<span class="text-xs font-bold text-gray-600 bg-gray-50 border border-gray-300 rounded-md px-1.5 py-0.5 whitespace-nowrap" title="명함은 설치했는데 알림이 꺼졌거나 명함을 지웠어요"><i class="fa-solid fa-bell-slash"></i> 명함 알림 꺼짐${c.pushOffAt ? ` ${escapeHtml(String(c.pushOffAt).slice(5).replace('-', '/'))}` : ''}</span>` : `<span class="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-md px-1.5 py-0.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>`) : ''}
-                        </span>
-                        <span class="text-[15px] font-medium ${refused ? 'text-gray-500' : 'text-gray-700'} tabular-nums">${hasPhone ? escapeHtml(formatPhone(c.phone)) : '번호 없음'}</span>
-                        ${meta ? `<span class="flex flex-wrap gap-x-2.5 text-xs text-gray-500">${meta}</span>` : ''}
-                    </button>
-                    <span class="flex-shrink-0 text-xs font-bold rounded-full px-2.5 py-1 ${st.cls}">${escapeHtml(st.text)}</span>
-                </div>
-                ${guardHtml}
-                ${factsHtml ? `<div class="flex flex-wrap gap-1.5">${factsHtml}</div>` : ''}
-                ${taskHtml}
-                <div class="flex gap-1.5">
-                    <button type="button" data-card-action="tel" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} class="flex-1 min-w-0 h-11 rounded-xl text-[14px] font-bold flex items-center justify-center gap-1 disabled:opacity-40 ${callCls}"><i class="fa-solid fa-phone max-[359px]:hidden"></i>전화</button>
-                    <button type="button" data-card-action="smsmenu" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} aria-haspopup="menu" class="flex-1 min-w-0 h-11 rounded-xl border border-gray-300 bg-white text-[14px] font-bold flex items-center justify-center gap-1 disabled:opacity-40 ${refused ? 'text-gray-700' : 'text-indigo-700'}"><i class="fa-solid fa-comment-sms max-[359px]:hidden"></i>문자 <i class="fa-solid fa-caret-down text-[11px]"></i></button>
-                    ${c.legalPhone ? `<button type="button" data-card-action="legal" data-id="${idAttr}" aria-label="법정대리인에게 연락" class="flex-shrink-0 w-[52px] h-11 rounded-xl border border-orange-200 bg-orange-50 text-orange-800 text-[14px] font-bold">법대</button>` : ''}
-                    <button type="button" data-card-action="profile" data-id="${idAttr}" aria-label="${escapeHtml(c.name || '고객')} 고객 정보 열기" class="flex-shrink-0 w-11 h-11 rounded-xl border border-gray-300 bg-white text-gray-700 flex items-center justify-center"><i class="fa-solid fa-ellipsis"></i></button>
+            const stDz = { 판매성공: 'green', 고객거부: '', 방문약속: 'purple' }[c.salesStatus] ?? (/가망/.test(c.salesStatus || '') ? 'blue' : '');
+            const line2 = [hasPhone ? formatPhone(c.phone) : '번호 없음', ...facts.slice(0, 3)].map(escapeHtml).join(' · ');
+            const tagsHtml = (warn ? `<span class="dz-bd amber">${escapeHtml(warn)}</span>` : '')
+                + (() => { const n = docCountOf(c); return n ? `<span class="dz-bd green"><i class="fa-solid fa-paperclip"></i> 서류 ${n}</span>` : (c.salesStatus === '판매성공' ? '<span class="dz-bd amber"><i class="fa-solid fa-paperclip"></i> 서류 없음</span>' : ''); })()
+                + facts.slice(3).map(f => `<span class="dz-bd">${escapeHtml(f)}</span>`).join('');
+            const nm = String(c.name || '').trim();
+            return `<article class="dz-row ${refused ? 'dz-off' : ''}">   <!-- 🎨 V399 고객 목록 새 모양 (동그란 이름칸 · 한 줄 정보 · 색 배지 할 일 · 작은 전화 · 문자) -->
+                <button type="button" data-card-action="profile" data-id="${idAttr}" aria-label="${escapeHtml(nm || '고객')} 고객 정보 열기" class="dz-av">${escapeHtml(nm ? nm.charAt(0) : '?')}</button>
+                <div class="min-w-0 flex-1 flex flex-col gap-1.5">
+                    <div class="flex items-start gap-2">
+                        <button type="button" data-card-action="profile" data-id="${idAttr}" class="min-w-0 flex-1 text-left flex flex-col gap-0.5 rounded-lg -m-1 p-1 active:bg-gray-100">
+                            <span class="flex items-center gap-1.5 flex-wrap">
+                                <span class="text-[16.5px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(nm || '이름 없음')}</span>
+                                ${carrier ? `<span class="dz-bd">${escapeHtml(carrier)}</span>` : ''}
+                                ${isMinor ? `<span class="text-xs font-bold text-orange-800 border border-orange-200 rounded-md px-1.5">미성년</span>` : ''}
+                                ${isSenior ? `<span class="text-xs font-bold text-teal-800 border border-teal-200 rounded-md px-1.5">시니어</span>` : ''}
+                                ${c.marketingDeny ? `<span class="text-xs font-bold text-red-700 border border-red-200 rounded-md px-1.5">마케팅 거부</span>` : ''}
+                                ${c.bizCardInstalled === true ? (isCardOff(c) ? `<span class="text-xs font-bold text-gray-600 bg-gray-50 border border-gray-300 rounded-md px-1.5 py-0.5 whitespace-nowrap" title="명함은 설치했는데 알림이 꺼졌거나 명함을 지웠어요"><i class="fa-solid fa-bell-slash"></i> 명함 알림 꺼짐${c.pushOffAt ? ` ${escapeHtml(String(c.pushOffAt).slice(5).replace('-', '/'))}` : ''}</span>` : `<span class="text-xs font-bold text-pink-700 bg-pink-50 border border-pink-200 rounded-md px-1.5 py-0.5 whitespace-nowrap"><i class="fa-solid fa-address-card"></i> 명함</span>`) : ''}
+                            </span>
+                            <span class="text-[13.5px] ${refused ? 'text-gray-400' : 'text-gray-500'} dz-clamp2"><span class="tabular-nums">${line2}</span></span>
+                            ${meta ? `<span class="flex flex-wrap gap-x-2.5 text-xs text-gray-400">${meta}</span>` : ''}
+                        </button>
+                        <div class="flex-shrink-0 flex flex-col items-end gap-1.5">
+                            <span class="dz-bd ${stDz}">${escapeHtml(st.text)}</span>
+                            <div class="flex gap-1.5">
+                                ${c.legalPhone ? `<button type="button" data-card-action="legal" data-id="${idAttr}" aria-label="법정대리인에게 연락" class="dz-ic o">법대</button>` : ''}
+                                <button type="button" data-card-action="smsmenu" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} aria-haspopup="menu" aria-label="문자" class="dz-ic disabled:opacity-40"><i class="fa-solid fa-comment-sms"></i></button>
+                                <button type="button" data-card-action="tel" data-id="${idAttr}" ${hasPhone ? '' : 'disabled'} aria-label="전화" class="dz-ic ${refused ? '' : 'p'} disabled:opacity-40"><i class="fa-solid fa-phone"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    ${guardHtml}
+                    ${tagsHtml ? `<div class="flex flex-wrap gap-1.5">${tagsHtml}</div>` : ''}
+                    ${taskHtml}
                 </div>
             </article>`;
         }
@@ -29655,7 +29665,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V398';
+        const APP_VER = 'V399';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29663,6 +29673,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V399', d: '2026-11-13', items: [
+                ['🎨 고객 목록 새 모양: 동그란 이름칸 · 번호와 정보는 한 줄로 · 할 일은 색 배지(지연 빨강 · 오늘 주황 · 앞으로 파랑) + 한 줄', 'a'],
+                ['📞 전화 · 문자 버튼은 오른쪽 위 작은 버튼으로 (카드 길이가 줄어서 한 화면에 고객이 더 많이 보여요)', 'a']
+            ] },
             { v: 'V398', d: '2026-11-13', items: [
                 ['🎨 고객카드 새 모양: 흰 카드 · 얇은 테두리 · 동그란 이름칸 · 상태는 작은 배지(개통완료 검정 · 진행중 파랑 · 거부 빨강) · 맨 아래 전화 · 문자 흰 버튼 + 수정 검정 버튼', 'a'],
                 ['📅 고객카드 맨 위에 \'다가오는 일\' 한 줄: 아직 안 끝난 약속 중 가장 빠른 것 (지연 · 오늘 빨강 · 7일 안 주황) · 누르면 약속 탭', 'a'],
