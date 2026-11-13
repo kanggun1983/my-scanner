@@ -43,6 +43,12 @@
         .dz-clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .dz-ic { min-width: 40px; height: 40px; padding: 0 8px; border-radius: 11px; border: 1px solid #e4e4e7; background: #fff; color: #18181b; font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
         .dz-ic.p { background: #18181b; border-color: #18181b; color: #fff; } .dz-ic.o { border-color: #fdba74; color: #c2410c; font-size: 13px; }
+        /* 🎨 V401 앱 전체 기본 버튼 · 고른 표시 색: 보라 → 검정 (D 시안) */
+        .bg-indigo-600, .bg-indigo-700 { background-color: #18181b !important; }
+        .hover\:bg-indigo-700:hover { background-color: #27272a !important; }
+        .border-indigo-600 { border-color: #18181b !important; }
+        .accent-indigo-600 { accent-color: #18181b !important; }
+        .bg-indigo-500 { background-color: #3f3f46 !important; }
         /* 🎨 V400 고객 탭 위쪽 · 아래 메뉴 새 모양 (검정 버튼 · 흰 카드 · 경고는 연한 노랑) */
         #addMenuBtn { background: #18181b !important; box-shadow: none !important; }
         #cardSendOpenBtn { background: #fff !important; color: #18181b !important; border: 1px solid #e4e4e7; } #cardSendOpenBtn i { color: #db2777; }
@@ -21531,10 +21537,11 @@ familyStr + `\n` +
                 const car0 = (dl0 && dl0.carrier) || (AR_CARRIERS.includes(c.carrier) ? c.carrier : '');   // 거래처가 정해져 있으면 그 통신사 (번호이동이면 고객 예전 통신사는 전통신사로)
                 const tgComb = !!prefCombo;
                 html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arIn('ar-name', '고객명', c.name || '', { req: true })}
+                    ${arIn('ar-jumin', '생년월일 (주민번호 앞 7자리)', c.repJumin || (() => { try { const b = parseBirth(c.dob); return b ? `${String(b.y).slice(2)}${String(b.m).padStart(2, '0')}${String(b.d).padStart(2, '0')}` : ''; } catch (e) { return ''; } })(), { ph: '900101-1' })}
+                    ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${arIn('ar-date', '개통일', today, { type: 'date', req: true })}
                     ${arSel('ar-type', '개통종류', [['', '- 선택 -'], ...AR_ACT_TYPES], '', { req: true })}
-                    ${arIn('ar-name', '고객명', c.name || '', { req: true })}
-                    ${arIn('ar-phone', '개통번호', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${storeHtml}
                     ${arIn('ar-shop', '개통점 (우리 매장)', custShop(c) || msgStoreName(), { list: 'openStoreList', ph: '예) LGU+진천점' })}
                     ${arIn('ar-manager', '개통직원', getStaffName() || '')}
@@ -21582,8 +21589,7 @@ familyStr + `\n` +
                     <div id="arPicker" class="hidden space-y-2 rounded-xl bg-gray-50 p-2"></div>`, '<span id="ar-dealer-badge" class="text-xs font-bold text-emerald-700"></span>');
                 html += `<section class="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-3 py-2.5"><p class="text-[13px] font-bold text-indigo-900 mb-1.5">📅 저장하면 잡히는 약속</p><div id="ar-k-dates" class="flex flex-wrap gap-1.5"></div></section>`;
                 const tgNet = !!prefIntTv, tgFam = !!(c.repFamily && String(c.repFamily).trim());
-                html += arSec('고객정보', `<div class="grid grid-cols-2 gap-2">
-                    ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1' })}
+                html += arSec('고객정보', `<div class="grid grid-cols-2 gap-2">   <!-- 🎨 V401 주민번호(생년월일)는 가입정보 맨 위로 -->
                     ${arIn('ar-branch', '접수처', (dl0 ? dl0.name : cDl) || c.repBranch || '', {})}
                     ${arIn('ar-address', '주소', c.repAddress || c.address || '', { span: true })}
                     <div data-tg="ar-tg-net" class="col-span-2 grid grid-cols-2 gap-2 ${tgNet ? '' : 'hidden'}">
@@ -29674,7 +29680,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V400';
+        const APP_VER = 'V401';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29682,6 +29688,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V401', d: '2026-11-13', items: [
+                ['🎨 앱 전체 기본 버튼 · 고른 표시 색을 보라에서 검정으로 (개통 보고 · 안내서 · 달력 · 송금 · 실적 · 설정 · 재고 모두 같은 모양)', 'a'],
+                ['📝 개통 보고: 고객명 · 생년월일(주민번호 앞 7자리)을 가입정보 맨 위로 · 그 다음 개통번호 · 개통일 · 개통종류', 'a']
+            ] },
             { v: 'V400', d: '2026-11-13', items: [
                 ['🎨 고객 탭 위쪽도 새 모양: ＋ 추가 버튼 검정 · 명함 보내기 흰 버튼 · 오늘 할 일 흰 칸 · 공통지원금 알림은 연한 노랑 · 고른 필터는 검정', 'a'],
                 ['🎨 아래 메뉴: 지금 보는 탭은 검정 글씨', 'a']
