@@ -298,6 +298,7 @@
                         <input type="file" id="cameraUpload" accept="image/*" capture="environment" class="hidden" />
                         <input type="file" id="galleryUpload" accept="image/*" class="hidden" />
                         <input type="file" id="sheetUpload" accept="image/*" class="hidden" />
+                        <input type="file" id="sheetCamera" accept="image/*" capture="environment" class="hidden" />
                     </div>
                     <button id="resetBtn" class="mt-4 w-full py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition hidden">다시 찍기</button>
                 </div>
@@ -5768,7 +5769,8 @@ body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans
 </div></div>
 <div class="sec" style="margin-bottom:0"><h2>⑤ 집 인터넷 · TV</h2><div class="b">
   <div class="row"><span class="ck"><i></i>없음</span><span class="ck"><i></i>SK</span><span class="ck"><i></i>KT</span><span class="ck"><i></i>LG</span><span class="ck"><i></i>기타</span></div>
-  <div class="row"><span class="lab">상품</span><span class="ck"><i></i>인터넷</span><span class="ck"><i></i>TV</span><span class="unit">속도</span><span class="line" style="min-width:12mm"></span></div>
+  <div class="row"><span class="lab">상품</span><span class="ck"><i></i>인터넷</span><span class="unit">속도</span><span class="line" style="min-width:12mm"></span></div>
+  <div class="row"><span class="lab"></span><span class="ck"><i></i>TV</span><span class="unit">상품</span><span class="line" style="min-width:12mm"></span></div>
   <div class="row"><span class="lab">약정 시작</span><span class="blank" style="width:26.0mm"></span><span class="sep">.</span><span class="blank" style="width:13.0mm"></span></div>
   <div class="row"><span class="lab">위약금 <small>예상</small></span><span class="blank" style="width:30mm"></span><span class="unit">원</span><span class="ck" style="margin-left:2mm"><i></i>없음</span></div>
   
@@ -5791,8 +5793,27 @@ body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans
             catch (e) { customAlert('인쇄 창을 열지 못했어요. 팝업 차단을 꺼 주세요.'); }
         }
         document.getElementById('sheetPrintBtn').addEventListener('click', printSheet);
-        document.getElementById('sheetUploadBtn').addEventListener('click', () => document.getElementById('sheetUpload').click());
-        document.getElementById('sheetUpload').addEventListener('change', (e) => {
+        // 📷 V402 기록지 올리기: 바로 찍기(카메라) · 사진에서 고르기
+        document.getElementById('sheetUploadBtn').addEventListener('click', () => openActionSheet('📝 상담 기록지 올리기', [
+            { icon: 'fa-solid fa-camera', label: '바로 찍기', sub: '카메라로 종이 전체가 반듯하게', onClick: () => document.getElementById('sheetCamera').click() },
+            { icon: 'fa-regular fa-image', label: '사진에서 고르기', sub: '이미 찍어 둔 사진', onClick: () => document.getElementById('sheetUpload').click() },
+            { icon: 'fa-solid fa-qrcode', label: 'QR 찍기', sub: '기록지 오른쪽 위 QR을 비추면 → 바로 찍기', onClick: () => sheetQrScan() }
+        ]));
+        // 🔳 V402 앱 안에서 기록지 QR 찍기 (바코드 찍기 화면 그대로) → 읽으면 [확인] → 카메라 (카메라는 누른 뒤에만 열 수 있어서 한 번 더 확인)
+        const sheetQrId = (t) => { const m = String(t || '').match(/#sheet=(v1-[0-9]{8}-[0-9a-z]{2,8})/i); return m ? m[1] : ''; };
+        function sheetQrScan() {
+            openBarcode({ title: '🔳 상담 기록지 QR 찍기', field: 'sheetQr', kind: 'sheetqr', noPat: true,
+                hint: '기록지 오른쪽 위 QR을 네모 안에 비춰 주세요.',
+                note: (c) => sheetQrId(c.text) ? '<span class="text-teal-700">📝 상담 기록지</span>' : '<span class="text-gray-500">기록지 QR이 아니에요</span>',
+                prefer: (all) => { for (const c of all) { if (sheetQrId(c.text)) return { c, value: c.text }; } return null; },
+                onPick: (v) => {
+                    const id = sheetQrId(v);
+                    if (!id) return customAlert('상담 기록지 QR이 아니에요.\n기록지 오른쪽 위 QR을 비춰 주세요.');
+                    const d = id.slice(3, 11);
+                    customConfirm(`✅ 상담 기록지 QR을 읽었어요 (${d.slice(4, 6)}/${d.slice(6, 8)} 기록지)\n[확인]을 누르면 카메라가 열려요. 종이 전체가 반듯하게 나오게 찍어 주세요.`).then(ok => { if (ok) document.getElementById('sheetCamera').click(); });
+                } });
+        }
+        const onSheetFile = (e) => {
             const f = e.target.files && e.target.files[0]; if (!f) return;
             if (!geminiApiKey) { e.target.value = ''; return customAlert('설정 탭에서 [AI 키]를 먼저 넣어주세요.'); }
             document.getElementById('uploadPrompt').classList.add('hidden');
@@ -5805,7 +5826,9 @@ body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans
                 document.getElementById('imagePreview').src = base64; document.getElementById('imagePreview').classList.remove('hidden'); document.getElementById('zoomHint').classList.remove('hidden');
                 await extractSheet(base64.split(',')[1]);
             }, 2400);
-        });
+        };
+        document.getElementById('sheetUpload').addEventListener('change', onSheetFile);
+        document.getElementById('sheetCamera').addEventListener('change', onSheetFile);
         const SHEET_SCHEMA = { type: 'OBJECT', properties: {
             purposes: { type: 'ARRAY', items: { type: 'STRING' } }, interest: { type: 'STRING' }, name: { type: 'STRING' }, phoneRest: { type: 'STRING' }, dob: { type: 'STRING' }, marketingDeny: { type: 'BOOLEAN' },
             carrier: { type: 'STRING' }, mvno: { type: 'STRING' }, minor: { type: 'BOOLEAN' }, legalName: { type: 'STRING' }, legalPhoneRest: { type: 'STRING' },
@@ -5813,7 +5836,7 @@ body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans
             instAmount: { type: 'STRING' }, instMonths: { type: 'STRING' }, instDouble: { type: 'BOOLEAN' }, instPaid: { type: 'BOOLEAN' }, dataGB: { type: 'STRING' }, dataUnlimited: { type: 'BOOLEAN' }, callMin: { type: 'STRING' },
             penaltyMobile: { type: 'STRING' }, penaltyMobileNone: { type: 'BOOLEAN' },
             combType: { type: 'STRING' }, combination: { type: 'STRING' }, combFam: { type: 'STRING' }, welfare: { type: 'ARRAY', items: { type: 'STRING' } },
-            wiredCarrier: { type: 'STRING' }, wiredInternet: { type: 'BOOLEAN' }, wiredTv: { type: 'BOOLEAN' }, wiredSpeed: { type: 'STRING' }, wiredStart: { type: 'STRING' }, penaltyWired: { type: 'STRING' }, penaltyWiredNone: { type: 'BOOLEAN' },
+            wiredCarrier: { type: 'STRING' }, wiredInternet: { type: 'BOOLEAN' }, wiredTv: { type: 'BOOLEAN' }, wiredTvProd: { type: 'STRING' }, wiredSpeed: { type: 'STRING' }, wiredStart: { type: 'STRING' }, penaltyWired: { type: 'STRING' }, penaltyWiredNone: { type: 'BOOLEAN' },
             memo: { type: 'STRING' }, nextDate: { type: 'STRING' }, nextWays: { type: 'ARRAY', items: { type: 'STRING' } }, unsure: { type: 'ARRAY', items: { type: 'STRING' } }
         } };
         async function extractSheet(b64) {
@@ -5828,7 +5851,7 @@ body{margin:0;font-family:"Noto Sans CJK KR","Noto Sans KR","Malgun Gothic",sans
 ② name 고객명 · phoneRest · dob 생년월일 · marketingDeny '마케팅(광고) 문자 거부' 체크 · carrier: 'SKT','KT','LG U+','알뜰폰(SK)','알뜰폰(KT)','알뜰폰(LG)' 중 체크된 하나 (알뜰 SK → 알뜰폰(SK)) · mvno 알뜰 브랜드 · minor 미성년 '예' 체크 · legalName 법정대리인
 ③ device 사용 단말기 · activationDate 개통일 · discountType: '선택약정','공시지원금'(공통지원금),'해당없음' 중 체크된 것 ('모름'이면 빈 문자열) · plan 요금제 · fee 월 청구 · instAmount 잔여 할부 금액 · instMonths 잔여 개월 · instDouble 이중할부 · instPaid 완납 · dataGB · dataUnlimited 무제한 · callMin 통화 분 · penaltyMobile 예상 위약금 · penaltyMobileNone '없음' 체크
 ④ combType: 가족 결합 '없음'=none,'가족'=family,'인터넷'=net,'모름'=unk · combination 결합 상품 · combFam 결합 가족 · welfare: ['없음','기초연금','장애인','국가유공자','기초생활','차상위'] 중 체크된 것 (유공자 = 국가유공자)
-⑤ wiredCarrier: '없음','SK','KT','LG','기타' 중 체크 · wiredInternet · wiredTv · wiredSpeed 속도 · wiredStart 약정 시작 YYYY-MM · penaltyWired 위약금(예상) · penaltyWiredNone '없음' 체크
+⑤ wiredCarrier: '없음','SK','KT','LG','기타' 중 체크 · wiredInternet · wiredTv · wiredSpeed 인터넷 속도 · wiredTvProd TV 상품 (TV 줄 '상품' 칸에 적은 것, 예 '베이직' '프리미엄') · wiredStart 약정 시작 YYYY-MM · penaltyWired 위약금(예상) · penaltyWiredNone '없음' 체크
 ⑥ memo 상담 메모 (줄바꿈 유지) · nextDate 다음 연락 MM-DD · nextWays ['전화','방문 약속','문자'] 중 체크
 unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들 (위 항목 키 그대로).`;
             const loadingTextEl = document.getElementById('loadingText'), loadingDefault = loadingTextEl.textContent;
@@ -5876,7 +5899,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (d.wiredCarrier && d.wiredCarrier !== '없음') {
                 const car = d.wiredCarrier === '기타' ? '' : d.wiredCarrier;
                 if (d.wiredInternet || d.wiredSpeed) set('val-internet', [car, d.wiredSpeed, '인터넷'].filter(Boolean).join(' '));
-                if (d.wiredTv) set('val-tv', [car, 'TV'].filter(Boolean).join(' '));
+                if (d.wiredTv || d.wiredTvProd) set('val-tv', [car, String(d.wiredTvProd || '').trim() || 'TV'].filter(Boolean).join(' '));   // 📺 V402 TV 상품 칸
                 if (/^\d{4}-\d{2}$/.test(String(d.wiredStart || ''))) { set('val-wireddate', `${d.wiredStart}-01`); document.getElementById('val-wired-dday').textContent = getWiredRemainingDays(`${d.wiredStart}-01`); }
             }
             // 위약금 · 다음 연락 · 메모 → 상담 메모 칸 (저장하면 상담일지)
@@ -5903,7 +5926,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (String(location.hash).startsWith('#sheet=')) {
                 history.replaceState(history.state, '', location.pathname + location.search);
                 let tries = 0;   // 🛠 V393 로그인 · 고객 목록이 준비된 뒤에 (최대 30초)
-                const go = () => { if (!dbLoaded && ++tries < 60) return setTimeout(go, 500); try { switchTab('scanner'); } catch (e) { /* 준비 전 */ } customConfirm('📝 상담 기록지를 올릴까요?\n종이 전체가 반듯하게 나오게 찍어 주세요.').then(ok => { if (ok) document.getElementById('sheetUpload').click(); }); };
+                const go = () => { if (!dbLoaded && ++tries < 60) return setTimeout(go, 500); try { switchTab('scanner'); } catch (e) { /* 준비 전 */ } customConfirm('📝 상담 기록지를 찍을까요?\n[확인]을 누르면 카메라가 열려요. 종이 전체가 반듯하게 나오게 찍어 주세요.').then(ok => { if (ok) document.getElementById('sheetCamera').click(); }); };   // 📷 V402 QR로 열면 바로 카메라
                 setTimeout(go, 800);
             }
         } catch (e) { /* 무시 */ }
@@ -23532,6 +23555,7 @@ familyStr + `\n` +
             { const m = t.replace(/\s+/g, '').match(/^([A-Z]\d{4})[0-9A-Z]{0,4}[\/|-](\d{6,10})$/i);   // 💳 V292 LG 유심 바코드 'C492078/01924095' → 모델 C4920 · 번호 01924095 (유심에 찍힌 번호)
               if (m) return [{ text: m[2], fmt: String(raw.fmt || '').toLowerCase(), cls: 'iccid', label: `LG 유심 ${m[1].toUpperCase()}`, len: m[2].length, model: m[1].toUpperCase() }]; }
             if (t.length <= 24 && /^[A-Za-z0-9-]+$/.test(t)) return [bcClassify(t, raw.fmt)];
+            if (/#sheet=v1-/i.test(t)) return [{ text: t.slice(0, 300), fmt: String(raw.fmt || '').toLowerCase(), cls: 'sheet', label: '상담 기록지 QR', len: t.length }];   // 🔳 V402 기록지 QR은 주소 그대로
             const out = t.split(/[^A-Za-z0-9]+/).filter(x => x.length >= 6).map(x => bcClassify(x, raw.fmt)).filter(c => ['imei', 'iccid', 'sn', 'num'].includes(c.cls));
             return out.length ? out.slice(0, 8) : [bcClassify(t, raw.fmt)];
         }
@@ -29680,7 +29704,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V401';
+        const APP_VER = 'V402';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29688,6 +29712,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V402', d: '2026-11-13', items: [
+                ['📷 상담 기록지 QR을 찍어서 열면 [확인] → 바로 카메라 (예전엔 사진 고르기 창이 떴음)', 'a'],
+                ['📝 스캔 화면 [기록지 올리기] → 바로 찍기 / 사진에서 고르기 / QR 찍기 (앱 안에서 QR을 비추면 → 확인 → 카메라)', 'a'],
+                ['📺 상담 기록지 ⑤ 집 인터넷 · TV에 TV 상품 칸 추가 (읽으면 TV 칸에 통신사 + 상품으로)', 'a']
+            ] },
             { v: 'V401', d: '2026-11-13', items: [
                 ['🎨 앱 전체 기본 버튼 · 고른 표시 색을 보라에서 검정으로 (개통 보고 · 안내서 · 달력 · 송금 · 실적 · 설정 · 재고 모두 같은 모양)', 'a'],
                 ['📝 개통 보고: 고객명 · 생년월일(주민번호 앞 7자리)을 가입정보 맨 위로 · 그 다음 개통번호 · 개통일 · 개통종류', 'a']
