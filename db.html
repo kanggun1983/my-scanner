@@ -622,6 +622,7 @@
             <!-- 필터 (옆으로 넘겨서 더 보기) -->
             <div id="filterChipsRow" class="flex gap-2 mb-2.5 overflow-x-auto pb-1 scrollbar-hide scroll-mt-2">
                 <button type="button" aria-pressed="true" class="filter-btn active flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-gray-900 text-white border-gray-900 font-bold" data-filter="all">전체</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="fav"><i class="fa-solid fa-star" style="color:#f59e0b"></i> 즐겨찾기</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_visit">방문약속</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="promise">약속·할일</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_prospect">진행중</button>
@@ -9106,8 +9107,23 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             target_dashboard: (n) => `무선 만료타겟만 보는 중 (${n}명)`,
             wired_target: (n) => `유선 만료타겟만 보는 중 (${n}명)`,
             birthday: (n) => `생일 ${BIRTHDAY_DAYS_AHEAD}일 안 고객만 보는 중 (${n}명)`,
+            fav: (n) => n ? `⭐ 내 즐겨찾기 고객 (${n}명) · 고객카드 ☆ 를 눌러 넣고 빼요` : '⭐ 즐겨찾기한 고객이 없어요 · 고객카드 위쪽 ☆ 를 누르면 여기 모여요',
             card_off: (n) => `명함은 설치했는데 알림이 꺼진 고객 (${n}명 · 알림을 끈 분과 명함을 지운 분이 같이 보여요 · [명함 보내기]로 다시 켜 달라고 부탁해요)`
         };
+        // ⭐ V409 즐겨찾기: 고객 favBy = [직원 이메일(없으면 이름)] · 직원마다 따로
+        function favKey() { let e = ''; try { e = String((auth && auth.currentUser && auth.currentUser.email) || '').toLowerCase(); } catch (x) { /* 준비 전 */ } return e || getStaffName() || ''; }
+        function isFav(c) { const k = favKey(); return !!(k && c && Array.isArray(c.favBy) && c.favBy.includes(k)); }
+        async function toggleFav(cid) {
+            const k = favKey(); if (!k) return customAlert('로그인한 뒤에 쓸 수 있어요.');
+            let on = false;
+            try {
+                await txCustomerUpdate(cid, (cur) => { const L = Array.isArray(cur.favBy) ? cur.favBy.filter(Boolean) : []; on = !L.includes(k); return { favBy: on ? [...L, k] : L.filter(x => x !== k) }; });
+                const c = customerDB.find(x => x.id === cid); if (c) { const L = Array.isArray(c.favBy) ? c.favBy.filter(x => x !== k) : []; c.favBy = on ? [...L, k] : L; }
+                stockToast(on ? '⭐ 즐겨찾기에 넣었어요' : '즐겨찾기에서 뺐어요');
+                if (currentProfileId === cid) renderProfileCard();
+                if (currentFilter === 'fav') renderDB();
+            } catch (e) { customAlert(`저장하지 못했어요: ${e.message || e}`); }
+        }
         // 🔕 V245 명함 설치했는데 알림을 안 받는 고객 (명함 알림 서버는 '알림 끔'과 '명함 삭제'를 구분 못 해요 → 같이)
         function isCardOff(c) { return !!c && c.bizCardInstalled === true && c.pushSubscribed !== true; }
 
@@ -9230,6 +9246,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (currentFilter === 'target_dashboard') return isMobileExpiryTarget(c);
                 if (currentFilter === 'wired_target') return isWiredExpiryTarget(c);
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
+                if (currentFilter === 'fav') return isFav(c);   // ⭐ V409 즐겨찾기 (직원마다 따로)
                 if (currentFilter === 'card_off') return isCardOff(c);   // 🔕 V245 명함 설치 · 알림 꺼짐(또는 명함 삭제)
 
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
@@ -9812,7 +9829,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     <div class="flex items-start gap-2">
                         <button type="button" data-card-action="profile" data-id="${idAttr}" class="min-w-0 flex-1 text-left flex flex-col gap-0.5 rounded-lg -m-1 p-1 active:bg-gray-100">
                             <span class="flex items-center gap-1.5 flex-wrap">
-                                <span class="text-[16.5px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(nm || '이름 없음')}</span>
+                                <span class="text-[16.5px] font-bold ${refused ? 'text-gray-500' : 'text-gray-900'}">${escapeHtml(nm || '이름 없음')}</span>${isFav(c) ? '<i class="fa-solid fa-star text-[13px]" style="color:#f59e0b" aria-label="즐겨찾기"></i>' : ''}
                                 ${carrier ? `<span class="dz-bd">${escapeHtml(carrier)}</span>` : ''}
                                 ${isMinor ? `<span class="dz-bd orange">미성년</span>` : ''}
                                 ${isSenior ? `<span class="dz-bd teal">시니어</span>` : ''}
@@ -11306,6 +11323,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                             <div class="flex items-center gap-1.5 flex-wrap"><h2 class="text-[19px] font-extrabold text-gray-900 break-all leading-tight">${e(name)}</h2>${ageTxt ? `<span class="text-[13px] font-bold text-gray-500">${ageTxt}</span>` : ''}${genderIcon}</div>
                             <p class="text-[15px] font-semibold text-gray-600 tracking-wide">${c.phone ? e(formatPhone(c.phone)) : '-'}</p>
                         </div>
+                        <button type="button" data-paction="fav" class="w-10 h-10 rounded-xl border ${isFav(c) ? 'border-amber-300 bg-amber-50 text-amber-500' : 'border-gray-300 text-gray-400'} text-lg flex-shrink-0" aria-label="${isFav(c) ? '즐겨찾기에서 빼기' : '즐겨찾기에 넣기'}" aria-pressed="${isFav(c)}"><i class="${isFav(c) ? 'fa-solid' : 'fa-regular'} fa-star"></i></button>
                         <button type="button" data-pmore class="w-10 h-10 rounded-xl border border-gray-300 text-gray-700 text-xl font-bold flex-shrink-0" aria-label="더보기 (명함 · 함께 관리 · 광고 동의 · 사진)">⋯</button>
                         <button type="button" data-pclose class="w-10 h-10 rounded-xl text-gray-500 text-2xl flex-shrink-0" aria-label="닫기">✕</button>
                     </div>
@@ -12715,6 +12733,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (action === 'notecancel') { noteEdit = null; renderProfileCard(); return; }
             if (action === 'notesave' || action === 'notedel') { saveProfileNote(id, action === 'notedel'); return; }
             if (action === 'noteall') { noteAllId = noteAllId === id ? '' : id; renderProfileCard(); return; }
+            if (action === 'fav') { toggleFav(currentProfileId); return; }   // ⭐ V409
             if (action === 'actchkfold') { actChkOpen = !actChkOpen; try { localStorage.setItem('actChkOpen', actChkOpen ? '1' : '0'); } catch (e) { /* 무시 */ } renderProfileCard(); return; }   // 🔍 V398 개통 점검 접기 · 펴기
             if (action === 'notefold') { noteOpen = !noteOpen; try { localStorage.setItem('consultOpen', noteOpen ? '1' : '0'); } catch (e) { /* 무시 */ } renderProfileCard(); return; }
             if (action === 'tel') logActionAndCall(id, 'tel', c.phone);
@@ -29872,7 +29891,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V408';
+        const APP_VER = 'V409';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29880,6 +29899,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V409', d: '2026-11-16', items: [
+                ['⭐ 즐겨찾기: 고객카드 위쪽 ☆ 를 누르면 넣고 빼기 (직원마다 따로) · 고객 목록 이름 옆 ★ · 고객 탭 [전체] 옆 [★ 즐겨찾기]를 누르면 즐겨찾기 고객만', 'a']
+            ] },
             { v: 'V408', d: '2026-11-16', items: [
                 ['🗒 아래 메뉴에 \'메모\' (재고와 설정 사이): 포스트잇처럼 색 메모 붙이기 · 매장 같이 보기 / 나만 보기 · 📌 맨 위 고정 · 끝나면 ✓ (줄 그어짐) · 고객 연결(누르면 고객카드)', 'a'],
                 ['🗒 ⏰ 알림 날짜를 넣으면 그날 메모 맨 앞에 \'오늘\' 표시 + 고객 탭 \'오늘 할 일\' 줄에 \'메모 알림 n\' · 메뉴의 숫자 = 안 끝난 메모 (알림이 있으면 빨강)', 'a']
