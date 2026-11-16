@@ -29058,6 +29058,27 @@ familyStr + `\n` +
                     try { const st = await callSms('status'); add('푸시·문자', '매장 폰 자동 문자', st.ready ? 'ok' : 'bad', st.ready ? (st.e2e && !st.e2eWeak ? '🔐 암호화 켜짐' : '암호화 꺼짐 (켜는 걸 추천)') : (!st.gateway ? 'SMSGATE_USER·SMSGATE_PASS를 넣어주세요.' : '저장소(IMAGES) 연결 확인')); }
                     catch (e) { add('푸시·문자', '매장 폰 자동 문자', 'bad', e.message); }
                 }
+                // 📱 V411 직원 폰 문자 앱 (SMS Gate) 연결 — 폰마다 마지막 연결 시각 (중계 서버 v12)
+                {
+                    const D = smsDevCfg(), saved = Object.keys({ ...(D.names || {}), ...(D.map || {}), ...(D.store ? { [D.store]: 1 } : {}) });
+                    if (relayVer() >= 12 || saved.length) {
+                        try {
+                            const r = await callSms('devices');
+                            if (!Array.isArray(r.devices)) throw new Error('알 수 없는 문자 요청');
+                            try { localStorage.setItem('relayVersion', '12'); } catch (e) { /* 무시 */ }
+                            const now = Number(r.now) || Date.now();
+                            if (!r.devices.length) add('푸시·문자', '📱 문자 앱 폰', 'bad', '연결된 폰이 없어요. 폰의 SMS Gate 앱에서 Cloud server를 켜고 매장 계정으로 로그인해 주세요.');
+                            r.devices.forEach(d => {
+                                const owner = (D.map || {})[d.id] || '', base = d.id === D.store;
+                                const label = `📱 ${owner || d.name || (D.names || {})[d.id] || '이름 없는 폰'}${base ? ' (기본 폰)' : ''}`;
+                                const age = d.lastSeen ? now - Number(d.lastSeen) : Infinity;
+                                const st = age <= 60 * 60 * 1000 ? 'ok' : age <= 24 * 60 * 60 * 1000 ? 'warn' : 'bad';
+                                add('푸시·문자', label, st, `${smsDevAgo(Number(d.lastSeen) || 0, now)}${owner && d.name ? ` · 폰 이름 ${d.name}` : ''}${!owner && !base ? ' · 담당자 안 정함 (설정 → 폰 목록 불러오기)' : ''}${st === 'ok' ? '' : ' · 그 폰에서 SMS Gate 앱을 열고 인터넷 · Cloud server가 켜져 있는지 확인'}`);
+                            });
+                            saved.filter(id => (D.map || {})[id] && !r.devices.some(d => d.id === id)).forEach(id => add('푸시·문자', `📱 ${D.map[id]}`, 'bad', '저장된 폰이 계정 목록에 없어요 (앱을 지웠거나 등록 해제됨). 다시 연결 후 설정 → 폰 목록 불러오기 → [저장]'));
+                        } catch (e) { add('푸시·문자', '📱 문자 앱 폰', 'warn', /알 수 없는 문자 요청/.test(e.message || '') ? '폰마다 연결을 보려면 중계 서버를 v12로 배포해 주세요.' : `폰 목록을 못 읽었어요: ${e.message}`); }
+                    }
+                }
                 // ⏰ 예약 문자가 제때 나가는지 = 중계 서버(kangcrm-push)의 Cron이 도는지 (보낼 시각이 15분 넘게 지났는데 남아 있으면 안 도는 것)
                 try {
                     const L = await callSms('list');
@@ -29903,7 +29924,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V410';
+        const APP_VER = 'V411';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29911,6 +29932,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V411', d: '2026-11-16', items: [
+                ['점검 탭에 직원 폰 문자 앱(SMS Gate) 연결 상태 — 폰마다 마지막 연결 시각 · 1시간 넘으면 노랑 · 하루 넘으면 빨강', 'a'],
+            ] },
             { v: 'V410', d: '2026-11-16', items: [
                 ['설정 → 매장 폰 문자 앱에 SMS Gate 앱 받기 · 공식 사이트 버튼 + 설치 순서 (직원 폰 설치할 때 바로 찾기)', 'a'],
             ] },
