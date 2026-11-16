@@ -460,7 +460,7 @@
                     <button type="button" id="custScanBtn" class="absolute right-1 top-1/2 -translate-y-1/2 w-10 h-9 rounded-lg text-indigo-700 hover:bg-indigo-50 text-[17px]" aria-label="바코드로 고객 찾기" title="바코드로 고객 찾기 (일련번호)"><i class="fa-solid fa-barcode" aria-hidden="true"></i></button>
                 </div>
                 <label for="managerFilter" class="sr-only">담당자별 보기</label>
-                <div class="relative flex-shrink-0"><select id="managerFilter" class="appearance-none w-[84px] h-11 pl-2 pr-5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 truncate"><option value="">👤 전체</option></select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500" aria-hidden="true"></i></div>
+                <div class="relative flex-shrink-0"><select id="managerFilter" class="appearance-none w-[96px] h-11 pl-2 pr-5 rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-800 truncate"><option value="">👤 전체</option></select><i class="fa-solid fa-chevron-down pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500" aria-hidden="true"></i></div>
                 <button type="button" id="cardSendOpenBtn" class="flex-shrink-0 h-11 px-2.5 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-sm font-bold flex items-center gap-1 whitespace-nowrap"><i class="fa-solid fa-address-card"></i>명함 보내기</button>
                 <button id="newReportBtn" class="hidden lg:flex bg-blue-600 hover:bg-blue-700 text-white px-3 h-11 rounded-xl text-sm font-bold shadow-sm transition items-center gap-1 whitespace-nowrap">
                     <i class="fa-solid fa-plus"></i> 신규 개통보고
@@ -21045,8 +21045,8 @@ familyStr + `\n` +
                 const d = listRangeDateOf(c);
                 if (!d || (listRange.from && d < listRange.from) || (listRange.to && d > listRange.to)) return false;
             }
-            if (listActType && pcStr(c.actType) !== listActType) return false;
-            if (listCarrier && (c.carrier || '') !== listCarrier) return false;
+            { const T = condVals(listActType); if (T.length && !T.includes(pcStr(c.actType))) return false; }   // ☑️ V407 여러 개 고르기 (그중 하나라도)
+            { const C = condVals(listCarrier); if (C.length && !C.includes(c.carrier || '')) return false; }
             return custCondPass(c);
         }
         // 🎚 V358 조건으로 찾기
@@ -21059,17 +21059,23 @@ familyStr + `\n` +
             ['wired', '인터넷 · TV', [['has', '유선 있음'], ['exp', '유선 만료 6개월 안 (약갱 가능)'], ['none', '유선 없음']]]
         ];
         function custHasWired(c) { const ok = (v) => v && String(v).trim() && String(v).trim() !== '-' && !/해당없음|없음|미적용/.test(String(v)); return !!(ok(c.internetProd) || ok(c.tvProd) || ok(c.wiredDate) || ok(c.wiredFee)); }
-        function custCondPass(c) {
-            const k = custCond;
-            if (k.st && (c.salesStatus || '미정') !== k.st && !(k.st === '가망고객' && String(c.salesStatus || '').startsWith('가망고객'))) return false;
-            if (k.use) { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c.activationDate || ''))) return false; const m = getDdayAndMonths(c.activationDate).months; if ((k.use === 'm6' && m >= 6) || (k.use === 'm12' && m < 12) || (k.use === 'm18' && m < 18) || (k.use === 'm24' && m < 24)) return false; }
-            if (k.prom) { const P = getPromiseDueInfo(c); const any = getOpenPromiseDates(c).length > 0; if ((k.prom === 'open' && !any) || (k.prom === 'over' && !P.overdue) || (k.prom === 'week' && !(P.today || P.soon))) return false; }
-            if (k.card) { if ((k.card === 'on' && c.bizCardInstalled !== true) || (k.card === 'off' && c.bizCardInstalled === true) || (k.card === 'push' && c.pushSubscribed !== true)) return false; }
-            if (k.age) { const b = parseBirth(c.dob), a = b && b.age !== null ? b.age : null; if ((k.age === 'none' && a !== null) || (k.age !== 'none' && a === null) || (k.age === 'o65' && a < 65) || (k.age === 'm40' && (a < 40 || a > 64)) || (k.age === 'u39' && a > 39)) return false; }
-            if (k.wired) { const h = custHasWired(c); if ((k.wired === 'has' && !h) || (k.wired === 'none' && h) || (k.wired === 'exp' && !isWiredExpiryTarget(c))) return false; }
+        // ☑️ V407 한 줄에서 여러 개 고르기: 값은 'a,b' 처럼 쉼표로 · 같은 줄은 그중 하나라도 맞으면 · 다른 줄끼리는 모두 맞아야
+        function condVals(v) { return String(v || '').split(',').map(x => x.trim()).filter(Boolean); }
+        function condToggle(cur, v) { const L = condVals(cur); return (L.includes(v) ? L.filter(x => x !== v) : [...L, v]).join(','); }
+        function custCondOne(k, v, c) {   // 이 고객이 이 칸(한 개)에 맞나
+            if (k === 'st') return (c.salesStatus || '미정') === v || (v === '가망고객' && String(c.salesStatus || '').startsWith('가망고객'));
+            if (k === 'use') { if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c.activationDate || ''))) return false; const m = getDdayAndMonths(c.activationDate).months; return v === 'm6' ? m < 6 : v === 'm12' ? m >= 12 : v === 'm18' ? m >= 18 : v === 'm24' ? m >= 24 : true; }
+            if (k === 'prom') { const P = getPromiseDueInfo(c); return v === 'open' ? getOpenPromiseDates(c).length > 0 : v === 'over' ? !!P.overdue : v === 'week' ? !!(P.today || P.soon) : true; }
+            if (k === 'card') return v === 'on' ? c.bizCardInstalled === true : v === 'off' ? c.bizCardInstalled !== true : v === 'push' ? c.pushSubscribed === true : true;
+            if (k === 'age') { const b = parseBirth(c.dob), a = b && b.age !== null ? b.age : null; return v === 'none' ? a === null : a !== null && (v === 'o65' ? a >= 65 : v === 'm40' ? a >= 40 && a <= 64 : v === 'u39' ? a <= 39 : true); }
+            if (k === 'wired') { const h = custHasWired(c); return v === 'has' ? h : v === 'none' ? !h : v === 'exp' ? isWiredExpiryTarget(c) : true; }
             return true;
         }
-        function custCondLabels() { return CUST_COND.filter(([k]) => custCond[k]).map(([k, , opts]) => [k, opts ? (opts.find(o => o[0] === custCond[k]) || [, custCond[k]])[1] : custCond[k]]); }
+        function custCondPass(c) {
+            for (const k of Object.keys(custCond)) { const L = condVals(custCond[k]); if (L.length && !L.some(v => custCondOne(k, v, c))) return false; }
+            return true;
+        }
+        function custCondLabels() { return CUST_COND.filter(([k]) => custCond[k]).map(([k, , opts]) => [k, condVals(custCond[k]).map(v => opts ? (opts.find(o => o[0] === v) || [, v])[1] : v).join('·')]); }
         function custCondClear() { Object.keys(custCond).forEach(k => { custCond[k] = ''; }); }
         const LIST_BASES = [['act', '개통일'], ['reg', '등록일'], ['visit', '방문일']];
         function quickRange(key) {
@@ -21090,8 +21096,8 @@ familyStr + `\n` +
             const baseName = LIST_BASES.find(b => b[0] === listRange.base)[1];
             const parts = [];
             if (listRange.from || listRange.to) parts.push(`${baseName} ${listRange.label}`);
-            if (listActType) parts.push(listActType);
-            if (listCarrier) parts.push(listCarrier);
+            if (listActType) parts.push(condVals(listActType).join('·'));
+            if (listCarrier) parts.push(condVals(listCarrier).join('·'));
             custCondLabels().forEach(([, l]) => parts.push(l));
             const on = parts.length > 0;
             lab.textContent = on ? parts.join(' · ') : '조건으로 찾기 (기간 · 상태 · 통신사 · 약속 · 명함 …)';
@@ -21102,7 +21108,7 @@ familyStr + `\n` +
         function applyListTools() { cardPage = 1; currentPage = 1; updateListToolsUI(); renderDB(); }
         function renderRangeSheet() {
             document.getElementById('calcSheetTitle').textContent = '🎚 조건으로 찾기';
-            document.getElementById('calcSheetSub').textContent = '여러 개 고르면 모두 맞는 고객만 보여요';
+            document.getElementById('calcSheetSub').textContent = '한 줄에서 여러 개 고르면 그중 하나라도 맞는 고객 · 다른 줄끼리는 모두 맞는 고객';
             const statuses = [...new Set(customerDB.map(c => String(c.salesStatus || '미정').replace(/^가망고객\(.*\)$/, '가망고객')))].sort((a, b) => a.localeCompare(b, 'ko'));
             const condCount = (k, v) => { const save = custCond[k]; custCond[k] = v; const n = customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length; custCond[k] = save; return n; };
             const types = [...new Set(customerDB.map(c => pcStr(c.actType)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'));
@@ -21113,7 +21119,7 @@ familyStr + `\n` +
                 <div class="rounded-xl bg-indigo-50 border border-indigo-200 px-3 py-2 text-[13px] text-indigo-900 flex items-center gap-2"><span class="flex-1">지금 조건에 맞는 고객 <b class="text-[16px]">${customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length}명</b></span><span class="text-xs text-indigo-700">버튼 옆 숫자 = 그걸 고르면 몇 명</span></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">자주 쓰는 조합</p>
                     <div class="flex flex-wrap gap-1.5">${[['m18', '🔁 기변 대상 (18개월↑)'], ['senior', '👵 65세↑ · 명함 미설치'], ['wexp', '🏠 유선 약갱 가능 (만료 6개월 안)'], ['over', '⏰ 지난 약속']].map(([k, l]) => `<button type="button" data-cpre="${k}" class="h-10 px-3 rounded-full border border-dashed border-indigo-400 bg-white text-sm font-bold text-indigo-800">${l}</button>`).join('')}</div></div>
-                ${CUST_COND.map(([k, label, opts]) => { const list = opts || statuses.map(v => [v, v]); return `<div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">${label}</p><div class="flex flex-wrap gap-1.5">${chip('data-cond', `${k}|`, '전체', !custCond[k])}${list.map(([v, l]) => chip('data-cond', `${k}|${v}`, `${l} ${condCount(k, v)}`, custCond[k] === v)).join('')}</div></div>`; }).join('')}
+                ${CUST_COND.map(([k, label, opts]) => { const list = opts || statuses.map(v => [v, v]); return `<div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">${label}</p><div class="flex flex-wrap gap-1.5">${chip('data-cond', `${k}|`, '전체', !custCond[k])}${list.map(([v, l]) => chip('data-cond', `${k}|${v}`, `${l} ${condCount(k, v)}`, condVals(custCond[k]).includes(v))).join('')}</div></div>`; }).join('')}
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기준 날짜</p>
                     <div class="grid grid-cols-3 gap-1.5">${LIST_BASES.map(([k, l]) => `<button type="button" data-rbase="${k}" class="h-11 rounded-xl border text-sm font-bold ${listRange.base === k ? 'border-indigo-600 bg-indigo-50 text-indigo-800' : 'border-gray-300 bg-white text-gray-700'}">${l}</button>`).join('')}</div></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">기간</p>
@@ -21123,9 +21129,9 @@ familyStr + `\n` +
                     </div>
                     <button type="button" id="rangeApply" class="w-full h-11 rounded-xl border border-indigo-300 bg-white text-sm font-bold text-indigo-700">이 날짜로 보기</button></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">개통종류 <span class="font-normal text-xs text-gray-500">(엑셀·개통등록으로 넣은 고객)</span></p>
-                    <div class="flex flex-wrap gap-1.5">${chip('data-rtype', '', '전체', !listActType)}${types.map(t => chip('data-rtype', t, t, listActType === t)).join('')}</div></div>
+                    <div class="flex flex-wrap gap-1.5">${chip('data-rtype', '', '전체', !listActType)}${types.map(t => chip('data-rtype', t, t, condVals(listActType).includes(t))).join('')}</div></div>
                 <div class="space-y-1.5"><p class="text-sm font-bold text-gray-800">통신사</p>
-                    <div class="flex flex-wrap gap-1.5">${chip('data-rcar', '', '전체', !listCarrier)}${carriers.map(t => chip('data-rcar', t, t, listCarrier === t)).join('')}</div></div>
+                    <div class="flex flex-wrap gap-1.5">${chip('data-rcar', '', '전체', !listCarrier)}${carriers.map(t => chip('data-rcar', t, t, condVals(listCarrier).includes(t))).join('')}</div></div>
                 <div class="grid grid-cols-2 gap-2 pt-1">
                     <button type="button" id="rangeReset" class="h-12 rounded-xl border border-gray-300 bg-white text-[15px] font-bold text-gray-700">초기화</button>
                     <button type="button" id="rangeDone" class="h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">보기</button>
@@ -21143,10 +21149,10 @@ familyStr + `\n` +
                 listRange = { ...listRange, key: 'custom', from, to, label: `${from ? from.slice(5).replace('-', '/') : '처음'}~${to ? to.slice(5).replace('-', '/') : '오늘'}` };
                 applyListTools(); renderRangeSheet();
             };
-            body.querySelectorAll('[data-cond]').forEach(b => b.onclick = () => { const [k, v] = b.dataset.cond.split('|'); custCond[k] = v; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-cond]').forEach(b => b.onclick = () => { const i = b.dataset.cond.indexOf('|'), k = b.dataset.cond.slice(0, i), v = b.dataset.cond.slice(i + 1); custCond[k] = v ? condToggle(custCond[k], v) : ''; applyListTools(); renderRangeSheet(); });   // ☑️ V407 누르면 켜고 · 다시 누르면 끄기 · 전체 = 모두 끄기
             body.querySelectorAll('[data-cpre]').forEach(b => b.onclick = () => { custCondClear(); const k = b.dataset.cpre; if (k === 'm18') custCond.use = 'm18'; if (k === 'senior') { custCond.age = 'o65'; custCond.card = 'off'; } if (k === 'wexp') custCond.wired = 'exp'; if (k === 'over') custCond.prom = 'over'; applyListTools(); renderRangeSheet(); });
-            body.querySelectorAll('[data-rtype]').forEach(b => b.onclick = () => { listActType = b.dataset.rtype; applyListTools(); renderRangeSheet(); });
-            body.querySelectorAll('[data-rcar]').forEach(b => b.onclick = () => { listCarrier = b.dataset.rcar; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-rtype]').forEach(b => b.onclick = () => { const v = b.dataset.rtype; listActType = v ? condToggle(listActType, v) : ''; applyListTools(); renderRangeSheet(); });
+            body.querySelectorAll('[data-rcar]').forEach(b => b.onclick = () => { const v = b.dataset.rcar; listCarrier = v ? condToggle(listCarrier, v) : ''; applyListTools(); renderRangeSheet(); });
             document.getElementById('rangeReset').onclick = () => { listRange = { base: listRange.base, key: 'all', from: '', to: '', label: '전체' }; listActType = ''; listCarrier = ''; custCondClear(); applyListTools(); renderRangeSheet(); };
             document.getElementById('rangeDone').onclick = () => closeCalcSheet();
             { const done = document.getElementById('rangeDone'); if (done) done.textContent = `${customerDB.filter(c => matchesManagerFilter(c) && matchesListRange(c)).length}명 보기`; }
@@ -29717,7 +29723,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V406';
+        const APP_VER = 'V407';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29725,6 +29731,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V407', d: '2026-11-16', items: [
+                ['☑️ 조건으로 찾기: 한 줄에서 여러 개 같이 고르기 (예: 통신사 KT · SKT · 알뜰폰 → LG만 빼고) · 다시 누르면 꺼짐 · [전체] = 모두 끄기', 'a'],
+                ['☑️ 같은 줄은 그중 하나라도 맞는 고객 · 다른 줄끼리는 모두 맞는 고객 (예: 통신사 KT · SKT + 나이 65세↑)', 'a']
+            ] },
             { v: 'V406', d: '2026-11-14', items: [
                 ['🎨 너무 밋밋했던 곳에 연한 색 다시: 고객 목록 시니어(청록) · 미성년(주황) · 명함(분홍) · 마케팅 거부(빨강) 표시 · 오늘 카드 [송금](초록) · [약속 달력](파랑) 버튼', 'a']
             ] },
