@@ -5447,6 +5447,14 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
             return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
         }
 
+        function actElapsedText(dateStr) {   // 📅 V413 개통일 옆 '경과 4개월(128일)' (달력 기준 개월 · 오늘 = 0일)
+            const a = parseDateString(dateStr); if (!a) return '';
+            const t = new Date(); t.setHours(0, 0, 0, 0); a.setHours(0, 0, 0, 0);
+            const days = Math.round((t - a) / 86400000);
+            if (days < 0) return `개통 예정 D-${-days}`;
+            let m = (t.getFullYear() - a.getFullYear()) * 12 + (t.getMonth() - a.getMonth()); if (t.getDate() < a.getDate()) m--;
+            return m > 0 ? `경과 ${m}개월(${days}일)` : `경과 ${days}일`;
+        }
         function getDdayAndMonths(dateStr) {
             const actDate = parseDateString(dateStr);
             if(!actDate) return { days: 0, months: 0 };
@@ -11551,8 +11559,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!hasMobileInfo(c)) {
                 return profileEmpty('fa-mobile-screen', '등록된 모바일 정보가 없어요.\n[수정]에서 입력하거나 전산 화면을 스캔해주세요.') + buildActDetailHtml(c);
             }
-            const act = getDdayAndMonths(c.activationDate);
-            const actHtml = c.activationDate ? `${escapeHtml(c.activationDate)} <span class="text-[11px] text-red-400 ml-1">D+${act.days}</span>` : PROFILE_DASH;
+            const actHtml = c.activationDate ? `${escapeHtml(c.activationDate)}${actElapsedText(c.activationDate) ? `<span class="ml-2 text-gray-600 tabular-nums">${escapeHtml(actElapsedText(c.activationDate))}</span>` : ''}` : PROFILE_DASH;   // 📅 V413 '경과 4개월(128일)'
             let instHtml = PROFILE_DASH;
             if (filled(c.installment)) {
                 const base = getInstallmentBaseInfo(c);
@@ -29938,7 +29945,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V412';
+        const APP_VER = 'V413';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29946,6 +29953,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V413', d: '2026-11-18', items: [
+                ['고객카드 개통일 옆에 \'경과 4개월(128일)\' 표시 (예전 D+128 대신)', 'a'],
+            ] },
             { v: 'V412', d: '2026-11-16', items: [
                 ['설정 → 문자 앱 폰 목록에서 폰 이름을 눌러 별명 붙이기 (예: 매장 폰) · 기본 폰 칸 · 점검 탭에도 같은 이름', 'a'],
             ] },
