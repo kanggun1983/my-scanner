@@ -11963,6 +11963,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             ]);
         }
 
+        const PROM_ADD_BTN = `<button type="button" data-paction="promadd" class="w-full h-12 rounded-xl border border-dashed border-gray-300 bg-white text-[15px] font-bold text-gray-800 flex items-center justify-center gap-1.5 hover:bg-gray-50"><i class="fa-regular fa-calendar-plus" aria-hidden="true"></i> 약속 추가</button>`;   // 📅 V415 고객카드에서 바로
         function buildProfilePromiseTab(c) {
             const today = parseDateString(getTodayStr());
             const items = PROMISE_DEFS.map(p => ({
@@ -11976,7 +11977,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             })).filter(x => x.date || x.memo || x.money);
             const doneList = Array.isArray(c.promDone) ? c.promDone.map((e, i) => ({ ...e, i })).filter(e => e && (e.d || e.m)).reverse() : [];
             const doneHtml = doneList.length ? `<details class="mt-2 rounded-xl border border-gray-200 bg-gray-50/70"><summary class="px-3 py-2.5 text-[13px] font-bold text-gray-700 cursor-pointer">✅ 완료한 약속 ${doneList.length}건 <span class="font-normal text-gray-500">(약속 달력에도 남아요)</span></summary><div class="px-3 pb-2 divide-y divide-gray-100">${doneList.map(e => `<div class="py-2 flex items-start gap-2"><div class="flex-1 min-w-0"><p class="text-[13px] text-gray-500"><span class="font-bold text-gray-600">${escapeHtml(e.l || '')}</span> · ${escapeHtml(e.d || '날짜 없음')}${e.at ? ` · ${escapeHtml(String(e.at).slice(5, 10).replace('-', '/'))} ${escapeHtml(managerKey(e.by || '') || '')} 완료` : ''}</p>${e.m ? `<p class="text-xs text-gray-500 truncate">${escapeHtml(e.m)}</p>` : ''}</div><button type="button" data-prom-restore="${e.i}" class="h-9 px-2.5 flex-shrink-0 rounded-lg border border-gray-300 bg-white text-xs font-bold text-gray-700">되살리기</button></div>`).join('')}</div></details>` : '';
-            if (items.length === 0) return doneList.length ? `<p class="text-sm text-gray-500 py-3">처리할 약속이 없어요.</p>${doneHtml}` : profileEmpty('fa-calendar-check', '등록된 약속이 없어요.\n[수정]에서 요금제 변경·부가 해지 등 약속을 추가하세요.');
+            if (items.length === 0) return doneList.length ? `<p class="text-sm text-gray-500 py-3">처리할 약속이 없어요.</p>${PROM_ADD_BTN}${doneHtml}` : `${profileEmpty('fa-calendar-check', '등록된 약속이 없어요.')}${PROM_ADD_BTN}`;
 
             // 미처리 약속을 날짜 빠른 순으로 먼저, 완료한 약속은 아래로
             items.sort((a, b) => (Number(a.done) - Number(b.done)) || (a.date || '9999').localeCompare(b.date || '9999'));
@@ -11999,7 +12000,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     ${p.by ? `<p class="text-xs font-bold mt-0.5 ${!p.auto && !sameStaff(p.by, getStaffName()) ? 'text-orange-700' : 'text-gray-500'}">${!p.auto && !sameStaff(p.by, getStaffName()) ? '⚠️ ' : ''}${escapeHtml(managerKey(p.by))} ${p.auto ? '· 🤖 자동' : '등록'}</p>` : ''}
                     <div class="mt-2 flex flex-wrap gap-1.5">${!p.done ? `<button type="button" data-prom-act="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800"><i class="fa-solid fa-pen"></i>완료 · 날짜 · 내용</button>` : ''}${p.done && !PROM_MONEY_KEYS.includes(p.key) ? `<button type="button" data-prom-tidy="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-solid fa-broom"></i>칸 비우기 (달력엔 남김)</button>` : ''}${canCal ? `<button type="button" data-cal-key="${p.key}" class="inline-flex items-center gap-1.5 h-11 px-3 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700"><i class="fa-regular fa-calendar-plus"></i>캘린더에 추가</button>` : ''}</div>
                 </div>`;
-            }).join('') + doneHtml;
+            }).join('') + `<div class="pt-3">${PROM_ADD_BTN}</div>` + doneHtml;
         }
         // ✏️ V357 고객 카드 약속 탭에서 바로: 완료(칸 비우고 달력에 남김) · 내일로 · 1주 뒤로 · 날짜 고르기 · 내용 고치기 · 지우기
         async function promSave(c, patch, what) {
@@ -12756,6 +12757,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (action === 'notesave' || action === 'notedel') { saveProfileNote(id, action === 'notedel'); return; }
             if (action === 'noteall') { noteAllId = noteAllId === id ? '' : id; renderProfileCard(); return; }
             if (action === 'fav') { toggleFav(currentProfileId); return; }   // ⭐ V409
+            if (action === 'promadd') { promAdd = { cid: id, key: 'Call', date: getTodayStr(), memo: '', q: '', from: 'profile' }; openCalcSheet('promAdd'); return; }   // 📅 V415 이 고객으로 바로
             if (action === 'actchkfold') { actChkOpen = !actChkOpen; try { localStorage.setItem('actChkOpen', actChkOpen ? '1' : '0'); } catch (e) { /* 무시 */ } renderProfileCard(); return; }   // 🔍 V398 개통 점검 접기 · 펴기
             if (action === 'notefold') { noteOpen = !noteOpen; try { localStorage.setItem('consultOpen', noteOpen ? '1' : '0'); } catch (e) { /* 무시 */ } renderProfileCard(); return; }
             if (action === 'tel') logActionAndCall(id, 'tel', c.phone);
@@ -20857,7 +20859,7 @@ familyStr + `\n` +
                 document.getElementById('promAddDate').value = calYmd(t.getFullYear(), t.getMonth(), t.getDate());
                 keepInputs();
             });
-            document.getElementById('promAddCancel').onclick = () => openCalcSheet('cal');
+            document.getElementById('promAddCancel').onclick = () => { if (promAdd.from === 'profile') closeCalcSheet(); else openCalcSheet('cal'); };   // 📅 V415 고객카드에서 왔으면 카드로
             document.getElementById('promAddSave').onclick = async () => {
                 keepInputs();
                 const err = document.getElementById('promAddErr');
@@ -20879,7 +20881,8 @@ familyStr + `\n` +
                     });
                     const d = new Date(promAdd.date + 'T00:00:00');
                     calY = d.getFullYear(); calM = d.getMonth(); calSel = promAdd.date;
-                    openCalcSheet('cal');
+                    if (promAdd.from === 'profile') { closeCalcSheet(); stockToast(`📅 ${PROMISE_DEFS.find(t => t.key === promAdd.key).label} ${promAdd.date.slice(5).replace('-', '/')} 약속을 넣었어요`); }
+                    else openCalcSheet('cal');
                 } catch (e) { btn.disabled = false; show(koreanError(e, '저장')); }
             };
         }
@@ -29948,7 +29951,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V414';
+        const APP_VER = 'V415';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29956,6 +29959,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V415', d: '2026-11-19', items: [
+                ['고객카드 약속 탭에 [약속 추가] 버튼 — 그 고객으로 바로 약속 넣기 (수정 화면 안 가도 됨)', 'a'],
+            ] },
             { v: 'V414', d: '2026-11-18', items: [
                 ['문자 앱 설치 안내에 SMS 권한 · 제한된 설정 허용 · 배터리 제한 없음 · 강제 종료 후 시험 단계 추가', 'a'],
             ] },
