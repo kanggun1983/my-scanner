@@ -22376,8 +22376,9 @@ familyStr + `\n` +
             try {
                 await saveDoc(doc(db, 'smart_customers', digits), upd, { merge: true });
                 if (isM) stockAfterActSave(digits, upd.name, arVal('ar-date'), usimNewId);   // 📦 재고에서 고른 단말 → '개통' · 💳 유심 재고 1개 빼기
-                const gdAttachWant = isM && driveMode() !== 'off' && !(document.getElementById('ar-gd-attach') && !document.getElementById('ar-gd-attach').checked);   // 📎 V265 (체크를 끈 경우만 빼요)
+                const gdAttachWant = driveMode() !== 'off' && !(document.getElementById('ar-gd-attach') && !document.getElementById('ar-gd-attach').checked);   // 📎 V265 (체크를 끈 경우만 빼요)
                 if (isM) { try { const uo = !!(document.getElementById('ar-tg-usim') || {}).checked || /^유심/.test(arVal('ar-type')); await gdAfterAct(digits, arVal('ar-date'), { usimOnly: uo, model: uo ? '' : arVal('ar-model'), serial: uo ? '' : arVal('ar-serial') }); } catch (e) { console.warn(e); } }   // 📝 안내서와 묶기 (V202 · 3️⃣ 4️⃣ 조건 확인)
+                else { try { await gdAfterAct(digits, arVal('hr-date') || arVal('hr-apply') || today, { wired: true }); } catch (e) { console.warn(e); } }   // 📺 V418 홈상품 등록 → 서명한 유선 안내서와 묶고 서류에 자동 첨부
                 const fEl = document.getElementById('ar-files');
                 const files = fEl ? [...(fEl.files || [])] : [];
                 const actDay = /^\d{4}-\d{2}-\d{2}$/.test(p('date')) ? p('date') : '';   // 📅 V266 서류는 개통일(홈상품은 설치일) 월 폴더로
@@ -25957,7 +25958,8 @@ familyStr + `\n` +
         }
         function gdRo(w) { const m = String(w || '').match(/[가-힣](?=[^가-힣]*$)/); if (!m) return '로'; const j = (m[0].charCodeAt(0) - 0xAC00) % 28; return j === 0 || j === 8 ? '로' : '으로'; }   // 문자앱'으로' · 공유'로' · 사진 문자'로'
         function gdOpenUrl(u) { if (typeof window.__gdOpen === 'function') { window.__gdOpen(u); return; } window.location.href = u; }
-        function gdFileName(g) { return `구매안내서_${String(g.name || phoneDigits(g.phone).slice(-4) || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date).replace(/-/g, '')}.jpg`; }
+        function gdFilePrefix(g) { return g && g.kind === 'wired' ? '유선안내서' : '구매안내서'; }   // 📺 V418 유선은 '유선안내서'
+        function gdFileName(g) { return `${gdFilePrefix(g)}_${String(g.name || phoneDigits(g.phone).slice(-4) || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date).replace(/-/g, '')}.jpg`; }
         async function gdMarkSent(g, via, card) {
             const now = new Date().toISOString(), me = getStaffName() || '';
             g.sent = { at: now, by: me, via }; g.updatedAt = g.updatedAt || now;
@@ -26183,7 +26185,7 @@ familyStr + `\n` +
             try {
                 showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
                 const url = await gdImage(g), blob = await (await fetch(url)).blob();
-                const gf = new File([blob], `구매안내서_${String(g.name || c.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || actDay || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
+                const gf = new File([blob], `${gdFilePrefix(g)}_${String(g.name || c.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || actDay || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
                 const gr = await uploadDocFiles({ id: c.id, name: c.name || g.name || '', phone: c.phone || g.phone || '' }, [gf], null, { bundle: false, date: actDay || (g.act && g.act.date) || g.date });
                 hideUploadToast();
                 if (gr && gr.ok) { const at = new Date().toISOString(); g.docAt = at; const hit = gdList.find(x => x.id === g.id); if (hit) hit.docAt = at; setDoc(doc(db, 'smart_guides', g.id), { docAt: at }, { merge: true }).catch(e => console.warn(e)); return { ok: true, msg: '📎 서명한 안내서도 서류에 첨부했어요.' }; }
@@ -26199,11 +26201,11 @@ familyStr + `\n` +
                 if (!(await customConfirm(`[안내서로 채우기]한 안내서는 ${ix.name || '다른 고객'}(${formatPhone(ix.phone)}) 것인데\n개통번호는 ${formatPhone(custId)}예요.\n\n이 개통을 그 안내서와 묶을까요? (그 안내서가 '개통등록 됨'이 돼요)\n[취소] → 안 묶어요`))) { stockToast('안내서와 묶지 않았어요 (번호가 달라요)'); return; }
             }
             if (!id && c) {
-                const near = gdPendingFor(c).filter(e => Math.abs((Date.parse(e.d) - Date.parse(date)) / 864e5) <= 3 && (e.k === 'usim') === !!info.usimOnly);
+                const near = gdPendingFor(c).filter(e => Math.abs((Date.parse(e.d) - Date.parse(date)) / 864e5) <= 3 && (info.wired ? e.k === 'wired' : (e.k !== 'wired' && (e.k === 'usim') === !!info.usimOnly)));   // 📺 V418 홈상품 등록 ↔ 유선 안내서
                 const mk = (v) => stockKey(v || ''), am = mk(info.model), as = String(info.serial || '').replace(/\s/g, '').toUpperCase();
                 const hits = [];
                 for (const e of near) {
-                    if (e.k === 'usim') { hits.push(e.id); continue; }
+                    if (e.k === 'usim' || e.k === 'wired') { hits.push(e.id); continue; }
                     const g = await gdGet(e.id); if (!g || !g.dev) continue;
                     const gs = String(g.dev.serial || '').replace(/\s/g, '').toUpperCase();
                     const sameModel = am.length >= 3 && [g.dev.code, g.dev.name].map(mk).some(k => k.length >= 3 && (k === am || k.includes(am) || am.includes(k)));
@@ -26371,7 +26373,7 @@ familyStr + `\n` +
         // 👤 고객카드: 📝 구매 안내서 (최근 · 새로 만들기)
         function gdProfileHtml(c) {
             const list = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id).slice().reverse();
-            return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 구매 안내서 ${list.length}건</p><span class="flex gap-1"><button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button></span></div>
+            return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 구매 안내서 ${list.length}건</p><span class="flex gap-1"><button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button><button type="button" data-gd-cnew="wired" class="h-8 px-2.5 rounded-lg border border-sky-200 bg-sky-50 text-xs font-bold text-sky-800">＋ 유선</button></span></div>
                 ${list.map(e => `<button type="button" data-gd-copen="${escapeHtml(e.id)}" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0 text-left"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(e.t || '')}</span><span class="block text-xs text-gray-600">${gdDot(e.d)} · ${escapeHtml(e.by || '')} · ${e.act ? '✅ 개통등록' : (e.st === 'sent' ? '📩 보냄' : '✍ 서명')}${!e.act && gdPendingFor(c).some(x => x.id === e.id) ? ' · <b class="text-amber-800">⏳ 개통등록 전</b>' : ''}</span></span><i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`;
         }
         profileModal.addEventListener('click', (ev) => {
@@ -29962,7 +29964,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V417';
+        const APP_VER = 'V418';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29970,6 +29972,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V418', d: '2026-11-20', items: [
+                ['유선 안내서 서류 파일 이름 \'유선안내서_이름_날짜\'로 (예전엔 구매안내서)', 'a'],
+                ['홈상품 등록을 저장하면 서명한 유선 안내서와 묶여서 \'개통등록\' 표시 + 서류에 자동 첨부 (무선처럼)', 'a'],
+                ['고객카드 구매 안내서 줄에 [＋ 유선] 버튼', 'a'],
+            ] },
             { v: 'V417', d: '2026-11-20', items: [
                 ['개통등록: 무선을 적다가 홈상품 탭으로 넘어가면 적은 내용이 지워지던 문제 → 먼저 저장하라고 물어봐요', 'a'],
                 ['무선 개통에 인터넷+TV를 새로 적고 저장하면 \'홈상품으로도 등록할까요?\' → 누르면 이름 · 번호 채워진 홈상품 등록이 바로 열려요', 'a'],
