@@ -12005,7 +12005,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         // ✏️ V357 고객 카드 약속 탭에서 바로: 완료(칸 비우고 달력에 남김) · 내일로 · 1주 뒤로 · 날짜 고르기 · 내용 고치기 · 지우기
         async function promSave(c, patch, what) {
             if (!(await lockGate(c, what || '약속 고치기'))) return false;
-            try { await saveUpdate(doc(db, 'smart_customers', c.id), { ...patch, updatedAt: new Date().toISOString() }); return true; }
+            try { await saveUpdate(doc(db, 'smart_customers', c.id), { ...patch, ...accAutoLink(c, patch), updatedAt: new Date().toISOString() }); return true; }
             catch (e) { customAlert(koreanError(e, '저장')); return false; }
         }
         function promPickDate(cur, done) {
@@ -20821,7 +20821,7 @@ familyStr + `\n` +
                 </div>
                 <label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">3. 날짜</span><input type="date" id="promAddDate" value="${escapeHtml(promAdd.date || getTodayStr())}" class="${field}"></label>
                 <div class="flex flex-wrap gap-1.5">${[['내일', 1], ['3일 뒤', 3], ['1주 뒤', 7], ['1달 뒤', 30]].map(([l, n]) => `<button type="button" data-prom-quick="${n}" class="h-9 px-3 rounded-full border border-gray-300 text-xs font-bold text-gray-700 bg-white">${l}</button>`).join('')}</div>
-                <label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">4. 메모 <span class="font-normal text-gray-500">(선택)</span></span><input type="text" id="promAddMemo" value="${escapeHtml(promAdd.memo)}" maxlength="60" placeholder="예) 요금제 5G 라이트로 변경" class="${field}"></label>`;
+                <label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">4. 메모 <span class="font-normal text-gray-500">(선택)</span></span><input type="text" id="promAddMemo" value="${escapeHtml(promAdd.memo)}" maxlength="60" placeholder="예) 요금제 5G 라이트로 변경" class="${field}"></label>${promAdd.key === 'Acc' ? `<label class="block space-y-1.5"><span class="text-sm font-bold text-gray-800">악세정산 매장 <span class="font-normal text-gray-500">(이 매장 예약 목록으로)</span></span><select id="promAddAccStore" class="${field}"></select></label>` : ''}`;
             const prev = c ? String(c[`prom${promAdd.key}Date`] || '') : '';
             if (c && prev.length >= 10 && !c[`prom${promAdd.key}Chk`]) html += `<p class="text-[13px] font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 leading-snug"><i class="fa-solid fa-triangle-exclamation"></i> 이 고객은 이미 ${escapeHtml(prev.slice(5).replace('-', '/'))} ${PROMISE_DEFS.find(t => t.key === promAdd.key).label} 약속이 있어요. 저장하면 새 날짜로 바뀌어요.</p>`;
             html += `<p id="promAddErr" role="alert" class="hidden text-[13px] font-bold text-red-700"></p>
@@ -20834,7 +20834,9 @@ familyStr + `\n` +
             const keepInputs = () => {
                 const d = document.getElementById('promAddDate'), m = document.getElementById('promAddMemo');
                 if (d) promAdd.date = d.value; if (m) promAdd.memo = m.value;
+                const st = document.getElementById('promAddAccStore'); if (st) promAdd.accStore = st.value;
             };
+            fillAccStoreSelect(document.getElementById('promAddAccStore'), promAdd.accStore || (customerDB.find(x => x.id === promAdd.cid) || {}).promAccStore || '');   // 🌸 V420
             const q = document.getElementById('promAddQ');
             if (q) {
                 const showResults = () => {
@@ -20873,10 +20875,9 @@ familyStr + `\n` +
                 const btn = document.getElementById('promAddSave');
                 btn.disabled = true;
                 try {
+                    const pp = { [`prom${promAdd.key}Date`]: promAdd.date, [`prom${promAdd.key}Memo`]: promAdd.memo.trim(), [`prom${promAdd.key}Chk`]: false };
                     await saveUpdate(doc(db, 'smart_customers', promAdd.cid), {
-                        [`prom${promAdd.key}Date`]: promAdd.date,
-                        [`prom${promAdd.key}Memo`]: promAdd.memo.trim(),
-                        [`prom${promAdd.key}Chk`]: false,
+                        ...pp, ...(promAdd.key === 'Acc' ? accLinkFields(customerDB.find(x => x.id === promAdd.cid) || {}, pp.promAccDate, pp.promAccMemo, promAdd.accStore || accDefaultStore()) : {}),   // 🌸 V420 악세 예약 → 악세정산 앱으로 (고른 매장)
                         updatedAt: new Date().toISOString()
                     });
                     const d = new Date(promAdd.date + 'T00:00:00');
@@ -29964,7 +29965,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V419';
+        const APP_VER = 'V420';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29972,6 +29973,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V420', d: '2026-11-20', items: [
+                ['고객카드 [약속 추가] · 약속 달력에서 넣은 악세 예약이 악세정산 앱에 안 가던 문제 → 바로 연결 (날짜 · 내용 바꿔도 같이)', 'a'],
+            ] },
             { v: 'V419', d: '2026-11-20', items: [
                 ['고객카드 \'매달 내실 금액\'이 0원으로 나오던 문제 — 유선 안내서를 최근에 쓰면 그걸 기준으로 잡았음 → 휴대폰 안내서로만', 'a'],
             ] },
@@ -32222,6 +32226,15 @@ familyStr + `\n` +
             const pick = cur && list.includes(cur) ? cur : (list.includes(last) ? last : (list.find(x => /진천/.test(x)) || list[0]));
             sel.innerHTML = (cur && !list.includes(cur) ? [cur, ...list] : list).map(n => `<option ${n === pick ? 'selected' : ''}>${escapeHtml(n)}</option>`).join('');
             sel.onchange = () => { try { localStorage.setItem('accStoreLast', sel.value); } catch (e) {} };
+        }
+        // 🌸 V420 고객카드 약속 추가 · 빠른 고치기에서 악세 예약을 넣거나 바꿔도 악세정산 앱으로 (예전엔 상세카드 · 개통등록에서만 연결됐음)
+        function accDefaultStore() { const list = accStoreList(); let last = ''; try { last = localStorage.getItem('accStoreLast') || ''; } catch (e) { /* 무시 */ } return list.includes(last) ? last : (list.find(x => /진천/.test(x)) || list[0] || ''); }
+        function accAutoLink(prev, patch) {
+            if (!patch || !('promAccDate' in patch || 'promAccMemo' in patch)) return {};
+            prev = prev || {};
+            if (prev.promAccFrom === 'acc') return {};   // 악세정산에서 넣은 예약은 그쪽 것 그대로
+            const date = 'promAccDate' in patch ? String(patch.promAccDate || '') : String(prev.promAccDate || ''), memo = 'promAccMemo' in patch ? String(patch.promAccMemo || '') : String(prev.promAccMemo || '');
+            return accLinkFields(prev, date, memo, prev.promAccStore || accDefaultStore());
         }
         function newAccKey() { return 'crm:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
         // 상세카드 저장 때: 바뀌었으면 출처·매장·번호 정리 (악세정산에서 넣은 예약은 그쪽 것 그대로)
