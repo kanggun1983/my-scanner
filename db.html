@@ -626,6 +626,7 @@
                 <button type="button" aria-pressed="true" class="filter-btn active flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-gray-900 text-white border-gray-900 font-bold" data-filter="all">전체</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="fav"><i class="fa-solid fa-star" style="color:#f59e0b"></i> 즐겨찾기</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="interest">💡 관심 기기</button>
+                <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="dccard">💳 제휴카드</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_visit">방문약속</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="promise">약속·할일</button>
                 <button type="button" aria-pressed="false" class="filter-btn flex-shrink-0 h-11 px-4 rounded-full text-sm border transition whitespace-nowrap bg-white text-gray-700 border-gray-200 font-medium" data-filter="status_prospect">진행중</button>
@@ -3184,6 +3185,7 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">제휴카드</span>
                             <input type="text" id="modalDcCard" maxlength="40" class="modal-input text-xs sm:text-sm text-blue-800" placeholder="예) LG U+ 신한카드">
                             <input type="text" id="modalDcCardAmt" inputmode="numeric" data-won="1" aria-label="제휴카드 월 할인 (원)" class="modal-input text-xs sm:text-sm text-blue-800 text-right mt-1" placeholder="카드 할인 (월 · 원)">
+                            <input type="text" id="modalDcCardReq" inputmode="numeric" data-won="1" aria-label="제휴카드 전월 실적 (원)" class="modal-input text-xs sm:text-sm text-blue-800 text-right mt-1" placeholder="전월 실적 (원) · 예) 300,000">
                         </div>
                         <div>
                             <span class="block text-[10px] sm:text-xs text-blue-700 font-bold mb-1">할부카드</span>
@@ -9047,7 +9049,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         // 📜 V285 개통 기록 → 그 개통의 상세 (지금 카드 / 보관한 예전 카드 / 변경 기록에서 찾은 값)
         const ACT_CARD_KEYS = [['carrier', '통신사'], ['actType', '개통종류'], ['prevCarrier', '전통신사'], ['device', '단말기'], ['deviceSerial', '단말기 일련번호'], ['plan', '요금제'], ['fee', '월 요금'], ['discountType', '할인'], ['installment', '할부'],
             ['devicePrice', '출고가', 'won'], ['publicSupport', '공통지원금', 'won'], ['distSupport', '유통망지원금', 'won'], ['tradeInDiscount', '중고보상할인', 'won'], ['etcDiscount', '추가할인', 'won'], ['instCardName', '할부카드'], ['instCardDiscount', '할부카드 할인', 'won'], ['loanPrincipal', '할부원금', 'won'],
-            ['addons', '부가서비스'], ['insurance', '단말기보험'], ['discountCard', '제휴카드'], ['discountCardAmt', '카드 월 할인', 'won'], ['usimModel', '유심'], ['usimSerial', '유심 일련번호'], ['openDealer', '개통거래처'], ['openStore', '개통점'], ['policyItems', '부가 · 보험 유지']];
+            ['addons', '부가서비스'], ['insurance', '단말기보험'], ['discountCard', '제휴카드'], ['discountCardAmt', '카드 월 할인', 'won'], ['discountCardReq', '카드 전월 실적', 'won'], ['usimModel', '유심'], ['usimSerial', '유심 일련번호'], ['openDealer', '개통거래처'], ['openStore', '개통점'], ['policyItems', '부가 · 보험 유지']];
         function actCardOf(c, a) {
             if (!c || !a) return null;
             const live = actsOf(c).filter(x => !x.canceled && x.kind !== '유선'), last = live[live.length - 1];
@@ -9382,6 +9384,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
                 if (currentFilter === 'fav') return isFav(c);   // ⭐ V409 즐겨찾기 (직원마다 따로)
                 if (currentFilter === 'interest') return interestOn(c) && (!interestPick || (interestPick === '__old' ? interestStale(c) : interestKey(c.interestModel).k === interestPick));   // 💡 V426 관심 기기 · 사전예약
+                if (currentFilter === 'dccard') return hasDcCard(c);   // 💳 V429 제휴카드 고객
                 if (currentFilter === 'card_off') return isCardOff(c);   // 🔕 V245 명함 설치 · 알림 꺼짐(또는 명함 삭제)
 
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
@@ -10843,7 +10846,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
               { const cd = document.getElementById('modalCombDisc'); if (cd) cd.value = Number(c.combDisc) > 0 ? applyComma(String(c.combDisc)) : ''; }   // 🤝 V376 결합 할인 (월)
               // 💳 V428 제휴카드 · 할부카드 (예전엔 개통등록에서만 넣을 수 있었음)
               { const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-                set('modalDcCard', String(c.discountCard || '').trim()); set('modalDcCardAmt', Number(c.discountCardAmt) > 0 ? applyComma(String(c.discountCardAmt)) : '');
+                set('modalDcCard', String(c.discountCard || '').trim()); set('modalDcCardAmt', Number(c.discountCardAmt) > 0 ? applyComma(String(c.discountCardAmt)) : ''); set('modalDcCardReq', Number(c.discountCardReq) > 0 ? applyComma(String(c.discountCardReq)) : '');
                 set('modalInstCard', String(c.instCardName || '').trim()); set('modalInstCardAmt', Number(c.instCardDiscount) > 0 ? applyComma(String(c.instCardDiscount)) : ''); } }
 
             // 새롭게 연동된 가족 정보
@@ -11650,7 +11653,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         function payBoxRender(P) {
             const W = (n) => `${Math.round(n).toLocaleString('ko-KR')}원`;
-            const feeTxt = P.changed ? `${escapeHtml(P.plan)} · ${P.afterTxt ? escapeHtml(P.afterTxt) : '안내서 변경 후 금액'}` : `${W(P.pfee)}${P.sel ? ' −선약 ' + W(P.sel) : ''}${P.comb ? ' −결합 ' + W(P.comb) : ''}${P.wel ? ' −복지 ' + W(P.wel) : ''}${P.card ? ' −카드 ' + W(P.card) + (P.cardCust ? ' (고객카드 값)' : '') : ''}`;
+            const feeTxt = P.changed ? `${escapeHtml(P.plan)} · ${P.afterTxt ? escapeHtml(P.afterTxt) : '안내서 변경 후 금액'}` : `${W(P.pfee)}${P.sel ? ' −선약 ' + W(P.sel) : ''}${P.comb ? ' −결합 ' + W(P.comb) : ''}${P.wel ? ' −복지 ' + W(P.wel) : ''}${P.card ? ' −카드 ' + W(P.card) + (P.cardReq ? ` (전월 ${cardReqTxt(P.cardReq)}↑)` : '') + (P.cardCust ? ' (고객카드 값)' : '') : ''}`;
+            if (P.cid) payBoxP.set(P.cid, P);
             return `<div class="dz-pay rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 p-3 mb-3">
                 <div class="flex items-baseline justify-between gap-2"><span class="text-[13px] font-bold text-indigo-900">매달 내실 금액${P.changed ? ' <span class="text-[11px] font-bold text-indigo-700">(요금제 바꾼 뒤)</span>' : ''}</span><span class="text-[22px] font-black text-indigo-800">${W(P.total)}</span></div>
                 <div class="mt-1.5 space-y-0.5 text-[12.5px] text-gray-700">
@@ -11660,8 +11664,48 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     ${P.adds.map(a => `<div class="flex justify-between gap-2 text-gray-600"><span>+ ${escapeHtml(a.kind)} ${escapeHtml(a.name)}</span><span>${W(a.fee)}${a.until ? ` <span class="text-[11px]">(${a.until.replace(/-/g, '.')}까지)</span>` : ''}</span></div>`).join('')}
                 </div>
                 ${P.after ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-indigo-900 font-bold">🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${escapeHtml(P.tgt)}로 바꾸면</span><span class="font-extrabold text-indigo-800">매달 ${W(P.after.total)}</span></div>` : ''}
-                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.card ? ' − 카드 (전월 실적 채울 때)' : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
+                ${P.cid ? `<button type="button" data-pay-sms="${escapeHtml(P.cid)}" class="mt-2 w-full h-9 rounded-lg border border-indigo-300 bg-white text-[12.5px] font-bold text-indigo-800">💬 이 금액 문자로 보내기</button>` : ''}
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.card ? ` − 카드 (전월 ${P.cardReq ? cardReqTxt(P.cardReq) + ' ' : ''}실적 채울 때)` : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
             </div>`;
+        }
+        // 💳 V429 제휴카드 도우미: 전월 실적 글자 · 카드가 있는 고객 · 개통 기록 정책 줄에서 카드 이름
+        function cardReqTxt(n) { n = Number(n) || 0; return n >= 10000 && n % 10000 === 0 ? `${n / 10000}만원` : `${arWon(n)}원`; }
+        function hasDcCard(c) { return !!c && (actCheckMeaningful(c.discountCard) || Number(c.discountCardAmt) > 0); }
+        function cardNameFromItems(c) {
+            const pi = c && Array.isArray(c.policyItems) ? c.policyItems : [];
+            const L = pi.filter(it => it && it.kind === '제휴카드' && it.auto !== 'icard').map(it => { const n = String(it.name || '').trim(); return it.auto === 'card' ? n.replace(/^요금DC카드 유치\s*·\s*/, '') : n; })
+                .filter(n => n && !/^(단말할인카드|요금DC카드 유치)$/.test(n) && actCheckMeaningful(n));
+            return [...new Set(L)].join(', ').slice(0, 40);
+        }
+        function cardFillTargets() { return customerDB.filter(c => c && !c.deletedAt && !actCheckMeaningful(c.discountCard) && cardNameFromItems(c)); }
+        async function cardFillRun() {   // 🔧 V429 점검 → [채우기] (👑 대표 · 미리 보여 주고 확인)
+            if (!isSuperAdmin) return customAlert('👑 대표만 할 수 있어요.');
+            const L = cardFillTargets();
+            if (!L.length) return customAlert('채울 고객이 없어요 ✅');
+            const ex = L.slice(0, 5).map(c => `· ${c.name || formatPhone(c.id)}: ${cardNameFromItems(c)}`).join('\n');
+            if (!(await customConfirm(`💳 개통 기록 정책 줄에 제휴카드가 있는데 고객카드 제휴카드 칸이 빈 고객 ${L.length}명이에요.\n\n${ex}${L.length > 5 ? `\n… 외 ${L.length - 5}명` : ''}\n\n카드 이름만 채워요 (월 할인 금액은 [수정]에서 넣어 주세요). 고객카드 '바뀐 기록'에 남아요.`))) return;
+            let ok = 0, fail = 0;
+            for (const c of L) {
+                try { await txCustomerUpdate(c.id, (cur) => { if (actCheckMeaningful(cur.discountCard)) return {}; const n = cardNameFromItems(cur); return n ? { discountCard: n, __audit: '제휴카드 채우기' } : {}; }); ok++; }
+                catch (e) { console.warn('제휴카드 채우기 실패', c.id, e); fail++; }
+            }
+            customAlert(`💳 ${ok}명 채웠어요${fail ? ` · ${fail}명은 못 했어요 (인터넷 확인 후 다시 눌러 주세요)` : ''}`);
+        }
+        // 💬 V429 '매달 내실 금액' 문자 문구
+        const payBoxP = new Map();
+        function paySmsText(P, c) {
+            const W = (n) => `${Math.round(Number(n) || 0).toLocaleString('ko-KR')}원`, L = [];
+            L.push(`${msgName(c)}님, ${msgStoreName()} ${getStaffName() || ''}입니다.`.replace(/\s+입니다/, '입니다'), '매달 내시는 금액 안내드려요.');
+            if (P.inst) L.push(`· 휴대폰 할부 ${W(P.inst)}${P.left ? ` (${P.left}개월 남음)` : ''}`);
+            const d = P.rpUsed || P.changed ? [] : [P.sel ? `선택약정 −${W(P.sel)}` : '', P.comb ? `결합 −${W(P.comb)}` : '', P.wel ? `복지 −${W(P.wel)}` : '', P.card ? `제휴카드 −${W(P.card)}` : ''].filter(Boolean);
+            L.push(`· 요금 ${W(P.planNet)}${d.length ? ` (기본료 ${W(P.pfee)}에서 ${d.join(', ')})` : ''}`);
+            const addSum = (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0);
+            (P.adds || []).forEach(a => L.push(`· ${a.kind} ${a.name} ${W(a.fee)}${a.until ? ` (${a.until.replace(/-/g, '.')}까지)` : ''}`));
+            L.push(`= 매달 약 ${W(P.total)}${addSum ? ` + 부가 · 보험 ${W(addSum)}` : ''}`);
+            if (P.card) L.push(`※ 제휴카드 할인은 ${P.cardReq ? `전월 ${cardReqTxt(P.cardReq)} 이상 쓰실 때` : '전월 실적을 채우실 때'} 적용돼요.`);
+            if (P.after && P.after.total) L.push(`🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${P.tgt || '바꿀 요금제'}로 바꾸시면 매달 약 ${W(P.after.total)}`);
+            L.push('부가세 · 소액결제 · 데이터 추가 사용에 따라 조금 달라질 수 있어요.');
+            return L.join('\n');
         }
         function payAddCustCard(P, amt) {   // 💳 V428
             amt = Number(amt) || 0;
@@ -11675,14 +11719,14 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const entries = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id);
             const pick = entries.filter(e => e.st && e.st !== 'draft' && e.k !== 'wired').slice(-1)[0] || null;   // 🩹 V419 휴대폰 금액이라 유선 안내서는 빼고 (예전엔 유선이 최신이면 0원)
             if (pick) {
-                const ca = Number(c.discountCardAmt) || 0, ck = `${pick.id}|${ca}`;   // 💳 V428 안내서에 카드가 없고 고객카드에 제휴카드 할인이 있으면 그것도 빼서 보여줌
+                const ca = Number(c.discountCardAmt) || 0, cr = Number(c.discountCardReq) || 0, ck = `${pick.id}|${ca}|${cr}`;   // 💳 V428 안내서에 카드가 없고 고객카드에 제휴카드 할인이 있으면 그것도 빼서 보여줌
                 const hit = payGuideCache.get(ck);
                 if (hit) return hit.html;
-                gdGet(pick.id).then(g => { if (!g) return; let html = ''; try { html = payBoxRender(payAddCustCard(payFromGuide(g), ca)); } catch (e) { console.warn('매달 내실 금액 계산 실패', e); return; } payGuideCache.set(ck, { html }); const el = document.getElementById('payBoxSlot'); if (el && currentProfileId === c.id) el.outerHTML = html; });
+                gdGet(pick.id).then(g => { if (!g) return; let html = ''; try { html = payBoxRender(Object.assign(payAddCustCard(payFromGuide(g), ca), { cid: c.id, cardReq: cr })); } catch (e) { console.warn('매달 내실 금액 계산 실패', e); return; } payGuideCache.set(ck, { html }); const el = document.getElementById('payBoxSlot'); if (el && currentProfileId === c.id) el.outerHTML = html; });
                 return `<div id="payBoxSlot" class="dz-pay rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3 mb-3 text-[12px] text-gray-500">안내서에서 매달 내실 금액 불러오는 중…</div>`;
             }
             const P = payFromCustomer(c);
-            return P ? payBoxRender(P) : '';
+            return P ? payBoxRender(Object.assign(P, { cid: c.id, cardReq: Number(c.discountCardReq) || 0 })) : '';
         }
         function buildProfileMobileTab(c) {
             const filled = (v) => v && String(v).trim() && String(v).trim() !== '-';
@@ -11716,7 +11760,16 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 profileKV('복지할인', profileValue(c.welfare)),
                 profileKV('제휴카드', (() => {   // 💳 V428 제휴카드 · 할부카드 (개통 상세에서는 빼고 여기 한 곳에서 · 수정 화면 개통 기록 탭은 그대로)
                     const won = (n) => `${Math.round(Number(n) || 0).toLocaleString('ko-KR')}원`, L = [];
-                    if (actCheckMeaningful(c.discountCard)) L.push(`${escapeHtml(String(c.discountCard).trim())}${Number(c.discountCardAmt) > 0 ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">월 -${won(c.discountCardAmt)}</span>` : ''}`);
+                    if (actCheckMeaningful(c.discountCard)) L.push(`${escapeHtml(String(c.discountCard).trim())}${Number(c.discountCardAmt) > 0 ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">월 -${won(c.discountCardAmt)}</span>` : ''}${Number(c.discountCardReq) > 0 ? ` <span class="text-[11px] text-gray-500">전월 ${cardReqTxt(c.discountCardReq)}↑</span>` : ''}`);
+                    {   // 📅 V429 카드 유지 약속 날짜 (약속 칸 promCardDate)
+                        const kd = String(c.promCardDate || '').slice(0, 10);
+                        if (/^\d{4}-\d{2}-\d{2}$/.test(kd)) {
+                            const dd = Math.round((new Date(kd + 'T00:00:00') - new Date(getTodayStr() + 'T00:00:00')) / 86400000), dot = kd.replace(/-/g, '.');
+                            L.push(c.promCardChk ? `<span class="text-[12px] text-gray-500">카드 유지 약속 끝 ✅ (${dot})</span>`
+                                : dd >= 0 ? `<span class="text-[12px] font-bold text-purple-800">유지 ~${dot} (${dd ? 'D-' + dd : '오늘'})</span>`
+                                : `<span class="text-[12px] font-bold text-emerald-700">유지 기간 지났어요 (${dot})</span>`);
+                        }
+                    }
                     if (actCheckMeaningful(c.instCardName) || Number(c.instCardDiscount) > 0) L.push(`<span class="text-gray-600">할부카드</span> ${escapeHtml(String(c.instCardName || '').trim())}${Number(c.instCardDiscount) > 0 ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">-${won(c.instCardDiscount)}</span>` : ''}`);
                     return L.length ? L.join('<br>') : PROFILE_DASH;
                 })()),
@@ -12026,6 +12079,16 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 : `<button type="button" data-wn-chk class="mt-2 w-full h-9 rounded-lg border border-sky-300 bg-white text-[12px] font-bold text-sky-800">📞 통신사 조회 금액 ${chk ? '다시 ' : ''}넣기 (계산기와 비교)</button>`;
             return h;
         }
+        profileModal.addEventListener('click', async (ev) => {   // 💬 V429 매달 내실 금액 → 문자
+            const b = ev.target.closest('[data-pay-sms]'); if (!b) return;
+            const c = customerDB.find(x => x.id === b.dataset.paySms), P = payBoxP.get(b.dataset.paySms);
+            if (!c || !P) return customAlert('금액을 다시 불러온 뒤 눌러 주세요.');
+            const to = phoneDigits(c.phone || c.id);
+            if (!/^01\d{8,9}$/.test(to)) return customAlert('고객 휴대폰 번호가 없어요.');
+            const text = paySmsText(P, c);
+            if (!(await customConfirm(`이 문자를 보낼까요?\n\n${text}`))) return;
+            await window.logActionAndCall(c.id, 'sms', to, '요금 안내', text);
+        });
         profileModal.addEventListener('click', async (ev) => {   // 🏠 V244
             const cb = ev.target.closest('[data-wn-car]'), calc = ev.target.closest('[data-wn-calc]'), cp = ev.target.closest('[data-wn-copy]');
             const chkB = ev.target.closest('[data-wn-chk]'), chkS = ev.target.closest('[data-wn-chksave]'), fixB = ev.target.closest('[data-wn-fix]');   // 📞 V339
@@ -17025,7 +17088,7 @@ ${AI_TONES[aiSmsTone]}
                 repTargetPlan: v('modalTargetPlan').trim(), targetPlanFee: (Number(v('modalTargetFee').replace(/[^\d]/g, '')) || 0) || '',   // 💰 V205
                 realPay: (Number(v('modalRealPay').replace(/[^\d]/g, '')) || 0) || '', targetRealPay: (Number(v('modalTargetRealPay').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V341 실납부금
                 combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', combDisc: (Number(v('modalCombDisc').replace(/[^\d]/g, '')) || 0) || '',
-                discountCard: v('modalDcCard').trim().slice(0, 40), discountCardAmt: (Number(v('modalDcCardAmt').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V428
+                discountCard: v('modalDcCard').trim().slice(0, 40), discountCardAmt: (Number(v('modalDcCardAmt').replace(/[^\d]/g, '')) || 0) || '', discountCardReq: (Number(v('modalDcCardReq').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V428 · V429 전월 실적
                 instCardName: v('modalInstCard').trim().slice(0, 40), instCardDiscount: (Number(v('modalInstCardAmt').replace(/[^\d]/g, '')) || 0) || '',
                 internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
                 wiredDate: v('modalWiredDate'), wiredType: v('modalWiredType'), wiredTvDate: v('modalWiredTvDate'), repFamily: v('modalFamily'),
@@ -22038,7 +22101,7 @@ familyStr + `\n` +
                     <div data-tg="ar-tg-comb" class="col-span-2 grid grid-cols-2 gap-2 ${tgComb ? '' : 'hidden'}">
                         ${arIn('ar-comb', '결합 · 복지', prefCombo, { ph: '예) 가족결합 / 복지(장애)' })}${arMoney('ar-combdisc', '결합 할인 (월)')}
                         ${arIn('ar-card', '제휴카드', '', { ph: '예) LG U+ 신한카드' })}
-                        ${arMoney('ar-cardamt', '카드 월 할인')}
+                        ${arMoney('ar-cardamt', '카드 월 할인')}${arMoney('ar-cardreq', '카드 전월 실적')}
                         ${arSel('ar-k-card', '카드 유지', [['NONE', '만들지 않기'], ...KEEP_OPTIONS.filter(k => k !== 'NONE').map(k => [k, keepLabel(k)])], 'NONE')}
                         ${appSettings.autoCardChkOn !== false ? `<p class="col-span-2 text-[12px] font-bold text-sky-800 leading-relaxed">💳 제휴카드를 적으면 개통 ${cardChkDays()}일 뒤 [카드 발급 확인 · 등록하기] 약속이 저절로 잡혀요</p>` : ''}
                     </div>
@@ -22544,7 +22607,7 @@ familyStr + `\n` +
             const now = new Date().toISOString(), today = getTodayStr();
             const upd = { updatedAt: now };
             let note, usimNewId = null, keepLatest = false, freshAct = false, keepStaff = '', editedAct = false;
-            const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'discountCardAmt', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
+            const ACT_FRESH_KEYS = new Set(['addons', 'insurance', 'repAddons', 'repInsurance', 'discountCard', 'discountCardAmt', 'discountCardReq', 'missingDocs', 'prevCarrier', 'repUsedPhone', 'repSubsidy', 'repTargetPlan', 'planFee', 'targetPlanFee', 'usimModel', 'usimSerial', 'repUsim', 'usimFee', 'repUsimPay']);
             if (isM) {
                 const usimOnly = !!(document.getElementById('ar-tg-usim') || {}).checked;   // 유심만 개통이면 단말기 칸은 안 씀
                 const d = arVal('ar-date'), model = usimOnly ? '' : arVal('ar-model');
@@ -22554,7 +22617,7 @@ familyStr + `\n` +
                     actType: arVal('ar-type'), prevCarrier: arVal('ar-prev'), openStore: arVal('ar-shop'), openDealer: arVal('ar-store'), repManager: arVal('ar-manager'),   // 🏪 V227 개통점 = 우리 매장 · 개통거래처 = 거래처
                     plan: arVal('ar-plan'), contractTerm: arVal('ar-term'), addons: '', insurance: '',
                     ...(arNum('ar-planfee') > 0 ? { planFee: arNum('ar-planfee'), fee: `${arWon(arNum('ar-planfee'))}원` } : {}), ...(arNum('ar-realpay') > 0 ? { realPay: arNum('ar-realpay') } : {}), ...(arNum('ar-targetreal') > 0 ? { targetRealPay: arNum('ar-targetreal') } : {}),   /* 💳 V341 */ ...(arNum('ar-targetfee') > 0 ? { targetPlanFee: arNum('ar-targetfee') } : {}),   // V188 월요금 · 변경후 월요금 · V205 고객카드 월 요금도
-                    discountCard: arVal('ar-card'), discountCardAmt: arNum('ar-cardamt') || '', usimFee: arVal('ar-usimfee'),
+                    discountCard: arVal('ar-card'), discountCardAmt: arNum('ar-cardamt') || '', discountCardReq: arNum('ar-cardreq') || '', usimFee: arVal('ar-usimfee'),
                     usimModel: arVal('ar-usim'), usimSerial: arVal('ar-usimserial'),
                     discountType: r.sup === '공시' ? '공시지원금' : (arVal('ar-term') === '무약정' ? '해당없음' : (/\d/.test(arVal('ar-term')) ? `선택약정(${arVal('ar-term')})` : '선택약정(기본)')),   // V237 무약정 = 할인 없음 (기변 타겟 '약정 없는 고객')
                     salesStatus: '판매성공', salesStatusAt: d,
@@ -29378,7 +29441,7 @@ familyStr + `\n` +
         }
         async function runDiag() {
             diagRunning = true; diagRows = []; renderDiag();
-            const add = (group, label, state, hint = '') => { diagRows.push({ group, label, state, hint }); renderDiag(); };
+            const add = (group, label, state, hint = '', act = null) => { diagRows.push({ group, label, state, hint, act }); renderDiag(); };
             const d = calcData || calcNormalize(null);
             // 1. Firebase
             add('Firebase', '고객 데이터', dbLoadError ? 'bad' : (dbLoaded ? 'ok' : 'warn'), dbLoadError ? koreanError(dbLoadError, '불러오기') : `고객 ${customerDB.length}명 · 휴지통 ${trashDB.length}명`);
@@ -29506,6 +29569,10 @@ familyStr + `\n` +
                     });
                 }
             }
+            {   // 💳 V429 제휴카드 칸 빈 고객 (개통 기록 정책 줄에는 카드가 있음)
+                const L = isSuperAdmin ? cardFillTargets() : (() => { const vis = new Set(custView().map(c => c.id)); return cardFillTargets().filter(c => vis.has(c.id)); })();   // 직원은 볼 수 있는 고객만 (다매장)
+                add('고객', '💳 제휴카드 칸 비어 있음', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 개통 기록엔 제휴카드가 있는데 고객카드 칸이 비었어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' …' : ''})${isSuperAdmin ? '' : ' · 대표 폰에서 채울 수 있어요'}` : '개통 기록과 고객카드 제휴카드가 맞아요', L.length && isSuperAdmin ? { id: 'cardFill', label: `💳 ${L.length}명 카드 이름 채우기` } : null);
+            }
             {   // 🕰 V427 오래된 관심 기기
                 const L = customerDB.filter(c => !c.deletedAt && interestStale(c));
                 add('고객', '🕰 오래된 관심 기기', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 관심 기종을 적고 6개월 넘게 방문 · 연락이 없어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' 외' : ''}) → 고객 목록 [💡 관심 기기] → [🕰]에서 다시 연락하거나 관심 기종 지우기` : '없어요');
@@ -29544,12 +29611,13 @@ familyStr + `\n` +
             const groups = [...new Set(diagRows.map(r => r.group))];
             document.getElementById('calcSheetBody').innerHTML = groups.map(g => `<div class="rounded-2xl border border-gray-200 overflow-hidden">
                     <p class="px-3 py-1.5 bg-gray-50 text-xs font-bold text-gray-600">${escapeHtml(g)}</p>
-                    ${diagRows.filter(r => r.group === g).map(r => `<div class="px-3 py-2 border-t border-gray-100 flex items-start gap-2"><span class="flex-shrink-0">${icon[r.state]}</span><span class="min-w-0"><span class="block text-[14px] font-bold ${r.state === 'bad' ? 'text-red-800' : 'text-gray-900'}">${escapeHtml(r.label)}</span>${r.hint ? `<span class="block text-xs text-gray-600 leading-snug whitespace-pre-line">${escapeHtml(r.hint)}</span>` : ''}</span></div>`).join('')}
+                    ${diagRows.filter(r => r.group === g).map(r => `<div class="px-3 py-2 border-t border-gray-100 flex items-start gap-2"><span class="flex-shrink-0">${icon[r.state]}</span><span class="min-w-0"><span class="block text-[14px] font-bold ${r.state === 'bad' ? 'text-red-800' : 'text-gray-900'}">${escapeHtml(r.label)}</span>${r.hint ? `<span class="block text-xs text-gray-600 leading-snug whitespace-pre-line">${escapeHtml(r.hint)}</span>` : ''}${r.act ? `<button type="button" data-diag-act="${escapeHtml(r.act.id)}" class="mt-1.5 h-9 px-3 rounded-lg border border-indigo-300 bg-indigo-50 text-[13px] font-bold text-indigo-800">${escapeHtml(r.act.label)}</button>` : ''}</span></div>`).join('')}
                 </div>`).join('') + (diagRunning ? '<p class="text-sm text-gray-500 text-center py-3"><i class="fa-solid fa-spinner fa-spin"></i> 확인 중…</p>'
                 : `<button type="button" id="diagAgain" class="w-full h-12 rounded-xl border border-indigo-300 bg-white text-[15px] font-bold text-indigo-700"><i class="fa-solid fa-rotate"></i> 다시 점검</button>
                    ${pushRelayReady() ? `<button type="button" id="diagSmsTestBtn" class="w-full h-12 rounded-xl border border-emerald-300 bg-emerald-50 text-[15px] font-bold text-emerald-800"><i class="fa-solid fa-flask"></i> 🧪 예약 문자 시험 (1분 뒤 보내기 → 10분 뒤 결과 확인)</button>` : ''}
                    <p class="text-xs text-gray-500 leading-relaxed">이 폰 기준으로 점검해요. 직원 폰은 각자 한 번씩 눌러보세요. 점검은 아무것도 보내지 않아요.</p>`);
             const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
+            document.querySelectorAll('#calcSheetBody [data-diag-act]').forEach(b => { b.onclick = async () => { const f = { cardFill: cardFillRun }[b.dataset.diagAct]; if (f) { await f(); runDiag(); } }; });   // 🔧 V429 점검 줄 바로 고치기
             const tb = document.getElementById('diagSmsTestBtn'); if (tb) tb.onclick = startDiagSmsTest;
         }
         // 🧪 예약 문자 시험: 1분 뒤 보내기로 예약 → 중계 서버 Cron이 돌면 목록에서 빠지고 폰에 문자가 옴
@@ -30369,7 +30437,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V428';
+        const APP_VER = 'V429';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30377,6 +30445,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V429', d: '2026-11-23', items: [
+                ['💳 제휴카드 \'전월 실적\' 칸 ([수정] · 개통등록) → 고객카드 · 매달 내실 금액에 \'전월 30만원↑\'처럼 보여요', 'a'],
+                ['📅 고객카드 제휴카드 줄에 카드 유지 약속 날짜 (유지 ~날짜 D-n · 지나면 \'유지 기간 지났어요\')', 'a'],
+                ['🔧 점검: 개통 기록엔 제휴카드가 있는데 고객카드 칸이 빈 고객 → 👑 [카드 이름 채우기]', 'a'],
+                ['💳 고객 목록 [제휴카드] 필터', 'a'],
+                ['💬 매달 내실 금액 상자에 [이 금액 문자로 보내기] — 할부 · 요금 · 할인 내역 · 카드 실적 안내까지 문자 한 통', 'a'],
+            ] },
             { v: 'V428', d: '2026-11-23', items: [
                 ['고객카드 모바일 탭에 \'제휴카드\' 줄 (카드 이름 · 월 할인 · 할부카드) — 아래 \'개통 상세\'에서 겹치던 줄은 뺐어요 · 없으면 \'-\'로 보여요', 'a'],
                 ['[수정] 화면 결합 · 복지 칸에 제휴카드 · 할부카드 (이름 · 할인 금액) 넣는 칸 — 예전엔 개통등록에서만 넣을 수 있었어요', 'a'],
