@@ -7354,6 +7354,10 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     out.push({ k: `${c.id}|${key}|${dd}`, c, key, label, date: dd, overdue: dd < today, memo: String(c[key + 'Memo'] || '').trim(), type: 'prom' });
                 });
                 if (docsOpen(c)) { const dd = docsDue(c); if (dd <= today) out.push({ k: `${c.id}|docs|${dd}`, c, key: 'docs', label: `📄 미비서류 받기 · ${String(c.missingDocs).trim()}`, date: dd, overdue: dd < today, type: 'docs' }); }   // 📄 V208
+                if (c.wiredStatus === '신청' || c.wiredStatus === '예약') {   // 🏠 V422 홈상품 신청만 하고 설치일(완료)을 안 넣은 고객 → 신청 다음 날부터 (7일 넘으면 지연)
+                    const ap = /^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredApplyDate || '').slice(0, 10)) ? String(c.wiredApplyDate).slice(0, 10) : '', dd = ap ? addDaysStr(ap, 1) : today;
+                    if (dd <= today) out.push({ k: `${c.id}|home|${ap}`, c, key: 'home', label: `🏠 홈상품 설치일 넣기 · ${c.wiredStatus}${ap ? ' ' + ap.slice(5).replace('-', '/') : ''}${Array.isArray(c.wiredItems) && c.wiredItems.length ? ' · ' + c.wiredItems.join('+') : ''}`, date: dd, overdue: dd < addDaysStr(today, -7), type: 'home' });
+                }
                 refGiftsDue(c).forEach(t => out.push({ k: `${c.id}|gift|${t.n}`, c, key: 'gift', label: `🎁 소개 사은품 챙기기 · ${t.g} (${refBasis() === 'all' ? '소개' : '소개 개통'} ${t.n}명)`, date: today, overdue: false, type: 'gift' }));   // V186
                 if (c.salesStatus !== '고객거부' && getDaysUntilBirthday(c.dob) === 0) {
                     const k = `${c.id}|bday|${today}`;
@@ -7414,6 +7418,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                         if (!c) return;
                         if (key === 'bday') { todoMarkDone(fin.dataset.todoDone); openTodoSheet(); renderTodoRow(); return; }
                         if (key === 'gift') { if (await markRefGift(id, dd, true)) { openTodoSheet(); renderTodoRow(); } return; }   // 🎁 드렸어요 (V186)
+                        if (key === 'home') { sh.remove(); openActReg(c, 'home', { homeDone: true }); return; }   // 🏠 V422 → 저장한 신청 내용 + 상태 '완료'로 열기
                         if (key === 'docs') { if (await docsReceive(c)) { openTodoSheet(); renderTodoRow(); } return; }   // 📄 받음 (V208)
                         if (!(await lockGate(c, '약속 끝내기', 'edit'))) return;
                         const pick = await pickDoneStatus(c, key);   // ✓ 끝 → 영업상태 골라서 같이 바꾸기 (V194)
@@ -7452,7 +7457,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                             <span class="block text-[13px] text-gray-700 truncate">${escapeHtml(t.label)}${t.memo ? ` · ${escapeHtml(t.memo)}` : ''}</span>
                         </button>
                         ${hasPhone ? `<button type="button" data-todo-call="${escapeHtml(c.id)}|tel" class="w-10 h-10 rounded-xl bg-green-700 text-white flex-shrink-0" aria-label="전화"><i class="fa-solid fa-phone"></i></button><button type="button" data-todo-call="${escapeHtml(c.id)}|sms" class="w-10 h-10 rounded-xl border border-gray-300 text-indigo-700 flex-shrink-0" aria-label="문자"><i class="fa-solid fa-comment-sms"></i></button>` : ''}
-                        <button type="button" data-todo-done="${escapeHtml(t.k)}" class="h-10 px-2.5 rounded-xl border ${t.type === 'gift' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : (t.type === 'docs' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-indigo-200 bg-indigo-50 text-indigo-800')} text-xs font-bold flex-shrink-0">${t.type === 'gift' ? '🎁 드림' : (t.type === 'docs' ? '📄 받음' : '✓ 끝')}</button>
+                        <button type="button" data-todo-done="${escapeHtml(t.k)}" class="h-10 px-2.5 rounded-xl border ${t.type === 'gift' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : (t.type === 'docs' ? 'border-rose-200 bg-rose-50 text-rose-800' : (t.type === 'home' ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-indigo-200 bg-indigo-50 text-indigo-800'))} text-xs font-bold flex-shrink-0">${t.type === 'gift' ? '🎁 드림' : (t.type === 'docs' ? '📄 받음' : (t.type === 'home' ? '🏠 설치 완료' : '✓ 끝'))}</button>
                     </div></li>`;
             };
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-4 space-y-3">
@@ -11846,18 +11851,35 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const rest = chk.amt - r.p.tv - r.p.bundle - r.p.equip, nc = f > 0 ? Math.round((intObj.price + rest / f) / 100) * 100 : 0;
             return { r, intObj, nc: nc >= intObj.price && nc <= intObj.price * 3 ? nc : 0 };
         }
+        const WN_PARTS = [['int', '인터넷', '인터넷 약정 · 재약정 할인 반환금', 'internet'], ['tv', 'TV', '약정할인 + U+tv 약정 반환금', 'tv'], ['bund', '결합', '결합할인 + U+tv 결합 반환금', 'bundle'], ['eq', '장비 임대료', '모뎀 · 셋톱 임대료 할인반환금', 'equip']];   // 📞 V422 항목별
         function wnChkHtml(c, I) {
             const chk = c.wiredPenChk && c.wiredPenChk.amt > 0 ? c.wiredPenChk : null, open = wnChkOpen[c.id];
             let h = '';
-            if (chk) {
+            if (chk && chk.parts && WN_PARTS.some(([k]) => chk.parts[k] > 0)) {   // 📞 V422 항목별로 넣은 경우 → 항목마다 비교 · 무약정 제안은 인터넷 칸만으로
+                const st = { ...I, start: c.wiredDate, tvStart: c.wiredTvDate || '' }, g = st.g, r = WiredCalc.estimate({ ...g, start: st.start, tvStart: st.tvStart, end: chk.date });
+                const D = (n) => Math.abs(n) < 1000 ? '<b class="text-emerald-700">✅</b>' : `<b class="text-amber-700">${n > 0 ? '+' : '−'}${arWon(Math.abs(n))}</b>`;
+                const rows = WN_PARTS.filter(([k]) => chk.parts[k] > 0).map(([k, lab, , rk]) => { const mine = r ? r.p[rk] : 0, d = chk.parts[k] - mine; return `<tr class="border-t border-sky-50"><td class="py-1 pr-1">${lab}</td><td class="py-1 text-right tabular-nums">${arWon(chk.parts[k])}</td><td class="py-1 text-right tabular-nums text-gray-600">${r ? arWon(mine) : '-'}</td><td class="py-1 text-right tabular-nums">${r ? D(d) : ''}</td></tr>`; }).join('');
+                let fix = '';
+                if (r && chk.parts.int > 0) {
+                    const C = WiredCalc.CARRIER_DATA[g.carrier], io = ((C.internet || {})[g.tab] || []).find(x => x.id === g.intId), f = io ? WiredCalc.penalty(r.ptype, 1, r.days, g.carrier) * (C.vatExNet ? 1 / 1.1 : 1) : 0;
+                    const nc = f > 0 ? Math.round((io.price + chk.parts.int / f) / 100) * 100 : 0, d = chk.parts.int - r.p.internet;
+                    if (nc >= io.price && nc <= io.price * 3 && Math.abs(d) >= 1000 && nc !== io.noContract) fix = `<p class="mt-1">인터넷 무약정이 <b>${arWon(nc)}원</b>이면 인터넷 칸이 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(io.name)} ${arWon(io.noContract)}원 · 청구서 기본료로 확인)</span></p>${can('editPolicy') ? `<button type="button" data-wn-fix="${nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(nc)}원으로 고치기</button>` : ''}`;
+                }
+                h += `<div class="mt-2 rounded-lg bg-white border border-sky-100 px-2.5 py-2 text-[12px] text-gray-800 leading-relaxed">📞 <b>통신사 조회 ${arWon(chk.amt)}원</b> <span class="text-gray-500">(${gdDot(chk.date)}${chk.by ? ' · ' + escapeHtml(chk.by) : ''})</span>
+                    <table class="w-full mt-1"><thead><tr class="text-[11px] text-gray-500"><th class="text-left font-normal">항목</th><th class="text-right font-normal">통신사</th><th class="text-right font-normal">계산기</th><th class="text-right font-normal">차이</th></tr></thead><tbody>${rows}</tbody></table>${fix}</div>`;
+            } else if (chk) {
                 const M = wnImplied({ ...I, start: c.wiredDate, tvStart: c.wiredTvDate || '' }, chk), diff = M ? chk.amt - M.r.total : 0;
                 h += `<div class="mt-2 rounded-lg bg-white border border-sky-100 px-2.5 py-2 text-[12px] text-gray-800 leading-relaxed">📞 <b>통신사 조회 ${arWon(chk.amt)}원</b> <span class="text-gray-500">(${gdDot(chk.date)}${chk.by ? ' · ' + escapeHtml(chk.by) : ''})</span>`
                     + (M ? `<br>그날 계산기 ${arWon(M.r.total)}원 · ${Math.abs(diff) < 1000 ? '<b class="text-emerald-700">거의 같아요 ✅</b>' : `<b class="text-amber-700">${diff > 0 ? '+' : '−'}${arWon(Math.abs(diff))}원 차이</b>`}` : '')
                     + (M && Math.abs(diff) > M.r.total * 0.2 ? `<br><span class="text-amber-800 font-bold">⚠️ 차이가 커요 · 셋톱 · 모뎀 분실파손비, 리모컨, AP 배상금이 섞였는지 확인해 주세요 (장비를 돌려주면 안 내는 돈이라 빼고 넣어요)</span>` : '')
                     + (M && M.nc && Math.abs(diff) >= 1000 && Math.abs(diff) <= M.r.total * 0.2 && M.nc !== M.intObj.noContract ? `<br>인터넷 무약정이 <b>${arWon(M.nc)}원</b>이면 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(M.intObj.name)} ${arWon(M.intObj.noContract)}원 · 결합 · 장비 · 예전 할인 차이일 수도 있어요 → 청구서 기본료로 확인)</span>${can('editPolicy') ? `<button type="button" data-wn-fix="${M.nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(M.nc)}원으로 고치기</button>` : ''}` : '')
-                    + `</div>`;
+                    + `<br><span class="text-gray-500">항목별로 넣으면 어디가 다른지 정확히 보여요</span></div>`;
             }
-            h += open ? `<div class="mt-2 flex gap-1.5"><input id="wnChkIn" inputmode="numeric" placeholder="통신사 조회 위약금 (원)" value="${chk ? arWon(chk.amt) : ''}" class="flex-1 min-w-0 h-10 px-3 border border-sky-300 rounded-lg text-[15px] text-right bg-white"><button type="button" data-wn-chksave class="flex-shrink-0 h-10 px-3 rounded-lg bg-sky-700 text-white text-[13px] font-bold">오늘 조회로 저장</button></div><p class="mt-1 text-[11px] text-gray-600 leading-relaxed">통신사 '예상 할인 반환금'에서 <b>분실파손비용(셋톱 · 모뎀) · 리모컨 손실보상금 · Wi-Fi AP 임대배상금</b>은 빼고 넣으세요 (장비를 돌려주면 안 내요)</p>`
+            const pv = (k) => chk && chk.parts && chk.parts[k] > 0 ? arWon(chk.parts[k]) : '';
+            h += open ? `<div class="mt-2 rounded-lg border border-sky-200 bg-white p-2 space-y-1.5"><p class="text-[12px] font-bold text-sky-900">통신사 '오늘 해지할 경우 예상하는 할인 반환금'에서 항목별로</p>
+                    <div class="grid grid-cols-2 gap-1.5">${WN_PARTS.map(([k, lab, ph]) => `<label class="block"><span class="block text-[11px] font-bold text-gray-700">${lab} <span class="font-normal text-gray-500">${ph}</span></span><input data-wn-part="${k}" inputmode="numeric" value="${pv(k)}" placeholder="0" class="w-full h-10 px-2 border border-sky-300 rounded-lg text-[15px] text-right bg-white"></label>`).join('')}</div>
+                    <div class="flex gap-1.5 items-end"><label class="flex-1 min-w-0"><span class="block text-[11px] font-bold text-gray-700">또는 합계만 <span class="font-normal text-gray-500">(항목을 넣으면 자동으로 더해요)</span></span><input id="wnChkIn" inputmode="numeric" placeholder="통신사 조회 위약금 (원)" value="${chk && !(chk.parts) ? arWon(chk.amt) : ''}" class="w-full h-10 px-3 border border-sky-300 rounded-lg text-[15px] text-right bg-white"></label><button type="button" data-wn-chksave class="flex-shrink-0 h-10 px-3 rounded-lg bg-sky-700 text-white text-[13px] font-bold">오늘 조회로 저장</button></div>
+                    <p class="text-[11px] text-gray-600 leading-relaxed"><b>분실파손비용(셋톱 · 모뎀) · 리모컨 손실보상금 · Wi-Fi AP 임대배상금</b>은 빼고 넣으세요 (장비를 돌려주면 안 내요)</p></div>`
                 : `<button type="button" data-wn-chk class="mt-2 w-full h-9 rounded-lg border border-sky-300 bg-white text-[12px] font-bold text-sky-800">📞 통신사 조회 금액 ${chk ? '다시 ' : ''}넣기 (계산기와 비교)</button>`;
             return h;
         }
@@ -11868,9 +11890,12 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
             if (chkB) { wnChkOpen[c.id] = true; renderProfileCard(); setTimeout(() => { const i = document.getElementById('wnChkIn'); if (i) i.focus(); }, 50); return; }
             if (chkS) {
-                const amt = Number(String((document.getElementById('wnChkIn') || {}).value || '').replace(/[^\d]/g, '')) || 0;
+                const num = (v) => Number(String(v || '').replace(/[^\d]/g, '')) || 0, parts = {};   // 📞 V422 항목별 (있으면 합계는 자동)
+                document.querySelectorAll('#profileModal [data-wn-part]').forEach(el => { const n = num(el.value); if (n > 0) parts[el.dataset.wnPart] = n; });
+                const hasParts = Object.keys(parts).length > 0, amt = hasParts ? Object.values(parts).reduce((a, b) => a + b, 0) : num((document.getElementById('wnChkIn') || {}).value);
                 if (!(await lockGate(c, '위약금 조회 금액', 'edit'))) return;
-                try { await saveDoc(doc(db, 'smart_customers', c.id), { wiredPenChk: amt > 0 ? { amt, date: getTodayStr(), by: getStaffName() || '' } : null }, { merge: true }); c.wiredPenChk = amt > 0 ? { amt, date: getTodayStr(), by: getStaffName() || '' } : null; wnChkOpen[c.id] = false; renderProfileCard(); stockToast(amt > 0 ? '📞 통신사 조회 금액을 저장했어요' : '조회 금액을 지웠어요'); }
+                const rec = amt > 0 ? { amt, ...(hasParts ? { parts } : {}), date: getTodayStr(), by: getStaffName() || '' } : null;
+                try { await saveDoc(doc(db, 'smart_customers', c.id), { wiredPenChk: rec }, { mergeFields: ['wiredPenChk'] }); c.wiredPenChk = rec; wnChkOpen[c.id] = false; renderProfileCard(); stockToast(amt > 0 ? '📞 통신사 조회 금액을 저장했어요' : '조회 금액을 지웠어요'); }
                 catch (err) { customAlert(koreanError(err, '저장')); }
                 return;
             }
@@ -11994,7 +12019,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 else badge = pill(diff <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600', `D-${diff}`);
                 const canCal = !p.done && diff !== null;
                 return `<div class="py-3 border-b border-gray-100 last:border-0">
-                    <div class="flex items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}</div>
+                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}${p.key === 'Acc' && !p.done ? (c.promAccFrom === 'crm' && c.promAccKey ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : (c.promAccFrom === 'acc' ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱에서 넣음${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : `<button type="button" data-prom-acclink class="px-2 h-7 rounded-md border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-900">⚠️ 악세 앱에 없음 · 보내기</button>`)) : ''}</div>
                     <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
                     ${p.money ? `<p class="text-[13px] font-bold text-gray-800 mt-0.5">${escapeHtml(p.money)}</p>` : ''}${p.done && p.doneAt ? `<p class="text-[11px] text-emerald-700 mt-0.5">✅ ${escapeHtml(p.doneAt.slice(5, 10).replace('-', '/'))} ${escapeHtml(managerKey(p.doneBy) || '')} 처리</p>` : ''}
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
@@ -12717,6 +12742,15 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (tabBtn) { currentProfileTab = tabBtn.dataset.ptab; renderProfileCard(); return; }
             if (ev.target.closest('#profileToggleDetail')) { profileDetailOpen = !profileDetailOpen; renderProfileCard(); return; }
 
+            { const al = ev.target.closest('[data-prom-acclink]'); if (al && currentProfileId) {   // 🌸 V422 악세 앱에 안 간 예약 → 매장 골라 보내기
+                const cc = customerDB.find(x => x.id === currentProfileId); if (!cc) return;
+                const list = accStoreList(), def = accDefaultStore();
+                openActionSheet('악세정산 어느 매장으로 보낼까요?', list.map(n => ({ icon: 'fa-solid fa-store', label: n, sub: n === def ? '지난번 고른 매장' : '', onClick: async () => {
+                    try { localStorage.setItem('accStoreLast', n); } catch (e) { /* 무시 */ }
+                    if (await promSave(cc, { promAccFrom: 'crm', promAccStore: n, promAccKey: newAccKey(), promAccBy: getStaffName() || '' }, '악세 예약 보내기')) stockToast(`🌸 악세정산 ${n} 예약 목록으로 보냈어요`);
+                } })));
+                return;
+            } }
             { const pa = ev.target.closest('[data-prom-act], [data-prom-tidy], [data-prom-restore]'); if (pa && currentProfileId) {   // ✏️ V357
                 const cc = customerDB.find(x => x.id === currentProfileId);
                 if (cc) { if (pa.dataset.promAct) promQuickEdit(cc, pa.dataset.promAct); else if (pa.dataset.promTidy) promTidy(cc, pa.dataset.promTidy); else promRestore(cc, Number(pa.dataset.promRestore)); }
@@ -21334,7 +21368,7 @@ familyStr + `\n` +
         const arWon = (n) => (Math.round(Number(n) || 0)).toLocaleString('ko-KR');
         const arNum = (id) => { const el = document.getElementById(id); return el ? (Number(String(el.value).replace(/[^\d-]/g, '')) || 0) : 0; };
         const arVal = (id) => { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
-        let arMode = 'mobile', arCust = null, arPushed = false, arDirty = false;   // ✍ V417 적기 시작했는지 (탭 바꾸면 지워져서)
+        let arMode = 'mobile', arCust = null, arPushed = false, arDirty = false, arHomeDone = false;   // 🏠 V422 할 일 '설치 완료'로 열면 상태 '완료'   // ✍ V417 적기 시작했는지 (탭 바꾸면 지워져서)
 
         const arEl = document.createElement('div');
         arEl.id = 'actRegModal';
@@ -21500,7 +21534,8 @@ familyStr + `\n` +
             });
         }
 
-        function openActReg(c, mode) {
+        function openActReg(c, mode, opts = {}) {
+            arHomeDone = !!opts.homeDone; clearTimeout(arDraftT);
             arItems = []; arPickerOpen = false; arPresetEdit = false; arDealer = null; arPlanSrc = 'auto'; arUsimTouched = false; arAutoOff = new Set();
             arStockHit = null; arStockAddMiss = false; arStockAuto = { model: '', color: '' }; arStockPickOpen = false; arStockPickAll = false;   // 📦 재고 (V189)
             arCust = c || null;
@@ -21511,6 +21546,8 @@ familyStr + `\n` +
         }
         function closeActReg(fromPop = false) {
             if (arEl.style.display !== 'flex') return;
+            if (arDirty) { try { arDraftSaveNow(); } catch (e) { /* 무시 */ } }   // 📝 V422 닫기 전에 바로 저장 (늦게 저장하면 다음에 연 빈 화면으로 덮였음)
+            clearTimeout(arDraftT);
             arEl.style.display = 'none';
             if (arPushed) { arPushed = false; if (!fromPop) historyBackSilently(); }
         }
@@ -21520,9 +21557,54 @@ familyStr + `\n` +
             if (b.dataset.arMode === arMode) return;
             // ✍ V417 탭을 바꾸면 화면을 새로 그려서 적은 내용이 지워짐 → 무선 먼저 저장하도록 (저장하면 홈상품으로 이어서 열 수 있어요)
             if (arDirty && !(await customConfirm(`${arMode === 'mobile' ? '📱 무선 개통' : '🏠 홈상품'}에 적은 내용이 아직 저장 안 됐어요.\n탭을 바꾸면 지워져요.\n\n[취소] → 먼저 [저장]을 누르세요 (무선을 저장하면 홈상품으로 이어서 열 수 있어요)\n[확인] → 지우고 탭 바꾸기`))) return;
+            if (arDirty) arDraftClear();   // [확인] → 지우고 바꾸기
             arMode = b.dataset.arMode; arDirty = false; renderActReg();
         });
-        { const ab = document.getElementById('arBody'); if (ab) ['input', 'change'].forEach(t => ab.addEventListener(t, (e) => { if (e.isTrusted) arDirty = true; })); }   // ✍ V417 사람이 직접 고친 것만
+        { const ab = document.getElementById('arBody'); if (ab) ['input', 'change'].forEach(t => ab.addEventListener(t, (e) => { if (e.isTrusted) { arDirty = true; arDraftSave(); } })); }   // ✍ V417 사람이 직접 고친 것만
+        /* 📝 V422 개통등록 적던 내용 임시 저장 (이 폰에만 · 24시간) — 실수로 닫거나 탭을 바꿔도 다시 열면 [불러오기]
+             · 주민번호 · 계좌 · 예금주 · 법정대리인 생년월일은 저장 안 해요 · 저장하면 지워져요 */
+        const AR_DRAFT_SKIP = /^(ar-jumin|ar-legal-dob|hr-account|hr-bank|hr-owner|hr-payacct|hr-payowner|ar-files)$/;
+        let arDraftT = 0;
+        function arDraftKey(mode = arMode) { return `arDraft:${mode}:${arCust && arCust.id ? arCust.id : 'new'}`; }
+        function arDraftSave() { clearTimeout(arDraftT); arDraftT = setTimeout(arDraftSaveNow, 400); }
+        function arDraftSaveNow() {
+            clearTimeout(arDraftT);
+            {
+                const ab = document.getElementById('arBody'); if (!ab || arEl.style.display !== 'flex') return;
+                const v = {};
+                ab.querySelectorAll('input[id], select[id], textarea[id]').forEach(el => { if (AR_DRAFT_SKIP.test(el.id) || el.type === 'file') return; v[el.id] = el.type === 'checkbox' || el.type === 'radio' ? (el.checked ? '\u0001' : '') : el.value; });
+                const items = [...ab.querySelectorAll('input[name="hr-item"]:checked')].map(x => x.value);
+                try { localStorage.setItem(arDraftKey(), JSON.stringify({ at: Date.now(), v, items })); } catch (e) { /* 꽉 참 · 무시 */ }
+            }
+        }
+        function arDraftGet(mode = arMode) { try { const d = JSON.parse(localStorage.getItem(arDraftKey(mode)) || 'null'); return d && Date.now() - d.at < 24 * 3600e3 ? d : null; } catch (e) { return null; } }
+        function arDraftClear(mode = arMode) { clearTimeout(arDraftT); try { localStorage.removeItem(arDraftKey(mode)); } catch (e) { /* 무시 */ } }
+        function arDraftApply(d) {
+            const ab = document.getElementById('arBody'); if (!ab || !d) return;
+            const fire = (el) => { el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); };
+            for (let pass = 0; pass < 2; pass++) {   // 체크하면 새로 보이는 칸이 있어서 두 번
+                Object.entries(d.v || {}).forEach(([id, val]) => { const el = document.getElementById(id); if (!el || !ab.contains(el)) return;
+                    if (el.type === 'checkbox' || el.type === 'radio') { const on = val === '\u0001'; if (el.checked !== on) { el.checked = on; fire(el); } }
+                    else if (el.value !== val) { el.value = val; fire(el); } });
+                ab.querySelectorAll('input[name="hr-item"]').forEach(el => { const on = (d.items || []).includes(el.value); if (el.checked !== on) { el.checked = on; fire(el); } });
+            }
+            try { arRecalc(); } catch (e) { /* 무시 */ }
+            arDirty = true; stockToast('📝 적던 내용을 불러왔어요');
+        }
+        function arDraftBanner() {
+            const ab = document.getElementById('arBody'), d = arDraftGet(); if (!ab || !d || document.getElementById('arDraftBanner')) return;
+            const t = new Date(d.at), div = document.createElement('section');
+            div.id = 'arDraftBanner';
+            div.className = 'rounded-2xl border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-center gap-2';
+            div.innerHTML = `<span class="flex-1 min-w-0"><b class="block text-[14px] text-amber-900">📝 저장 안 한 ${arMode === 'home' ? '홈상품' : '무선 개통'} 내용이 있어요</b><span class="block text-xs text-amber-800">${t.getMonth() + 1}/${t.getDate()} ${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}에 적던 것</span></span><button type="button" data-ar-draft="load" class="flex-shrink-0 h-10 px-3 rounded-xl bg-amber-600 text-white text-[13px] font-bold">불러오기</button><button type="button" data-ar-draft="drop" class="flex-shrink-0 h-10 px-2.5 rounded-xl border border-amber-300 bg-white text-[13px] font-bold text-amber-900">지우기</button>`;
+            ab.prepend(div);
+        }
+        arEl.addEventListener('click', (ev) => {
+            const b = ev.target.closest('[data-ar-draft]'); if (!b) return;
+            const d = arDraftGet(), ban = document.getElementById('arDraftBanner');
+            if (b.dataset.arDraft === 'load') { if (ban) ban.remove(); arDraftApply(d); }
+            else { arDraftClear(); if (ban) ban.remove(); }
+        });
 
         // 공통 칸 만들기
         const arCls = 'w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white';
@@ -21818,19 +21900,20 @@ familyStr + `\n` +
                     ${driveOn ? `<label data-tg="ar-tg-file" class="hidden block"><span class="block text-xs font-bold text-gray-600 mb-1">☁️ 서류 첨부 <span class="font-normal text-gray-500">(저장할 때 구글 드라이브로 올라가요)</span></span><input type="file" id="ar-files" multiple accept="image/*,application/pdf" class="w-full text-sm text-gray-700 file:mr-2 file:h-10 file:px-3 file:rounded-lg file:border-0 file:bg-indigo-50 file:text-indigo-700 file:font-bold"></label>` : ''}`,
                     arTogs([['ar-tg-acc', '🌸 악세 예약', accOpen], ['ar-missing', '미비서류', false], ...(driveOn ? [['ar-tg-file', '☁️ 서류 첨부', false]] : [])]));
             } else {
-                html += arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
-                    ${arSel('hr-kind', '구분', ['단품판매', '결합판매', '동시판매'], '단품판매', { req: true })}
-                    ${arSel('hr-status', '상태', ['예약', '신청', '완료'], '신청', { req: true })}
-                    ${arIn('hr-store', '거래처', '', { list: 'arStores', req: true })}
-                    ${arIn('hr-manager', '개통직원', getStaffName() || '')}
-                    ${arIn('hr-apply', '신청일', today, { type: 'date', req: true })}
+                const hp = c.wiredStatus && c.wiredStatus !== '완료' ? c : null;   // 🏠 V422 신청 · 예약만 해 둔 홈상품 → 그 내용 그대로 이어서
+                html += (arHomeDone ? `<p class="rounded-xl border border-teal-300 bg-teal-50 px-3 py-2.5 text-[13px] font-bold text-teal-900">🏠 설치가 끝났으면 <u>개통일(설치한 날)</u>을 넣고 저장하세요 · 위약금 · 약정 만료일이 이 날짜로 계산돼요</p>` : '') + arSec('가입정보', `<div class="grid grid-cols-2 gap-2">
+                    ${arSel('hr-kind', '구분', ['단품판매', '결합판매', '동시판매'], (hp && hp.wiredKind) || '단품판매', { req: true })}
+                    ${arSel('hr-status', '상태', ['예약', '신청', '완료'], arHomeDone ? '완료' : ((hp && hp.wiredStatus) || '신청'), { req: true })}
+                    ${arIn('hr-store', '거래처', (hp && hp.wiredOpenStore) || '', { list: 'arStores', req: true })}
+                    ${arIn('hr-manager', '개통직원', (hp && hp.wiredRepManager) || getStaffName() || '')}
+                    ${arIn('hr-apply', '신청일', (hp && /^\d{4}-\d{2}-\d{2}$/.test(String(hp.wiredApplyDate || ''))) ? hp.wiredApplyDate : today, { type: 'date', req: true })}
                     ${arIn('hr-date', '개통일 (완료 시)', '', { type: 'date' })}
                     ${arIn('hr-name', '고객명', c.name || '', { req: true })}
                     ${arIn('hr-phone', '연락처', c.phone || '', { req: true, type: 'tel', ph: '010-0000-0000' })}
                     ${arIn('hr-addr', '주소', c.repAddress || c.address || '', { span: true })}
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
                     </div>${legalHtml}`);
-                html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" class="accent-teal-600">${it}</label>`).join('')}</div>
+                html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" ${hp && Array.isArray(hp.wiredItems) && hp.wiredItems.includes(it) ? 'checked' : ''} class="accent-teal-600">${it}</label>`).join('')}</div>
                     <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
                     <p id="hr-type-hint" class="col-span-2 -mt-1 text-[11px] font-bold text-teal-800"></p>
                     ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
@@ -21974,6 +22057,7 @@ familyStr + `\n` +
             else renderArItems();
             arRecalc();
             try { gdArBanner(); } catch (e) { console.warn(e); }   // 📝 V202 서명한 안내서로 채우기
+            try { if (!arDirty) arDraftBanner(); } catch (e) { console.warn(e); }   // 📝 V422 적던 내용
         }
 
         // 저장할 약속: 요금제(선택/직접 일수) + 부가·보험·기타 (줄이 있으면 가장 빠른 유지일, 메모에 줄별 날짜)
@@ -22389,7 +22473,7 @@ familyStr + `\n` +
                     if (!homeAsk) return customAlert(msg);
                     if (await customConfirm(`${msg}\n\n🏠 인터넷+TV (${itvNew.slice(0, 40)})도 이어서 홈상품으로 등록할까요?\n이름 · 번호는 그대로 채워져요.`)) openActReg(customerDB.find(x => x.id === digits) || { ...(cur || {}), ...upd, id: digits }, 'home');
                 };
-                arDirty = false; closeActReg();
+                arDirty = false; arDraftClear(isM ? 'mobile' : 'home'); closeActReg();
                 // 📎 V265 서명한 안내서 → 그림(JPG)으로 만들어 서류에 자동 첨부 (한 번만 · 다운받아 다시 올릴 필요 없음)
                 let gdUp = '';
                 if (gdAttachWant && gdAfterActId) {   // 📎 V379 공통 함수로 (못 하면 안내서 화면에서 다시)
@@ -26079,8 +26163,9 @@ familyStr + `\n` +
         /* ---------- 📋 개통등록: [안내서로 채우기] · 저장하면 안내서와 묶기 ---------- */
         function gdArBanner() {
             gdArId = ''; gdArG = null;
-            if (arMode !== 'mobile' || !arCust) return;
-            const p = gdPendingFor(customerDB.find(x => x.id === arCust.id) || arCust);
+            if (!arCust) return;
+            const home = arMode === 'home';   // 🏠 V422 홈상품 탭엔 서명한 유선 안내서 · 무선 탭엔 단말 · 유심 안내서만 (예전엔 무선 탭에 유선 안내서도 섞였음)
+            const p = gdPendingFor(customerDB.find(x => x.id === arCust.id) || arCust).filter(e => home ? e.k === 'wired' : e.k !== 'wired');
             const body = document.getElementById('arBody');
             if (!p.length || !body) return;
             const e = p[0], div = document.createElement('section');
@@ -26094,6 +26179,7 @@ familyStr + `\n` +
             b.disabled = true;
             const g = await gdGet(b.dataset.gdArfill);
             if (!g) { b.disabled = false; customAlert('안내서를 찾지 못했어요.'); return; }
+            if (g.kind === 'wired') { if (arMode === 'home') gdwApplyToHr(g); return; }   // 🏠 V422
             gdApplyToAr(g);
         });
         function gdApplyToAr(g) {
@@ -29966,7 +30052,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V421';
+        const APP_VER = 'V422';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29974,6 +30060,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V422', d: '2026-11-23', items: [
+                ['오늘 할 일에 \'🏠 홈상품 설치일 넣기\' — 신청만 하고 설치 완료를 안 넣은 고객 · [설치 완료]를 누르면 신청 내용이 채워진 홈상품 등록이 상태 \'완료\'로 열려요', 'a'],
+                ['홈상품 등록 탭에도 \'서명한 유선 안내서가 있어요 [안내서로 채우기]\' (무선 탭엔 단말 · 유심 안내서만)', 'a'],
+                ['개통등록 적던 내용 임시 저장 — 실수로 닫거나 탭을 바꿔도 다시 열면 [불러오기] (이 폰에만 24시간 · 주민번호 · 계좌는 저장 안 함)', 'a'],
+                ['고객카드 약속의 악세 예약에 \'🌸 악세 앱 · 매장\' 표시 · 안 갔으면 [⚠️ 악세 앱에 없음 · 보내기]', 'a'],
+                ['유선 통신사 조회 금액을 항목별로 (인터넷 · TV · 결합 · 장비 임대료) → 항목마다 계산기와 비교 · 무약정 제안은 인터넷 칸으로만', 'a'],
+            ] },
             { v: 'V421', d: '2026-11-23', items: [
                 ['유선 \'통신사 조회 금액 넣기\': 분실파손 · 리모컨 · AP 배상금은 빼고 넣으라는 안내 · 차이가 20% 넘으면 \'무약정 고치기\' 제안을 숨김 (상품표가 틀어지지 않게)', 'a'],
             ] },
