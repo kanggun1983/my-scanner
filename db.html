@@ -882,6 +882,7 @@
             <section class="space-y-2" aria-labelledby="setSmsTitle">
                 <h3 id="setSmsTitle" class="text-[13px] font-bold text-gray-600 pl-1">보내는 방법 · 안내별 문구 <span class="font-normal">(약속일·생일·방문 전날·개통 안부·내 폰 정보)</span></h3>
                 <div class="bg-white border border-gray-200 rounded-2xl p-4 space-y-3">
+                    <div id="tplShopBar" class="hidden rounded-xl border border-teal-200 bg-teal-50/60 p-3 space-y-1.5"><label class="flex items-center gap-2 text-[13px] font-bold text-teal-900">🏬 문구 고칠 매장<select id="tplShopSel" class="flex-1 min-w-0 h-10 px-2 border border-teal-300 rounded-lg bg-white text-[15px] font-bold text-gray-900"></select></label><p id="tplShopNote" class="text-xs text-teal-900 leading-relaxed"></p></div>
                         <div class="rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 space-y-2">
                             <p class="text-[13px] font-bold text-gray-800">보내는 방법 <span class="font-normal text-gray-500">(켜고 끌 수 있어요)</span></p>
                             <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="autoChPush" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>🔔 자동 푸시<span class="block text-xs font-normal text-gray-500">명함 알림을 켠 고객에게 · 무료 · 생일 사진이 알림에 크게</span></span></label>
@@ -1306,6 +1307,7 @@
                         <button type="button" id="smsDevLoadBtn" class="w-full h-11 rounded-xl border border-sky-300 bg-white text-sm font-bold text-sky-800">📱 폰 목록 불러오기</button>
                         <div id="smsDevList" class="space-y-2"></div>
                         <label class="block"><span class="block text-[13px] font-bold text-gray-800 mb-1">담당자 폰이 없는 고객은 <span class="font-normal text-gray-500">(기본 폰)</span></span><select id="smsDevDefault" class="w-full h-11 px-2 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white"></select></label>
+                        <div id="smsDevShopBox" class="hidden space-y-2 rounded-xl border border-teal-200 bg-white p-2"></div>
                         <label class="block"><span class="block text-[13px] font-bold text-gray-800 mb-1">담당자 폰이 꺼져 있거나 (1시간 넘게 연결 없음) 하루 한도를 넘으면</span><select id="smsDevFb" class="w-full h-11 px-2 border border-gray-300 rounded-xl text-[14px] text-gray-900 bg-white"><option value="store">기본 폰으로 대신 보내기</option><option value="wait">기다리기 (하루 넘으면 안 보냄)</option></select></label>
                         <label class="flex items-center justify-between gap-3 min-h-[44px]"><span class="text-[13px] font-bold text-gray-800">담당자 폰 하루 한도 <span class="font-normal text-gray-500">(폰마다)</span></span><input type="number" id="smsDevLimit" min="1" max="500" inputmode="numeric" class="w-24 h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 text-right" value="50"></label>
                         <button type="button" id="smsDevSaveBtn" class="w-full h-11 rounded-xl bg-sky-600 text-white text-sm font-bold disabled:opacity-40" disabled>저장</button>
@@ -13513,7 +13515,18 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             smsTplAct: '{이름}님, {매장} {담당자}입니다 😊\n개통하신 지 한 달이 됐어요. 쓰시면서 불편하신 점은 없으세요? 궁금한 건 언제든 편하게 연락 주세요!{리뷰}'   // V177 문구 ('한 달' 고정) → 그대로 쓰던 매장은 {개통기간} 문구로 (V181)
         };
         // 모든 문자에 들어가는 매장 이름(매장 공용)과 담당자(설정의 직원 이름)
-        function msgStoreName() { return String(appSettings.smsStoreName || '').trim() || DEFAULT_STORE_NAME; }
+        let smsShopCtx = '';   // 🏬 V424 자동 문자를 만드는 동안 그 고객 매장 (매장 문구 · {매장} 이름 · 기본 폰)
+        function shopSmsOf(id) { const o = (appSettings.shopSms || {})[id]; return o && typeof o === 'object' ? o : null; }
+        function msgStoreName() {
+            if (smsShopCtx) { const L = Array.isArray(appSettings.shops) ? appSettings.shops.filter(x => x && x.id) : [];
+                if (L.length > 1 && smsShopCtx !== L[0].id) { const o = shopSmsOf(smsShopCtx), sh = L.find(x => x.id === smsShopCtx); const v = String((o && o.smsStoreName) || (sh && sh.name) || '').trim(); if (v) return v; } }
+            return String(appSettings.smsStoreName || '').trim() || DEFAULT_STORE_NAME;
+        }
+        function custHomeShop(c) {   // 고객 매장이 여럿이면 담당 직원 매장 → 아니면 첫 매장
+            const L = custShops(c); if (L.length < 2) return L[0];
+            const own = ownerOf(c), M = own ? staffByEmail() : {}, em = own ? Object.keys(M).find(e => sameStaff(M[e], own)) : '', sh = em ? shopOfEmail(em) : '';
+            return L.includes(sh) ? sh : L[0];
+        }
         //  · 자동 문자는 여러 직원 폰이 번갈아 예약해도 같은 이름이 되도록, 자동 문자 설정을 저장한 직원 이름(매장 공용)을 씀
         function msgStaffName({ auto = false } = {}) { return (auto ? String(appSettings.smsSenderName || '').trim() : '') || getStaffName(); }
         // AI가 남긴 [매장명]·[담당자] 같은 빈칸 표시를 실제 이름으로 (담당자가 없으면 그 자리는 지움)
@@ -13540,7 +13553,9 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         let smsListData = null;
         let smsListHistoryPushed = false;
         const smsListSheet = document.getElementById('smsListSheet');
+        const SHOP_TPL_KEYS = ['smsTplProm', 'smsTplBday', 'smsTplVisit', 'smsTplAct', 'smsTplPhone', 'smsTplMiss', 'smsTplPromo'];   // 🏬 V424 매장마다 고칠 수 있는 문구
         function smsSetting(key) {
+            if (smsShopCtx && SHOP_TPL_KEYS.includes(key)) { const o = shopSmsOf(smsShopCtx); if (o && String(o[key] || '').trim()) return o[key]; }   // 🏬 V424 그 매장 문구가 있으면
             const v = appSettings[key];
             if (v === undefined || v === null || (v === '' && (key.startsWith('smsTpl') || key === 'smsStoreName'))) return SMS_AUTO_DEFAULTS[key];
             if (SMS_OLD_DEFAULT_TPLS[key] && String(v).trim() === SMS_OLD_DEFAULT_TPLS[key]) return SMS_AUTO_DEFAULTS[key];
@@ -13575,7 +13590,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         // 🙏 개통 안부 '개통 며칠 뒤' → 문구의 {개통기간} (V181) · 14일 = 2주 · 30일 = 한 달 · 45일 = 한 달 반 · 60일 = 두 달
         function actPeriodLabel(days) { const n = parseInt(days, 10) || 30; return ({ 14: '2주', 30: '한 달', 45: '한 달 반', 60: '두 달' })[n] || `${n}일`; }
-        function fillSmsTemplate(tpl, c, extra = {}) {
+        function fillSmsTemplate(tpl, c, extra = {}) { const pv = smsShopCtx; if (!pv && multiShop() && c) smsShopCtx = custHomeShop(c); try { return fillSmsTemplateShop(tpl, c, extra); } finally { smsShopCtx = pv; } }   // 🏬 V424 {매장} = 그 고객 매장
+        function fillSmsTemplateShop(tpl, c, extra = {}) {
             const staff = custStaffName(c) || msgStaffName({ auto: true });
             const map = { '이름': msgName(c), '매장': msgStoreName(), '담당자': staff, '단말기': String(c.device || '').trim(), '사진': '', '개통기간': actPeriodLabel(smsSetting('smsActDays')), ...extra };
             let t = String(tpl || '');
@@ -13664,7 +13680,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         //   V184: 문자(s.)·푸시(p.) 따로 → 푸시 쪽만 바뀌면 푸시만 다시 (홍보 문자 수백 건을 괜히 다시 쓰지 않게)
         function autoTextSigs() {
             const h0 = (v) => { let x = 0; const str = JSON.stringify(v); for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return String(x >>> 0); };
-            const T = teamCardSig(), h = (v) => h0(T ? [...v, T] : v);   // 👥 V220 공용 명함(직원 · 연결)이 바뀌면 다시 맞춤 · 꺼져 있으면 예전과 똑같이
+            const T = teamCardSig(), SS = multiShop() && appSettings.shopSms ? JSON.stringify(appSettings.shopSms) : '', h = (v) => h0(SS ? [...v, T, SS] : (T ? [...v, T] : v));   // 🏬 V424 매장 문구가 바뀌어도 다시   // 👥 V220 공용 명함(직원 · 연결)이 바뀌면 다시 맞춤 · 꺼져 있으면 예전과 똑같이
             return {
                 's.task': h([smsSetting('smsTplProm'), smsCardOn('prom')]),
                 's.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
@@ -13927,7 +13943,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         function promoCampaign() { return `apm-${String(smsSetting('smsPromoDate') || '').replace(/-/g, '')}${promoTime().replace(':', '')}-`; }   // 날짜+시각이 같으면 같은 홍보
         function nowHHMM(d = new Date()) { return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
-        function promoText(c, forPush, opt = {}) {
+        function promoText(c, forPush, opt = {}) { const pv = smsShopCtx; if (!pv && multiShop() && c) smsShopCtx = custHomeShop(c); try { return promoTextShop(c, forPush, opt); } finally { smsShopCtx = pv; } }   // 🏬 V424 지금 보내기 · 미리보기도 그 매장 문구
+        function promoTextShop(c, forPush, opt = {}) {
             const tpl = smsSetting('smsTplPromo'), img = opt.noLink ? '' : String(appSettings.smsPromoImage || '').trim();   // noLink: 📷 사진 문자(MMS)는 링크 없이
             const body = fillSmsTemplate(!forPush && img && !/\{사진\}/.test(tpl) ? `${tpl}\n👉 {사진}` : tpl, c, { '사진': forPush ? '' : img });
             if (forPush) return `${body}\n${PUSH_AD_FOOTER}`;
@@ -13950,7 +13967,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             return { date, per, list, pos, size, days, last: size ? addDaysStr(date, days - 1) : '' };
         }
         // 앞으로 14일 안에 보내야 할 자동 문자 목록 (고객 데이터로 계산)
-        function buildAutoSmsItems(now = new Date()) {
+        function buildAutoSmsItems(now = new Date()) { try { return buildAutoSmsItemsShop(now); } finally { smsShopCtx = ''; } }   // 🏬 V424 고객마다 그 매장 문구 · 이름
+        function buildAutoSmsItemsShop(now) {
             const items = [];
             const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn'), promoOn = !!smsSetting('smsAutoPromoOn');
             const visitOn = !!smsSetting('smsAutoVisitOn'), actOn = !!smsSetting('smsAutoActOn');   // V177
@@ -13962,6 +13980,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 const lastD = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
                 const lastStr = `${lastD.getFullYear()}-${String(lastD.getMonth() + 1).padStart(2, '0')}-${String(lastD.getDate()).padStart(2, '0')}`;
                 P.list.forEach((c, k) => {
+                    smsShopCtx = multiShop() ? custHomeShop(c) : '';   // 🏬 V424
                     const day = addDaysStr(P.date, Math.floor(P.pos[k] / P.per));
                     if (day < today || day > lastStr) return;                       // 지난 날(이미 보냄)·14일 뒤는 빼기
                     const at = parseDateString(day); const [hh, mm] = time.split(':').map(n => parseInt(n, 10));
@@ -13981,6 +14000,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const time = smsSetting('smsSendTime');
             const skip = smsSkipIds();
             customerDB.forEach(c => {
+                smsShopCtx = multiShop() ? custHomeShop(c) : '';   // 🏬 V424
                 const phone = smsMobileDigits(c.phone);
                 if (c.deletedAt || (!phone && !(autoPushOn() && c.pushSubscribed === true && c.cardId))) return;
                 const safeId = String(c.id).replace(/[^A-Za-z0-9_-]/g, '');
@@ -14360,9 +14380,12 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const cid = fam ? fam[1] : k.custId, c = cid ? custBySafe.get(cid) : null;
             const promo = k.kind === 'promo' || !!fam;
             if (!c) return { dev: '', promo };
-            return { dev: smsDevFor(k.kind === 'miss' && c.missBy ? c.missBy : ownerOf(c), promo ? 'promo' : k.kind), promo };
+            const own = smsDevFor(k.kind === 'miss' && c.missBy ? c.missBy : ownerOf(c), promo ? 'promo' : k.kind);
+            if (own) return { dev: own, promo };
+            const D = smsDevCfg(), ss = multiShop() && relayVer() >= 12 ? (D.shopStore || {})[custHomeShop(c)] : '';   // 🏬 V424 매장 기본 폰 (담당자 폰이 없을 때)
+            return { dev: ss && ss !== D.store ? ss : '', promo };
         }
-        function smsDevName(id) { const D = smsDevCfg(); if (!id || id === D.store) return '기본 폰'; return (D.map || {})[id] || (D.names || {})[id] || '직원 폰'; }
+        function smsDevName(id) { const D = smsDevCfg(); if (!id || id === D.store) return '기본 폰'; { const sh = Object.keys(D.shopStore || {}).find(k => D.shopStore[k] === id); if (sh && shopName(sh)) return `${shopName(sh)} 매장`; } return (D.map || {})[id] || (D.names || {})[id] || '직원 폰'; }
         function smsDevBadge(x) {
             if (!x || x.channel === 'push') return '';
             if (x.fb) return ` <span class="inline-flex items-center text-[11px] font-bold text-amber-900 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-px">${x.fb === 'expired' ? '⏳ 안 보냄' : '📱 기본 폰으로 대신'} (${escapeHtml(smsDevName(x.want))} ${x.fb === 'limit' ? '하루 한도' : '연결 없음'})</span>`;
@@ -14518,8 +14541,22 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             renderOpenStoreList();
             renderJuminClean();
             fillRegStoreDefault();   // 매장 이름이 도착·변경되면 스캔 화면 등록점도 (직접 고친 게 아니면)
+            try { renderTplShopBar(); } catch (e) { /* 준비 전 */ }   // 🏬 V424 (공통 문구를 채운 뒤에 매장 문구로)
             const sender = msgStaffName({ auto: true });
             document.getElementById('smsSenderInfo').textContent = `{담당자} = 고객카드 담당자 · 담당자가 없는 고객은 ${msgStoreName()}${sender ? ' ' + sender : ''}`;
+        }
+        let tplShop = '';   // 🏬 V424 문구를 고치는 매장 ('' = 공통)
+        function renderTplShopBar(force) {
+            const bar = document.getElementById('tplShopBar'), sel = document.getElementById('tplShopSel'); if (!bar || !sel) return;
+            const on = multiShop(); bar.classList.toggle('hidden', !on); if (!on) { tplShop = ''; return; }
+            if (tplShop && !shopList().some(x => x.id === tplShop)) tplShop = '';
+            const html = `<option value="">공통 (모든 매장)</option>${shopList().map(x => `<option value="${escapeHtml(x.id)}">${escapeHtml(x.name)}${shopSmsOf(x.id) && SHOP_TPL_KEYS.some(k => String(shopSmsOf(x.id)[k] || '').trim()) ? ' ✏️' : ''}</option>`).join('')}`;
+            if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
+            sel.value = tplShop;
+            const o = tplShop ? shopSmsOf(tplShop) : null, n = o ? SHOP_TPL_KEYS.filter(k => String(o[k] || '').trim()).length : 0;
+            document.getElementById('tplShopNote').textContent = tplShop ? `${shopName(tplShop)} 고객에게만 쓰는 문구예요 · 고친 안내 ${n}개 · 비우거나 공통과 같으면 공통 문구를 써요 · {매장}은 '${shopName(tplShop)}'` : '모든 매장에 쓰는 문구예요. 매장을 고르면 그 매장 고객에게만 다른 문구를 쓸 수 있어요.';
+            SHOP_TPL_KEYS.forEach(k => { const el = document.getElementById(k); if (!el || (!force && document.activeElement === el)) return; el.value = (o && String(o[k] || '').trim()) ? o[k] : (smsSetting(k) || ''); });
+            if (!sel.dataset.on) { sel.dataset.on = '1'; sel.addEventListener('change', () => { tplShop = sel.value; renderTplShopBar(true); }); }
         }
         let smsSavedTimer = null;
         async function saveSmsSettings() {
@@ -14559,15 +14596,22 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 smsPromoOptout: document.getElementById('smsPromoOptout').value.trim() || SMS_AUTO_DEFAULTS.smsPromoOptout,
                 smsSenderName: getStaffName() || String(appSettings.smsSenderName || '')   // 자동 문자 담당자 = 설정을 저장한 직원
             };
+            if (tplShop && multiShop()) {   // 🏬 V424 매장을 골라 고친 문구 → 그 매장 문구로 (공통 문구는 그대로)
+                const prev = { ...(shopSmsOf(tplShop) || {}) };
+                SHOP_TPL_KEYS.forEach(k => { const v = String(data[k] || '').trim(), g = String(smsSetting(k) || '').trim(); if (v && v !== g) prev[k] = v; else delete prev[k]; if (appSettings[k] === undefined) delete data[k]; else data[k] = appSettings[k]; });
+                data.shopSms = { ...(appSettings.shopSms || {}), [tplShop]: prev };
+            }
+            const shopSmsPatch = data.shopSms; delete data.shopSms;   // 통째로 바꿔 써야 지운 문구가 남지 않아요 (아래 mergeFields)
             const whoKey = (a) => [a.smsPhoneMonths, a.smsAutoActOn, a.smsActDays].map(String).join('|');   // V185 명함의 📱·⭐ 줄 보이는 날(card_who pf·ra)이 바뀌는 설정
             const whoChanged = whoKey({ smsPhoneMonths: smsSetting('smsPhoneMonths'), smsAutoActOn: !!smsSetting('smsAutoActOn'), smsActDays: smsSetting('smsActDays') }) !== whoKey(data);
-            appSettings = { ...appSettings, ...data };
+            appSettings = { ...appSettings, ...data, ...(shopSmsPatch ? { shopSms: shopSmsPatch } : {}) };
             if (whoChanged) setTimeout(() => syncCardWho(true), 1500);
             document.getElementById('autoChSummary').textContent = autoChannelSummary();
             if (data.smsAutoPromoOn && !data.smsPromoDate) { document.getElementById('smsAutoPromoOn').checked = false; data.smsAutoPromoOn = false; appSettings.smsAutoPromoOn = false; customAlert('홍보 문자는 보낼 날을 먼저 골라주세요.'); }
             renderPromoInfo();
             try {
                 await saveDoc(doc(db, 'smart_global', 'settings'), data, { merge: true });
+                if (shopSmsPatch) await saveDoc(doc(db, 'smart_global', 'settings'), { shopSms: shopSmsPatch }, { mergeFields: ['shopSms'] });   // 🏬 V424
                 const saved = [document.getElementById('smsAutoSaved'), document.getElementById('smsPromoSaved')].filter(Boolean);   // V187: 홍보는 다른 묶음이라 거기에도
                 saved.forEach(el => el.classList.remove('hidden'));
                 clearTimeout(smsSavedTimer);
@@ -15132,6 +15176,10 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 const ds = document.getElementById('smsDevDefault'), fs = document.getElementById('smsDevFb');
                 if (ds) { const keep = ds.dataset.touched ? ds.value : (D.store || ''); ds.innerHTML = '<option value="">골라 주세요</option>' + rows.map(r => `<option value="${escapeHtml(r.id)}">📱 ${escapeHtml(smsDevLabel(r.id, r.name))}</option>`).join(''); ds.value = rows.some(r => r.id === keep) ? keep : ''; }
                 if (fs && !fs.dataset.touched) fs.value = D.fb === 'wait' ? 'wait' : 'store';
+                const sb = document.getElementById('smsDevShopBox');   // 🏬 V424 매장별 기본 폰 (1번 매장은 위 기본 폰)
+                if (sb) { const on = multiShop(); sb.classList.toggle('hidden', !on);
+                    if (on && !sb.contains(document.activeElement)) { const keep = {}; sb.querySelectorAll('select[data-smsdev-shop]').forEach(x => { if (x.dataset.touched) keep[x.dataset.smsdevShop] = x.value; });
+                        sb.innerHTML = `<p class="text-[13px] font-bold text-teal-900">🏬 매장별 기본 폰 <span class="font-normal text-gray-600">(그 매장 고객 · 담당자 폰이 없을 때)</span></p><p class="text-[11px] text-amber-800 leading-relaxed">지금 중계 서버(v12)는 매장 폰도 담당자 폰처럼 하루 한도(${Number(D.staffLimit) || 50}건) · 꺼지면 위 기본 폰으로 대신을 적용해요. 두 번째 매장을 열 때 중계 서버를 바꿔 매장 폰은 한도 없이 보내게 할게요.</p>` + shopList().slice(1).map(x => { const cur = x.id in keep ? keep[x.id] : ((D.shopStore || {})[x.id] || ''); return `<label class="flex items-center gap-2 text-[13px] font-bold text-gray-800"><span class="w-20 truncate">${escapeHtml(x.name)}</span><select data-smsdev-shop="${escapeHtml(x.id)}" ${x.id in keep ? 'data-touched="1"' : ''} class="flex-1 min-w-0 h-10 px-2 border border-gray-300 rounded-lg text-[14px] bg-white"><option value="">위 기본 폰과 같게</option>${rows.map(r => `<option value="${escapeHtml(r.id)}" ${r.id === cur ? 'selected' : ''}>📱 ${escapeHtml(smsDevLabel(r.id, r.name))}</option>`).join('')}</select></label>`; }).join(''); } }
             }
             box.innerHTML = rows.map(r => {
                 const cur = (D.map || {})[r.id] || '';
@@ -15175,7 +15223,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const btn = ev.currentTarget; btn.disabled = true;
             try {
                 await callSms('devcfg', { store, staffLimit, fb });
-                const smsDev = { store, map, names, ...(smsDevCfg().nick ? { nick: smsDevCfg().nick } : {}), staffLimit, fb, at: new Date().toISOString() };
+                const shopStore = {}; document.querySelectorAll('#smsDevShopBox select[data-smsdev-shop]').forEach(x => { if (x.value) shopStore[x.dataset.smsdevShop] = x.value; });   // 🏬 V424
+                const smsDev = { store, map, names, ...(smsDevCfg().nick ? { nick: smsDevCfg().nick } : {}), ...(multiShop() ? { shopStore } : (smsDevCfg().shopStore ? { shopStore: smsDevCfg().shopStore } : {})), staffLimit, fb, at: new Date().toISOString() };
                 await saveDoc(doc(db, 'smart_global', 'settings'), { smsDev }, { mergeFields: ['smsDev'] });   // 🛠 V393 통째로 바꿈 (merge는 안에 든 연결을 합치기만 해서 '안 씀'으로 뺀 폰이 다시 살아났음)
                 ['smsDevDefault', 'smsDevFb'].forEach(i => { delete document.getElementById(i).dataset.touched; });
                 appSettings = { ...appSettings, smsDev }; renderSmsDevBox(); stockToast('👤 문자 폰 연결을 저장했어요');
@@ -15184,6 +15233,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             finally { btn.disabled = false; }
         });
         ['smsDevDefault', 'smsDevFb'].forEach(i => document.getElementById(i).addEventListener('change', (e) => { e.currentTarget.dataset.touched = '1'; }));
+        document.getElementById('smsDevShopBox').addEventListener('change', (e) => { const x = e.target.closest('select[data-smsdev-shop]'); if (x) x.dataset.touched = '1'; });   // 🏬 V424
         document.getElementById('smsDevList').addEventListener('click', async (ev) => {
             const nb = ev.target.closest('[data-smsdev-nick]');
             if (nb) {   // ✏️ V412 폰 별명 — 바로 저장 (다른 칸은 [저장]을 눌러야 바뀜)
@@ -22682,7 +22732,8 @@ familyStr + `\n` +
         const stockKey = (v) => String(v || '').replace(/\s/g, '').toUpperCase();
         const stockSt = (x) => x.st || '재고';
         const stockIsDev = (x) => x.kind !== '유심';
-        function stockItems() { return Array.isArray(stockData.items) ? stockData.items.filter(x => x && x.id) : []; }
+        function stockShopOf(x) { return (x && x.shopId) || shopDefId(); }   // 🏬 V424 재고 매장 (칸이 없으면 1번 매장)
+        function stockItems() { const L = Array.isArray(stockData.items) ? stockData.items.filter(x => x && x.id) : [], sh = curShop(); return sh === 'all' ? L : L.filter(x => stockShopOf(x) === sh); }   // 🏬 V424 지금 매장 재고만 (저장은 stockTx가 전체 목록으로)
         function stockNewId() { return 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
         function stockToast(t) { showUploadToast(t); clearTimeout(stockToast.t); stockToast.t = setTimeout(hideUploadToast, 1800); }
         // 거래처 → 통신사 (거래처 설정에 있으면 그 통신사 · 없으면 이름 앞글자: LG태성 → LG U+)
@@ -22726,6 +22777,7 @@ familyStr + `\n` +
             if (o.kind === '유심') { o.qty = Math.max(0, Math.min(9999, parseInt(x.qty, 10) || 0)); if (Array.isArray(x.serials) && x.serials.length) o.serials = [...new Set(x.serials.map(v => String(v || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase()).filter(v => v.length >= 8))].slice(-400); }   // 💳 V292 유심 낱개 번호
             if (o.st !== '재고') { o.sd = String(x.sd || getTodayStr()); if (x.to) o.to = String(x.to).slice(0, 30); if (x.tp) o.tp = String(x.tp).slice(0, 20); if (x.sb) o.sb = String(x.sb).slice(0, 20); }
             if (o.st === '정리' && STOCK_REASON[x.reason]) o.reason = x.reason;   // 🧹 V288 뺀 이유
+            if (x.shopId) o.shopId = String(x.shopId).slice(0, 24);   // 🏬 V424
             if (Array.isArray(x.log) && x.log.length) o.log = x.log.filter(l => l && l.t).slice(-STOCK_LOG_MAX).map(l => ({ t: String(l.t).slice(0, 6), at: String(l.at || '').slice(0, 16), by: String(l.by || '').slice(0, 12), ...(l.r ? { r: String(l.r).slice(0, 30) } : {}) }));   // 📜 V288 변동 기록
             return o;
         }
@@ -22748,6 +22800,7 @@ familyStr + `\n` +
                 {   // 📜 V288 바뀐 단말마다 변동 기록 자동 (누가 · 언제 · 무엇)
                     const om = new Map(base.items.map(x => [x.id, x])), who = getStaffName() || '', at = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
                     next.items = (next.items || []).map(x => { if (!x || !x.id) return x; const o = om.get(x.id); let t = '', r = '';
+                        if (!o && !x.shopId && multiShop()) x = { ...x, shopId: saveShopFor() };   // 🏬 V424 새로 넣는 재고 → 지금 매장
                         if (!o) { t = x.st === '개통' ? 'sold' : 'in'; r = x.st === '개통' ? `${x.to || ''} (입고 누락)`.trim() : ''; } else if ((o.st || '재고') !== (x.st || '재고')) { t = x.st === '개통' ? 'sold' : (x.st === '정리' ? 'out' : 'back'); r = t === 'sold' ? (x.to || '') : (t === 'out' ? ((STOCK_REASON[x.reason] || '') + (x.to ? ' ' + x.to : '')).trim() : ''); }
                         else if (x.kind === '유심' && Number(o.qty) !== Number(x.qty)) { t = 'qty'; r = `${Number(o.qty) || 0}→${Number(x.qty) || 0}`; }
                         else if (['dealer', 'model', 'color', 'serial', 'memo'].some(k => String(o[k] || '') !== String(x[k] || ''))) t = 'edit';
@@ -23177,9 +23230,10 @@ familyStr + `\n` +
             if (!n && !(mode === 'all' && (Object.keys(stockData.notes || {}).length || (stockData.dealerOrder || []).length))) return customAlert('지울 재고가 없어요.');
             if (!(await customConfirm(`정말 ${mode === 'all' ? '재고 · 개통·정리 기록 · 메모를 전부' : `재고 ${live.filter(stockIsDev).length}대 · 유심을`} 지울까요?\n\n지우기 전 재고는 보관돼서 ${STOCK_BACKUP_DAYS}일 안에 [↩ 되돌리기] 할 수 있어요.`))) return;
             try {
-                const snap = { items: all, notes: stockData.notes || {}, dealerOrder: stockData.dealerOrder || [], ...(stockData.sheet ? { sheet: stockData.sheet } : {}), at: new Date().toISOString(), by: getStaffName() || '', mode };
+                const snap = { items: Array.isArray(stockData.items) ? stockData.items : all, notes: stockData.notes || {},   /* 🏬 V424 보관은 전체 매장 */ dealerOrder: stockData.dealerOrder || [], ...(stockData.sheet ? { sheet: stockData.sheet } : {}), at: new Date().toISOString(), by: getStaffName() || '', mode };
                 await saveDoc(doc(db, 'smart_global', 'stock_backup'), stripUndefined(snap));
-                await stockTx(cur => mode === 'all' ? { items: [], notes: {}, dealerOrder: [] } : { items: cur.items.filter(x => stockSt(x) !== '재고'), notes: cur.notes, dealerOrder: cur.dealerOrder });
+                { const sh = curShop(), mine = (x) => sh === 'all' || stockShopOf(x) === sh;   // 🏬 V424 매장을 골라 보고 있으면 그 매장 재고만 지움
+                  await stockTx(cur => mode === 'all' ? (sh === 'all' ? { items: [], notes: {}, dealerOrder: [] } : { items: cur.items.filter(x => !mine(x)), notes: cur.notes, dealerOrder: cur.dealerOrder }) : { items: cur.items.filter(x => !(mine(x) && stockSt(x) === '재고')), notes: cur.notes, dealerOrder: cur.dealerOrder }); }
                 stockFilter = ''; renderStock();
                 const sh = document.getElementById('stockResetSheet'); if (sh) sh.remove();
                 customAlert(`🗑️ ${mode === 'all' ? '재고를 전부' : '재고를'} 초기화했어요.\n잘못했으면 [전체 초기화] → [↩ 초기화 되돌리기].`);
@@ -30128,7 +30182,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V423';
+        const APP_VER = 'V424';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30136,6 +30190,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V424', d: '2026-11-23', items: [
+                ['🏬 다매장 2차: 재고를 매장별로 (보기 · 새로 넣기 · 초기화는 지금 매장만)', 'a'],
+                ['문자 보내는 폰을 매장별로: 설정 → 매장 폰 문자 앱 → 매장별 기본 폰 (담당자 폰이 없는 고객)', 'a'],
+                ['자동 문자 문구를 공통으로 쓰거나 매장마다 다르게: 문구 위 [🏬 문구 고칠 매장] · {매장}은 그 매장 이름', 'a'],
+                ['지금은 매장이 진천점 하나라 화면 · 문자는 예전과 똑같아요', 'a'],
+            ] },
             { v: 'V423', d: '2026-11-23', items: [
                 ['🏬 다매장 준비: 설정 → 직원 → 매장 (매장 추가 · 이름) · 직원 계정마다 매장 · 직급 권한 \'다른 매장 보기\'', 'a'],
                 ['매장이 2개 이상이면 직원은 자기 매장 고객 · 오늘 할 일 · 약속 달력 · 실적만 · 👑 대표는 고객 목록 위 [🏬 전체 / 매장]으로 골라 보기', 'a'],
