@@ -1176,8 +1176,9 @@
                     </div>
                     <details class="rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2">   <!-- 💳 V430 제휴카드 목록 -->
                         <summary class="text-[14px] font-bold text-gray-900 cursor-pointer">💳 제휴카드 목록 <span id="dcCardsSum" class="text-xs font-normal text-gray-600"></span></summary>
-                        <p class="mt-1.5 text-xs text-gray-600 leading-relaxed">한 줄에 카드 하나: <b>카드 이름 / 월 할인 / 전월 실적</b> · 개통등록 · [수정]에서 카드 이름을 고르면 금액 · 실적이 자동으로 들어가요</p>
-                        <textarea id="dcCardsTxt" rows="4" aria-label="제휴카드 목록" class="mt-1.5 w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-y" placeholder="LG U+ 신한카드 Air / 15000 / 300000&#10;LG U+ 현대카드M / 12000 / 300000"></textarea>
+                        <p class="mt-1.5 text-xs text-gray-600 leading-relaxed">개통등록 · [수정]에서 카드명을 고르면 할인액 · 전월실적이 자동으로 들어가요 · 칸을 고치면 바로 저장돼요</p>
+                        <div id="dcCardsRows" class="mt-2 space-y-2"></div>
+                        <button type="button" id="dcCardsAdd" class="mt-2 w-full h-10 rounded-lg border border-dashed border-sky-300 bg-white text-[13px] font-bold text-sky-800">+ 카드 추가</button>
                         <p id="dcCardsMsg" class="text-xs font-bold text-green-700 hidden"></p>
                     </details>
                     <p id="autoPromExample" class="text-xs text-gray-600 leading-relaxed"></p>
@@ -10473,8 +10474,9 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (el) { el.innerHTML = [...new Set([3, 5, 7, 10, 14, cd])].sort((a, b) => a - b).map(n => `<option value="${n}" ${n === cd ? 'selected' : ''}>${n}일 뒤</option>`).join(''); el.disabled = !on; }
             }
             {   // 💳 V430 제휴카드 목록
-                const t = document.getElementById('dcCardsTxt'), L = dcCards();
-                if (t && document.activeElement !== t) t.value = L.map(x => [x.name, x.amt || '', x.req || ''].join(' / ')).join('\n');
+                const box = document.getElementById('dcCardsRows'), L = dcCards();
+                if (box && !box.contains(document.activeElement)) box.innerHTML = (L.length ? L : [{ name: '', amt: 0, req: 0 }]).map(dcCardRowHtml).join('');   // 입력 중엔 다시 그리지 않음
+                dcCardsLockSync();
                 const sm = document.getElementById('dcCardsSum'); if (sm) sm.textContent = L.length ? `(${L.length}개)` : '(아직 없음)';
             }
             // 오늘 개통하면 언제 약속이 잡히는지 예시 (규칙 확인용)
@@ -10522,13 +10524,42 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             saveAutoPromiseSettings();
         }
         ['autoPlanOn', 'autoCardChkOn', 'keepCardChk'].forEach(id => document.getElementById(id).addEventListener('change', saveAutoPromiseSettings));
-        document.getElementById('dcCardsTxt').addEventListener('change', async (e) => {   // 💳 V430 제휴카드 목록 저장
-            const L = dcCardsParse(e.target.value), msg = document.getElementById('dcCardsMsg');
-            appSettings = { ...appSettings, dcCards: L };
-            try { await saveDoc(doc(db, 'smart_global', 'settings'), { dcCards: L }, { merge: true }); if (msg) { msg.textContent = `✅ 저장됨 · 카드 ${L.length}개`; msg.classList.remove('hidden'); setTimeout(() => msg.classList.add('hidden'), 2500); } }
-            catch (err) { console.error(err); customAlert('제휴카드 목록을 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); }
-            renderAutoPromiseSettings();
+        function dcCardRowHtml(x) {   // 💳 V431 카드명 · 할인액 · 전월실적 칸 (폰에서도 카드명이 안 잘리게 두 줄 · 입력 순서 카드명 → 할인액 → 전월실적)
+            const inC = 'h-10 min-w-0 w-full px-2.5 border border-gray-300 rounded-lg text-[15px] text-gray-900 bg-white font-normal';
+            return `<div data-dc-row class="rounded-xl border border-sky-100 bg-white p-2 space-y-1.5">
+                <label class="block text-[11px] font-bold text-gray-600">카드명<input type="text" data-dc="name" maxlength="40" value="${escapeHtml(x.name || '')}" placeholder="예) LG U+ 신한카드 Air" class="mt-0.5 ${inC}"></label>
+                <div style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.5rem" class="grid gap-1.5 items-end"><label class="min-w-0 text-[11px] font-bold text-gray-600">할인액 (월)<input type="text" data-dc="amt" inputmode="numeric" data-won="1" value="${x.amt ? arWon(x.amt) : ''}" placeholder="15,000" class="mt-0.5 ${inC} text-right"></label>
+                <label class="min-w-0 text-[11px] font-bold text-gray-600">전월실적<input type="text" data-dc="req" inputmode="numeric" data-won="1" value="${x.req ? arWon(x.req) : ''}" placeholder="300,000" class="mt-0.5 ${inC} text-right"></label>
+                <button type="button" data-dc-del aria-label="이 카드 지우기" class="h-10 rounded-lg border border-gray-300 bg-white text-gray-500"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>`;
+        }
+        function dcCardsLocked() { const a = document.getElementById('dcCardsAdd'); return !!(a && a.dataset.adminLocked); }   // 🔒 매장 공용 설정 잠금 (총관리자만)
+        function dcCardsLockSync() { const lock = dcCardsLocked(); document.querySelectorAll('#dcCardsRows input, #dcCardsRows button').forEach(el => setAdminLock(el, lock)); }   // 다시 그린 칸에도 잠금
+        function dcCardsCollect() {
+            const num = (v) => Number(String(v || '').replace(/[^\d]/g, '')) || 0, seen = new Set();
+            return [...document.querySelectorAll('#dcCardsRows [data-dc-row]')].map(r => ({ name: String(r.querySelector('[data-dc="name"]').value || '').trim().slice(0, 40), amt: num(r.querySelector('[data-dc="amt"]').value), req: num(r.querySelector('[data-dc="req"]').value) }))
+                .filter(x => x.name && !seen.has(x.name.toLowerCase()) && seen.add(x.name.toLowerCase())).slice(0, 40);
+        }
+        document.getElementById('dcCardsAdd').addEventListener('click', () => {
+            const box = document.getElementById('dcCardsRows'); box.insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0 }));
+            const last = box.lastElementChild; if (last) last.querySelector('[data-dc="name"]').focus();
         });
+        document.getElementById('dcCardsRows').addEventListener('click', (e) => {
+            const d = e.target.closest('[data-dc-del]'); if (!d) return;
+            const row = d.closest('[data-dc-row]'), had = row && row.querySelector('[data-dc="name"]').value.trim();
+            if (row) row.remove();
+            if (!document.querySelector('#dcCardsRows [data-dc-row]')) document.getElementById('dcCardsRows').insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0 }));
+            if (had) dcCardsSave();
+        });
+        document.getElementById('dcCardsRows').addEventListener('change', () => dcCardsSave());
+        async function dcCardsSave() {   // 💳 V430 제휴카드 목록 저장 (V431 칸에서 모아서)
+            if (dcCardsLocked()) return;
+            const L = dcCardsCollect(), msg = document.getElementById('dcCardsMsg');
+            const names = [...document.querySelectorAll('#dcCardsRows [data-dc="name"]')].map(i => i.value.trim().toLowerCase()).filter(Boolean), dup = names.length - new Set(names).size;
+            appSettings = { ...appSettings, dcCards: L };
+            try { await saveDoc(doc(db, 'smart_global', 'settings'), { dcCards: L }, { merge: true }); if (msg) { msg.textContent = `✅ 저장됨 · 카드 ${L.length}개${dup ? ` · 같은 카드명 ${dup}개는 한 번만 저장돼요` : ''}`; msg.classList.remove('hidden'); setTimeout(() => msg.classList.add('hidden'), 2500); } }
+            catch (err) { console.error(err); customAlert('제휴카드 목록을 저장하지 못했어요. 인터넷 연결을 확인해주세요.'); }
+            const sm = document.getElementById('dcCardsSum'); if (sm) sm.textContent = L.length ? `(${L.length}개)` : '(아직 없음)';
+        }
 
         /* 🏢 거래처별 유지 조건 (V188 · 👑 총관리자) — 개통등록에서 거래처를 고르면 요금제·부가(최대 3개)·보험 유지가 자동으로
            · appSettings.dealers = [{ id, name, carrier, plan('' = 통신사 기본 · 'NONE' · 'M3'/'D96'), addons: [{ name, code } ×3], ins: { name, code } }]
@@ -11704,11 +11735,6 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         // 💳 V429 제휴카드 도우미: 전월 실적 글자 · 카드가 있는 고객 · 개통 기록 정책 줄에서 카드 이름
         function cardReqTxt(n) { n = Number(n) || 0; return n >= 10000 && n % 10000 === 0 ? `${n / 10000}만원` : `${arWon(n)}원`; }
-        function dcCardsParse(t) {   // 💳 V430 '이름 / 월 할인 / 실적' 줄 → [{ name, amt, req }]
-            const num = (x) => { const n = Number(String(x || '').replace(/[^\d]/g, '')) || 0; return n; }, seen = new Set();
-            return String(t || '').split('\n').map(l => l.split(/\s*[\/|\t]\s*/)).map(([n, a, r]) => ({ name: String(n || '').trim().slice(0, 40), amt: num(a), req: num(r) }))
-                .filter(x => x.name && !seen.has(x.name.toLowerCase()) && seen.add(x.name.toLowerCase())).slice(0, 40);
-        }
         function dcCards() { return Array.isArray(appSettings.dcCards) ? appSettings.dcCards.filter(x => x && x.name) : []; }
         function dcCardFind(name) { const k = String(name || '').trim().toLowerCase(); return k ? dcCards().find(x => x.name.toLowerCase() === k) || null : null; }
         const DC_CARD_FIELDS = { modalDcCard: ['modalDcCardAmt', 'modalDcCardReq'], 'ar-card': ['ar-cardamt', 'ar-cardreq'] };
@@ -30513,7 +30539,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V430';
+        const APP_VER = 'V431';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30521,6 +30547,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V431', d: '2026-11-23', items: [
+                ['💳 제휴카드 목록을 칸으로: 카드명 · 할인액 · 전월실적 (+ 카드 추가 · ✕ 지우기 · 고치면 바로 저장)', 'a'],
+            ] },
             { v: 'V430', d: '2026-11-23', items: [
                 ['💳 설정 → 자동 약속 → 제휴카드 목록 (이름 / 월 할인 / 실적) — 개통등록 · [수정]에서 카드 이름을 고르면 금액 · 실적이 자동으로', 'a'],
                 ['💳 고객 목록 [제휴카드] 안에 칩: ⏰ 유지 30일 안 끝남 · ✅ 유지 기간 지남', 'a'],
