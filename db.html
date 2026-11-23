@@ -11760,7 +11760,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             // 🛠 V375 복지할인도 빼고 (수정 화면 자동 계산과 같게) · 직접 넣은 실납부금이 할부금보다 적으면(예전 값이 남은 것) 믿지 않고 계산값으로
             const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, cb = Math.min(a0, Number(c.combDisc) || 0), wel = wt ? Math.min(a0 - cb, gdWelAuto(wt, a0 - cb, 5) || 0) : 0, cardD = Math.min(Math.max(0, a0 - cb - wel), Number(c.discountCardAmt) || 0), calcNet = Math.floor(Math.max(0, a0 - cb - wel - cardD) / 10) * 10;   // 💳 V428 제휴카드 월 할인 · 🤝 V376 결합 할인(월) → 복지는 결합 뺀 요금에서
             const rpOk = rp > 0 && rp >= inst;
-            const out = { src: 'card', inst, left, pfee: pf, sel, comb: rpOk ? 0 : cb, wel: rpOk ? 0 : wel, card: rpOk ? 0 : cardD, cardHint: rpOk && cardD > 0 && Math.abs(rp - (inst + calcNet)) >= 100 ? cardD : 0,   /* 직접 넣은 실납부금이 카드 뺀 계산과 같으면(이미 들어감) 안 보여줌 */ planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
+            const etc = rpOk ? (a0 - cb - wel - cardD) - (rp - inst) : 0;   // 🩹 V436 직접 넣은 실납부금이어도 결합 · 복지 · 카드 줄은 보여주고, 계산과 남는 차이는 '기타' 줄로 (예전엔 선약만 보여서 숫자가 안 맞아 보였음)
+            const out = { src: 'card', inst, left, pfee: pf, sel, comb: cb, wel, card: cardD, etc: Math.abs(etc) >= 10 ? Math.round(etc / 10) * 10 : 0, cardHint: 0,   /* V436 카드도 위 줄에 바로 보여서 따로 안 씀 */ planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
             const pDone = planDoneDate(c);   // 🔁 V433 '요금제 변경' 완료 체크한 날 (체크하면 약속 날짜 칸은 비워짐)
             if (trp && String(c.repTargetPlan || '').trim()) { const kd = c.promPlanDate || pDone || ''; out.after = { total: trp }; out.tgt = c.repTargetPlan; out.kd = kd; if (pDone || (kd && getTodayStr() >= kd)) { out.changed = true; out.total = trp; out.plan = c.repTargetPlan; out.planNet = Math.max(0, trp - inst); out.afterTxt = '직접 넣은 변경 후 실납부금'; } }
             else if (pDone && !rpOk && Number(c.targetPlanFee) > 0 && String(c.repTargetPlan || '').trim()) {   // 변경 후 실납부금을 안 넣었으면 변경 후 월요금으로 계산
@@ -11771,7 +11772,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         function payBoxRender(P) {
             const W = (n) => `${Math.round(n).toLocaleString('ko-KR')}원`;
-            const feeTxt = P.changed ? `${escapeHtml(P.plan)} · ${P.afterTxt ? escapeHtml(P.afterTxt) : '안내서 변경 후 금액'}` : `${W(P.pfee)}${P.sel ? ' −선약 ' + W(P.sel) : ''}${P.comb ? ' −결합 ' + W(P.comb) : ''}${P.wel ? ' −복지 ' + W(P.wel) : ''}${P.card ? ' −카드 ' + W(P.card) + (P.cardReq ? ` (전월 ${cardReqTxt(P.cardReq)}↑)` : '') + (P.cardCust ? ' (고객카드 값)' : '') : ''}`;
+            const feeTxt = P.changed ? `${escapeHtml(P.plan)} · ${P.afterTxt ? escapeHtml(P.afterTxt) : '안내서 변경 후 금액'}` : `${W(P.pfee)}${P.sel ? ' −선약 ' + W(P.sel) : ''}${P.comb ? ' −결합 ' + W(P.comb) : ''}${P.wel ? ' −복지 ' + W(P.wel) : ''}${P.card ? ' −카드 ' + W(P.card) + (P.cardReq ? ` (전월 ${cardReqTxt(P.cardReq)}↑)` : '') + (P.cardCust ? ' (고객카드 값)' : '') : ''}${P.etc > 0 ? ' −기타 할인 ' + W(P.etc) : (P.etc < 0 ? ' +차이 ' + W(-P.etc) : '')}`;
             if (P.cid) payBoxP.set(P.cid, P);
             return `<div class="dz-pay rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 p-3 mb-3">
                 <div class="flex items-baseline justify-between gap-2"><span class="text-[13px] font-bold text-indigo-900">매달 내실 금액${P.changed ? ' <span class="text-[11px] font-bold text-indigo-700">(요금제 바꾼 뒤)</span>' : ''}</span><span class="text-[22px] font-black text-indigo-800">${W(P.total)}</span></div>
@@ -11785,7 +11786,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 ${P.wired > 0 ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-teal-800 font-bold">🏠 인터넷 · TV ${W(P.wired)} 포함</span><span class="font-extrabold text-teal-800">집 전체 매달 약 ${W(P.total + (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0) + P.wired)}</span></div>` : ''}
                 ${P.wiredAfter && P.wiredAfter.fee ? `<div class="mt-1 flex items-baseline justify-between gap-2 text-[12px]"><span class="text-teal-800">🔁 ${P.wiredAfter.date.replace(/-/g, '.')}부터 ${escapeHtml(P.wiredAfter.names || '변경 상품')}(으)로 바꾸면</span><span class="font-bold text-teal-800 whitespace-nowrap">집 전체 약 ${W(P.total + (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0) + P.wiredAfter.fee)}</span></div>` : ''}
                 ${P.cid ? `<button type="button" data-pay-sms="${escapeHtml(P.cid)}" class="mt-2 w-full h-9 rounded-lg border border-indigo-300 bg-white text-[12.5px] font-bold text-indigo-800">💬 이 금액 문자로 보내기</button>` : ''}
-                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.card ? ` − 카드 (전월 ${P.cardReq ? cardReqTxt(P.cardReq) + ' ' : ''}실적 채울 때)` : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? `고객카드에 직접 넣은 실납부금${P.etc > 0 ? ' · 기타 할인 = 실납부금에 들어간 나머지 할인 (결합 · 복지 금액을 [수정]에 넣으면 이름으로 보여요)' : (P.etc < 0 ? ' · 계산보다 많아요 (실납부금을 넣은 뒤 할인 · 할부가 바뀌었는지 확인)' : '')}` : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.card ? ` − 카드 (전월 ${P.cardReq ? cardReqTxt(P.cardReq) + ' ' : ''}실적 채울 때)` : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
             </div>`;
         }
         // 💳 V429 제휴카드 도우미: 전월 실적 글자 · 카드가 있는 고객 · 개통 기록 정책 줄에서 카드 이름
@@ -11843,7 +11844,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const W = (n) => `${Math.round(Number(n) || 0).toLocaleString('ko-KR')}원`, L = [];
             L.push(`${msgName(c)}님, ${msgStoreName()} ${getStaffName() || ''}입니다.`.replace(/\s+입니다/, '입니다'), '매달 내시는 금액 안내드려요.');
             if (P.inst) L.push(`· 휴대폰 할부 ${W(P.inst)}${P.left ? ` (${P.left}개월 남음${payInstEnd(P.left) ? ` · ${payInstEnd(P.left)}까지` : ''})` : ''}`);
-            const d = P.rpUsed || P.changed ? [] : [P.sel ? `선택약정 −${W(P.sel)}` : '', P.comb ? `결합 −${W(P.comb)}` : '', P.wel ? `복지 −${W(P.wel)}` : '', P.card ? `제휴카드 −${W(P.card)}` : ''].filter(Boolean);
+            const d = P.changed || (P.rpUsed && P.etc < 0) ? [] : [P.sel ? `선택약정 −${W(P.sel)}` : '', P.comb ? `결합 −${W(P.comb)}` : '', P.wel ? `복지 −${W(P.wel)}` : '', P.card ? `제휴카드 −${W(P.card)}` : '', P.etc > 0 ? `기타 할인 −${W(P.etc)}` : ''].filter(Boolean);
             L.push(`· 요금 ${W(P.planNet)}${d.length ? ` (기본료 ${W(P.pfee)}에서 ${d.join(', ')})` : ''}`);
             const addSum = (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0);
             (P.adds || []).forEach(a => L.push(`· ${a.kind} ${a.name} ${W(a.fee)}${a.until ? ` (${a.until.replace(/-/g, '.')}까지)` : ''}`));
@@ -30694,7 +30695,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V435';
+        const APP_VER = 'V436';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30702,6 +30703,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V436', d: '2026-11-23', items: [
+                ['🩹 매달 내실 금액: 직접 넣은 실납부금 고객도 결합 · 복지 · 카드 할인 줄이 보이고, 남는 차이는 \'기타 할인\'으로 (예전엔 선약만 보여서 숫자가 안 맞아 보였어요)', 'a'],
+            ] },
             { v: 'V435', d: '2026-11-23', items: [
                 ['⏰ 점검: 요금제 · 유선 상품 변경 날짜가 7일 넘게 지났는데 완료 체크 안 한 고객 → [고객 목록에서 보기]', 'a'],
                 ['🔁 유선 \'지금 바꾸면\' · 매달 내실 금액 · 금액 문자에 변경 예정 미리 보기 (2027.11.20부터 500M + 베이직 · 매달 약 ○원)', 'a'],
