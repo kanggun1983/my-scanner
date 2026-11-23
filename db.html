@@ -929,6 +929,10 @@
                         <textarea id="smsTplVisit" rows="3" aria-label="방문 약속 전날 알림 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
                         <div class="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" data-tpl-test="visit" class="h-9 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-emerald-800 flex items-center gap-1 disabled:opacity-40">🧪 미리보기 · 나한테 보내보기 (문자·푸시)</button><label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer min-h-[36px]"><input type="checkbox" data-sms-card="visit" class="w-5 h-5 accent-indigo-600 flex-shrink-0 disabled:opacity-40">📇 문자에 명함 링크 붙이기</label></div>
                         <label class="flex items-start gap-2 text-[14px] font-bold text-gray-900"><input type="checkbox" id="smsVisitNoShow" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>방문 약속에 안 오면 다음 날 '재연락' 약속 자동으로 잡기<span class="block text-xs font-normal text-gray-500">약속 날이 지나도 '왔어요' 체크가 없으면 → 담당자 '오늘 할 일'에 재연락으로 떠요 (지난 3일 안 약속만 · 위 전날 문자를 꺼도 따로 돼요)</span></span></label>
+                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoWiredOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>🏠 유선 약정갱신 안내 문자<span class="block text-xs font-normal text-gray-500">인터넷 · TV 약정 만료 전 정한 날 아침에 한 번 · 기본은 약갱 가능해지는 날(만료 6개월 전) · <b>{만료일}</b> = 약정 끝나는 날 · <b>{약갱일}</b> = 약갱 가능일</span></span></label>
+                        <div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold text-gray-600">만료 몇 개월 전<select id="smsWiredMonths" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"><option value="6">6개월 전 (약갱 가능일)</option><option value="3">3개월 전</option><option value="2">2개월 전</option><option value="1">1개월 전</option></select></label></div>
+                        <textarea id="smsTplWired" rows="3" aria-label="유선 약정갱신 안내 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
+                        <div class="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" data-tpl-test="wired" class="h-9 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-emerald-800">미리보기 · 나한테 보내보기</button></div>
                         <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoActOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>🙏 개통 뒤 안부 문자<span class="block text-xs font-normal text-gray-500">개통일부터 정한 날 뒤 아침에 · 사용 불편 확인 + 리뷰 부탁 · <b>{개통기간}</b> = 고른 날짜('2주'·'한 달'·'두 달') · <b>{리뷰}</b> 자리에 리뷰 주소</span></span></label>
                         <div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold text-gray-600">개통 며칠 뒤<select id="smsActDays" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"><option value="14">14일</option><option value="30">30일 (한 달)</option><option value="45">45일</option><option value="60">60일</option></select></label></div>
                         <textarea id="smsTplAct" rows="3" aria-label="개통 뒤 안부 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
@@ -9164,8 +9168,14 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         /* 💡 V426 관심 기기 — 출시 전 관심 · 사전예약 고객을 기종별로 묶어 보기 (고객카드 '💡 관심 기종' 칸) */
         let interestPick = '';
-        function interestOn(c) { const v = String((c && c.interestModel) || '').trim(); return !!v && v !== '-' && !/해당없음|미적용|^없음$/.test(v); }
+        function interestOn(c) { const v = String((c && c.interestModel) || '').trim(); return !!v && v !== '-' && !/해당없음|미적용|^없음$|^✅/.test(v); }   // ✅ = 개통해서 정리한 것 (V427)
         // 모델 번호(SM-S938N) · 탭 · 버즈 · 워치 · 링은 기종 이름으로 안 바꾸고 첫 단어 그대로
+        function modelNameFromCode(v) {   // 💡 V427 'SM-S948N' 같은 모델 번호 → 지원금표 기종 이름 (없으면 '')
+            const k = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!/^(SM|AT|SC|UIP|IP)[A-Z0-9]{3,}/.test(k)) return '';
+            const C = (calcData && calcData.carriers) || {};
+            for (const car of Object.keys(C)) { const m = ((C[car] && C[car].models) || []).find(x => x && x.code && String(x.code).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7) === k.slice(0, 7)); if (m && m.name) return String(m.name); }
+            return '';
+        }
         function interestKey(s) {   // '갤럭시S27 사전예약 관심 512업그레이드' → 갤럭시 S27 · '아이폰 17 프로' → 아이폰 17 프로
             const t = String(s || '').replace(/\s+/g, '').toLowerCase();
             let m = t.match(/(?:갤럭시|galaxy)?(z?플립|z?폴드|zflip|zfold|노트|note|s|a|z)(\d{1,2})(울트라|ultra|플러스|plus|\+|fe|엣지|edge)?/);
@@ -9175,15 +9185,21 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const w = String(s || '').trim().split(/\s+/)[0].slice(0, 14) || '기타';
             return { k: w.toLowerCase(), label: w };
         }
+        function interestStale(c) {   // 🕰 V427 관심 기종을 적었는데 6개월 넘게 방문 · 연락이 없는 고객
+            if (!interestOn(c)) return false;
+            const last = [c.lastContactDate, c.visitDate, c.regDate].map(v => String(v || '').slice(0, 10)).filter(v => /^\d{4}-\d{2}-\d{2}$/.test(v)).sort().pop();
+            return !!last && last < addDaysStr(getTodayStr(), -180);
+        }
         function renderInterestBar() {
             const bar = document.getElementById('interestBar'); if (!bar) return;
             const on = currentFilter === 'interest'; bar.classList.toggle('hidden', !on); bar.classList.toggle('flex', on); if (!on) { interestPick = ''; return; }
             const G = new Map(); let pre = 0;
             custView().forEach(c => { if (c.deletedAt || !interestOn(c)) return; const x = interestKey(c.interestModel), o = G.get(x.k) || { label: x.label, n: 0, pre: 0 }; o.n++; if (/사전\s*예약|사전예약|예약/.test(String(c.interestModel))) { o.pre++; pre++; } G.set(x.k, o); });
             const L = [...G.entries()].sort((a, b) => b[1].n - a[1].n || a[1].label.localeCompare(b[1].label, 'ko')), all = L.reduce((t, [, o]) => t + o.n, 0);
-            if (interestPick && !G.has(interestPick)) interestPick = '';
+            if (interestPick && interestPick !== '__old' && !G.has(interestPick)) interestPick = '';
             const chip = (k, txt, act) => `<button type="button" data-interest-pick="${escapeHtml(k)}" class="flex-shrink-0 h-9 px-3 rounded-full border text-[13px] font-bold whitespace-nowrap ${act ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-gray-800 border-amber-200'}">${txt}</button>`;
-            bar.innerHTML = chip('', `전체 ${all}`, !interestPick) + L.map(([k, o]) => chip(k, `${escapeHtml(o.label)} ${o.n}${o.pre ? ` · 📌${o.pre}` : ''}`, interestPick === k)).join('') + (all ? '' : '<span class="text-xs text-gray-500 py-2">관심 기종을 적은 고객이 없어요 (고객카드 수정 → 💡 관심 기종)</span>');
+            const old = custView().filter(c => !c.deletedAt && interestStale(c)).length;
+            bar.innerHTML = chip('', `전체 ${all}`, !interestPick) + (old ? chip('__old', `🕰 6개월 넘게 연락 없음 ${old}`, interestPick === '__old') : '') + L.map(([k, o]) => chip(k, `${escapeHtml(o.label)} ${o.n}${o.pre ? ` · 📌${o.pre}` : ''}`, interestPick === k)).join('') + (all ? '' : '<span class="text-xs text-gray-500 py-2">관심 기종을 적은 고객이 없어요 (고객카드 수정 → 💡 관심 기종)</span>');
             if (!bar.dataset.on) { bar.dataset.on = '1'; bar.addEventListener('click', (e) => { const b = e.target.closest('[data-interest-pick]'); if (!b) return; interestPick = b.dataset.interestPick; currentPage = 1; renderDB(); }); }
         }
         const DASH_FILTER_LABELS = {
@@ -9354,7 +9370,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (currentFilter === 'wired_target') return isWiredExpiryTarget(c);
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
                 if (currentFilter === 'fav') return isFav(c);   // ⭐ V409 즐겨찾기 (직원마다 따로)
-                if (currentFilter === 'interest') return interestOn(c) && (!interestPick || interestKey(c.interestModel).k === interestPick);   // 💡 V426 관심 기기 · 사전예약
+                if (currentFilter === 'interest') return interestOn(c) && (!interestPick || (interestPick === '__old' ? interestStale(c) : interestKey(c.interestModel).k === interestPick));   // 💡 V426 관심 기기 · 사전예약
                 if (currentFilter === 'card_off') return isCardOff(c);   // 🔕 V245 명함 설치 · 알림 꺼짐(또는 명함 삭제)
 
                 if (currentFilter === 'mobile') return c.device || c.plan || (c.carrier && c.carrier !== '미정');
@@ -13561,6 +13577,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             smsAutoPhoneOn: false, smsPhoneMonths: '18',   // V185 📱 내 폰 정보 알림 (푸시만)
             smsTplPhone: '{이름}님, {매장} {담당자}입니다 😊\n개통하신 지 {개통기간}이 됐어요. 할부·약정이 언제 끝나는지 눌러서 확인해 보세요!',
             smsTplHomeDone: '{이름}님, {매장} {담당자}입니다 😊\n인터넷 · TV 설치는 잘 되셨나요? 사용하시다 불편한 점 있으면 편하게 연락 주세요!',   // 🏠 V425
+            smsAutoWiredOn: false, smsWiredMonths: '6',   // 🏠 V427 유선 약정갱신 안내
+            smsTplWired: '{이름}님, {매장} {담당자}입니다 😊\n인터넷 · TV 약정이 {만료일}에 끝나요. {약갱일}부터 약정갱신하시면 혜택을 이어서 받으실 수 있어요. 편하실 때 연락 주세요!',
             smsTplAct: '{이름}님, {매장} {담당자}입니다 😊\n개통하신 지 {개통기간} 됐어요. 쓰시면서 불편하신 점은 없으세요? 궁금한 건 언제든 편하게 연락 주세요!{리뷰}',
             smsPromoOptout: "수신거부: 이 번호로 '거부'라고 답장 주세요"
         };
@@ -13609,7 +13627,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         let smsListData = null;
         let smsListHistoryPushed = false;
         const smsListSheet = document.getElementById('smsListSheet');
-        const SHOP_TPL_KEYS = ['smsTplProm', 'smsTplBday', 'smsTplVisit', 'smsTplAct', 'smsTplPhone', 'smsTplMiss', 'smsTplPromo', 'smsTplHomeDone'];   // 🏬 V424 매장마다 고칠 수 있는 문구
+        const SHOP_TPL_KEYS = ['smsTplProm', 'smsTplBday', 'smsTplVisit', 'smsTplAct', 'smsTplPhone', 'smsTplMiss', 'smsTplPromo', 'smsTplHomeDone', 'smsTplWired'];   // 🏬 V424 매장마다 고칠 수 있는 문구
         function smsSetting(key) {
             if (smsShopCtx && SHOP_TPL_KEYS.includes(key)) { const o = shopSmsOf(smsShopCtx); if (o && String(o[key] || '').trim()) return o[key]; }   // 🏬 V424 그 매장 문구가 있으면
             const v = appSettings[key];
@@ -13653,7 +13671,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             let t = String(tpl || '');
             if (!staff) t = t.replace(/\s?\{담당자\}/g, '');   // 직원 이름이 없으면 '{매장} {담당자}입니다' → '{매장}입니다'
             if (!map['사진']) t = t.replace(/\n?[^\S\n]*\{사진\}/g, '');
-            return fillMsgPlaceholders(t.replace(/\{(이름|매장|담당자|약속|단말기|사진|방문일|리뷰|개통기간|연락이유|명함|수신거부)\}/g, (m, k) => map[k] !== undefined ? map[k] : ''), { auto: true, staff }).replace(/\n{3,}/g, '\n\n').trim();
+            return fillMsgPlaceholders(t.replace(/\{(이름|매장|담당자|약속|단말기|사진|방문일|리뷰|개통기간|연락이유|명함|수신거부|만료일|약갱일)\}/g, (m, k) => map[k] !== undefined ? map[k] : ''), { auto: true, staff }).replace(/\n{3,}/g, '\n\n').trim();
         }
         const VISIT_W = ['일', '월', '화', '수', '목', '금', '토'];
         function visitDayLabel(ymd) { const d = parseDateString(ymd); return d && !isNaN(d.getTime()) ? `${d.getMonth() + 1}/${d.getDate()}(${VISIT_W[d.getDay()]})` : ymd; }
@@ -13739,6 +13757,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const T = teamCardSig(), SS = multiShop() && appSettings.shopSms ? JSON.stringify(appSettings.shopSms) : '', h = (v) => h0(SS ? [...v, T, SS] : (T ? [...v, T] : v));   // 🏬 V424 매장 문구가 바뀌어도 다시   // 👥 V220 공용 명함(직원 · 연결)이 바뀌면 다시 맞춤 · 꺼져 있으면 예전과 똑같이
             return {
                 's.task': h([smsSetting('smsTplProm'), smsCardOn('prom')]),
+                's.wired': h([smsSetting('smsTplWired'), smsSetting('smsWiredMonths')]), 'p.wired': h([smsSetting('smsTplWired'), smsSetting('smsWiredMonths'), 'pn1']),   // 🏠 V427
                 's.bday': h([smsSetting('smsTplBday'), appSettings.smsBdayImage || '', mmsActive(), smsCardOn('bday')]),
                 's.visit': h([smsSetting('smsTplVisit'), smsCardOn('visit')]),
                 's.act': h([smsSetting('smsTplAct'), reviewUrl(), smsCardOn('act'), smsSetting('smsActDays')]),
@@ -14028,6 +14047,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const items = [];
             const promOn = !!smsSetting('smsAutoPromOn'), bdayOn = !!smsSetting('smsAutoBdayOn'), promoOn = !!smsSetting('smsAutoPromoOn');
             const visitOn = !!smsSetting('smsAutoVisitOn'), actOn = !!smsSetting('smsAutoActOn');   // V177
+            const wiredOn = !!smsSetting('smsAutoWiredOn');   // 🏠 V427
             const missOn = !!smsSetting('smsAutoMissOn');   // V222 📵
             const phoneOn = !!smsSetting('smsAutoPhoneOn') && autoPushOn() && !(calcData && calcData.myPhoneOn === false);   // V185 📱 푸시만 · 명함 '내 폰 정보'를 끈 매장은 안 보냄
             const famPhoneOn = !!smsSetting('smsAutoPhoneOn') && autoSmsOn();   // 👨‍👩‍👧 V250 가족 문자는 📱 내 폰 알림을 켰을 때 · 매장 폰 문자로
@@ -14049,7 +14069,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                         { heading: `📢 ${msgStoreName()} 소식`, text: promoText(c, true), image: promoPushImg(), popImage: String(appSettings.smsPromoImage || ''), pos: promoImgPos() }, { sms: promoSmsOn(), push: promoPushOn() }).filter(it => !skip.has(it.id)));   // 🔔 V325 알림 = 잘라 둔 사진 · 명함 창 = 원래 사진 + 위치
                 });
             }
-            if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn && !famPhoneOn) return items;
+            if (!promOn && !bdayOn && !visitOn && !actOn && !phoneOn && !missOn && !famPhoneOn && !wiredOn) return items;
             const today = getTodayStr();
             const last = new Date(now.getFullYear(), now.getMonth(), now.getDate() + SMS_AUTO_WINDOW_DAYS);
             const lastStr = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-${String(last.getDate()).padStart(2, '0')}`;
@@ -14081,6 +14101,21 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                             const id = `av-${safeId}-${vd.replace(/-/g, '')}`;
                             const vText = fillSmsTemplate(smsSetting('smsTplVisit'), c, { '방문일': visitDayLabel(vd) + visitTimeLabel(c, vd) });
                             items.push(...autoItemsFor(c, { id, to: phone, name: c.name || '', auto: true, sendAt: vAt, text: withAutoCard(vText, c, 'visit') }, { heading: '📅 방문 약속 안내', text: vText }).filter(it => !skip.has(it.id)));
+                        }
+                    }
+                }
+                // 🏠 V427 유선 약정갱신 안내 (만료 N개월 전 · 기본 6개월 = 약갱 가능일) · 약정마다 한 번
+                if (wiredOn && !c.marketingDeny && c.salesStatus !== '고객거부' && /^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) {
+                    const end = getWiredEndDate(c.wiredDate), rf = getWiredRenewFrom(c.wiredDate);
+                    if (end && rf) {
+                        const mo = [1, 2, 3, 6].includes(parseInt(smsSetting('smsWiredMonths'), 10)) ? parseInt(smsSetting('smsWiredMonths'), 10) : 6;
+                        const sd = new Date(end); sd.setMonth(sd.getMonth() - mo);
+                        const ymd0 = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, dot = (d) => `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+                        const sendDay = ymd0(sd);
+                        if (sendDay >= today && sendDay <= lastStr && ymd0(end) > today) {
+                            const id = `aw-${safeId}-${String(c.wiredDate).replace(/-/g, '')}`;
+                            const wText = fillSmsTemplate(smsSetting('smsTplWired'), c, { '만료일': dot(end), '약갱일': dot(rf) });
+                            items.push(...autoItemsFor(c, { id, to: phone, name: c.name || '', auto: true, sendAt: smsSendAt(sendDay, time), text: withAutoCard(wText, c, 'wired') }, { heading: '🏠 인터넷 · TV 약정 안내', text: wText }).filter(it => !skip.has(it.id)));
                         }
                     }
                 }
@@ -14396,6 +14431,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             visit: { icon: '🏬', group: '방문 전날', cls: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
             act: { icon: '🙏', group: '개통 안부', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
             phone: { icon: '📱', group: '내 폰 정보', cls: 'bg-cyan-50 text-cyan-800 border-cyan-200' },
+            wired: { icon: '🏠', group: '유선 약정갱신', cls: 'bg-teal-50 text-teal-800 border-teal-200' },
             miss: { icon: '📵', group: '부재 안내', cls: 'bg-orange-50 text-orange-800 border-orange-200' },
             test: { icon: '🧪', group: '시험', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
             manual: { icon: '✉️', group: '직접 예약', cls: 'bg-sky-50 text-sky-800 border-sky-200' }
@@ -14410,6 +14446,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             else if ((m = /^av-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'visit'; label = '방문 약속 전날'; custId = m[1]; }
             else if ((m = /^aa-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'act'; label = '개통 안부'; custId = m[1]; }
             else if ((m = /^ah-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'phone'; label = '내 폰 정보'; custId = m[1]; }
+            else if ((m = /^aw-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'wired'; label = '유선 약정갱신'; custId = m[1]; }   // 🏠 V427
             else if ((m = /^am-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'miss'; label = '부재 안내'; custId = m[1]; }
             else if (/^apm-/.test(id)) { kind = 'promo'; label = '홍보'; const mm = /^apm-\d{12}-(.+?)(?:-p)?$/.exec(id); custId = mm ? mm[1] : ''; }
             else if ((m = /^asd-(.+)-Send2?-[a-z0-9]+$/.exec(id))) { kind = 'task'; label = '송금 완료'; custId = m[1]; }   // 💰 V333
@@ -14573,13 +14610,13 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             document.getElementById('smsAutoPromOn').checked = !!smsSetting('smsAutoPromOn');
             document.getElementById('smsAutoBdayOn').checked = !!smsSetting('smsAutoBdayOn');
             document.getElementById('smsAutoPromoOn').checked = !!smsSetting('smsAutoPromoOn');
-            ['smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn'].forEach(id => { document.getElementById(id).checked = !!smsSetting(id); });
+            ['smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn', 'smsAutoWiredOn'].forEach(id => { document.getElementById(id).checked = !!smsSetting(id); });
             document.getElementById('smsVisitNoShow').checked = smsSetting('smsVisitNoShow') !== false;
             document.querySelectorAll('[data-sms-card]').forEach(el => { el.checked = smsCardOn(el.dataset.smsCard); });   // V179 📇 명함 링크
             { const rv = document.getElementById('smsReviewShow'); if (rv) { const u = reviewUrl(); rv.textContent = u || '없음 (비어 있으면 {리뷰} 줄이 빠져요)'; rv.className = u ? 'text-gray-900' : 'text-red-700'; } }
             { const rc = document.getElementById('smsMissRecall'); if (rc) rc.checked = smsSetting('smsMissRecall') !== false; renderMissReasons(); }   // 📵 V228
             { const am = document.getElementById('smsMissAdMark'), at = document.getElementById('smsMissAdToggle'); if (am) { am.checked = smsSetting('smsMissAdMark') !== false; am.disabled = !isSuperAdmin; } if (at) { at.checked = smsSetting('smsMissAdToggle') === true; at.disabled = !isSuperAdmin; } }   // 📢 V229
-            ['smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsPhoneMonths', 'smsTplPhone', 'smsMissCount', 'smsMissDays', 'smsTplMiss'].forEach(id => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = smsSetting(id) || SMS_AUTO_DEFAULTS[id] || ''; });
+            ['smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsWiredMonths', 'smsTplWired', 'smsPhoneMonths', 'smsTplPhone', 'smsMissCount', 'smsMissDays', 'smsTplMiss'].forEach(id => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = smsSetting(id) || SMS_AUTO_DEFAULTS[id] || ''; });
             try { renderSmsDevBox(); } catch (e) { /* 준비 전 */ }   // 👤 V389
             try { promoStaffOptions(); } catch (e) { console.error(e); }   // V323 담당자 목록 먼저 (저장된 담당자 값이 들어가게)
             [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime'], ['smsTplPromo', 'smsTplPromo'], ['smsPromoDate', 'smsPromoDate'], ['smsPromoTime', 'smsPromoTime'], ['smsPromoTarget', 'smsPromoTarget'], ['smsPromoDaily', 'smsPromoDaily'], ['smsPromoOptout', 'smsPromoOptout'], ...PROMO_FILTER_IDS.map(k => [k, k])].forEach(([id, key]) => {
@@ -14633,6 +14670,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 smsActDays: document.getElementById('smsActDays').value || '30',
                 smsTplAct: document.getElementById('smsTplAct').value.trim() || SMS_AUTO_DEFAULTS.smsTplAct,
                 smsTplHomeDone: String((document.getElementById('smsTplHomeDone') || {}).value || '').trim() || SMS_AUTO_DEFAULTS.smsTplHomeDone,   // 🏠 V425
+                smsAutoWiredOn: !!(document.getElementById('smsAutoWiredOn') || {}).checked, smsWiredMonths: (document.getElementById('smsWiredMonths') || {}).value || '6',   // 🏠 V427
+                smsTplWired: String((document.getElementById('smsTplWired') || {}).value || '').trim() || SMS_AUTO_DEFAULTS.smsTplWired,
                 smsAutoPhoneOn: document.getElementById('smsAutoPhoneOn').checked,
                 smsPhoneMonths: document.getElementById('smsPhoneMonths').value || '18',
                 smsTplPhone: document.getElementById('smsTplPhone').value.trim() || SMS_AUTO_DEFAULTS.smsTplPhone,
@@ -14678,7 +14717,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             renderSmsStats();
             return true;
         }
-        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsAutoWiredOn', 'smsWiredMonths', 'smsTplWired', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
         // 📵 V228 문구 칸에 {이름} {연락이유} {명함} {수신거부} 넣기 · 연락 이유 목록 고치기
         document.getElementById('smsMissVars').addEventListener('click', (e) => {
             const b = e.target.closest('[data-miss-var]'); if (!b) return;
@@ -15329,6 +15368,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             bday: { label: '🎂 생일 축하', key: 'smsTplBday' },
             visit: { label: '🏬 방문 약속 전날', key: 'smsTplVisit' },
             act: { label: '🙏 개통 안부', key: 'smsTplAct' },
+            wired: { label: '🏠 유선 약정갱신', key: 'smsTplWired' },
             phone: { label: '📱 내 폰 정보 알림', key: 'smsTplPhone', pushOnly: true },
             miss: { label: '📵 부재 고객', key: 'smsTplMiss' },
             promo: { label: '📢 홍보', key: 'smsTplPromo' }
@@ -15380,6 +15420,13 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                     if (!autoPushOn()) warns.push("🔔 자동 푸시가 꺼져 있어서 지금은 안 나가요 → 위 '보내는 방법'에서 🔔 푸시를 켜주세요.");
                     if (calcData && calcData.myPhoneOn === false) warns.push("명함의 '📱 내 폰 정보'가 꺼져 있어서 안 나가요 → 설정 → 📇 고객 명함 → 🙋 명함 기능에서 켜주세요.");
                     return { warn: warns.join('\n'), pushOnly: true, phone: cardPhoneInfo(c), sms: { text: '' }, push: P };
+                }
+                if (kind === 'wired') {   // 🏠 V427 고객 유선 약정일로 (없으면 예시: 오늘부터 6개월 뒤 만료)
+                    const dot = (d) => `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+                    let end = getWiredEndDate(c.wiredDate), rf = getWiredRenewFrom(c.wiredDate);
+                    if (!end) { end = new Date(); end.setMonth(end.getMonth() + 6); rf = new Date(); }
+                    const text = fillSmsTemplate(tpl, c, { '만료일': dot(end), '약갱일': dot(rf) });
+                    return { sms: { text: withAutoCard(text, c, 'wired') }, push: { heading: '🏠 인터넷 · TV 약정 안내', text } };
                 }
                 if (kind === 'act') {
                     const rv = reviewUrl(), hasTag = /\{리뷰\}/.test(tpl);
@@ -22501,6 +22548,10 @@ familyStr + `\n` +
                 const cmb = arVal('ar-comb');
                 if (cmb && cmb !== arPrefill.combo) { const S = splitCombWel(cmb); Object.assign(upd, { combination: S.comb, welfare: S.wel }); }
                 if (arNum('ar-combdisc') > 0) upd.combDisc = arNum('ar-combdisc');   // 🤝 V376 결합 할인 (월)   // 🩹 V345 '결합 · 복지' 한 칸 → 가족결합 · 복지할인 따로 (예전엔 복지까지 결합 칸에)
+                if (model && cur && interestOn(cur)) {   // 💡 V427 관심 기종을 실제로 개통하면 관심 목록에서 빼기 (✅ 표시로 남김)
+                    const W = interestKey(cur.interestModel), want = W.k, names = [model, [model, arVal('ar-color')].join(' '), modelNameFromCode(model)].filter(Boolean);
+                    if (/^(갤럭시|아이폰) /.test(W.label) && names.some(n => interestKey(n).k === want)) upd.interestModel = `✅ ${String(cur.interestModel).trim().slice(0, 60)} (${d.slice(5).replace('-', '/')} 개통)`;
+                }
                 if (model) Object.assign(upd, {
                     device: [model, arVal('ar-color')].filter(Boolean).join(' '), deviceSerial: arVal('ar-serial'),
                     repDevice: [[model, arVal('ar-color')].filter(Boolean).join(' '), arVal('ar-serial')].filter(Boolean).join(' / '), repPrincipal: r.loan ? arWon(r.loan) : '0',
@@ -29421,6 +29472,10 @@ familyStr + `\n` +
                     });
                 }
             }
+            {   // 🕰 V427 오래된 관심 기기
+                const L = customerDB.filter(c => !c.deletedAt && interestStale(c));
+                add('고객', '🕰 오래된 관심 기기', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 관심 기종을 적고 6개월 넘게 방문 · 연락이 없어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' 외' : ''}) → 고객 목록 [💡 관심 기기] → [🕰]에서 다시 연락하거나 관심 기종 지우기` : '없어요');
+            }
             // 5. 서류 백업
             const mode = driveMode();
             if (mode === 'off') add('서류 백업', '방식', 'warn', '꺼져 있어요 (쓰려면 설정 → 서류 클라우드 백업)');
@@ -30280,7 +30335,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V426';
+        const APP_VER = 'V427';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30288,6 +30343,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V427', d: '2026-11-23', items: [
+                ['🏠 유선 약정갱신 안내 자동 문자: 약정 만료 6개월 전(약갱 가능해지는 날) 아침에 한 번 · 3 · 2 · 1개월 전으로도 · {만료일} {약갱일} · 설정 → 자동 안내에서 켜기', 'a'],
+                ['💡 관심 기종을 실제로 개통등록하면 관심 목록에서 빠지고 \'✅ … 개통\'으로 남아요', 'a'],
+                ['🕰 관심 기종을 적고 6개월 넘게 방문 · 연락 없는 고객: [💡 관심 기기] → [🕰] · 점검 탭에도', 'a'],
+            ] },
             { v: 'V426', d: '2026-11-23', items: [
                 ['고객 목록 [💡 관심 기기]: 관심 기종을 적은 고객(출시 전 관심 · 사전예약)을 기종별로 묶어 한 번에 · 📌 = 사전예약 · 기종을 누르면 그 기종만', 'a'],
             ] },
