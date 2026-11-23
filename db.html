@@ -907,7 +907,8 @@
                             <label class="text-xs font-bold text-gray-600">보내는 시각<input type="time" id="smsSendTime" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"></label>
                             <p id="smsSenderInfo" class="text-xs text-gray-600 leading-snug pb-1"></p>
                         </div>
-                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoPromOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>약속일 안내 문자<span class="block text-xs font-normal text-gray-500">요금제 변경·부가서비스·보험 해지 약속일 아침에 고객에게 자동 안내</span></span></label>
+                        <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoPromOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>약속일 안내 문자<span class="block text-xs font-normal text-gray-500">요금제 변경·부가서비스·보험 해지·유선 상품 변경 약속일 아침에 고객에게 자동 안내</span></span></label>
+                        <label class="flex items-center gap-2 pl-7 -mt-1 text-[13px] font-bold text-gray-800"><input type="checkbox" id="smsPromWPlan" class="w-4 h-4 accent-indigo-600 flex-shrink-0"><span>🏠 유선 상품 변경도 보내기 <span class="font-normal text-gray-500">('오늘부터 인터넷 · TV 상품 변경 가능한 날이에요')</span></span></label>
                         <textarea id="smsTplProm" rows="3" aria-label="약속일 안내 문자 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
                         <div class="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" data-tpl-test="prom" class="h-9 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-emerald-800 flex items-center gap-1 disabled:opacity-40">🧪 미리보기 · 나한테 보내보기 (문자·푸시)</button><label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer min-h-[36px]"><input type="checkbox" data-sms-card="prom" class="w-5 h-5 accent-indigo-600 flex-shrink-0 disabled:opacity-40">📇 문자에 명함 링크 붙이기</label></div>
                         <div class="-mt-1"><button type="button" data-ai-tpl="smsTplProm" class="h-9 px-3 rounded-lg border border-violet-300 bg-violet-50 text-xs font-bold text-violet-800 flex items-center gap-1 disabled:opacity-40"><i class="fa-solid fa-wand-magic-sparkles"></i> AI로 다듬기 (예시 3개)</button><div data-ai-box="smsTplProm" class="hidden mt-2 space-y-1.5"></div></div>
@@ -9279,6 +9280,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!bar.dataset.on) { bar.dataset.on = '1'; bar.addEventListener('click', (e) => { const b = e.target.closest('[data-interest-pick]'); if (!b) return; interestPick = b.dataset.interestPick; currentPage = 1; renderDB(); }); }
         }
         const DASH_FILTER_LABELS = {
+            plan_overdue: (n) => `⏰ 변경 날짜가 7일 넘게 지났는데 완료 체크 안 한 고객 ${n}명 · 바꿨으면 고객카드 약속에서 완료 체크 (체크한 날부터 반환금 · 위약금 계산)`,
             dccard: (n) => `💳 제휴카드 고객 ${n}명${dcCardPick === 'soon' ? ' · 카드 유지가 30일 안에 끝나요' : (dcCardPick === 'past' ? ' · 카드 유지 기간이 지났어요 (해지 · 재상담 안내)' : ' · 카드 유지 약속 날짜로 나눠 볼 수 있어요')}`,
             interest: (n) => `💡 관심 기기 고객 ${n}명${interestPick ? '' : ' · 기종을 누르면 그 기종만'} · 📌 = 사전예약 · 엑셀 받기 · 홍보 문자 대상(관심 기종)으로도 쓸 수 있어요`,
             visit_promise: (n) => `방문약속 고객만 보는 중 (${n}명)`,
@@ -9449,6 +9451,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (currentFilter === 'birthday') return isBirthdayTarget(c);
                 if (currentFilter === 'fav') return isFav(c);   // ⭐ V409 즐겨찾기 (직원마다 따로)
                 if (currentFilter === 'interest') return interestOn(c) && (!interestPick || (interestPick === '__old' ? interestStale(c) : interestKey(c.interestModel).k === interestPick));   // 💡 V426 관심 기기 · 사전예약
+                if (currentFilter === 'plan_overdue') return planOverdueKinds(c).length > 0;   // ⏰ V435
                 if (currentFilter === 'dccard') return dcCardIn(c, dcCardPick);   // 💳 V429 제휴카드 고객 · V430 유지 칩
                 if (currentFilter === 'card_off') return isCardOff(c);   // 🔕 V245 명함 설치 · 알림 꺼짐(또는 명함 삭제)
 
@@ -11780,6 +11783,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 </div>
                 ${P.after ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-indigo-900 font-bold">🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${escapeHtml(P.tgt)}로 바꾸면</span><span class="font-extrabold text-indigo-800">매달 ${W(P.after.total)}</span></div>` : ''}
                 ${P.wired > 0 ? `<div class="mt-2 pt-2 border-t border-dashed border-indigo-200 flex items-baseline justify-between gap-2 text-[12.5px]"><span class="text-teal-800 font-bold">🏠 인터넷 · TV ${W(P.wired)} 포함</span><span class="font-extrabold text-teal-800">집 전체 매달 약 ${W(P.total + (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0) + P.wired)}</span></div>` : ''}
+                ${P.wiredAfter && P.wiredAfter.fee ? `<div class="mt-1 flex items-baseline justify-between gap-2 text-[12px]"><span class="text-teal-800">🔁 ${P.wiredAfter.date.replace(/-/g, '.')}부터 ${escapeHtml(P.wiredAfter.names || '변경 상품')}(으)로 바꾸면</span><span class="font-bold text-teal-800 whitespace-nowrap">집 전체 약 ${W(P.total + (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0) + P.wiredAfter.fee)}</span></div>` : ''}
                 ${P.cid ? `<button type="button" data-pay-sms="${escapeHtml(P.cid)}" class="mt-2 w-full h-9 rounded-lg border border-indigo-300 bg-white text-[12.5px] font-bold text-indigo-800">💬 이 금액 문자로 보내기</button>` : ''}
                 <div class="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-gray-500">${P.src === 'guide' ? `<span>📝 구매 안내서 ${String(P.date || '').slice(5).replace('-', '.')} 기준</span><button type="button" data-gd-copen="${escapeHtml(P.gid)}" class="font-bold text-indigo-700 underline">안내서 보기</button>` : `<span>${P.rpBad ? `⚠️ 실납부금 칸(${arWon(P.rpBad)}원)이 할부금보다 적어서 계산값으로 보여요 · [수정]에서 확인 · ` : ''}${P.rpUsed ? '고객카드에 직접 넣은 실납부금' : `고객카드 값으로 계산 · 기기 할부(고정) + 요금 − 선약${P.comb ? ' − 결합' : ''}${P.wel ? ' − 복지' : ''}${P.card ? ` − 카드 (전월 ${P.cardReq ? cardReqTxt(P.cardReq) + ' ' : ''}실적 채울 때)` : ''}${P.comb ? '' : ' · 결합 할인 전 ([수정]에서 결합 할인 금액을 넣으면 빠져요)'} · 대략`}</span>`}</div>
             </div>`;
@@ -11802,6 +11806,16 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const hit = dcCardFind(el.value); if (!hit) return;
             [[tg[0], hit.amt], [tg[1], hit.req]].forEach(([id, v]) => { const f = document.getElementById(id); if (!f || !v) return; if (String(f.value).trim() && f.dataset.dcAuto !== '1') return; f.value = applyComma(String(v)); f.dataset.dcAuto = '1'; f.dispatchEvent(new Event('input', { bubbles: true })); });
         });
+        function planOverdueKinds(c) {   // ⏰ V435 날짜가 7일 넘게 지났는데 완료 체크 안 한 변경 약속 (Plan · WPlan)
+            const lim = addDaysStr(getTodayStr(), -7);
+            return ['Plan', 'WPlan'].filter(k => { const d = String((c && c[`prom${k}Date`]) || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) && d < lim && !c[`prom${k}Chk`]; });
+        }
+        function planOverdueShow() {
+            try { closeCalcSheet(); } catch (e) { /* 무시 */ }
+            try { window.switchTab('db'); } catch (e) { /* 무시 */ }
+            setActiveFilterChip(null); currentFilter = 'plan_overdue'; currentPage = 1; renderDB();
+            return 'nodiag';
+        }
         function hasDcCard(c) { return !!c && (actCheckMeaningful(c.discountCard) || Number(c.discountCardAmt) > 0); }
         function cardNameFromItems(c) {
             const pi = c && Array.isArray(c.policyItems) ? c.policyItems : [];
@@ -11837,6 +11851,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (P.card) L.push(`※ 제휴카드 할인은 ${P.cardReq ? `전월 ${cardReqTxt(P.cardReq)} 이상 쓰실 때` : '전월 실적을 채우실 때'} 적용돼요.`);
             if (P.after && P.after.total) L.push(`🔁 ${P.kd ? P.kd.replace(/-/g, '.') + '부터 ' : ''}${P.tgt || '바꿀 요금제'}로 바꾸시면 매달 약 ${W(P.after.total)}`);
             if (P.wired > 0) L.push(`🏠 인터넷 · TV ${W(P.wired)} 포함하면 집 전체 매달 약 ${W(P.total + addSum + P.wired)}`);   // 🏠 V430
+            if (P.wiredAfter && P.wiredAfter.fee) L.push(`🔁 ${P.wiredAfter.date.replace(/-/g, '.')}부터 인터넷 · TV를 ${P.wiredAfter.names || '변경 상품'}(으)로 바꾸시면 인터넷 · TV 매달 약 ${W(P.wiredAfter.fee)}`);   // 🏠 V435
             const head = L.splice(0, 2), body = L.join('\n');   // 💬 V430 인사 · 끝맺음은 설정 문구 ({금액내역}에 내역)
             const tpl = String(smsSetting('smsTplPay') || '').trim();
             if (!tpl) return [...head, body, '부가세 · 소액결제 · 데이터 추가 사용에 따라 조금 달라질 수 있어요.'].join('\n');
@@ -11847,6 +11862,12 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             left = Math.floor(Number(left) || 0); if (!(left > 0)) return '';
             const t = getTodayStr(), y = +t.slice(0, 4), m = +t.slice(5, 7) - 1 + left;
             return `${y + Math.floor(m / 12)}.${String(m % 12 + 1).padStart(2, '0')}`;
+        }
+        function wiredAfterOf(c) {   // 🏠 V435 유선 상품 변경 약속이 있고 아직 완료 전 → { date, fee, names } (미리 보기)
+            const d = String((c && c.promWPlanDate) || '').slice(0, 10), fee = Number(c && c.wiredTargetFee) || 0;
+            if (!c || c.promWPlanChk || !/^\d{4}-\d{2}-\d{2}$/.test(d) || wplanDoneDate(c)) return null;
+            const names = [c.wiredTargetInternet, c.wiredTargetTv].map(x => String(x || '').trim()).filter(Boolean).join(' + ');
+            return names || fee >= 5000 ? { date: d, fee: fee >= 5000 ? fee : 0, names } : null;
         }
         function wiredFeeNum(c) {   // 🏠 V430 고객카드 '유선 월요금' 글자 → 숫자 (5천 ~ 30만 원만) · V434 유선 상품 변경 완료 뒤엔 변경 후 월요금
             if (c && Number(c.wiredTargetFee) >= 5000 && wplanDoneDate(c)) return Number(c.wiredTargetFee);
@@ -11865,14 +11886,14 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const entries = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id);
             const pick = entries.filter(e => e.st && e.st !== 'draft' && e.k !== 'wired').slice(-1)[0] || null;   // 🩹 V419 휴대폰 금액이라 유선 안내서는 빼고 (예전엔 유선이 최신이면 0원)
             if (pick) {
-                const ca = Number(c.discountCardAmt) || 0, cr = Number(c.discountCardReq) || 0, wf = wiredFeeNum(c), ck = `${pick.id}|${ca}|${cr}|${wf}`;   // 💳 V428 안내서에 카드가 없고 고객카드에 제휴카드 할인이 있으면 그것도 빼서 보여줌
+                const ca = Number(c.discountCardAmt) || 0, cr = Number(c.discountCardReq) || 0, wf = wiredFeeNum(c), wa = wiredAfterOf(c), ck = `${pick.id}|${ca}|${cr}|${wf}|${wa ? wa.date + wa.fee + wa.names : ''}`;   // 💳 V428 안내서에 카드가 없고 고객카드에 제휴카드 할인이 있으면 그것도 빼서 보여줌
                 const hit = payGuideCache.get(ck);
                 if (hit) return hit.html;
-                gdGet(pick.id).then(g => { if (!g) return; let html = ''; try { html = payBoxRender(Object.assign(payAddCustCard(payFromGuide(g), ca), { cid: c.id, cardReq: cr, wired: wf })); } catch (e) { console.warn('매달 내실 금액 계산 실패', e); return; } payGuideCache.set(ck, { html }); const el = document.getElementById('payBoxSlot'); if (el && currentProfileId === c.id) el.outerHTML = html; });
+                gdGet(pick.id).then(g => { if (!g) return; let html = ''; try { html = payBoxRender(Object.assign(payAddCustCard(payFromGuide(g), ca), { cid: c.id, cardReq: cr, wired: wf, wiredAfter: wa })); } catch (e) { console.warn('매달 내실 금액 계산 실패', e); return; } payGuideCache.set(ck, { html }); const el = document.getElementById('payBoxSlot'); if (el && currentProfileId === c.id) el.outerHTML = html; });
                 return `<div id="payBoxSlot" class="dz-pay rounded-2xl border border-indigo-100 bg-indigo-50/40 p-3 mb-3 text-[12px] text-gray-500">안내서에서 매달 내실 금액 불러오는 중…</div>`;
             }
             const P = payFromCustomer(c);
-            return P ? payBoxRender(Object.assign(P, { cid: c.id, cardReq: Number(c.discountCardReq) || 0, wired: wiredFeeNum(c) })) : '';
+            return P ? payBoxRender(Object.assign(P, { cid: c.id, cardReq: Number(c.discountCardReq) || 0, wired: wiredFeeNum(c), wiredAfter: wiredAfterOf(c) })) : '';
         }
         function buildProfileMobileTab(c) {
             const filled = (v) => v && String(v).trim() && String(v).trim() !== '-';
@@ -12170,6 +12191,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const left = getWiredDaysLeft(c.wiredDate);
             const verdict = done ? '✅ 약정이 끝나서 위약금 없이 바꿀 수 있어요' : (left !== null && left <= WIRED_TARGET_DAYS ? `⏳ 약정 ${r.remainM}개월 남음 · ${gdDot(r.contractEnd)}부터 위약금 없이` : `약정 ${r.remainM}개월 남음 · 지금 해지하면 위약금이 있어요`);
             const rows = [['약정', `3년 · ${gdDot(r.contractEnd)} 끝 ${done ? '<b class="text-emerald-700">(끝났어요)</b>' : `(<b>${r.remainM}개월</b> 남음)`}`]];
+            if (!I.chg) { const wa = wiredAfterOf(c); if (wa) rows.push(['변경 예정', `${gdDot(wa.date)} → ${escapeHtml(wa.names || '변경 상품')}${wa.fee ? ` · 매달 약 <b>${arWon(wa.fee)}원</b>` : ''}<br><span class="text-[11px] text-gray-500">바꾼 날 약속을 완료 체크하면 그날부터 변경 후 상품으로 계산해요</span>`]); }   // 🏠 V435 미리 보기
             if (I.chg) rows.push(['상품 변경', `${gdDot(I.chg.date)} 변경 완료 → ${escapeHtml([I.chg.names.internet, I.chg.names.tv].filter(Boolean).map(x => String(x).replace(/\s*\(.*?\)\s*/g, ' ').trim()).join(' · '))}<br><span class="text-[11px] text-gray-500">그날까지는 원래 상품 · 그 뒤는 변경 후 상품으로 받은 할인 계산</span>`]);   // 🏠 V434
             if (!done) { rows.push(['인터넷 할인반환금', amt(P.internet)], ['TV 할인반환금', amt(P.tv)]); if (P.bundle) rows.push(['결합할인 반환금', amt(P.bundle)]); if (P.equip) rows.push(['장비(공유기 · 셋톱)', amt(P.equip)]); }
             const miss = [!g.matched.internet && c.internetProd ? '인터넷' : '', !g.matched.tv && c.tvProd ? 'TV' : '', !g.matched.bundle && c.combination ? '결합' : ''].filter(Boolean);
@@ -13877,8 +13899,10 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             { key: 'Addon2', label: '부가서비스 해지' },
             { key: 'Addon3', label: '부가서비스 해지' },
             { key: 'Addon4', label: '부가서비스 해지' },
-            { key: 'Ins', label: '보험 해지' }
+            { key: 'Ins', label: '보험 해지' },
+            { key: 'WPlan', label: '인터넷 · TV 상품 변경' }   // 🏠 V435 (설정 → 약속일 안내 · '유선 상품 변경도'로 끄고 켜기)
         ];
+        const smsPromTypeOn = (t) => t.key !== 'WPlan' || smsSetting('smsPromWPlan') !== false;
         let smsSyncing = false;
         let smsSyncWaitTeam = 0, smsTeamWaitGaveUp = false;   // 👥 V220 공용 명함 정보를 기다리는 중 (1 = 보통 · 2 = 바로) · 20초 넘게 안 오면 그냥 맞춤
         let smsListData = null;
@@ -14340,7 +14364,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 const sentSame = new Set();   // 부가 1~4가 같은 날이면 안내는 한 번만
                 if (promOn) SMS_PROMISE_TYPES.forEach(t => {
                     const date = String(c[`prom${t.key}Date`] || '');
-                    if (date.length !== 10 || c[`prom${t.key}Chk`] || date < today || date > lastStr) return;
+                    if (!smsPromTypeOn(t) || date.length !== 10 || c[`prom${t.key}Chk`] || date < today || date > lastStr) return;
                     if (sentSame.has(`${t.label}|${date}`)) return;
                     sentSame.add(`${t.label}|${date}`);
                     const id = `ap-${safeId}-${t.key}-${date.replace(/-/g, '')}`;
@@ -14699,7 +14723,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             let kind = 'manual', label = '직접 예약', custId = '';
             let m;
             if ((m = /^ab-(.+)-\d{4}(?:-p)?$/.exec(id))) { kind = 'bday'; label = '생일'; custId = m[1]; }
-            else if ((m = /^ap-(.+)-(Plan2?|Addon[2-4]?|Ins)-\d{8}(?:-p)?$/.exec(id))) { kind = 'task'; label = (SMS_PROMISE_TYPES.find(t => t.key === m[2]) || { label: '변경업무' }).label; custId = m[1]; }
+            else if ((m = /^ap-(.+)-(Plan2?|WPlan|Addon[2-4]?|Ins)-\d{8}(?:-p)?$/.exec(id))) { kind = 'task'; label = (SMS_PROMISE_TYPES.find(t => t.key === m[2]) || { label: '변경업무' }).label; custId = m[1]; }
             else if ((m = /^av-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'visit'; label = '방문 약속 전날'; custId = m[1]; }
             else if ((m = /^aa-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'act'; label = '개통 안부'; custId = m[1]; }
             else if ((m = /^ah-(.+)-\d{8}(?:-p)?$/.exec(id))) { kind = 'phone'; label = '내 폰 정보'; custId = m[1]; }
@@ -14865,6 +14889,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             document.getElementById('autoChSummary').textContent = autoChannelSummary();
             renderAutoPushIconStrip();
             document.getElementById('smsAutoPromOn').checked = !!smsSetting('smsAutoPromOn');
+            { const w = document.getElementById('smsPromWPlan'); if (w) w.checked = smsSetting('smsPromWPlan') !== false; }   // 🏠 V435
             document.getElementById('smsAutoBdayOn').checked = !!smsSetting('smsAutoBdayOn');
             document.getElementById('smsAutoPromoOn').checked = !!smsSetting('smsAutoPromoOn');
             ['smsAutoVisitOn', 'smsAutoActOn', 'smsAutoPhoneOn', 'smsAutoMissOn', 'smsAutoWiredOn'].forEach(id => { document.getElementById(id).checked = !!smsSetting(id); });
@@ -14914,7 +14939,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 autoChPush: document.getElementById('autoChPush').checked,
                 autoChSms: document.getElementById('autoChSms').checked,
                 smsMmsOn: !!(document.getElementById('smsMmsOn') && document.getElementById('smsMmsOn').checked),
-                smsAutoPromOn: document.getElementById('smsAutoPromOn').checked,
+                smsAutoPromOn: document.getElementById('smsAutoPromOn').checked, smsPromWPlan: !!(document.getElementById('smsPromWPlan') || {}).checked,   // 🏠 V435
                 smsAutoBdayOn: document.getElementById('smsAutoBdayOn').checked,
                 smsTplProm: document.getElementById('smsTplProm').value.trim() || SMS_AUTO_DEFAULTS.smsTplProm,
                 smsTplBday: document.getElementById('smsTplBday').value.trim() || SMS_AUTO_DEFAULTS.smsTplBday,
@@ -14975,7 +15000,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             renderSmsStats();
             return true;
         }
-        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsTplPay', 'smsAutoWiredOn', 'smsWiredMonths', 'smsTplWired', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsPromWPlan', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsTplPay', 'smsAutoWiredOn', 'smsWiredMonths', 'smsTplWired', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
         // 📵 V228 문구 칸에 {이름} {연락이유} {명함} {수신거부} 넣기 · 연락 이유 목록 고치기
         document.getElementById('smsMissVars').addEventListener('click', (e) => {
             const b = e.target.closest('[data-miss-var]'); if (!b) return;
@@ -19535,7 +19560,7 @@ familyStr + `\n` +
                     const sameDay = new Set();
                     if (promOn) SMS_PROMISE_TYPES.forEach(t => {
                         const date = String(c[`prom${t.key}Date`] || '');
-                        if (date.length !== 10 || date < from || date > to) return;
+                        if (!smsPromTypeOn(t) || date.length !== 10 || date < from || date > to) return;
                         if (sameDay.has(`${t.label}|${date}`)) return;
                         sameDay.add(`${t.label}|${date}`);
                         if (c[`prom${t.key}Chk`] && date >= getTodayStr()) return;   // 오늘·앞으로 약속인데 이미 처리됨 → 안 보냄 (자동 발송 규칙과 같게)
@@ -29800,6 +29825,11 @@ familyStr + `\n` +
                 const L = isSuperAdmin ? cardFillTargets() : (() => { const vis = new Set(custView().map(c => c.id)); return cardFillTargets().filter(c => vis.has(c.id)); })();   // 직원은 볼 수 있는 고객만 (다매장)
                 add('고객', '💳 제휴카드 칸 비어 있음', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 개통 기록엔 제휴카드가 있는데 고객카드 칸이 비었어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' …' : ''})${isSuperAdmin ? '' : ' · 대표 폰에서 채울 수 있어요'}` : '개통 기록과 고객카드 제휴카드가 맞아요', L.length && isSuperAdmin ? { id: 'cardFill', label: `💳 ${L.length}명 카드 이름 채우기` } : null);
             }
+            {   // ⏰ V435 요금제 · 유선 상품 변경 날짜가 7일 넘게 지났는데 완료 체크 안 한 고객 (체크한 날부터 반환금 · 위약금 계산이 바뀌어서)
+                const vis = isSuperAdmin ? null : new Set(custView().map(c => c.id)), L = customerDB.filter(c => !c.deletedAt && (!vis || vis.has(c.id)) && planOverdueKinds(c).length);
+                const nm = (k) => L.filter(c => planOverdueKinds(c).includes(k)).length;
+                add('고객', '⏰ 변경 날짜 지났는데 완료 체크 안 함', L.length ? 'warn' : 'ok', L.length ? `무선 요금제 ${nm('Plan')}명 · 유선 상품 ${nm('WPlan')}명 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' …' : ''}) · 바꿨으면 완료 체크해야 반환금 · 위약금이 맞게 나와요` : '변경 약속이 다 정리돼 있어요', L.length ? { id: 'planOverdue', label: `👀 ${L.length}명 고객 목록에서 보기` } : null);
+            }
             {   // 🕰 V427 오래된 관심 기기
                 const L = customerDB.filter(c => !c.deletedAt && interestStale(c));
                 add('고객', '🕰 오래된 관심 기기', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 관심 기종을 적고 6개월 넘게 방문 · 연락이 없어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' 외' : ''}) → 고객 목록 [💡 관심 기기] → [🕰]에서 다시 연락하거나 관심 기종 지우기` : '없어요');
@@ -29844,7 +29874,7 @@ familyStr + `\n` +
                    ${pushRelayReady() ? `<button type="button" id="diagSmsTestBtn" class="w-full h-12 rounded-xl border border-emerald-300 bg-emerald-50 text-[15px] font-bold text-emerald-800"><i class="fa-solid fa-flask"></i> 🧪 예약 문자 시험 (1분 뒤 보내기 → 10분 뒤 결과 확인)</button>` : ''}
                    <p class="text-xs text-gray-500 leading-relaxed">이 폰 기준으로 점검해요. 직원 폰은 각자 한 번씩 눌러보세요. 점검은 아무것도 보내지 않아요.</p>`);
             const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
-            document.querySelectorAll('#calcSheetBody [data-diag-act]').forEach(b => { b.onclick = async () => { const f = { cardFill: cardFillRun }[b.dataset.diagAct]; if (f) { await f(); runDiag(); } }; });   // 🔧 V429 점검 줄 바로 고치기
+            document.querySelectorAll('#calcSheetBody [data-diag-act]').forEach(b => { b.onclick = async () => { const f = { cardFill: cardFillRun, planOverdue: planOverdueShow }[b.dataset.diagAct]; if (f && (await f()) !== 'nodiag') runDiag(); }; });   // 🔧 V429 점검 줄 바로 고치기
             const tb = document.getElementById('diagSmsTestBtn'); if (tb) tb.onclick = startDiagSmsTest;
         }
         // 🧪 예약 문자 시험: 1분 뒤 보내기로 예약 → 중계 서버 Cron이 돌면 목록에서 빠지고 폰에 문자가 옴
@@ -30664,7 +30694,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V434';
+        const APP_VER = 'V435';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30672,6 +30702,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V435', d: '2026-11-23', items: [
+                ['⏰ 점검: 요금제 · 유선 상품 변경 날짜가 7일 넘게 지났는데 완료 체크 안 한 고객 → [고객 목록에서 보기]', 'a'],
+                ['🔁 유선 \'지금 바꾸면\' · 매달 내실 금액 · 금액 문자에 변경 예정 미리 보기 (2027.11.20부터 500M + 베이직 · 매달 약 ○원)', 'a'],
+                ['🏠 약속일 안내 문자에 유선 상품 변경도 (설정 → 자동 안내 → \'유선 상품 변경도 보내기\')', 'a'],
+            ] },
             { v: 'V434', d: '2026-11-23', items: [
                 ['🏠 약속에 \'유선 상품 변경\' (설치일 + 10 · 11 · 12 · 13개월 · 직접 · 날짜 칸에 바로 적기도 · 변경 후 인터넷 · TV · 월요금) — 달력 · 할 일에도 나와요', 'a'],
                 ['🏠 유선 개통보고 · 유선 안내서에 \'상품 변경 예정\' (설치 몇 개월 뒤 · 변경 후 인터넷 · TV · 월요금) → 저장하면 고객카드에 유선 상품 변경 약속 · 안내서엔 \'바꾸면 매달 ○원\'', 'a'],
