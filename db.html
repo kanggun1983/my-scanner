@@ -11712,7 +11712,12 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, cb = Math.min(a0, Number(c.combDisc) || 0), wel = wt ? Math.min(a0 - cb, gdWelAuto(wt, a0 - cb, 5) || 0) : 0, cardD = Math.min(Math.max(0, a0 - cb - wel), Number(c.discountCardAmt) || 0), calcNet = Math.floor(Math.max(0, a0 - cb - wel - cardD) / 10) * 10;   // 💳 V428 제휴카드 월 할인 · 🤝 V376 결합 할인(월) → 복지는 결합 뺀 요금에서
             const rpOk = rp > 0 && rp >= inst;
             const out = { src: 'card', inst, left, pfee: pf, sel, comb: rpOk ? 0 : cb, wel: rpOk ? 0 : wel, card: rpOk ? 0 : cardD, cardHint: rpOk && cardD > 0 && Math.abs(rp - (inst + calcNet)) >= 100 ? cardD : 0,   /* 직접 넣은 실납부금이 카드 뺀 계산과 같으면(이미 들어감) 안 보여줌 */ planNet: rpOk ? rp - inst : calcNet, total: rpOk ? rp : inst + calcNet, plan: c.plan || '', adds: [], rpUsed: rpOk, rpBad: rp > 0 && !rpOk ? rp : 0 };
-            if (trp && String(c.repTargetPlan || '').trim()) { const kd = c.promPlanDate || ''; out.after = { total: trp }; out.tgt = c.repTargetPlan; out.kd = kd; if (kd && getTodayStr() >= kd) { out.changed = true; out.total = trp; out.plan = c.repTargetPlan; out.planNet = Math.max(0, trp - inst); out.afterTxt = '직접 넣은 변경 후 실납부금'; } }
+            const pDone = planDoneDate(c);   // 🔁 V433 '요금제 변경' 완료 체크한 날 (체크하면 약속 날짜 칸은 비워짐)
+            if (trp && String(c.repTargetPlan || '').trim()) { const kd = c.promPlanDate || pDone || ''; out.after = { total: trp }; out.tgt = c.repTargetPlan; out.kd = kd; if (pDone || (kd && getTodayStr() >= kd)) { out.changed = true; out.total = trp; out.plan = c.repTargetPlan; out.planNet = Math.max(0, trp - inst); out.afterTxt = '직접 넣은 변경 후 실납부금'; } }
+            else if (pDone && !rpOk && Number(c.targetPlanFee) > 0 && String(c.repTargetPlan || '').trim()) {   // 변경 후 실납부금을 안 넣었으면 변경 후 월요금으로 계산
+                const tot = realPayOf(inst, Number(c.targetPlanFee), sel > 0, wt, Number(c.combDisc) || 0, Number(c.discountCardAmt) || 0);
+                if (tot) Object.assign(out, { changed: true, total: tot, plan: c.repTargetPlan, planNet: Math.max(0, tot - inst), afterTxt: `${pDone.replace(/-/g, '.')} 요금제 변경 완료 · 변경 후 월요금 ${arWon(c.targetPlanFee)}원으로 계산` });
+            }
             return out;
         }
         function payBoxRender(P) {
@@ -11722,7 +11727,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             return `<div class="dz-pay rounded-2xl border-2 border-indigo-200 bg-indigo-50/60 p-3 mb-3">
                 <div class="flex items-baseline justify-between gap-2"><span class="text-[13px] font-bold text-indigo-900">매달 내실 금액${P.changed ? ' <span class="text-[11px] font-bold text-indigo-700">(요금제 바꾼 뒤)</span>' : ''}</span><span class="text-[22px] font-black text-indigo-800">${W(P.total)}</span></div>
                 <div class="mt-1.5 space-y-0.5 text-[12.5px] text-gray-700">
-                    <div class="flex justify-between gap-2"><span>휴대폰 할부</span><span class="font-bold text-gray-900">${P.inst ? W(P.inst) + ` <span class="font-medium text-gray-500">(${P.n ? P.n + '개월 중 ' : ''}${P.left}개월 남음)</span>` : (P.left === 0 && P.n ? '다 냈어요' : '-')}</span></div>
+                    <div class="flex justify-between gap-2"><span>휴대폰 할부</span><span class="font-bold text-gray-900">${P.inst ? W(P.inst) + ` <span class="font-medium text-gray-500">(${P.n ? P.n + '개월 중 ' : ''}${P.left}개월 남음${payInstEnd(P.left) ? ` · ~${payInstEnd(P.left)}` : ''})</span>` : (P.left === 0 && P.n ? '다 냈어요' : '-')}</span></div>
                     <div class="flex justify-between gap-2"><span>요금</span><span class="font-bold text-gray-900 text-right">${W(P.planNet)} <span class="block font-medium text-gray-500 text-[11.5px]">${feeTxt}</span></span></div>
                     ${P.cardHint > 0 ? `<div class="flex justify-between gap-2 text-blue-800"><span>💳 제휴카드 월 −${W(P.cardHint)} <span class="text-[11px] text-gray-500">(위 금액은 직접 넣은 실납부금 · 카드 할인이 안 들어갔으면 →)</span></span><span class="font-bold whitespace-nowrap">${W(Math.max(0, P.total - P.cardHint))}</span></div>` : ''}
                     ${P.adds.map(a => `<div class="flex justify-between gap-2 text-gray-600"><span>+ ${escapeHtml(a.kind)} ${escapeHtml(a.name)}</span><span>${W(a.fee)}${a.until ? ` <span class="text-[11px]">(${a.until.replace(/-/g, '.')}까지)</span>` : ''}</span></div>`).join('')}
@@ -11777,7 +11782,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         function paySmsText(P, c) {
             const W = (n) => `${Math.round(Number(n) || 0).toLocaleString('ko-KR')}원`, L = [];
             L.push(`${msgName(c)}님, ${msgStoreName()} ${getStaffName() || ''}입니다.`.replace(/\s+입니다/, '입니다'), '매달 내시는 금액 안내드려요.');
-            if (P.inst) L.push(`· 휴대폰 할부 ${W(P.inst)}${P.left ? ` (${P.left}개월 남음)` : ''}`);
+            if (P.inst) L.push(`· 휴대폰 할부 ${W(P.inst)}${P.left ? ` (${P.left}개월 남음${payInstEnd(P.left) ? ` · ${payInstEnd(P.left)}까지` : ''})` : ''}`);
             const d = P.rpUsed || P.changed ? [] : [P.sel ? `선택약정 −${W(P.sel)}` : '', P.comb ? `결합 −${W(P.comb)}` : '', P.wel ? `복지 −${W(P.wel)}` : '', P.card ? `제휴카드 −${W(P.card)}` : ''].filter(Boolean);
             L.push(`· 요금 ${W(P.planNet)}${d.length ? ` (기본료 ${W(P.pfee)}에서 ${d.join(', ')})` : ''}`);
             const addSum = (P.adds || []).reduce((t, a) => t + (Number(a.fee) || 0), 0);
@@ -11791,6 +11796,11 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!tpl) return [...head, body, '부가세 · 소액결제 · 데이터 추가 사용에 따라 조금 달라질 수 있어요.'].join('\n');
             const out = fillSmsTemplate(tpl, c, { '금액내역': body });
             return /\{금액내역\}/.test(tpl) ? out : `${out}\n${body}`;
+        }
+        function payInstEnd(left) {   // 📅 V433 할부 끝나는 달 (남은 개월 기준 · 이번 달 + 남은 개월) → '2027.10'
+            left = Math.floor(Number(left) || 0); if (!(left > 0)) return '';
+            const t = getTodayStr(), y = +t.slice(0, 4), m = +t.slice(5, 7) - 1 + left;
+            return `${y + Math.floor(m / 12)}.${String(m % 12 + 1).padStart(2, '0')}`;
         }
         function wiredFeeNum(c) {   // 🏠 V430 고객카드 '유선 월요금' 글자 → 숫자 (5천 ~ 30만 원만)
             const L = (String((c && c.wiredFee) || '').match(/\d[\d,]*/g) || []).map(x => Number(x.replace(/,/g, '')) || 0).filter(n => n >= 5000 && n <= 300000);   // '인터넷 500M 38,500' → 38,500
@@ -26939,7 +26949,12 @@ familyStr + `\n` +
             const pubBack = mode === '공시' && big3 && remDays > 0 ? back(pub, pubFree) : 0;
             const feeTxt = String(c.fee || '').replace(/\s+/g, '').replace(/^월/, ''), feeN = /^[\d,.]+(만([\d,]+천?)?)?원?$/.test(feeTxt) ? (parseKoreanAmount(feeTxt) || 0) : 0;
             const fee = Number(c.planFee) > 0 ? Number(c.planFee) : feeN, selFree = term && term <= 12 ? 90 : 180;
-            const selGot = mode === '선약' && fee > 0 ? Math.round(fee * 0.25 * Math.min(usedDays, totalDays) / (365 / 12)) : 0;   // 받은 할인 (월요금 25% × 쓴 기간)
+            // 🔁 V433 '요금제 변경' 약속을 완료(체크)한 날부터는 바꾼 요금제(변경 후 월요금) 기준으로 받은 할인 계산
+            const tFee = Number(c.targetPlanFee) > 0 && String(c.repTargetPlan || '').trim() ? Number(c.targetPlanFee) : 0, cdRaw = planDoneDate(c);
+            const chgD = tFee > 0 && tFee !== fee && cdRaw && cdRaw > ad && cdRaw <= today ? cdRaw : '';
+            const dd = (a, b) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / dayMs));
+            const selDisc = (s0, e0) => (!chgD || chgD >= e0 ? fee * dd(s0, e0) : (chgD <= s0 ? tFee * dd(s0, e0) : fee * dd(s0, chgD) + tFee * dd(chgD, e0))) * 0.25 / (365 / 12);
+            const selGot = mode === '선약' && fee > 0 ? Math.round(selDisc(ad, today < end ? today : end)) : 0;   // 받은 할인 (월요금 25% × 쓴 기간)
             const selBack = mode === '선약' && big3 && remDays > 0 && selGot > 0 ? back(selGot, selFree) : 0;
             const dist = Number(c.distSupport) || 0, distBack = back(dist, DIST_KEEP_DAYS);
             const plan = c.promPlanDate && String(c.promPlanDate).length >= 10 && !c.promPlanChk ? { date: String(c.promPlanDate).slice(0, 10), left: daysFromToday(String(c.promPlanDate).slice(0, 10)) } : null;
@@ -26954,12 +26969,19 @@ familyStr + `\n` +
                     const tot2 = Math.max(1, Math.round((Date.parse(e2) - Date.parse(end)) / dayMs)), used2 = Math.max(0, Math.round((Date.parse(today) - Date.parse(end)) / dayMs));
                     rem2 = Math.max(0, Math.round((Date.parse(e2) - Date.parse(today)) / dayMs)); end2 = e2; selUsed = used2; selStart = end;
                     remM2 = rem2 > 0 ? Math.max(0, (e2D.getFullYear() - now.getFullYear()) * 12 + e2D.getMonth() - now.getMonth() - (e2D.getDate() < now.getDate() ? 1 : 0)) : 0;
-                    selGot2 = mode === '선약' && fee > 0 ? Math.round(fee * 0.25 * Math.min(used2, tot2) / (365 / 12)) : 0;
+                    selGot2 = mode === '선약' && fee > 0 ? Math.round(selDisc(end, today < e2 ? today : e2)) : 0;
                     selBack2 = mode === '선약' && big3 && rem2 > 0 && selGot2 > 0 ? (used2 < selFree ? selGot2 : (tot2 > selFree ? fl10(selGot2 * rem2 / (tot2 - selFree)) : 0)) : 0;
                 } else { termLabel = '12+12개월 (끝)'; end2 = e2; }
             }
             const selAfter = (n) => { const [a1, a2, a3] = selStart.split('-').map(Number), x = new Date(a1, a2 - 1, a3 + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
-            return { term, termLabel, end: end2, remDays: rem2, remMonths: remM2, usedDays, totalDays, mode, car, big3, pub, pubFree, inst, inst2, pubBack, fee, selGot: selGot2, selFree, selBack: selBack2, selUsed, dist, distBack, distEnd: dayAfter(DIST_KEEP_DAYS), pubEnd: dayAfter(pubFree), selEnd: selAfter(selFree), plan };
+            return { term, termLabel, end: end2, remDays: rem2, remMonths: remM2, usedDays, totalDays, mode, car, big3, pub, pubFree, inst, inst2, pubBack, fee, tFee: chgD ? tFee : 0, chgD, selGot: selGot2, selFree, selBack: selBack2, selUsed, dist, distBack, distEnd: dayAfter(DIST_KEEP_DAYS), pubEnd: dayAfter(pubFree), selEnd: selAfter(selFree), plan };
+        }
+        function planDoneDate(c) {   // 🔁 V433 '요금제 변경' 약속을 완료 체크한 날 (완료 목록 promDone · 이번 개통 뒤 것만) → 'YYYY-MM-DD'
+            const ymd = (iso) => { const x = new Date(iso); return isNaN(x.getTime()) ? '' : `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; };
+            const ad = String((c && c.activationDate) || '').slice(0, 10);
+            const L = (c && Array.isArray(c.promDone) ? c.promDone : []).filter(e => e && e.k === 'Plan' && e.at).map(e => ymd(e.at));
+            if (c && c.promPlanChk && c.promPlanDoneAt) L.push(ymd(c.promPlanDoneAt));
+            return L.filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d) && (!ad || d >= ad)).sort().pop() || '';
         }
         const DIST_KEEP_DAYS = 191;   // 🏷 V225 유통망지원금 유지일 (개통일 + 191일 · 매장 규칙)
         const CN_CAR = { SKT: 'SKT', KT: 'KT', LGU: 'LG U+', ETC: '알뜰폰·기타' };
@@ -26973,8 +26995,10 @@ familyStr + `\n` +
             if (I.mode === '공시') rows.push(['공통지원금 위약금', I.remDays <= 0 ? '없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.pub > 0
                 ? `${amt(I.pubBack)}${sub(`공통 ${wonMan(I.pub)} · ${I.usedDays < I.pubFree ? `${gdDot(I.pubEnd)}까지 전액 (${I.pubFree}일)` : `${I.pubFree}일 지나 남은 기간 비례`}`)}`
                 : ((unknown = ' + 공통지원금 위약금'), '<span class="text-gray-500">공통지원금 금액을 넣으면 계산돼요</span>')))]);
-            if (I.mode === '선약') rows.push(['선택약정 할인반환금', I.remDays <= 0 ? '반환금 없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.selGot > 0
-                ? `${amt(I.selBack)}${sub(`받은 할인 약 ${wonMan(I.selGot)} (월 ${arWon(I.fee)}원 × 25%${I.termLabel && /두 번째/.test(I.termLabel) ? ' · 두 번째 12개월' : ''}) · ${(I.selUsed ?? I.usedDays) < I.selFree ? `${I.selFree === 180 ? 6 : 3}개월 안이라 전액` : `${I.selFree}일 지나 남은 기간 비례`}`)}`
+            if (I.mode === '선약') rows.push(['선택약정 할인반환금', I.remDays <= 0 ? '반환금 없어요' : (!I.big3 ? `<span class="text-gray-500">통신사 조회</span>${sub('알뜰폰은 통신사마다 달라요')}` : (I.fee > 0 && !(I.selGot > 0)
+                ? `<b>0원</b>${sub(`아직 받은 할인이 없어요 (월 ${arWon(I.fee)}원 × 25% · 쓴 날만큼 늘어요)`)}`   /* 🩹 V433 오늘 개통 → 받은 할인 0원 (예전엔 '월요금을 넣으면'으로 잘못 보임) */
+                : I.selGot > 0
+                ? `${amt(I.selBack)}${sub(`받은 할인 약 ${wonMan(I.selGot)} (월 ${arWon(I.fee)}원${I.chgD ? ` → ${gdDot(I.chgD)} 변경 완료부터 ${arWon(I.tFee)}원` : ''} × 25%${I.termLabel && /두 번째/.test(I.termLabel) ? ' · 두 번째 12개월' : ''}) · ${(I.selUsed ?? I.usedDays) < I.selFree ? `${I.selFree === 180 ? 6 : 3}개월 안이라 전액` : `${I.selFree}일 지나 남은 기간 비례`}`)}`
                 : ((unknown = ' + 선택약정 할인반환금'), '<span class="text-gray-500">월요금을 넣으면 계산돼요</span>')))]);
             if (I.dist > 0) rows.push(['유통망지원금 위약금', I.distBack > 0 ? `${I.usedDays < DIST_KEEP_DAYS ? `<b>${arWon(I.distBack)}원</b>` : amt(I.distBack)}${sub(`유통망 ${wonMan(I.dist)} · ${I.usedDays < DIST_KEEP_DAYS ? `${gdDot(I.distEnd)}까지 전액 (${DIST_KEEP_DAYS}일)` : `${DIST_KEEP_DAYS}일 지나 남은 기간 비례`}`)}` : `없어요${sub(`유통망 ${wonMan(I.dist)} · 약정 끝`)}`]);
             if (I.plan) rows.push(['요금제 유지', I.plan.left > 0 ? `${gdDot(I.plan.date)}까지 <b>D-${I.plan.left}</b><br><span class="text-[11px] text-gray-500">그 전엔 요금제를 낮추면 안 돼요</span>` : '끝났어요 · 낮춰도 돼요']);
@@ -30539,7 +30563,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V432';
+        const APP_VER = 'V433';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30547,6 +30571,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V433', d: '2026-11-23', items: [
+                ['📅 매달 내실 금액 · 금액 문자에 할부 끝나는 달 (예: 11개월 남음 · ~2027.10)', 'a'],
+                ['🔁 \'지금 바꾸면\' 선택약정 할인반환금: \'요금제 변경\' 약속을 완료 체크한 날부터는 바꾼 요금제(변경 후 월요금)로 받은 할인을 계산해요', 'a'],
+                ['🩹 오늘 개통한 선택약정 고객의 \'지금 바꾸면\' 할인반환금이 \'월요금을 넣으면 계산돼요\'로 잘못 나오던 것 → 0원 (쓴 날만큼 늘어요)', 'a'],
+            ] },
             { v: 'V432', d: '2026-11-23', items: [
                 ['🎨 화면 스타일 파일을 새로 만들었어요 — 앱을 열자마자 칸 배치 · 색이 바로 맞게 나와요 (예전엔 몇몇 줄이 몇 초 뒤에 맞춰졌어요)', 'a'],
             ] },
