@@ -1177,7 +1177,7 @@
                     </div>
                     <details class="rounded-xl border border-sky-200 bg-sky-50/40 px-3 py-2">   <!-- 💳 V430 제휴카드 목록 -->
                         <summary class="text-[14px] font-bold text-gray-900 cursor-pointer">💳 제휴카드 목록 <span id="dcCardsSum" class="text-xs font-normal text-gray-600"></span></summary>
-                        <p class="mt-1.5 text-xs text-gray-600 leading-relaxed">개통등록 · [수정]에서 카드명을 고르면 할인액 · 전월실적이 자동으로 들어가요 · 칸을 고치면 바로 저장돼요</p>
+                        <p class="mt-1.5 text-xs text-gray-600 leading-relaxed">개통등록 · [수정]에서 카드명을 고르면 할인액 · 전월실적이 자동으로 들어가요 · 칸을 고치면 바로 저장돼요 · <b>할부카드</b>도 넣을 수 있어요 (할인액 · 실적은 비워도 돼요) · 📷 카드 안내 사진을 올려 두면 그 카드로 쓴 안내서를 보낼 때 사진 문자로 같이 가요</p>
                         <div id="dcCardsRows" class="mt-2 space-y-2"></div>
                         <button type="button" id="dcCardsAdd" class="mt-2 w-full h-10 rounded-lg border border-dashed border-sky-300 bg-white text-[13px] font-bold text-sky-800">+ 카드 추가</button>
                         <p id="dcCardsMsg" class="text-xs font-bold text-green-700 hidden"></p>
@@ -10576,13 +10576,17 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 <label class="block text-[11px] font-bold text-gray-600">카드명<input type="text" data-dc="name" maxlength="40" value="${escapeHtml(x.name || '')}" placeholder="예) LG U+ 신한카드 Air" class="mt-0.5 ${inC}"></label>
                 <div style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.5rem" class="grid gap-1.5 items-end"><label class="min-w-0 text-[11px] font-bold text-gray-600">할인액 (월)<input type="text" data-dc="amt" inputmode="numeric" data-won="1" value="${x.amt ? arWon(x.amt) : ''}" placeholder="15,000" class="mt-0.5 ${inC} text-right"></label>
                 <label class="min-w-0 text-[11px] font-bold text-gray-600">전월실적<input type="text" data-dc="req" inputmode="numeric" data-won="1" value="${x.req ? arWon(x.req) : ''}" placeholder="300,000" class="mt-0.5 ${inC} text-right"></label>
-                <button type="button" data-dc-del aria-label="이 카드 지우기" class="h-10 rounded-lg border border-gray-300 bg-white text-gray-500"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div></div>`;
+                <button type="button" data-dc-del aria-label="이 카드 지우기" class="h-10 rounded-lg border border-gray-300 bg-white text-gray-500"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>
+                <input type="hidden" data-dc="img" value="${escapeHtml(x.img || '')}">
+                <div class="flex items-center gap-2">${x.img ? `<a href="${escapeHtml(x.img)}" target="_blank" rel="noopener" class="flex-shrink-0"><img src="${escapeHtml(x.img)}" alt="카드 안내 사진" class="w-12 h-12 object-cover rounded-lg border border-gray-200"></a>` : ''}
+                    <button type="button" data-dc-img class="flex-1 h-10 rounded-lg border border-sky-300 bg-sky-50 text-[13px] font-bold text-sky-800">📷 ${x.img ? '안내 사진 바꾸기' : '카드 안내 사진 올리기'}</button>
+                    ${x.img ? '<button type="button" data-dc-imgdel class="flex-shrink-0 h-10 px-3 rounded-lg border border-gray-300 bg-white text-[12px] font-bold text-gray-600">사진 빼기</button>' : ''}</div></div>`;   // 📷 V438 안내서 보낼 때 같이 가는 카드 상세 사진
         }
         function dcCardsLocked() { const a = document.getElementById('dcCardsAdd'); return !!(a && a.dataset.adminLocked); }   // 🔒 매장 공용 설정 잠금 (총관리자만)
         function dcCardsLockSync() { const lock = dcCardsLocked(); document.querySelectorAll('#dcCardsRows input, #dcCardsRows button').forEach(el => setAdminLock(el, lock)); }   // 다시 그린 칸에도 잠금
         function dcCardsCollect() {
             const num = (v) => Number(String(v || '').replace(/[^\d]/g, '')) || 0, seen = new Set();
-            return [...document.querySelectorAll('#dcCardsRows [data-dc-row]')].map(r => ({ name: String(r.querySelector('[data-dc="name"]').value || '').trim().slice(0, 40), amt: num(r.querySelector('[data-dc="amt"]').value), req: num(r.querySelector('[data-dc="req"]').value) }))
+            return [...document.querySelectorAll('#dcCardsRows [data-dc-row]')].map(r => ({ name: String(r.querySelector('[data-dc="name"]').value || '').trim().slice(0, 40), amt: num(r.querySelector('[data-dc="amt"]').value), req: num(r.querySelector('[data-dc="req"]').value), ...((r.querySelector('[data-dc="img"]') || {}).value ? { img: String(r.querySelector('[data-dc="img"]').value).slice(0, 500) } : {}) }))
                 .filter(x => x.name && !seen.has(x.name.toLowerCase()) && seen.add(x.name.toLowerCase())).slice(0, 40);
         }
         document.getElementById('dcCardsAdd').addEventListener('click', () => {
@@ -10596,7 +10600,33 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!document.querySelector('#dcCardsRows [data-dc-row]')) document.getElementById('dcCardsRows').insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0 }));
             if (had) dcCardsSave();
         });
-        document.getElementById('dcCardsRows').addEventListener('change', () => dcCardsSave());
+        document.getElementById('dcCardsRows').addEventListener('change', (e) => { if (e.target && e.target.type === 'file') return; dcCardsSave(); });
+        document.getElementById('dcCardsRows').addEventListener('click', async (e) => {   // 📷 V438 카드 안내 사진 올리기 · 빼기
+            const row = e.target.closest('[data-dc-row]'); if (!row || dcCardsLocked()) return;
+            const imgF = row.querySelector('[data-dc="img"]');
+            if (e.target.closest('[data-dc-imgdel]')) { imgF.value = ''; await dcCardsSave(); renderAutoPromiseSettings(); return; }
+            if (!e.target.closest('[data-dc-img]')) return;
+            if (!String(row.querySelector('[data-dc="name"]').value || '').trim()) return customAlert('카드명을 먼저 적어 주세요.');
+            if (!pushRelayReady()) return customAlert('사진을 올리려면 문자 · 푸시 중계 서버가 연결돼 있어야 해요. (설정 → 자동 안내 · 푸시)');
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+            inp.onchange = async () => {
+                const f = inp.files && inp.files[0]; if (!f) return;
+                try { stockToast('📷 사진 올리는 중…'); imgF.value = await dcCardImgUpload(f); await dcCardsSave(); renderAutoPromiseSettings(); stockToast('📷 카드 안내 사진을 올렸어요'); }
+                catch (err) { console.error(err); customAlert('사진을 올리지 못했어요. 인터넷 · 중계 서버를 확인해 주세요.'); }
+            };
+            inp.click();
+        });
+        async function dcCardImgUpload(file) {   // 📷 V438 가로 1080px 안 · JPEG로 줄여서 (사진 문자 용량) → 중계 서버 링크
+            const src = await new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(fr.result); fr.onerror = no; fr.readAsDataURL(file); });
+            const img = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = src; });
+            const k = Math.min(1, 1080 / img.width, 2400 / img.height), cv = document.createElement('canvas');
+            cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+            const x = cv.getContext('2d'); x.fillStyle = '#FFFFFF'; x.fillRect(0, 0, cv.width, cv.height); x.drawImage(img, 0, 0, cv.width, cv.height);
+            let q = 0.85, url = cv.toDataURL('image/jpeg', q); while (url.length > 900000 && q > 0.5) { q -= 0.1; url = cv.toDataURL('image/jpeg', q); }   // 사진 문자 용량 (약 650KB 안)
+            const r = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: url.split(',')[1] || '' } });
+            if (!r || !r.url) throw new Error('no url');
+            return r.url;
+        }
         async function dcCardsSave() {   // 💳 V430 제휴카드 목록 저장 (V431 칸에서 모아서)
             if (dcCardsLocked()) return;
             const L = dcCardsCollect(), msg = document.getElementById('dcCardsMsg');
@@ -26555,7 +26585,7 @@ familyStr + `\n` +
             if (e.target.closest('[data-gd-zoom]')) { const img = document.getElementById('gdPrevImg') || document.getElementById('gdDoneImg'); if (img && img.src) gdZoom(img.src); return; }
             if (e.target.id === 'gdDoneImg') gdZoom(e.target.src);
         });
-        gdInner.addEventListener('change', (e) => { if (e.target.id === 'gdAgree') gdSignSync(); if (e.target.id === 'gdCardOn') { try { localStorage.setItem('gdCardOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } } });
+        gdInner.addEventListener('change', (e) => { if (e.target.id === 'gdAgree') gdSignSync(); if (e.target.id === 'gdCardImgOn') { try { localStorage.setItem('gdCardImgOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } }   /* 📷 V438 */ if (e.target.id === 'gdCardOn') { try { localStorage.setItem('gdCardOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } } });
         async function gdEnsureCustomer(g) {
             const d = phoneDigits(g.phone), now = new Date().toISOString(), me = getStaffName() || '';
             const c = customerDB.find(x => x.id === d || phoneDigits(x.phone) === d);
@@ -26633,6 +26663,13 @@ familyStr + `\n` +
                 return { ...(has ? { guides: cur.guides.map(e => e && e.id === g.id ? { ...e, st: 'sent' } : e) } : {}), ...(card ? { bizCardSentAt: getTodayStr() } : {}), __audit: '구매 안내서' };   // 📇 명함도 보냈으면 '명함 보낸 날'도
             }).catch(e => console.warn(e));
         }
+        function gdCardImgs(g) {   // 📷 V438 안내서의 요금할인 카드 · 할부카드 이름이 제휴카드 목록과 같으면 그 카드 안내 사진
+            const names = [g && g.plan && g.plan.cardName, g && g.dev && g.dev.cardName].map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
+            const out = [];
+            dcCards().forEach(x => { const k = String(x.name || '').trim().toLowerCase(); if (!x.img || !k) return; if (names.some(n => n === k || (n.length >= 4 && (n.includes(k) || k.includes(n)))) && !out.some(o => o.img === x.img)) out.push({ name: x.name, img: x.img }); });
+            return out;
+        }
+        function gdCardImgPref() { try { return localStorage.getItem('gdCardImgOn') !== '0'; } catch (e) { return true; } }
         async function gdUploadImage(g, url) {
             if (g.imgUrl) return g.imgUrl;
             const r = await callPushRelay({ uploadImage: { type: 'image/jpeg', data: String(url).split(',')[1] || '' } });
@@ -26646,11 +26683,16 @@ familyStr + `\n` +
             if (btn) btn.disabled = true;
             try {
                 const url = await gdImage(g), card = mode === 'save' ? '' : await gdCardPart(g), text = gdSmsText(g);
-                const withLink = (lk) => `${text}${lk ? `\n안내서 보기 ▶ ${lk}` : ''}${card}`;   // 안내서 링크 + 📇 명함 (V203)
+                const cimgs = mode === 'save' || !(document.getElementById('gdCardImgOn') || {}).checked ? [] : gdCardImgs(g);   // 📷 V438 카드 안내 사진
+                const cardLinks = cimgs.map(x => `\n💳 ${x.name} 안내 ▶ ${x.img}`).join('');
+                const withLink = (lk) => `${text}${lk ? `\n안내서 보기 ▶ ${lk}` : ''}${cardLinks}${card}`;   // 안내서 링크 + 📇 명함 (V203) + 💳 카드 안내 (V438)
                 if (mode === 'save') { const a = document.createElement('a'); a.href = url; a.download = gdFileName(g); document.body.appendChild(a); a.click(); a.remove(); status('⬇️ 사진으로 저장했어요.', 'green'); return; }
                 if (mode === 'share') {
                     const blob = await (await fetch(url)).blob(), file = new File([blob], gdFileName(g), { type: 'image/jpeg' });
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + card }); await gdMarkSent(g, '공유', !!card); status('📤 보냈어요.', 'green'); }
+                    const cfiles = []; for (const x of cimgs) { try { const b = await (await fetch(x.img)).blob(); cfiles.push(new File([b], `카드안내_${String(x.name).replace(/[\\/:*?"<>|\s]+/g, '_').slice(0, 30)}.jpg`, { type: b.type || 'image/jpeg' })); } catch (e) { console.warn('카드 안내 사진 못 받음', e); } }   // 📷 V438
+                    const files = [file, ...cfiles];
+                    if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files, text: text + card }); await gdMarkSent(g, '공유', !!card); status(`📤 보냈어요${cfiles.length ? ` (카드 안내 사진 ${cfiles.length}장 같이)` : ''}.`, 'green'); }
+                    else if (cfiles.length && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: text + cardLinks + card }); await gdMarkSent(g, '공유', !!card); status('📤 보냈어요. (이 폰은 사진 여러 장 공유가 안 돼서 카드 안내는 링크로)', 'green'); }
                     else { const a = document.createElement('a'); a.href = url; a.download = gdFileName(g); document.body.appendChild(a); a.click(); a.remove(); status('이 폰은 바로 공유가 안 돼서 사진으로 저장했어요. 카톡에서 사진으로 보내 주세요.', 'gray'); }
                     return;
                 }
@@ -26669,9 +26711,14 @@ familyStr + `\n` +
                 let r, fell = false;
                 try { r = await callSms('test', { to, text: mms ? text + card : withLink(link), ...(mms ? { mmsImage: link } : {}) }); }
                 catch (e) { if (!mms) throw e; r = await callSms('test', { to, text: withLink(link) }); fell = true; }
+                let cSent = 0;
+                if (mms && !fell) for (const x of cimgs) {   // 📷 V438 카드 안내 사진 문자 (한 통에 사진 1장이라 따로) · 실패하면 링크로
+                    try { await callSms('test', { to, text: `💳 ${x.name} 안내예요. 혜택 · 실적 조건 확인해 주세요.`, mmsImage: x.img }); cSent++; }
+                    catch (e) { try { await callSms('test', { to, text: `💳 ${x.name} 안내 ▶ ${x.img}` }); cSent++; } catch (e2) { console.warn('카드 안내 못 보냄', e2); } }
+                }
                 await gdMarkSent(g, mms && !fell ? '사진 문자' : '문자 (링크)', !!card);
                 gdRender();
-                status(`✅ 보냈어요${mms && !fell ? ' (사진 문자)' : ' (링크 문자)'}${r && r.encrypted ? ' · 🔐' : ''}. 1~2분 안에 ${formatPhone(to)}로 가요.`, 'green');
+                status(`✅ 보냈어요${mms && !fell ? ' (사진 문자)' : ' (링크 문자)'}${cSent ? ` + 카드 안내 ${cSent}통` : (cimgs.length && !(mms && !fell) ? ' · 카드 안내는 링크로 같이' : '')}${r && r.encrypted ? ' · 🔐' : ''}. 1~2분 안에 ${formatPhone(to)}로 가요.`, 'green');
             } catch (e) { if (!(e && e.name === 'AbortError')) status(`❌ ${e.message || '보내지 못했어요.'}`, 'red'); }
             finally { if (btn && document.body.contains(btn)) btn.disabled = false; }
         }
@@ -26689,6 +26736,7 @@ familyStr + `\n` +
                 <div class="relative rounded-2xl overflow-hidden border border-gray-200 bg-white" style="min-height: 200px"><img id="gdDoneImg" alt="서명한 구매 안내서" class="hidden w-full cursor-zoom-in"><p id="gdDoneWait" class="py-16 text-center text-sm text-gray-500">안내서를 만드는 중…</p></div>
                 <section class="rounded-2xl border border-gray-200 bg-white p-3 space-y-2">
                     <h3 class="text-[15px] font-bold text-gray-900">고객에게 보내기</h3>
+                    ${(() => { const ci = gdCardImgs(g); return ci.length ? `<label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[40px]"><input type="checkbox" id="gdCardImgOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0" ${gdCardImgPref() ? 'checked' : ''}><span>💳 카드 안내 사진도 같이 보내기 <span class="text-[12px] font-normal text-gray-500">(${escapeHtml(ci.map(x => x.name).join(', '))})</span></span></label>` : ''; })()}
                     <label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[40px]"><input type="checkbox" id="gdCardOn" class="w-5 h-5 accent-indigo-600 flex-shrink-0" ${gdCardPref() ? 'checked' : ''}>📇 명함 링크도 같이 보내기 <span class="font-normal text-[12px] text-gray-500">(담당 직원 명함)</span></label>
                     ${relay ? `<button type="button" data-gd-send="auto" class="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[15px] font-bold flex items-center justify-center gap-2"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>문자로 보내기 (매장 폰에서 바로)</button>` : ''}
                     <div class="grid grid-cols-3 gap-2">
@@ -30706,7 +30754,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V437';
+        const APP_VER = 'V438';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30714,6 +30762,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V438', d: '2026-11-23', items: [
+                ['📷 설정 → 제휴카드 목록에 카드 안내 사진 (카드 상세 스샷) · 할부카드도 · 그 카드로 쓴 안내서를 보낼 때 같이 가요 (매장폰 = 사진 문자 · 공유 = 사진 · 문자앱 = 링크)', 'a'],
+            ] },
             { v: 'V437', d: '2026-11-23', items: [
                 ['🧮 안내서 · 개통보고: \'변경 후 월요금\' → \'변경 후 월정액\' (헷갈리지 않게) · 월정액만 넣으면 선약 · 결합 · 복지 · 카드를 빼서 \'변경 후 월 요금\' 자동 계산 · 2차도', 'a'],
             ] },
