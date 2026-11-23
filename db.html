@@ -11853,10 +11853,11 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 const M = wnImplied({ ...I, start: c.wiredDate, tvStart: c.wiredTvDate || '' }, chk), diff = M ? chk.amt - M.r.total : 0;
                 h += `<div class="mt-2 rounded-lg bg-white border border-sky-100 px-2.5 py-2 text-[12px] text-gray-800 leading-relaxed">📞 <b>통신사 조회 ${arWon(chk.amt)}원</b> <span class="text-gray-500">(${gdDot(chk.date)}${chk.by ? ' · ' + escapeHtml(chk.by) : ''})</span>`
                     + (M ? `<br>그날 계산기 ${arWon(M.r.total)}원 · ${Math.abs(diff) < 1000 ? '<b class="text-emerald-700">거의 같아요 ✅</b>' : `<b class="text-amber-700">${diff > 0 ? '+' : '−'}${arWon(Math.abs(diff))}원 차이</b>`}` : '')
-                    + (M && M.nc && Math.abs(diff) >= 1000 && M.nc !== M.intObj.noContract ? `<br>인터넷 무약정이 <b>${arWon(M.nc)}원</b>이면 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(M.intObj.name)} ${arWon(M.intObj.noContract)}원)</span>${can('editPolicy') ? `<button type="button" data-wn-fix="${M.nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(M.nc)}원으로 고치기</button>` : ''}` : '')
+                    + (M && Math.abs(diff) > M.r.total * 0.2 ? `<br><span class="text-amber-800 font-bold">⚠️ 차이가 커요 · 셋톱 · 모뎀 분실파손비, 리모컨, AP 배상금이 섞였는지 확인해 주세요 (장비를 돌려주면 안 내는 돈이라 빼고 넣어요)</span>` : '')
+                    + (M && M.nc && Math.abs(diff) >= 1000 && Math.abs(diff) <= M.r.total * 0.2 && M.nc !== M.intObj.noContract ? `<br>인터넷 무약정이 <b>${arWon(M.nc)}원</b>이면 맞아요 <span class="text-gray-500">(계산기 ${escapeHtml(M.intObj.name)} ${arWon(M.intObj.noContract)}원 · 결합 · 장비 · 예전 할인 차이일 수도 있어요 → 청구서 기본료로 확인)</span>${can('editPolicy') ? `<button type="button" data-wn-fix="${M.nc}" class="mt-1.5 w-full h-9 rounded-lg border border-amber-300 bg-amber-50 text-[12px] font-bold text-amber-900">계산기 상품 무약정을 ${arWon(M.nc)}원으로 고치기</button>` : ''}` : '')
                     + `</div>`;
             }
-            h += open ? `<div class="mt-2 flex gap-1.5"><input id="wnChkIn" inputmode="numeric" placeholder="통신사 조회 위약금 (원)" value="${chk ? arWon(chk.amt) : ''}" class="flex-1 min-w-0 h-10 px-3 border border-sky-300 rounded-lg text-[15px] text-right bg-white"><button type="button" data-wn-chksave class="flex-shrink-0 h-10 px-3 rounded-lg bg-sky-700 text-white text-[13px] font-bold">오늘 조회로 저장</button></div>`
+            h += open ? `<div class="mt-2 flex gap-1.5"><input id="wnChkIn" inputmode="numeric" placeholder="통신사 조회 위약금 (원)" value="${chk ? arWon(chk.amt) : ''}" class="flex-1 min-w-0 h-10 px-3 border border-sky-300 rounded-lg text-[15px] text-right bg-white"><button type="button" data-wn-chksave class="flex-shrink-0 h-10 px-3 rounded-lg bg-sky-700 text-white text-[13px] font-bold">오늘 조회로 저장</button></div><p class="mt-1 text-[11px] text-gray-600 leading-relaxed">통신사 '예상 할인 반환금'에서 <b>분실파손비용(셋톱 · 모뎀) · 리모컨 손실보상금 · Wi-Fi AP 임대배상금</b>은 빼고 넣으세요 (장비를 돌려주면 안 내요)</p>`
                 : `<button type="button" data-wn-chk class="mt-2 w-full h-9 rounded-lg border border-sky-300 bg-white text-[12px] font-bold text-sky-800">📞 통신사 조회 금액 ${chk ? '다시 ' : ''}넣기 (계산기와 비교)</button>`;
             return h;
         }
@@ -11875,7 +11876,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             }
             if (fixB) {
                 const I0 = wnInfo(c); if (!I0) return; const g = I0.g, nc = Number(fixB.dataset.wnFix) || 0, C0 = WiredCalc.CARRIER_DATA[g.carrier], base = ((C0.internet || {})[g.tab] || []).find(x => x.id === g.intId); if (!base || !nc) return;
-                if (!(await customConfirm(`유선계산기 상품을 고칠까요?\n\n${C0.name} · ${base.name}\n무약정 ${arWon(base.noContract)}원 → ${arWon(nc)}원\n\n이 상품을 쓰는 모든 고객 · 명함 계산기에 같이 적용돼요. (설정 → 유선 상품에서 되돌릴 수 있어요)`))) return;
+                if (!(await customConfirm(`유선계산기 상품을 고칠까요?\n\n${C0.name} · ${base.name}\n무약정 ${arWon(base.noContract)}원 → ${arWon(nc)}원\n\n⚠️ 먼저 고객 청구서의 인터넷 '기본료'가 ${arWon(nc)}원인지 확인해 주세요. 결합 · 장비 · 예전 할인 때문에 차이가 날 수도 있어요.\n\n이 상품을 쓰는 모든 고객 · 명함 계산기에 같이 적용돼요. (설정 → 유선 상품에서 되돌릴 수 있어요)`))) return;
                 if (!wiredCfg) await wiredLoadCfg();
                 await wedSave(items => { const L = (items[g.carrier] = items[g.carrier] || {}), p = `internet.${g.tab}`, arr = (L[p] = L[p] || []), i = arr.findIndex(x => x.id === g.intId), e = { id: g.intId, name: base.name, price: base.price, noContract: nc, speed: base.speed }; if (i >= 0) arr[i] = { ...arr[i], ...e }; else arr.push(e); }, `🌐 ${base.name} 무약정을 ${arWon(nc)}원으로 고쳤어요`);
                 renderProfileCard(); return;
@@ -29965,7 +29966,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V420';
+        const APP_VER = 'V421';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -29973,6 +29974,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V421', d: '2026-11-23', items: [
+                ['유선 \'통신사 조회 금액 넣기\': 분실파손 · 리모컨 · AP 배상금은 빼고 넣으라는 안내 · 차이가 20% 넘으면 \'무약정 고치기\' 제안을 숨김 (상품표가 틀어지지 않게)', 'a'],
+            ] },
             { v: 'V420', d: '2026-11-20', items: [
                 ['고객카드 [약속 추가] · 약속 달력에서 넣은 악세 예약이 악세정산 앱에 안 가던 문제 → 바로 연결 (날짜 · 내용 바꿔도 같이)', 'a'],
             ] },
