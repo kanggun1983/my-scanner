@@ -22958,6 +22958,14 @@ familyStr + `\n` +
                 if (!upd.insurance && names('보험')) upd.insurance = names('보험');
                 upd.repAddons = [upd.addons].filter(Boolean).join(', '); upd.repInsurance = upd.insurance || '';
                 if (!upd.discountCard && names('제휴카드')) upd.discountCard = names('제휴카드');
+                {   // 📷 V439 개통등록한 제휴카드 · 할부카드에 안내 사진이 있으면 고객카드에 같이 저장 (같은 사진은 한 번 · 최근 10개)
+                    const hits = dcCardImgMatch([arVal('ar-card'), arVal('ar-icardname'), upd.discountCard]);
+                    if (hits.length) {
+                        const prev = Array.isArray(cur && cur.cardGuides) ? cur.cardGuides.filter(x => x && x.img) : [];
+                        const add = hits.filter(h => !prev.some(x => x.img === h.img)).map(h => ({ name: h.name, img: h.img, d, by: getStaffName() || '' }));
+                        if (add.length) upd.cardGuides = [...prev, ...add].slice(-10);
+                    }
+                }
                 if (keepLatest) {   // 예전 날짜 개통: 고객 '최근' 칸은 건드리지 않음
                     ['carrier', 'mvnoBrand', 'activationDate', 'actType', 'prevCarrier', 'openStore', 'openDealer', 'plan', 'contractTerm', 'addons', 'insurance', 'planFee', 'fee', 'targetPlanFee', 'discountCard', 'usimFee', 'usimModel', 'usimSerial', 'discountType', 'salesStatusAt',
                         'device', 'deviceSerial', 'repDevice', 'repPrincipal', 'devicePrice', 'publicSupport', 'switchSupport', 'distSupport', 'prepay', 'cashPay', 'cardPay', 'unpaid', 'loanPrincipal', 'installment', 'installmentBaseDate',
@@ -26663,12 +26671,13 @@ familyStr + `\n` +
                 return { ...(has ? { guides: cur.guides.map(e => e && e.id === g.id ? { ...e, st: 'sent' } : e) } : {}), ...(card ? { bizCardSentAt: getTodayStr() } : {}), __audit: '구매 안내서' };   // 📇 명함도 보냈으면 '명함 보낸 날'도
             }).catch(e => console.warn(e));
         }
-        function gdCardImgs(g) {   // 📷 V438 안내서의 요금할인 카드 · 할부카드 이름이 제휴카드 목록과 같으면 그 카드 안내 사진
-            const names = [g && g.plan && g.plan.cardName, g && g.dev && g.dev.cardName].map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
+        function dcCardImgMatch(list) {   // 📷 V438 카드 이름들 → 제휴카드 목록에서 안내 사진이 있는 카드 (같거나 한쪽이 다른 쪽을 포함)
+            const names = (list || []).map(x => String(x || '').trim().toLowerCase()).filter(Boolean);
             const out = [];
             dcCards().forEach(x => { const k = String(x.name || '').trim().toLowerCase(); if (!x.img || !k) return; if (names.some(n => n === k || (n.length >= 4 && (n.includes(k) || k.includes(n)))) && !out.some(o => o.img === x.img)) out.push({ name: x.name, img: x.img }); });
             return out;
         }
+        function gdCardImgs(g) { return dcCardImgMatch([g && g.plan && g.plan.cardName, g && g.dev && g.dev.cardName]); }   // 안내서의 요금할인 카드 · 할부카드
         function gdCardImgPref() { try { return localStorage.getItem('gdCardImgOn') !== '0'; } catch (e) { return true; } }
         async function gdUploadImage(g, url) {
             if (g.imgUrl) return g.imgUrl;
@@ -27083,10 +27092,17 @@ familyStr + `\n` +
         });
         document.getElementById('gdSearch').addEventListener('input', (e) => { gdQuery = e.target.value; gdRenderList(); });
         // 👤 고객카드: 📝 구매 안내서 (최근 · 새로 만들기)
+        function cardGuidesHtml(c) {   // 📷 V439 고객카드: 💳 카드 안내 (개통등록 때 저장된 카드 상세 사진)
+            const L = (Array.isArray(c.cardGuides) ? c.cardGuides : []).filter(x => x && x.img).slice().reverse();
+            if (!L.length) return '';
+            let acts = []; try { acts = actsOf(c).filter(a => a && a.kind !== '유선'); } catch (e) { /* 무시 */ }
+            const cancelled = (d) => { const A = acts.filter(a => a.date === d); return A.length > 0 && A.every(a => a.canceled); };   // 그날 개통이 취소됐으면 표시
+            return `<div class="mt-2"><p class="text-xs font-bold text-gray-500 mb-1">💳 카드 안내 ${L.length}건</p>${L.map(x => `<a href="${escapeHtml(x.img)}" target="_blank" rel="noopener" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0"><img src="${escapeHtml(x.img)}" alt="" loading="lazy" class="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '카드 안내')}</span><span class="block text-xs text-gray-600">${x.d ? gdDot(x.d) + ' 개통' : ''}${x.d && cancelled(x.d) ? ' <b class="text-red-700">· 개통 취소</b>' : ''}${x.by ? ' · ' + escapeHtml(x.by) : ''} · 눌러서 크게 보기</span></span><i class="fa-solid fa-up-right-from-square text-gray-300 text-xs" aria-hidden="true"></i></a>`).join('')}</div>`;
+        }
         function gdProfileHtml(c) {
             const list = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id).slice().reverse();
             return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 구매 안내서 ${list.length}건</p><span class="flex gap-1"><button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button><button type="button" data-gd-cnew="wired" class="h-8 px-2.5 rounded-lg border border-sky-200 bg-sky-50 text-xs font-bold text-sky-800">＋ 유선</button></span></div>
-                ${list.map(e => `<button type="button" data-gd-copen="${escapeHtml(e.id)}" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0 text-left"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(e.t || '')}</span><span class="block text-xs text-gray-600">${gdDot(e.d)} · ${escapeHtml(e.by || '')} · ${e.act ? '✅ 개통등록' : (e.st === 'sent' ? '📩 보냄' : '✍ 서명')}${!e.act && gdPendingFor(c).some(x => x.id === e.id) ? ' · <b class="text-amber-800">⏳ 개통등록 전</b>' : ''}</span></span><i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}</div>`;
+                ${list.map(e => `<button type="button" data-gd-copen="${escapeHtml(e.id)}" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0 text-left"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(e.t || '')}</span><span class="block text-xs text-gray-600">${gdDot(e.d)} · ${escapeHtml(e.by || '')} · ${e.act ? '✅ 개통등록' : (e.st === 'sent' ? '📩 보냄' : '✍ 서명')}${!e.act && gdPendingFor(c).some(x => x.id === e.id) ? ' · <b class="text-amber-800">⏳ 개통등록 전</b>' : ''}</span></span><i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}${cardGuidesHtml(c)}</div>`;   // 📷 V439
         }
         profileModal.addEventListener('click', (ev) => {
             const n = ev.target.closest('[data-gd-cnew]'), o = ev.target.closest('[data-gd-copen]');
@@ -30754,7 +30770,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V438';
+        const APP_VER = 'V439';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30762,6 +30778,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V439', d: '2026-11-24', items: [
+                ['📷 개통등록한 제휴카드 · 할부카드에 안내 사진이 있으면 고객카드에 같이 저장 → 고객카드 \'구매 안내서\' 밑 \'💳 카드 안내\' (눌러서 크게 보기)', 'a'],
+            ] },
             { v: 'V438', d: '2026-11-23', items: [
                 ['📷 설정 → 제휴카드 목록에 카드 안내 사진 (카드 상세 스샷) · 할부카드도 · 그 카드로 쓴 안내서를 보낼 때 같이 가요 (매장폰 = 사진 문자 · 공유 = 사진 · 문자앱 = 링크)', 'a'],
             ] },
