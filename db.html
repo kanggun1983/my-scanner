@@ -563,6 +563,7 @@
                 <span id="todoRowText" class="flex-1 min-w-0 text-[14px] text-indigo-900 truncate"><b>오늘 할 일</b></span>
                 <i class="fa-solid fa-chevron-right text-indigo-400 text-xs flex-shrink-0" aria-hidden="true"></i>
             </button>
+            <div id="shopSumRow" class="hidden mb-2.5 rounded-xl border border-teal-200 bg-teal-50/60 px-3 py-2"></div>
             <!-- 📱 명함 견적요청 (새 요청이 있을 때만 보여요 · 누르면 고객카드) -->
             <div id="calcReqStrip" class="hidden mb-2.5 bg-white border-2 border-pink-300 rounded-xl overflow-hidden"></div>
 
@@ -931,6 +932,7 @@
                         <textarea id="smsTplAct" rows="3" aria-label="개통 뒤 안부 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
                         <div class="-mt-1 flex flex-wrap items-center gap-x-3 gap-y-2"><button type="button" data-tpl-test="act" class="h-9 px-3 rounded-lg border border-emerald-300 bg-emerald-50 text-xs font-bold text-emerald-800 flex items-center gap-1 disabled:opacity-40">🧪 미리보기 · 나한테 보내보기 (문자·푸시)</button><label class="flex items-center gap-1.5 text-xs font-bold text-gray-700 cursor-pointer min-h-[36px]"><input type="checkbox" data-sms-card="act" class="w-5 h-5 accent-indigo-600 flex-shrink-0 disabled:opacity-40">📇 문자에 명함 링크 붙이기</label></div>
                         <p id="smsReviewLine" class="text-xs text-gray-600 leading-relaxed" style="overflow-wrap:anywhere">⭐ 리뷰 주소 ({리뷰} 자리): <b id="smsReviewShow" class="text-gray-900">-</b> <button type="button" data-set-jump="calcReviewUrl" class="ml-1 h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-700">📇 고객 명함에서 바꾸기</button></p>
+                        <div class="rounded-xl border border-teal-200 bg-teal-50/50 p-3 space-y-1.5"><p class="text-[14px] font-bold text-gray-900">🏠 홈상품 설치 감사 문자 <span class="text-xs font-normal text-gray-600">(홈상품을 '완료'로 저장할 때 보낼지 물어봐요 · 매장 폰으로 바로)</span></p><textarea id="smsTplHomeDone" rows="3" aria-label="홈상품 설치 감사 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea></div>
                         <label class="flex items-start gap-2 text-[15px] font-bold text-gray-900"><input type="checkbox" id="smsAutoPhoneOn" class="w-5 h-5 mt-0.5 accent-indigo-600 flex-shrink-0"><span>📱 내 폰 정보 알림 <span class="text-xs font-bold text-indigo-700">(푸시만)</span><span class="block text-xs font-normal text-gray-500">개통하고 정한 개월이 되는 날 아침에 명함 알림을 켠 고객에게 · 누르면 명함이 열리면서 기종·할부·약정 + [바꿀 폰 견적 받아보기] 창 · 명함의 '📱 내 폰' 줄도 이때부터 보여요 (그 전엔 안 보임) · <b>{개통기간}</b> = '18개월'</span></span></label>
                         <div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold text-gray-600">개통 몇 개월째<select id="smsPhoneMonths" class="mt-1 w-full h-11 px-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white font-normal"><option value="12">12개월</option><option value="18">18개월</option><option value="24">24개월</option><option value="30">30개월</option></select></label></div>
                         <textarea id="smsTplPhone" rows="3" aria-label="내 폰 정보 알림 문구" class="w-full p-3 border border-gray-300 rounded-xl text-[14px] leading-relaxed text-gray-900 resize-none"></textarea>
@@ -9267,6 +9269,15 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             container.appendChild(nextBtn);
         }
 
+        function renderShopSum() {   // 🏬 V425 대표 · '전체'를 볼 때 매장별 이번 달 한눈에
+            const el = document.getElementById('shopSumRow'); if (!el) return;
+            const on = multiShop() && canAllShops() && curShop() === 'all'; el.classList.toggle('hidden', !on); if (!on) return;
+            const ym = getTodayStr().slice(0, 7), today = getTodayStr(), L = shopList(), S = Object.fromEntries(L.map(x => [x.id, { mob: 0, home: 0, real: 0, late: 0, cust: 0 }]));
+            customerDB.forEach(c => { custShops(c).forEach(id => { if (S[id]) S[id].cust++; }); actsOf(c).forEach(a => { if (a.canceled || String(a.date || '').slice(0, 7) !== ym) return; const id = a.shopId || custShops(c)[0], o = S[id]; if (!o) return; if (a.kind === '유선') o.home++; else o.mob++; if (a.settle && canSeeSettle()) { try { o.real += actSales(a).real || 0; } catch (e) { /* 무시 */ } } }); });
+            try { collectTodos('all').forEach(t => { if (!t.overdue) return; custShops(t.c).forEach(id => { if (S[id]) S[id].late++; }); }); } catch (e) { /* 준비 전 */ }
+            el.innerHTML = `<p class="text-[12px] font-bold text-teal-900 mb-1">🏬 매장별 ${Number(ym.slice(5))}월 · 눌러서 그 매장만 보기</p><div class="grid gap-1" style="grid-template-columns: repeat(${Math.min(L.length, 3)}, minmax(0, 1fr))">${L.map(x => { const o = S[x.id]; return `<button type="button" data-shop-sum="${escapeHtml(x.id)}" class="text-left rounded-lg bg-white border border-teal-100 px-2 py-1.5"><b class="block text-[13px] text-gray-900 truncate">${escapeHtml(x.name)}</b><span class="block text-[11px] text-gray-700 tabular-nums">무선 ${o.mob} · 홈 ${o.home}${canSeeSettle() ? ` · ${wonMan(o.real)}` : ''}</span><span class="block text-[11px] ${o.late ? 'text-red-700 font-bold' : 'text-gray-500'}">고객 ${o.cust}${o.late ? ` · 지연 ${o.late}` : ''}</span></button>`; }).join('')}</div>`;
+            if (!el.dataset.on) { el.dataset.on = '1'; el.addEventListener('click', (e) => { const b = e.target.closest('[data-shop-sum]'); if (!b) return; curShopSel = b.dataset.shopSum; try { localStorage.setItem('curShop', curShopSel); } catch (e2) { /* 무시 */ } currentPage = 1; renderDB(); try { renderTodoRow(); renderOpsRows(); } catch (e2) { /* 준비 전 */ } }); }
+        }
         function renderShopFilter() {   // 🏬 V423 대표 · '다른 매장 보기' 권한이면 [전체 / 매장] 고르기
             const w = document.getElementById('shopFilterWrap'), sel = document.getElementById('shopFilter'); if (!w || !sel) return;
             const on = multiShop() && canAllShops(); w.classList.toggle('hidden', !on); if (!on) return;
@@ -9276,7 +9287,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!sel.dataset.on) { sel.dataset.on = '1'; sel.addEventListener('change', () => { curShopSel = sel.value; try { localStorage.setItem('curShop', curShopSel); } catch (e) { /* 무시 */ } currentPage = 1; renderDB(); try { renderTodoRow(); renderOpsRows(); } catch (e) { /* 준비 전 */ } }); }
         }
         function renderDB() {
-            try { renderShopFilter(); } catch (e) { /* 준비 전 */ }
+            try { renderShopFilter(); renderShopSum(); } catch (e) { /* 준비 전 */ }
             try { renderMorningCalls(); } catch (e) { /* 준비 전 */ }
             const selectAll = document.getElementById('selectAllChk');
             try { gdBadge(); } catch (e) { /* 준비 전 */ }   // 📝 V202 서명하고 개통등록 안 한 안내서
@@ -11893,6 +11904,21 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             return { r, intObj, nc: nc >= intObj.price && nc <= intObj.price * 3 ? nc : 0 };
         }
         const WN_PARTS = [['int', '인터넷', '인터넷 약정 · 재약정 할인 반환금', 'internet'], ['tv', 'TV', '약정할인 + U+tv 약정 반환금', 'tv'], ['bund', '결합', '결합할인 + U+tv 결합 반환금', 'bundle'], ['eq', '장비 임대료', '모뎀 · 셋톱 임대료 할인반환금', 'equip']];   // 📞 V422 항목별
+        /* 📊 V425 통신사 조회(항목별 인터넷 칸)를 모아서 계산기 상품표와 비교 — 같은 상품 3명 이상이 모두 한쪽으로 어긋나면 알림 */
+        function wnCalibRows() {
+            if (!window.WiredCalc) return null;
+            const G = new Map();
+            customerDB.forEach(c => {
+                const ch = c.wiredPenChk; if (!ch || !ch.parts || !(ch.parts.int > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(String(ch.date || ''))) return;
+                let I = null; try { I = wnInfo(c); } catch (e) { return; } if (!I || !I.g) return;
+                const g = I.g, r = WiredCalc.estimate({ ...g, start: c.wiredDate, tvStart: c.wiredTvDate || '', end: ch.date }); if (!r) return;
+                const C = WiredCalc.CARRIER_DATA[g.carrier], io = ((C.internet || {})[g.tab] || []).find(x => x.id === g.intId); if (!io) return;
+                const f = WiredCalc.penalty(r.ptype, 1, r.days, g.carrier) * (C.vatExNet ? 1 / 1.1 : 1); if (!(f > 0)) return;
+                const k = `${g.carrier}|${g.tab}|${g.intId}`, o = G.get(k) || { name: `${C.name} ${io.name}`, table: io.noContract, vals: [] };
+                o.vals.push(Math.round((io.price + ch.parts.int / f) / 100) * 100); G.set(k, o);
+            });
+            return [...G.values()];
+        }
         function wnChkHtml(c, I) {
             const chk = c.wiredPenChk && c.wiredPenChk.amt > 0 ? c.wiredPenChk : null, open = wnChkOpen[c.id];
             let h = '';
@@ -12060,7 +12086,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 else badge = pill(diff <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-sky-50 text-sky-600', `D-${diff}`);
                 const canCal = !p.done && diff !== null;
                 return `<div class="py-3 border-b border-gray-100 last:border-0">
-                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}${p.key === 'Acc' && !p.done ? (c.promAccFrom === 'crm' && c.promAccKey ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : (c.promAccFrom === 'acc' ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱에서 넣음${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : `<button type="button" data-prom-acclink class="px-2 h-7 rounded-md border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-900">⚠️ 악세 앱에 없음 · 보내기</button>`)) : ''}</div>
+                    <div class="flex flex-wrap items-center gap-1.5 mb-1.5">${pill('bg-purple-50 text-purple-600', p.label)}${badge}${p.key === 'Acc' && !p.done ? (c.promAccFrom === 'crm' && c.promAccKey ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : (c.promAccFrom === 'acc' ? pill('bg-pink-50 text-pink-700', `🌸 악세 앱에서 넣음${c.promAccStore ? ' · ' + escapeHtml(c.promAccStore) : ''}`) : `<button type="button" data-prom-acclink class="px-2 h-7 rounded-md border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-900">⚠️ 악세 앱에 없음 · 보내기</button>`)) + (c.promAccSt === 'arrived' ? pill('bg-emerald-600 text-white', `📬 도착${c.promAccStAt ? ' ' + escapeHtml(String(c.promAccStAt).slice(5, 10).replace('-', '/')) : ''} · 연락하세요`) : (c.promAccSt === 'ordered' ? pill('bg-sky-50 text-sky-700', `📦 주문완료${c.promAccStAt ? ' ' + escapeHtml(String(c.promAccStAt).slice(5, 10).replace('-', '/')) : ''}`) : '')) : ''}</div>
                     <p class="text-[15px] font-bold ${p.done ? 'text-gray-400 line-through' : 'text-gray-900'}">${p.date ? escapeHtml(p.date) : '날짜 미정'}</p>
                     ${p.money ? `<p class="text-[13px] font-bold text-gray-800 mt-0.5">${escapeHtml(p.money)}</p>` : ''}${p.done && p.doneAt ? `<p class="text-[11px] text-emerald-700 mt-0.5">✅ ${escapeHtml(p.doneAt.slice(5, 10).replace('-', '/'))} ${escapeHtml(managerKey(p.doneBy) || '')} 처리</p>` : ''}
                     ${p.memo ? `<p class="text-xs text-gray-500 mt-0.5 whitespace-pre-wrap">${escapeHtml(p.memo)}</p>` : ''}
@@ -13505,6 +13531,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             smsMissAdMark: true, smsMissAdToggle: false,   // V229 (광고) 표시 · 콜매니저 창에서 문자마다 켜고 끄기
             smsAutoPhoneOn: false, smsPhoneMonths: '18',   // V185 📱 내 폰 정보 알림 (푸시만)
             smsTplPhone: '{이름}님, {매장} {담당자}입니다 😊\n개통하신 지 {개통기간}이 됐어요. 할부·약정이 언제 끝나는지 눌러서 확인해 보세요!',
+            smsTplHomeDone: '{이름}님, {매장} {담당자}입니다 😊\n인터넷 · TV 설치는 잘 되셨나요? 사용하시다 불편한 점 있으면 편하게 연락 주세요!',   // 🏠 V425
             smsTplAct: '{이름}님, {매장} {담당자}입니다 😊\n개통하신 지 {개통기간} 됐어요. 쓰시면서 불편하신 점은 없으세요? 궁금한 건 언제든 편하게 연락 주세요!{리뷰}',
             smsPromoOptout: "수신거부: 이 번호로 '거부'라고 답장 주세요"
         };
@@ -13553,7 +13580,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         let smsListData = null;
         let smsListHistoryPushed = false;
         const smsListSheet = document.getElementById('smsListSheet');
-        const SHOP_TPL_KEYS = ['smsTplProm', 'smsTplBday', 'smsTplVisit', 'smsTplAct', 'smsTplPhone', 'smsTplMiss', 'smsTplPromo'];   // 🏬 V424 매장마다 고칠 수 있는 문구
+        const SHOP_TPL_KEYS = ['smsTplProm', 'smsTplBday', 'smsTplVisit', 'smsTplAct', 'smsTplPhone', 'smsTplMiss', 'smsTplPromo', 'smsTplHomeDone'];   // 🏬 V424 매장마다 고칠 수 있는 문구
         function smsSetting(key) {
             if (smsShopCtx && SHOP_TPL_KEYS.includes(key)) { const o = shopSmsOf(smsShopCtx); if (o && String(o[key] || '').trim()) return o[key]; }   // 🏬 V424 그 매장 문구가 있으면
             const v = appSettings[key];
@@ -14523,7 +14550,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             { const rv = document.getElementById('smsReviewShow'); if (rv) { const u = reviewUrl(); rv.textContent = u || '없음 (비어 있으면 {리뷰} 줄이 빠져요)'; rv.className = u ? 'text-gray-900' : 'text-red-700'; } }
             { const rc = document.getElementById('smsMissRecall'); if (rc) rc.checked = smsSetting('smsMissRecall') !== false; renderMissReasons(); }   // 📵 V228
             { const am = document.getElementById('smsMissAdMark'), at = document.getElementById('smsMissAdToggle'); if (am) { am.checked = smsSetting('smsMissAdMark') !== false; am.disabled = !isSuperAdmin; } if (at) { at.checked = smsSetting('smsMissAdToggle') === true; at.disabled = !isSuperAdmin; } }   // 📢 V229
-            ['smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsPhoneMonths', 'smsTplPhone', 'smsMissCount', 'smsMissDays', 'smsTplMiss'].forEach(id => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = smsSetting(id) || SMS_AUTO_DEFAULTS[id] || ''; });
+            ['smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsPhoneMonths', 'smsTplPhone', 'smsMissCount', 'smsMissDays', 'smsTplMiss'].forEach(id => { const el = document.getElementById(id); if (document.activeElement !== el) el.value = smsSetting(id) || SMS_AUTO_DEFAULTS[id] || ''; });
             try { renderSmsDevBox(); } catch (e) { /* 준비 전 */ }   // 👤 V389
             try { promoStaffOptions(); } catch (e) { console.error(e); }   // V323 담당자 목록 먼저 (저장된 담당자 값이 들어가게)
             [['smsTplProm', 'smsTplProm'], ['smsTplBday', 'smsTplBday'], ['smsSendTime', 'smsSendTime'], ['smsTplPromo', 'smsTplPromo'], ['smsPromoDate', 'smsPromoDate'], ['smsPromoTime', 'smsPromoTime'], ['smsPromoTarget', 'smsPromoTarget'], ['smsPromoDaily', 'smsPromoDaily'], ['smsPromoOptout', 'smsPromoOptout'], ...PROMO_FILTER_IDS.map(k => [k, k])].forEach(([id, key]) => {
@@ -14576,6 +14603,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 smsTplVisit: document.getElementById('smsTplVisit').value.trim() || SMS_AUTO_DEFAULTS.smsTplVisit,
                 smsActDays: document.getElementById('smsActDays').value || '30',
                 smsTplAct: document.getElementById('smsTplAct').value.trim() || SMS_AUTO_DEFAULTS.smsTplAct,
+                smsTplHomeDone: String((document.getElementById('smsTplHomeDone') || {}).value || '').trim() || SMS_AUTO_DEFAULTS.smsTplHomeDone,   // 🏠 V425
                 smsAutoPhoneOn: document.getElementById('smsAutoPhoneOn').checked,
                 smsPhoneMonths: document.getElementById('smsPhoneMonths').value || '18',
                 smsTplPhone: document.getElementById('smsTplPhone').value.trim() || SMS_AUTO_DEFAULTS.smsTplPhone,
@@ -14621,7 +14649,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             renderSmsStats();
             return true;
         }
-        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
+        ['autoChPush', 'autoChSms', 'smsAutoPromOn', 'smsAutoBdayOn', 'smsTplProm', 'smsTplBday', 'smsSendTime', 'smsTplPromo', 'smsPromoDate', 'smsPromoTarget', 'smsPromoDaily', 'smsPromoOptout', ...PROMO_FILTER_IDS, 'smsPromoAgeUnk', 'smsAutoVisitOn', 'smsAutoActOn', 'smsVisitNoShow', 'smsVisitTime', 'smsTplVisit', 'smsActDays', 'smsTplAct', 'smsTplHomeDone', 'smsAutoPhoneOn', 'smsPhoneMonths', 'smsTplPhone', 'smsAutoMissOn', 'smsMissCount', 'smsMissDays', 'smsTplMiss', 'smsMissRecall'].forEach(id => document.getElementById(id).addEventListener('change', saveSmsSettings));
         // 📵 V228 문구 칸에 {이름} {연락이유} {명함} {수신거부} 넣기 · 연락 이유 목록 고치기
         document.getElementById('smsMissVars').addEventListener('click', (e) => {
             const b = e.target.closest('[data-miss-var]'); if (!b) return;
@@ -15281,7 +15309,18 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const t = getTodayStr(), tom = addDaysStr(t, 1);
             return { id: 'sample', name: '홍길동', phone: '', manager: getStaffName() || '', device: '갤럭시 S25', promVisitDate: tom, promVisitTime: '14:00', promVisitTimeFor: tom, activationDate: tplTestKind === 'phone' ? addMonthsDay(t, -phoneMonths()) : addDaysStr(t, -30), ...(tplTestKind === 'phone' ? { installment: '1,320,000 / 24개월', installmentBaseDate: addMonthsDay(t, -phoneMonths()), discountType: '선택약정 24개월' } : {}) };
         }
-        function tplTestBuild(kind, c) {
+        function tplTestBuild(kind, c) {   // 🏬 V425 미리보기도 매장 문구로 (문구 고칠 매장을 골랐으면 그 매장 · 아니면 그 고객 매장)
+            const pv = smsShopCtx, ss = appSettings.shopSms;
+            try {
+                if (multiShop()) {
+                    smsShopCtx = tplShop || (tplTestCust ? custHomeShop(c) : '');
+                    const K = TPL_TEST[kind], ta = K && document.getElementById(K.key);
+                    if (tplShop && ta && ta.value.trim()) appSettings = { ...appSettings, shopSms: { ...(ss || {}), [tplShop]: { ...(shopSmsOf(tplShop) || {}), [K.key]: ta.value } } };
+                }
+                return tplTestBuildShop(kind, c);
+            } finally { smsShopCtx = pv; if (appSettings.shopSms !== ss) appSettings = { ...appSettings, shopSms: ss }; }
+        }
+        function tplTestBuildShop(kind, c) {
             const K = TPL_TEST[kind], ta = document.getElementById(K.key), had = Object.prototype.hasOwnProperty.call(appSettings, K.key), saved = appSettings[K.key];
             if (ta && ta.value.trim()) appSettings = { ...appSettings, [K.key]: ta.value };   // 저장 전에 고친 문구도 그대로
             try {
@@ -22561,7 +22600,23 @@ familyStr + `\n` +
                 const files = fEl ? [...(fEl.files || [])] : [];
                 const actDay = /^\d{4}-\d{2}-\d{2}$/.test(p('date')) ? p('date') : '';   // 📅 V266 서류는 개통일(홈상품은 설치일) 월 폴더로
                 const itvNew = isM ? arVal('ar-inttv') : '', homeAsk = !!itvNew && itvNew !== '-' && itvNew !== arPrefill.intTv;   // 🏠 V417 무선에 인터넷+TV를 새로 적었으면 홈상품도 이어서
+                const homeThx = !isM && arVal('hr-status') === '완료' && /^\d{4}-\d{2}-\d{2}$/.test(arVal('hr-date')) && !(cur && cur.wiredStatus === '완료' && /^\d{4}-\d{2}-\d{2}$/.test(String(cur.wiredDate || '')) && Math.abs(Date.parse(arVal('hr-date')) - Date.parse(cur.wiredDate)) < 60 * 864e5) && pushRelayReady() && !!smsMobileDigits(upd.phone);   // 🏠 V425 설치 완료로 처음 저장하면 감사 문자
                 const done = async (msg) => {
+                    if (homeThx) {
+                        const cust = { ...(cur || {}), ...upd, id: digits }, pv = smsShopCtx;
+                        let text = '';
+                        try { smsShopCtx = multiShop() ? custHomeShop(cust) : ''; text = fillSmsTemplate(smsSetting('smsTplHomeDone'), cust); } finally { smsShopCtx = pv; }
+                        const hh = new Date().getHours(), night = hh < 9 || hh >= 21;   // 바로 나가는 문자라 밤이면 알려줌
+                        if (text && await customConfirm(`${msg}\n\n🏠 설치 감사 문자를 지금 보낼까요?${night ? '\n⚠️ 지금은 밤이에요. 바로 나가요 (내일 보내려면 [취소])' : ''}\n\n${text}`)) {
+                            try {
+                                const dv = smsDevFor(ownerOf(cust), 'act');
+                                await callSms('test', { to: smsMobileDigits(upd.phone), text, ...(dv ? { dev: dv } : {}) });
+                                txCustomerUpdate(digits, (c0) => ({ contactHistory: appendLine(c0.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 💬 홈상품 설치 감사 문자 (담당: ${getStaffName() || '직원'})`) })).catch(e => console.warn(e));
+                                stockToast('🏠 설치 감사 문자를 보냈어요');
+                            } catch (e) { customAlert(`문자를 못 보냈어요: ${e.message || e}`); }
+                        }
+                        return;
+                    }
                     if (!homeAsk) return customAlert(msg);
                     if (await customConfirm(`${msg}\n\n🏠 인터넷+TV (${itvNew.slice(0, 40)})도 이어서 홈상품으로 등록할까요?\n이름 · 번호는 그대로 채워져요.`)) openActReg(customerDB.find(x => x.id === digits) || { ...(cur || {}), ...upd, id: digits }, 'home');
                 };
@@ -29323,6 +29378,20 @@ familyStr + `\n` +
                     }
                 } catch (e) { add('푸시·문자', '예약 문자 처리 (중계 서버 Cron)', 'warn', `목록을 읽지 못했어요: ${e.message}`); }
             }
+            {   // 📊 V425 유선 계산기 상품표 ↔ 통신사 조회 모아보기
+                wnLoadCore();
+                for (let i = 0; i < 25 && !window.WiredCalc && wnLoad !== 'fail'; i++) await new Promise(r => setTimeout(r, 200));   // 상품표가 올 때까지 잠깐 (최대 5초)
+                const R = wnCalibRows();
+                if (!R) add('유선 계산기', '상품표 · 통신사 조회 비교', 'warn', '계산기 상품표를 불러오는 중이에요 · 잠시 뒤 [다시 점검]');
+                else {
+                    const many = R.filter(o => o.vals.length >= 3), n = R.reduce((a, o) => a + o.vals.length, 0);
+                    if (!many.length) add('유선 계산기', '상품표 · 통신사 조회 비교', 'ok', n ? `항목별로 넣은 통신사 조회 ${n}건 · 같은 상품 3명부터 비교해요` : '아직 항목별로 넣은 통신사 조회가 없어요 (고객카드 유선 → 📞 통신사 조회 금액 넣기)');
+                    many.forEach(o => {
+                        const v = o.vals.slice().sort((a, b) => a - b), med = v[Math.floor(v.length / 2)], up = v.every(x => x > o.table + 500), dn = v.every(x => x < o.table - 500);
+                        add('유선 계산기', `📊 ${o.name}`, up || dn ? 'warn' : 'ok', up || dn ? `통신사 조회 ${v.length}명이 모두 무약정 약 ${arWon(med)}원으로 나와요 (표는 ${arWon(o.table)}원) → 청구서 기본료를 확인하고 설정 → 유선 상품에서 고치기` : `${v.length}명 · 표(${arWon(o.table)}원)와 비슷해요`);
+                    });
+                }
+            }
             // 5. 서류 백업
             const mode = driveMode();
             if (mode === 'off') add('서류 백업', '방식', 'warn', '꺼져 있어요 (쓰려면 설정 → 서류 클라우드 백업)');
@@ -30182,7 +30251,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V424';
+        const APP_VER = 'V425';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30190,6 +30259,13 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V425', d: '2026-11-23', items: [
+                ['고객카드 악세 예약 옆에 악세 앱 진행 상태 (📦 주문완료 · 📬 도착 · 연락하세요) — 악세정산 앱 V13과 같이', 'a'],
+                ['홈상품을 \'완료\'로 처음 저장하면 \'설치 감사 문자를 보낼까요?\' · 문구는 설정 → 자동 안내 → 🏠 홈상품 설치 감사 문자', 'a'],
+                ['점검 → 유선 계산기: 항목별로 넣은 통신사 조회를 모아서 같은 상품 3명 이상이 모두 어긋나면 알려줘요', 'a'],
+                ['(매장 2개 이상) 대표가 \'전체\'를 볼 때 할 일 아래 매장별 이번 달 무선 · 홈 · 정산 · 지연 · 누르면 그 매장', 'a'],
+                ['(매장 2개 이상) 문구 미리보기 · 나한테 보내보기도 매장 문구로', 'a'],
+            ] },
             { v: 'V424', d: '2026-11-23', items: [
                 ['🏬 다매장 2차: 재고를 매장별로 (보기 · 새로 넣기 · 초기화는 지금 매장만)', 'a'],
                 ['문자 보내는 폰을 매장별로: 설정 → 매장 폰 문자 앱 → 매장별 기본 폰 (담당자 폰이 없는 고객)', 'a'],
@@ -32480,12 +32556,12 @@ familyStr + `\n` +
         // 상세카드 저장 때: 바뀌었으면 출처·매장·번호 정리 (악세정산에서 넣은 예약은 그쪽 것 그대로)
         function accLinkFields(prev, date, memo, store) {
             prev = prev || {};
-            if (!date && !memo) return { promAccFrom: '', promAccKey: '', promAccStore: '' };
+            if (!date && !memo) return { promAccFrom: '', promAccKey: '', promAccStore: '', promAccSt: '' };
             const changed = date !== (prev.promAccDate || '') || memo !== (prev.promAccMemo || '') || store !== (prev.promAccStore || '');
             if (!changed) return {};
             try { if (store) localStorage.setItem('accStoreLast', store); } catch (e) {}
             const keepKey = prev.promAccFrom === 'crm' && prev.promAccKey;
-            return { promAccFrom: 'crm', promAccStore: store || '', promAccKey: keepKey ? prev.promAccKey : newAccKey(), promAccBy: getStaffName() || '' };
+            return { promAccFrom: 'crm', promAccStore: store || '', promAccKey: keepKey ? prev.promAccKey : newAccKey(), promAccBy: getStaffName() || '', ...(keepKey ? {} : { promAccSt: '' }) };   // 📦 V425 새 예약이면 진행 상태 지움
         }
 
     
