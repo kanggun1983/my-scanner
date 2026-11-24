@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V451">
+    <link rel="stylesheet" href="crm.css?v=V452">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -12022,8 +12022,9 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
 
         function buildProfileWiredTab(c) {
+            const wiredExtras = () => { let h = ''; try { h += gdProfileHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } try { h += buildDocFilesHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } return h; };   // 🏠 V449 유선 탭: 인터넷·TV 안내서 · 유선 서류
             if (!hasWiredInfo(c)) {
-                return profileEmpty('fa-tv', '등록된 유선(인터넷/TV) 정보가 없어요.');
+                return profileEmpty('fa-tv', '등록된 유선(인터넷/TV) 정보가 없어요.') + wiredExtras();   // 🛠 V452 유선 정보가 아직 없어도 인터넷·TV 안내서 · 유선 서류는 보이게 (모바일 탭엔 안 나와서 숨어 버렸음)
             }
             const left = getWiredDaysLeft(c.wiredDate);
             let endHtml = PROFILE_DASH;
@@ -12048,7 +12049,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (!canSeeSettle()) return '';
                 const w = actsOf(c).filter(a => !a.canceled && a.kind === '유선').pop();
                 return w ? actSettleBoxHtml(c, w, true).replace('>정산정보 · ', '>🏠 유선 정산정보 · ').replace('개통 정산 미입력', '유선 개통 정산 미입력') : '';
-            })() + (() => { let h = ''; try { h += gdProfileHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } try { h += buildDocFilesHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } return h; })();   // 🏠 V449 유선 탭: 인터넷·TV 안내서 · 유선 서류
+            })() + wiredExtras();
         }
         /* =====================================================================
            🏠 V244 지금 바꾸면 (인터넷 · TV) — 고객카드 유선 탭 · 모바일 '지금 바꾸면'처럼
@@ -12229,7 +12230,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         /* 📦 V445 셋톱 칸(주 · 추가)을 TV 글에 붙여서 계산기에 (주 TV 뒤에 주 셋톱 · 추가 TV 뒤에 추가 셋톱 · 이미 적혀 있으면 그대로) */
         function wnTvText(c, tvText) {
             const T = tvSplit(tvText), st = String(c.wiredStb || '').trim(), st2 = String(c.wiredStb2 || '').trim(), has = (a, b) => String(a).replace(/\s/g, '').toLowerCase().includes(String(b).replace(/\s/g, '').toLowerCase());
-            if (!st && !st2) return tvText;
+            if ((!st && !st2) || !T.main) return tvText;   // 🛠 V452 TV 상품이 없으면 셋톱만으로 TV를 만들지 않음
             const main = st && !has(T.main, st) ? `${T.main || 'TV'} ${st}` : T.main, extra = T.extra && st2 && !has(T.extra, st2) ? `${T.extra === '1대' ? '' : T.extra} ${st2}`.trim() : T.extra;
             return tvJoin(main, extra);
         }
@@ -27957,7 +27958,7 @@ familyStr + `\n` +
             h += opt.tab ? hList + hMoney + hRows : hRows + hMoney + hList;
             if (!opt.tab) try { h += gdProfileHtml(c, 'mobile'); } catch (e) { /* 준비 전 */ }   // 📝 V202
             if (opt.tab) return h;   // 📎 서류 · 📞 통화는 보기 화면(고객카드)에 그대로
-            h += buildDocFilesHtml(c);
+            h += buildDocFilesHtml(c, 'mobile');   // 🏠 V449 모바일 탭은 유선 서류 빼고
             h += buildCallLogsHtml(c);   // 📞 V221 전화 앱 통화 기록
             { const la = custLastAct(c);   // ✏️ V299 개통한 고객은 [개통 정보 고치기] + 작은 [새 개통]
               h += la ? `<div class="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2"><button type="button" data-paction="actregedit" data-aid="${escapeHtml(la.id)}" data-date="${la.date}" class="h-11 rounded-xl border border-indigo-300 bg-indigo-50 text-indigo-800 text-sm font-bold flex items-center justify-center gap-1.5"><i class="fa-solid fa-pen"></i>개통 정보 고치기 <span class="text-[12px] opacity-80">${stockMD(la.date)}</span></button><button type="button" data-paction="actreg" class="h-11 px-3 rounded-xl border border-gray-300 bg-white text-gray-700 text-[13px] font-bold">＋ 새 개통</button></div>`
@@ -29615,9 +29616,9 @@ familyStr + `\n` +
                 </div>`;
             let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2" data-docbox>
                 <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ ${W ? '유선 ' : ''}서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
-                <div class="flex items-center gap-1.5">${list.length >= 2 ? `<button type="button" data-paction="docviewall" data-dockind="${kind}" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>` : ''}${mode === 'off' || W ? '' : '<button type="button" data-paction="idscan" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold">🪪 신분증 스캔</button>'}<button type="button" data-paction="docup" data-dockind="${kind}" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
+                <div class="flex items-center gap-1.5">${list.length >= 2 ? `<button type="button" data-paction="docviewall" data-dockind="${kind || 'all'}" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>` : ''}${mode === 'off' || W ? '' : '<button type="button" data-paction="idscan" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold">🪪 신분증 스캔</button>'}<button type="button" data-paction="docup" data-dockind="${kind || 'all'}" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
             h += list.length ? list.map(row).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}${mode !== 'off' && docBundleOn() ? ' 여러 장을 고르면 PDF 한 묶음으로 올라가요.' : ''}</p>`);
-            if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" data-dockind="${kind}" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
+            if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" data-dockind="${kind || 'all'}" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
             if (V.inB.length) h += `<details class="mt-1.5 border-t border-gray-100 pt-1" data-doc-inb><summary class="cursor-pointer text-[12px] font-bold text-gray-500 py-1">묶음에 들어간 원본 ${V.inB.length}개</summary>${V.inB.map(row).join('')}</details>`;
             if (others && !isSuperAdmin) h += `<p class="text-xs text-gray-600 py-1 border-t border-gray-100 mt-1"><i class="fa-solid fa-paperclip"></i> 다른 직원이 올린 서류 ${others}개가 있어요 (총관리자만 볼 수 있어요)</p>`;
             return h + '</div>';
@@ -29644,9 +29645,9 @@ familyStr + `\n` +
         profileModal.addEventListener('click', async (ev) => {
             const up = ev.target.closest('[data-paction="docup"]');
             const del = ev.target.closest('[data-docdel]');
-            { const va = ev.target.closest('[data-paction="docviewall"]'); if (va && currentProfileId) { docViewAll(currentProfileId, '', va.dataset.dockind || 'mobile'); return; } }   // 👀 V216
+            { const va = ev.target.closest('[data-paction="docviewall"]'); if (va && currentProfileId) { docViewAll(currentProfileId, '', va.dataset.dockind === 'all' ? '' : (va.dataset.dockind || 'mobile')); return; } }   // 👀 V216
             const dv1 = ev.target.closest('[data-docview]'); if (dv1 && currentProfileId) { docViewAll(currentProfileId, dv1.dataset.docview); return; }   // 👀 V218 하나만
-            { const dm = ev.target.closest('[data-paction="docmerge"]'); if (dm && currentProfileId) { docMergeExisting(currentProfileId, dm.dataset.dockind || 'mobile'); return; } }   // 📑 V216
+            { const dm = ev.target.closest('[data-paction="docmerge"]'); if (dm && currentProfileId) { docMergeExisting(currentProfileId, dm.dataset.dockind === 'all' ? '' : (dm.dataset.dockind || 'mobile')); return; } }   // 📑 V216
             if (ev.target.closest('[data-paction="idscan"]') && currentProfileId) {   // 🪪 V269 신분증 스캐너 → 다 찍으면 이 고객 서류로 (폰에 안 남김)
                 const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
                 location.href = `idscan.html?c=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.name || '')}`;
@@ -29654,7 +29655,7 @@ familyStr + `\n` +
             }
             if (up && currentProfileId) {
                 if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
-                docTarget = customerDB.find(x => x.id === currentProfileId); docTargetKind = up.dataset.dockind || '';
+                docTarget = customerDB.find(x => x.id === currentProfileId); docTargetKind = up.dataset.dockind === 'wired' ? 'wired' : '';
                 // 각자 드라이브: 구글 연결이 안 돼 있으면 먼저 연결 (연결 창 뒤엔 폰이 파일 선택을 막아서 한 번 더 누르게)
                 if (driveMode() === 'self' && !driveTokenValid()) {
                     try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[서류 올리기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); }
@@ -30877,7 +30878,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V451';
+        const APP_VER = 'V452';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30885,6 +30886,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V452', d: '2026-11-24', items: [
+                ['🛠 유선 정보가 아직 없는 고객도 유선 탭에서 인터넷·TV 안내서 · 유선 서류가 보여요 · TV 상품이 비어 있으면 셋톱 칸만으로 TV를 계산하지 않아요', 'a'],
+            ] },
             { v: 'V451', d: '2026-11-24', items: [
                 ['🛠 안내서 매장대납 · 고객송금이 따로: 대납에 적은 금액 · 날짜가 송금으로 넘어가지 않아요 (다시 고르면 적던 것 그대로)', 'a'],
             ] },
