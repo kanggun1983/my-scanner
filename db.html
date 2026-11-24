@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V434">
+    <link rel="stylesheet" href="crm.css?v=V441">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -10521,9 +10521,10 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             }
             {   // 💳 V430 제휴카드 목록
                 const box = document.getElementById('dcCardsRows'), L = dcCards();
-                if (box && !box.contains(document.activeElement)) box.innerHTML = (L.length ? L : [{ name: '', amt: 0, req: 0 }]).map(dcCardRowHtml).join('');   // 입력 중엔 다시 그리지 않음
+                if (box && !box.contains(document.activeElement)) box.innerHTML = !L.length ? dcCardRowHtml({ name: '', amt: 0, req: 0, car: 'LG' })
+                    : DC_CARS.map(([k, l]) => { const G = L.filter(x => String(x.car || '') === k); return G.length ? `<p class="pt-1 text-[12px] font-extrabold text-sky-900">📶 ${l} <span class="font-normal text-gray-500">${G.length}개</span></p>` + G.map(dcCardRowHtml).join('') : ''; }).join('');   // 🏷 V441 통신사별로 묶어서 · 입력 중엔 다시 그리지 않음
                 dcCardsLockSync();
-                const sm = document.getElementById('dcCardsSum'); if (sm) sm.textContent = L.length ? `(${L.length}개)` : '(아직 없음)';
+                const sm = document.getElementById('dcCardsSum'); if (sm) sm.textContent = L.length ? `(${DC_CARS.map(([k, l]) => [l, L.filter(x => String(x.car || '') === k).length]).filter(([, n]) => n).map(([l, n]) => `${l} ${n}`).join(' · ')})` : '(아직 없음)';
             }
             // 오늘 개통하면 언제 약속이 잡히는지 예시 (규칙 확인용)
             const today = getTodayStr();
@@ -10570,9 +10571,12 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             saveAutoPromiseSettings();
         }
         ['autoPlanOn', 'autoCardChkOn', 'keepCardChk'].forEach(id => document.getElementById(id).addEventListener('change', saveAutoPromiseSettings));
-        function dcCardRowHtml(x) {   // 💳 V431 카드명 · 할인액 · 전월실적 칸 (폰에서도 카드명이 안 잘리게 두 줄 · 입력 순서 카드명 → 할인액 → 전월실적)
+        let dcRowSeq = 0;
+        function dcCardRowHtml(x) {
+            dcRowSeq++;   // 💳 V431 카드명 · 할인액 · 전월실적 칸 (폰에서도 카드명이 안 잘리게 두 줄 · 입력 순서 카드명 → 할인액 → 전월실적)
             const inC = 'h-10 min-w-0 w-full px-2.5 border border-gray-300 rounded-lg text-[15px] text-gray-900 bg-white font-normal';
             return `<div data-dc-row class="rounded-xl border border-sky-100 bg-white p-2 space-y-1.5">
+                <div class="flex flex-wrap gap-1" role="group" aria-label="통신사">${DC_CARS.map(([k, l]) => `<label class="cursor-pointer"><input type="radio" name="dccar-${dcRowSeq}" data-dc="car" value="${k}" class="sr-only peer" ${String(x.car || '') === k ? 'checked' : ''}><span class="inline-block h-8 px-2.5 leading-8 rounded-full border text-[12px] font-bold border-gray-300 text-gray-600 bg-white peer-checked:bg-sky-700 peer-checked:border-sky-700 peer-checked:text-white">${l}</span></label>`).join('')}</div>
                 <label class="block text-[11px] font-bold text-gray-600">카드명<input type="text" data-dc="name" maxlength="40" value="${escapeHtml(x.name || '')}" placeholder="예) LG U+ 신한카드 Air" class="mt-0.5 ${inC}"></label>
                 <div style="grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.5rem" class="grid gap-1.5 items-end"><label class="min-w-0 text-[11px] font-bold text-gray-600">할인액 (월)<input type="text" data-dc="amt" inputmode="numeric" data-won="1" value="${x.amt ? arWon(x.amt) : ''}" placeholder="15,000" class="mt-0.5 ${inC} text-right"></label>
                 <label class="min-w-0 text-[11px] font-bold text-gray-600">전월실적<input type="text" data-dc="req" inputmode="numeric" data-won="1" value="${x.req ? arWon(x.req) : ''}" placeholder="300,000" class="mt-0.5 ${inC} text-right"></label>
@@ -10586,11 +10590,11 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         function dcCardsLockSync() { const lock = dcCardsLocked(); document.querySelectorAll('#dcCardsRows input, #dcCardsRows button').forEach(el => setAdminLock(el, lock)); }   // 다시 그린 칸에도 잠금
         function dcCardsCollect() {
             const num = (v) => Number(String(v || '').replace(/[^\d]/g, '')) || 0, seen = new Set();
-            return [...document.querySelectorAll('#dcCardsRows [data-dc-row]')].map(r => ({ name: String(r.querySelector('[data-dc="name"]').value || '').trim().slice(0, 40), amt: num(r.querySelector('[data-dc="amt"]').value), req: num(r.querySelector('[data-dc="req"]').value), ...((r.querySelector('[data-dc="img"]') || {}).value ? { img: String(r.querySelector('[data-dc="img"]').value).slice(0, 500) } : {}) }))
+            return [...document.querySelectorAll('#dcCardsRows [data-dc-row]')].map(r => ({ name: String(r.querySelector('[data-dc="name"]').value || '').trim().slice(0, 40), amt: num(r.querySelector('[data-dc="amt"]').value), req: num(r.querySelector('[data-dc="req"]').value), car: ((r.querySelector('[data-dc="car"]:checked') || {}).value || ''), ...((r.querySelector('[data-dc="img"]') || {}).value ? { img: String(r.querySelector('[data-dc="img"]').value).slice(0, 500) } : {}) }))
                 .filter(x => x.name && !seen.has(x.name.toLowerCase()) && seen.add(x.name.toLowerCase())).slice(0, 40);
         }
         document.getElementById('dcCardsAdd').addEventListener('click', () => {
-            const box = document.getElementById('dcCardsRows'); box.insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0 }));
+            const box = document.getElementById('dcCardsRows'), lastCar = ((box.querySelectorAll('[data-dc="car"]:checked') || []).length ? [...box.querySelectorAll('[data-dc="car"]:checked')].pop().value : 'LG'); box.insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0, car: lastCar }));
             const last = box.lastElementChild; if (last) last.querySelector('[data-dc="name"]').focus();
         });
         document.getElementById('dcCardsRows').addEventListener('click', (e) => {
@@ -10600,7 +10604,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!document.querySelector('#dcCardsRows [data-dc-row]')) document.getElementById('dcCardsRows').insertAdjacentHTML('beforeend', dcCardRowHtml({ name: '', amt: 0, req: 0 }));
             if (had) dcCardsSave();
         });
-        document.getElementById('dcCardsRows').addEventListener('change', (e) => { if (e.target && e.target.type === 'file') return; dcCardsSave(); });
+        document.getElementById('dcCardsRows').addEventListener('change', async (e) => { if (e.target && e.target.type === 'file') return; const isCar = e.target && e.target.dataset && e.target.dataset.dc === 'car'; if (isCar) e.target.blur(); await dcCardsSave(); if (isCar && String(e.target.closest('[data-dc-row]').querySelector('[data-dc="name"]').value || '').trim()) renderAutoPromiseSettings(); });   // 🏷 V441 통신사 바꾸면 묶음 다시
         document.getElementById('dcCardsRows').addEventListener('click', async (e) => {   // 📷 V438 카드 안내 사진 올리기 · 빼기
             const row = e.target.closest('[data-dc-row]'); if (!row || dcCardsLocked()) return;
             const imgF = row.querySelector('[data-dc="img"]');
@@ -11821,14 +11825,18 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         }
         // 💳 V429 제휴카드 도우미: 전월 실적 글자 · 카드가 있는 고객 · 개통 기록 정책 줄에서 카드 이름
         function cardReqTxt(n) { n = Number(n) || 0; return n >= 10000 && n % 10000 === 0 ? `${n / 10000}만원` : `${arWon(n)}원`; }
-        function dcCards() { return Array.isArray(appSettings.dcCards) ? appSettings.dcCards.filter(x => x && x.name) : []; }
+        const DC_CARS = [['LG', 'LG U+'], ['SKT', 'SKT'], ['KT', 'KT'], ['', '공통']];   // 🏷 V441 카드 통신사
+        function dcCarKey(t) { t = String(t || ''); if (/알뜰|MVNO/i.test(t)) return ''; return /LG|U\+|유플/i.test(t) ? 'LG' : (/SK/i.test(t) ? 'SKT' : (/KT|케이티|올레/i.test(t) ? 'KT' : '')); }
+        function dcCardsFor(carText) { const k = dcCarKey(carText); return dcCards().filter(x => !k || !x.car || x.car === k); }   // 그 통신사 카드 + 공통 (통신사를 모르면 전부)
+        function dcCards() { return Array.isArray(appSettings.dcCards) ? appSettings.dcCards.filter(x => x && x.name).map(x => x.car === undefined ? { ...x, car: dcCarKey(x.name) } : x) : []; }   // 🏷 V441 통신사를 안 고른 예전 카드는 이름으로 추정 (LGU+… → LG U+)
         function dcCardFind(name) { const k = String(name || '').trim().toLowerCase(); return k ? dcCards().find(x => x.name.toLowerCase() === k) || null : null; }
         const DC_CARD_FIELDS = { modalDcCard: ['modalDcCardAmt', 'modalDcCardReq'], 'ar-card': ['ar-cardamt', 'ar-cardreq'] };
-        document.addEventListener('focusin', (e) => {   // 💳 V430 카드 이름 칸 → 목록에서 고르기 (V440 안내서 카드 칸도)
-            const el = e.target; if (!el || !(DC_CARD_FIELDS[el.id] || /^(plan|dev)\.cardName$/.test(el.dataset && el.dataset.gd || ''))) return;
+        document.addEventListener('focusin', (e) => {   // 💳 V430 카드 이름 칸 → 목록에서 고르기 (V440 안내서 카드 칸도 · V441 그 고객 통신사 카드만)
+            const el = e.target; if (!el || !(DC_CARD_FIELDS[el.id] || ['ar-icardname', 'modalInstCard'].includes(el.id) || /^(plan|dev)\.cardName$/.test(el.dataset && el.dataset.gd || ''))) return;
             let dl = document.getElementById('dcCardList'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'dcCardList'; document.body.appendChild(dl); }
-            dl.innerHTML = dcCards().map(x => `<option value="${escapeHtml(x.name)}">${x.amt ? `월 ${arWon(x.amt)}원` : ''}${x.req ? ` · 실적 ${cardReqTxt(x.req)}` : ''}</option>`).join('');
-            if (dcCards().length) el.setAttribute('list', 'dcCardList');
+            const car = /^ar-/.test(el.id) ? (document.getElementById('ar-carrier') || {}).value : (/^modal/.test(el.id) ? (document.getElementById('modalCarrier') || {}).value : (typeof gd !== 'undefined' && gd ? gd.carrier : ''));
+            dl.innerHTML = dcCardsFor(car).map(x => `<option value="${escapeHtml(x.name)}">${x.amt ? `월 ${arWon(x.amt)}원` : ''}${x.req ? ` · 실적 ${cardReqTxt(x.req)}` : ''}</option>`).join('');
+            if (dcCardsFor(car).length) el.setAttribute('list', 'dcCardList');
         });
         document.addEventListener('input', (e) => {
             const el = e.target; if (!el || !el.id) return;
@@ -30811,7 +30819,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V440';
+        const APP_VER = 'V441';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30819,6 +30827,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V441', d: '2026-11-24', items: [
+                ['📶 제휴카드 목록을 통신사별로 (LG U+ · SKT · KT · 공통) — 개통등록 · [수정] · 안내서에서 카드명을 고를 때 그 고객 통신사 카드만 보여요', 'a'],
+            ] },
             { v: 'V440', d: '2026-11-24', items: [
                 ['💳 안내서 요금DC카드 · 할부카드 이름 칸에서 제휴카드 목록 고르기 (요금DC카드는 매달 할인도 자동) — 이름이 맞아야 카드 안내 사진이 붙어요', 'a'],
                 ['💬 고객카드 \'💳 카드 안내\'에 [보내기] — 매장폰 사진 문자로 다시 보내기 (연락 기록에 남아요)', 'a'],
