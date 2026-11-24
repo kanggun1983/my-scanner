@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V449">
+    <link rel="stylesheet" href="crm.css?v=V450">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -25434,7 +25434,7 @@ familyStr + `\n` +
                 stbId: st ? st.id : '', stbName: st && st.id !== 'none' ? st.name : '', stbFee: st && st.id !== 'none' ? st.price : 0,
                 bundleName: bd ? bd.name : '' });
             const D = bd && it && window.WiredCalc.bundleDiscounts ? window.WiredCalc.bundleDiscounts(bd, it) : { wire: 0, mobile: 0 };
-            w.wireDisc = D.wire || 0; w.mobileDisc = D.mobile || 0;
+            w.wireDisc = (D.wire || 0) + (bd && tv && tv.id !== 'none' && it ? (bd.tvBundleDisc || 0) : 0); w.mobileDisc = D.mobile || 0;   // 📺 V450 결합 TV 할인 (SK 요즘가족 1,100)도 결합할인 칸에
             if (w.instAuto !== false) gdwInstAuto(g);   // 🔧 V303
         }
         function gdwCalc(g) { const w = g.w || {}, base = gdNum(w.intFee) + gdNum(w.wifiFee) + gdNum(w.tvFee) + gdNum(w.stbFee), disc = gdNum(w.wireDisc) + gdNum(w.etcDisc); return { base, disc, total: Math.max(0, base - disc), mobile: gdNum(w.mobileDisc), price: 0, pub: 0, icard: 0, loan: 0, n: 0, month: 0, fee: 0, pfee: 0, sel: 0, wel: 0, comb: 0, card: 0, planRaw: 0, planNet: 0, addFee: 0 }; }
@@ -26040,7 +26040,7 @@ familyStr + `\n` +
                     ${gdLbl('와이파이', gdInp('w.wifiName', w.wifiName))}${gdLbl('와이파이 월', gdInp('w.wifiFee', w.wifiFee, { money: true }))}
                     ${gdLbl('TV 상품', gdInp('w.tvName', w.tvName))}${gdLbl('TV 월', gdInp('w.tvFee', w.tvFee, { money: true }))}
                     ${gdLbl('셋톱', gdInp('w.stbName', w.stbName))}${gdLbl('셋톱 월', gdInp('w.stbFee', w.stbFee, { money: true }))}
-                    ${gdLbl('결합할인 (인터넷에서 · 월)', gdInp('w.wireDisc', w.wireDisc, { money: true }))}${gdLbl('추가 할인 (월)', gdInp('w.etcDisc', w.etcDisc, { money: true }))}
+                    ${gdLbl('결합할인 (인터넷 · TV에서 · 월)', gdInp('w.wireDisc', w.wireDisc, { money: true }))}${gdLbl('추가 할인 (월)', gdInp('w.etcDisc', w.etcDisc, { money: true }))}
                     ${gdLbl('휴대폰 요금에서 결합할인 (월 · 안내만)', gdInp('w.mobileDisc', w.mobileDisc, { money: true }), 'col-span-2')}
                 </div><div class="rounded-xl bg-sky-50 px-3 py-2.5"><div class="flex items-baseline justify-between"><span class="text-[13px] font-bold text-sky-900">매달 내실 금액</span><b class="text-[22px] font-extrabold text-sky-950"><span id="gdWTotal">${arWon(c.total)}</span>원</b></div><p id="gdWSub" class="text-[12px] text-sky-800"></p></div>`);
             const ins = gdwInst(g);
@@ -26223,7 +26223,8 @@ familyStr + `\n` +
         function gdRecalcView() {
             if (gdStage !== 'edit' || !gd) return;
             if (gd.kind === 'wired') { const c = gdwCalc(gd), el = document.getElementById('gdWTotal'), sb = document.getElementById('gdWSub'); const ie = document.getElementById('gdWInst'); if (ie) { const ins = gdwInst(gd); ie.textContent = gd.w.instWaive ? '설치비 면제 · 약정 기간 안에 해지하면 면제받은 설치비가 청구돼요' : `설치비 ${arWon(ins.total)}원 (첫 달 요금에 한 번)${ins.night ? ` · 야간 · 주말 +${arWon(ins.night)}원 포함` : ''}`; }
-                if (el) el.textContent = arWon(c.total); if (sb) sb.textContent = `상품 ${arWon(c.base)}원${c.disc ? ` − 할인 ${arWon(c.disc)}원` : ''}${c.mobile ? ` · 휴대폰 요금에서 −${arWon(c.mobile)}원 따로` : ''}`; return; }   // 📺 V301
+                if (el) el.textContent = arWon(c.total); { const ft = document.getElementById('gdTotal'); if (ft) ft.textContent = arWon(c.total); }   // 🛠 V450 아래 '매달 내실 금액'도 같이
+                if (sb) sb.textContent = `상품 ${arWon(c.base)}원${c.disc ? ` − 할인 ${arWon(c.disc)}원` : ''}${c.mobile ? ` · 휴대폰 요금에서 −${arWon(c.mobile)}원 따로` : ''}`; return; }   // 📺 V301
             const c = gdCalc(gd), set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
             set('gdLoan', arWon(c.loan)); set('gdMonth', arWon(c.month)); set('gdLoanSub', gdLoanSub(c)); set('gdSel', `-${arWon(c.sel)}원`); set('gdPlanNet', arWon(c.planNet)); set('gdTotal', arWon(c.total));
             const w = document.getElementById('gdWel');
@@ -30871,7 +30872,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V449';
+        const APP_VER = 'V450';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30879,6 +30880,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V450', d: '2026-11-24', items: [
+                ['🛠 인터넷·TV 안내서: 금액을 고치면 아래 \'매달 내실 금액\'도 바로 바뀌어요 (예전엔 화면을 다시 열어야 바뀜) · SK 요즘가족 결합은 인터넷 11,000 + TV 1,100이 결합할인 칸에 (휴대폰 할인은 요금제별로 직접)', 'a'],
+            ] },
             { v: 'V449', d: '2026-11-24', items: [
                 ['🏠 고객카드 유선 탭에 인터넷·TV 안내서 · 유선 서류칸 — 유선 탭에서 올린 서류 · 유선 개통등록 · 인터넷·TV 안내서 서류는 유선 칸에만 보여요 (구글 드라이브는 같은 고객 폴더 · 이름 앞에 \'유선_\')', 'a'],
             ] },
