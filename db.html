@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V444">
+    <link rel="stylesheet" href="crm.css?v=V445">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -3243,6 +3243,8 @@ window.kQRCanvas=function(text,px,lv){var m=window.kQR(text,lv),quiet=4,size=m.n
                             <input type="text" id="modalInternetOnly" class="modal-input text-xs sm:text-sm" placeholder="인터넷 상품명">
                             <input type="text" id="modalTvOnly" class="modal-input text-xs sm:text-sm" placeholder="TV 상품명">
                             <label class="col-span-2 flex items-center gap-2"><span class="text-[10px] sm:text-xs text-teal-700 font-bold whitespace-nowrap">📺 TV 추가 단말</span><input type="text" id="modalTvExtra" class="modal-input text-xs sm:text-sm flex-1 min-w-0" placeholder="두 번째 TV · 없으면 비움"></label>
+                            <label class="col-span-2 flex items-center gap-2"><span class="text-[10px] sm:text-xs text-teal-700 font-bold whitespace-nowrap">📦 셋톱</span><input type="text" id="modalStb" list="stbList" class="modal-input text-xs sm:text-sm flex-1 min-w-0" placeholder="주 셋톱 (예: 사운드바 블랙2)"><input type="text" id="modalStb2" list="stbList" class="modal-input text-xs sm:text-sm flex-1 min-w-0" placeholder="추가 셋톱 (예: UHD3)"></label>
+                            <datalist id="stbList"></datalist>
                         </div>
                         <div class="mt-2 pt-2 border-t border-teal-100">
                             <span class="block text-[10px] sm:text-xs text-teal-700 font-bold mb-1">유선 월 청구금액</span>
@@ -10997,7 +10999,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             document.getElementById('modalFamily').value = c.repFamily || '';
 
             document.getElementById('modalInternetOnly').value = (c.internetProd && c.internetProd !== '-' && c.internetProd !== '해당없음') ? c.internetProd : '';
-            { const T = tvSplit((c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') ? c.tvProd : ''); document.getElementById('modalTvOnly').value = T.main; document.getElementById('modalTvExtra').value = T.extra; }   // 📺 V351 '베이직 (추가 실속형)' → 주 TV · 추가 단말 칸으로 나눠 보여줌
+            { const T = tvSplit((c.tvProd && c.tvProd !== '-' && c.tvProd !== '해당없음') ? c.tvProd : ''); document.getElementById('modalTvOnly').value = T.main; document.getElementById('modalTvExtra').value = T.extra; document.getElementById('modalStb').value = c.wiredStb || ''; document.getElementById('modalStb2').value = c.wiredStb2 || ''; }   // 📺 V351 '베이직 (추가 실속형)' → 주 TV · 추가 단말 칸으로 나눠 보여줌
             document.getElementById('modalWiredFee').value = c.wiredFee || '';
             
             document.getElementById('modalWiredDate').value = c.wiredDate || '';
@@ -12018,6 +12020,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             return [
                 profileKV('인터넷', profileValue(c.internetProd)),
                 profileKV('TV', profileValue(c.tvProd)),
+                ...(c.wiredStb || c.wiredStb2 ? [profileKV('📦 셋톱', escapeHtml([c.wiredStb, c.wiredStb2 ? `추가 ${c.wiredStb2}` : ''].filter(Boolean).join(' · ')))] : []),   // 📦 V445
                 profileKV('유선 월요금', profileValue(c.wiredFee)),
                 profileKV('가입/재약정일', c.wiredDate ? `${escapeHtml(c.wiredDate)}${c.wiredType ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-bold">${escapeHtml(c.wiredType)}${c.wiredPrevCar ? ` · ${escapeHtml(c.wiredPrevCar)}에서` : ''}</span>` : ''}` : PROFILE_DASH),   // 📶 V372
                 ...(c.wiredTvDate ? [profileKV('📺 TV 약정 시작일', profileValue(c.wiredTvDate))] : []),
@@ -12200,16 +12203,29 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const fromMobile = map(isMvno(c.carrier) ? '' : c.carrier); if (fromMobile) return { ck: fromMobile, how: 'mobile' };
             return { ck: 'LG', how: 'none' };
         }
+        /* 📦 V445 셋톱 칸(주 · 추가)을 TV 글에 붙여서 계산기에 (주 TV 뒤에 주 셋톱 · 추가 TV 뒤에 추가 셋톱 · 이미 적혀 있으면 그대로) */
+        function wnTvText(c, tvText) {
+            const T = tvSplit(tvText), st = String(c.wiredStb || '').trim(), st2 = String(c.wiredStb2 || '').trim(), has = (a, b) => String(a).replace(/\s/g, '').toLowerCase().includes(String(b).replace(/\s/g, '').toLowerCase());
+            if (!st && !st2) return tvText;
+            const main = st && !has(T.main, st) ? `${T.main || 'TV'} ${st}` : T.main, extra = T.extra && st2 && !has(T.extra, st2) ? `${T.extra === '1대' ? '' : T.extra} ${st2}`.trim() : T.extra;
+            return tvJoin(main, extra);
+        }
+        document.addEventListener('focusin', (e) => {   // 📦 V445 셋톱 칸: 계산기 셋톱 목록에서 고르기
+            const t = e.target; if (!t || (t.id !== 'modalStb' && t.id !== 'modalStb2')) return;
+            const dl = document.getElementById('stbList'); if (!dl || !window.WiredCalc) return;
+            const ck = wnCarOf(customerDB.find(x => x.id === currentDetailId) || {}).ck, C = WiredCalc.CARRIER_DATA[ck] || {};
+            dl.innerHTML = (C.stb || []).filter(x => x.id !== 'none').map(x => `<option value="${escapeHtml(String(x.name).replace(/\[구\]\s*/, '').replace(/\s*셋톱$/, ''))}">`).join('');
+        });
         function wnInfo(c) {
             if (!window.WiredCalc || !/^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredDate || ''))) return null;
-            const car = wnCarOf(c), g = WiredCalc.guess(car.ck, { internet: c.internetProd, tv: c.tvProd, combo: c.combination });
+            const car = wnCarOf(c), g = WiredCalc.guess(car.ck, { internet: c.internetProd, tv: wnTvText(c, c.tvProd), combo: c.combination });
             if (!g) return null;
             const r = WiredCalc.estimate({ ...g, start: c.wiredDate, tvStart: c.wiredTvDate || '', end: getTodayStr() });   // 📺 V372 TV만 따로 약정한 날
             if (!r) return null;
             {   // 🏠 V434 '유선 상품 변경'을 완료 체크했으면 그날까지는 원래 상품 · 그 뒤는 변경 후 상품으로 받은 할인 → 위약금을 나눠서 (위약금 = 받은 할인 누적 × 기간 비율)
                 const tI = String(c.wiredTargetInternet || '').trim(), tT = String(c.wiredTargetTv || '').trim(), wd = wplanDoneDate(c), today = getTodayStr();
                 if ((tI || tT) && wd && wd > c.wiredDate && wd <= today && r.days < 1095) {
-                    const g2 = WiredCalc.guess(car.ck, { internet: tI || c.internetProd, tv: tT || c.tvProd, combo: c.combination });
+                    const g2 = WiredCalc.guess(car.ck, { internet: tI || c.internetProd, tv: tT || wnTvText(c, c.tvProd), combo: c.combination });
                     const r2 = g2 && WiredCalc.estimate({ ...g2, start: c.wiredDate, tvStart: c.wiredTvDate || '', end: today });
                     if (r2) {
                         const dd = (a, b) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 864e5)), cl = (x) => Math.max(0, Math.min(1, x));
@@ -17341,7 +17357,7 @@ ${AI_TONES[aiSmsTone]}
                 combination: v('modalCombinationOnly') || '', welfare: v('modalWelfareOnly') || '', combDisc: (Number(v('modalCombDisc').replace(/[^\d]/g, '')) || 0) || '',
                 discountCard: v('modalDcCard').trim().slice(0, 40), discountCardAmt: (Number(v('modalDcCardAmt').replace(/[^\d]/g, '')) || 0) || '', discountCardReq: (Number(v('modalDcCardReq').replace(/[^\d]/g, '')) || 0) || '',   // 💳 V428 · V429 전월 실적
                 instCardName: v('modalInstCard').trim().slice(0, 40), instCardDiscount: (Number(v('modalInstCardAmt').replace(/[^\d]/g, '')) || 0) || '',
-                internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')),
+                internetProd: v('modalInternetOnly') || '', tvProd: tvJoin(v('modalTvOnly'), v('modalTvExtra')), wiredStb: v('modalStb').trim().slice(0, 30), wiredStb2: v('modalStb2').trim().slice(0, 30),   // 📦 V445 셋톱 (주 · 추가)
                 wiredDate: v('modalWiredDate'), wiredType: v('modalWiredType'), wiredTvDate: v('modalWiredTvDate'), repFamily: v('modalFamily'),
                 legalName: v('modalLegalName'), legalPhone: v('modalLegalPhone'), legalDob: v('modalLegalDob'),
                 marketingDeny: ck('modalMarketingDeny'), bizCardInstalled: ck('modalBizCard'),
@@ -30825,7 +30841,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V444';
+        const APP_VER = 'V445';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30833,6 +30849,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V445', d: '2026-11-24', items: [
+                ['📦 고객 [수정] → 인터넷/TV 상품에 셋톱 칸 (주 · 추가) — 유선 위약금이 그 셋톱으로 계산돼요 (목록에서 골라도 돼요)', 'a'],
+            ] },
             { v: 'V444', d: '2026-11-24', items: [
                 ['🏠 유선 통신사 추정 보완: LG \'프리미엄 디즈니+ 스탠다드\' TV를 SK로 잘못 보지 않게', 'a'],
             ] },
