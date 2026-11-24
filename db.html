@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V445">
+    <link rel="stylesheet" href="crm.css?v=V446">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -18367,7 +18367,7 @@ familyStr + `\n` +
                         const intTvInputVal = document.getElementById('rep-internet-tv').value.trim();
                         if (intTvInputVal && intTvInputVal !== '-' && intTvInputVal !== reportPrefill.intTv) {
                             updateData.internetProd = intTvInputVal;
-                            updateData.tvProd = '';
+                            updateData.tvProd = ''; updateData.wiredStb = ''; updateData.wiredStb2 = '';   // 📦 V446 상품을 새로 적으면 예전 셋톱도 비움
                             updateData.wiredDate = finalActDate;
                         }
 
@@ -18462,7 +18462,7 @@ familyStr + `\n` +
                     // (tvProd/welfare 빈 값은 '중복 방지용으로 일부러 비운 것'이라 유지)
                     if (mergeIntoExisting) {
                         for (const k of Object.keys(updateData)) {
-                            if (typeof updateData[k] === 'string' && updateData[k].trim() === '' && k !== 'tvProd' && k !== 'welfare') delete updateData[k];
+                            if (typeof updateData[k] === 'string' && updateData[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && k !== 'wiredStb' && k !== 'wiredStb2') delete updateData[k];
                         }
                     }
                     updateData.deletedAt = '';  // 휴지통에 있던 고객이면 복구
@@ -22506,8 +22506,8 @@ familyStr + `\n` +
                     <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
                     <p id="hr-type-hint" class="col-span-2 -mt-1 text-[11px] font-bold text-teal-800"></p>
                     ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
-                    ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', '', { ph: '예) UHD4' })}
-                    ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', '', { ph: '예) UHD3' })}
+                    ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', c.wiredStb || '', { ph: '예) UHD4' })}
+                    ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', c.wiredStb2 || '', { ph: '예) UHD3' })}
                     ${arIn('hr-tvdate', '📺 TV 약정 시작일 (TV만 따로 약정했을 때만)', c.wiredTvDate || '', { type: 'date', span: true })}
                     ${(() => { const on = !!(c.wiredTargetInternet || c.wiredTargetTv || Number(c.wiredPlanMonths) > 0);   // 🏠 V434 상품 변경 예정 → 저장하면 '유선 상품 변경' 약속
                         return `<div class="col-span-2 rounded-xl border border-teal-200 bg-teal-50/40 p-2.5 space-y-2">
@@ -22938,7 +22938,7 @@ familyStr + `\n` +
                 // 인터넷+TV · 결합: 미리 채운 그대로면 기존 정보 유지, 바꿨으면 새로
                 const itv = arVal('ar-inttv');
                 // (V195) 예전엔 적기만 해도 유선 약정일이 개통일로 바뀌어 '동시개통'·정산 미입력(유선)으로 잡혔음 → '오늘 새로 개통' 체크했을 때만
-                if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', ...((document.getElementById('ar-itv-new') || {}).checked ? { wiredDate: d } : {}) });
+                if (itv && itv !== '-' && itv !== arPrefill.intTv) Object.assign(upd, { internetProd: itv, tvProd: '', wiredStb: '', wiredStb2: '', ...((document.getElementById('ar-itv-new') || {}).checked ? { wiredDate: d } : {}) });
                 const cmb = arVal('ar-comb');
                 if (cmb && cmb !== arPrefill.combo) { const S = splitCombWel(cmb); Object.assign(upd, { combination: S.comb, welfare: S.wel }); }
                 if (arNum('ar-combdisc') > 0) upd.combDisc = arNum('ar-combdisc');   // 🤝 V376 결합 할인 (월)   // 🩹 V345 '결합 · 복지' 한 칸 → 가족결합 · 복지할인 따로 (예전엔 복지까지 결합 칸에)
@@ -23036,6 +23036,7 @@ familyStr + `\n` +
                     repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('hr-addr'), repBranch: arVal('hr-store'), repCombination: arVal('hr-comb')
                 });
                 if (arVal('hr-extratv') && upd.tvProd) upd.tvProd += ` (추가 ${arVal('hr-extratv')})`;
+                if (items.includes('TV')) Object.assign(upd, { wiredStb: arVal('hr-stb').slice(0, 30), wiredStb2: tvSplit(upd.tvProd).extra ? arVal('hr-stb2').slice(0, 30) : '' });   // 📦 V446 개통보고 셋탑(주 · 부) → 고객 셋톱 칸 (TV를 새로 했으면 비운 칸도 비움)
                 {   // 🏠 V434 상품 변경 예정 → 변경 후 상품 · '유선 상품 변경' 약속 (설치일을 알 때 · 이미 완료한 변경이 있으면 다시 안 만듦)
                     const on = !!(document.getElementById('hr-wplan-on') || {}).checked;
                     if (on) {
@@ -23070,7 +23071,7 @@ familyStr + `\n` +
             }
             if (cur) {
                 // 기존 고객: 비워둔 칸은 저장하지 않아 기존 값 그대로 (예전 개통보고와 같은 규칙 · 중복 방지용 tvProd·welfare 빈 값은 유지)
-                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && !/^prom[A-Za-z0-9]+(Date|Memo)$/.test(k) && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
+                Object.keys(upd).forEach(k => { if (typeof upd[k] === 'string' && upd[k].trim() === '' && k !== 'tvProd' && k !== 'welfare' && k !== 'wiredStb' && k !== 'wiredStb2' && !/^prom[A-Za-z0-9]+(Date|Memo)$/.test(k) && !(!isM && (k === 'wiredTvDate' || k === 'wiredPrevCar')) && !(k === 'mvnoBrand' && isM) && !(freshAct && !keepLatest && ACT_FRESH_KEYS.has(k))) delete upd[k]; });
                 Object.assign(upd, keepRegFields(cur));
                 if (isM && freshAct && !keepLatest) { const ad = arVal('ar-date'); upd.visitDate = /^\d{4}-\d{2}-\d{2}$/.test(ad) && ad <= today ? ad : today; }   // 📅 V300 기존 고객이 새로 개통하면 방문일도 그날로 (예전엔 처음 방문일 그대로)
                 if (cur.deletedAt) upd.deletedAt = '';
@@ -30841,7 +30842,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V445';
+        const APP_VER = 'V446';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30849,6 +30850,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V446', d: '2026-11-24', items: [
+                ['📦 유선 개통보고의 셋탑(주 · 부)이 고객 셋톱 칸에 저장돼요 (원래 고객 셋톱이 미리 채워져요) · 인터넷/TV 상품을 새로 바꾸면 예전 셋톱은 비워요', 'a'],
+            ] },
             { v: 'V445', d: '2026-11-24', items: [
                 ['📦 고객 [수정] → 인터넷/TV 상품에 셋톱 칸 (주 · 추가) — 유선 위약금이 그 셋톱으로 계산돼요 (목록에서 골라도 돼요)', 'a'],
             ] },
