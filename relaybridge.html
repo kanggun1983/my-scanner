@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="robots" content="noindex"><title>relay bridge</title></head>
+<body>
+<script>
+/* 📨 중계 서버 다리 (악세정산 → 강CRM 주소로 중계 서버 부르기)
+   · 중계 서버가 강CRM 주소만 허용해서, 악세정산(kang-acc.github.io)에서 바로 부르면 결과를 못 읽고 안 나갈 수 있어요
+   · 악세정산이 이 페이지를 숨은 창으로 열고 postMessage로 요청 → 여기서 중계 서버로 보내고 결과를 돌려줘요
+   · 악세정산 주소에서 온 요청만 받아요 · 아무것도 저장하지 않아요 */
+(function () {
+  const OK_ORIGINS = ['https://kang-acc.github.io'];
+  window.addEventListener('message', async (e) => {
+    if (!OK_ORIGINS.includes(e.origin)) return;
+    const m = e.data || {};
+    if (m.type !== 'relay' || !m.id) return;
+    const reply = (o) => { try { e.source.postMessage({ type: 'relay-res', id: m.id, ...o }, e.origin); } catch (err) { /* 무시 */ } };
+    const url = String(m.url || '');
+    if (!/^https:\/\//.test(url)) return reply({ ok: false, error: '중계 서버 주소가 이상해요' });
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m.body || {}) });
+      let data = null; try { data = await res.json(); } catch (err) { data = null; }
+      reply({ ok: true, status: res.status, data });
+    } catch (err) { reply({ ok: false, error: '중계 서버에 연결하지 못했어요' }); }
+  });
+  try { if (window.parent && window.parent !== window) OK_ORIGINS.forEach(o => window.parent.postMessage({ type: 'relay-ready' }, o)); } catch (err) { /* 무시 */ }
+})();
+</script>
+</body></html>
