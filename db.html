@@ -11824,8 +11824,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         function dcCards() { return Array.isArray(appSettings.dcCards) ? appSettings.dcCards.filter(x => x && x.name) : []; }
         function dcCardFind(name) { const k = String(name || '').trim().toLowerCase(); return k ? dcCards().find(x => x.name.toLowerCase() === k) || null : null; }
         const DC_CARD_FIELDS = { modalDcCard: ['modalDcCardAmt', 'modalDcCardReq'], 'ar-card': ['ar-cardamt', 'ar-cardreq'] };
-        document.addEventListener('focusin', (e) => {   // 💳 V430 카드 이름 칸 → 목록에서 고르기
-            const el = e.target; if (!el || !DC_CARD_FIELDS[el.id]) return;
+        document.addEventListener('focusin', (e) => {   // 💳 V430 카드 이름 칸 → 목록에서 고르기 (V440 안내서 카드 칸도)
+            const el = e.target; if (!el || !(DC_CARD_FIELDS[el.id] || /^(plan|dev)\.cardName$/.test(el.dataset && el.dataset.gd || ''))) return;
             let dl = document.getElementById('dcCardList'); if (!dl) { dl = document.createElement('datalist'); dl.id = 'dcCardList'; document.body.appendChild(dl); }
             dl.innerHTML = dcCards().map(x => `<option value="${escapeHtml(x.name)}">${x.amt ? `월 ${arWon(x.amt)}원` : ''}${x.req ? ` · 실적 ${cardReqTxt(x.req)}` : ''}</option>`).join('');
             if (dcCards().length) el.setAttribute('list', 'dcCardList');
@@ -11853,6 +11853,23 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const L = pi.filter(it => it && it.kind === '제휴카드' && it.auto !== 'icard').map(it => { const n = String(it.name || '').trim(); return it.auto === 'card' ? n.replace(/^요금DC카드 유치\s*·\s*/, '') : n; })
                 .filter(n => n && !/^(단말할인카드|요금DC카드 유치)$/.test(n) && actCheckMeaningful(n));
             return [...new Set(L)].join(', ').slice(0, 40);
+        }
+        function cardGuideMissing(c) {   // 📷 V440 고객카드 제휴카드 · 할부카드에 안내 사진이 있는데 카드 안내에 아직 없는 것
+            if (!c || c.deletedAt) return [];
+            const have = new Set((Array.isArray(c.cardGuides) ? c.cardGuides : []).map(x => x && x.img).filter(Boolean));
+            return dcCardImgMatch([c.discountCard, c.instCardName]).filter(h => !have.has(h.img));
+        }
+        async function cardGuideFillRun() {   // 👑 [한 번에 연결]
+            if (!isSuperAdmin) return customAlert('👑 대표만 할 수 있어요.');
+            const L = customerDB.filter(c => cardGuideMissing(c).length);
+            if (!L.length) return customAlert('연결할 고객이 없어요 ✅');
+            if (!(await customConfirm(`💳 카드 안내를 연결할 고객 ${L.length}명이에요.\n\n${L.slice(0, 5).map(c => `· ${c.name || formatPhone(c.id)}: ${cardGuideMissing(c).map(h => h.name).join(', ')}`).join('\n')}${L.length > 5 ? `\n… 외 ${L.length - 5}명` : ''}\n\n고객카드 제휴카드 · 할부카드 이름으로 찾아서 '💳 카드 안내'에 넣어요 (날짜 = 최근 개통일).`))) return;
+            let ok = 0, fail = 0;
+            for (const c of L) {
+                try { await txCustomerUpdate(c.id, (cur) => { const add = cardGuideMissing(cur); if (!add.length) return {}; const prev = Array.isArray(cur.cardGuides) ? cur.cardGuides.filter(x => x && x.img) : []; return { cardGuides: [...prev, ...add.map(h => ({ name: h.name, img: h.img, d: /^\d{4}-\d{2}-\d{2}$/.test(String(cur.activationDate || '')) ? cur.activationDate : '', by: '자동 연결' }))].slice(-10), __audit: '카드 안내 연결' }; }); ok++; }
+                catch (e) { console.warn('카드 안내 연결 실패', c.id, e); fail++; }
+            }
+            customAlert(`💳 ${ok}명 연결했어요${fail ? ` · ${fail}명은 못 했어요` : ''}`);
         }
         function cardFillTargets() { return customerDB.filter(c => c && !c.deletedAt && !actCheckMeaningful(c.discountCard) && cardNameFromItems(c)); }
         async function cardFillRun() {   // 🔧 V429 점검 → [채우기] (👑 대표 · 미리 보여 주고 확인)
@@ -26106,7 +26123,7 @@ familyStr + `\n` +
                     ${gdLbl('유통망지원금', gdInp('dev.extra', g.dev.extra, { money: true }))}
                     ${gdLbl('중고보상할인', gdInp('dev.used', g.dev.used, { money: true }))}
                     ${gdLbl('선납금 (현금 일부 결제)', gdInp('dev.prepay', g.dev.prepay, { money: true }))}
-                    ${gdLbl('할부카드 이름', gdInp('dev.cardName', g.dev.cardName, { ph: '예) KB국민 라이트할부' }))}
+                    ${gdLbl('할부카드 이름', gdInp('dev.cardName', g.dev.cardName, { ph: '예) KB국민 라이트할부', list: 'dcCardList' }))}
                     ${gdLbl('할부카드 할인', gdInp('dev.card', g.dev.card, { money: true }))}
                     ${gdLbl('추가할인 이름', gdInp('dev.etcName', g.dev.etcName, { ph: '예) 매장 할인' }))}
                     ${gdLbl('추가할인', gdInp('dev.etc', g.dev.etc, { money: true }))}
@@ -26123,7 +26140,7 @@ familyStr + `\n` +
                     ${g.plan.welType ? gdLbl(`복지할인 금액 <span id="gdWelTag" class="font-normal text-indigo-700">${gdWelAutoOn(g) ? '· 자동 (고쳐도 돼요)' : ''}</span>`, gdInp('plan.wel', gdWelAutoOn(g) ? c.wel : g.plan.wel, { money: true, id: 'gdWel' })) : '<div></div>'}
                     ${g.plan.welType && GD_WEL_RULE[g.plan.welType] && !gdWelOld(g) ? `<p class="col-span-2 -mt-1 text-[11px] text-gray-600 leading-snug" data-gd-welrule>🤝 ${escapeHtml(GD_WEL_RULE[g.plan.welType])}${g.sup === '선약' ? ' · 선택약정 25% · 결합할인 뒤 금액에' : ' · 결합할인 뒤 금액에'}</p>` : ''}
                     ${gdLbl('결합할인 이름', gdInp('plan.combName', g.plan.combName, { ph: '예) 가족결합 · 인터넷결합' }))}${gdLbl('결합할인', gdInp('plan.comb', g.plan.comb, { money: true }))}
-                    ${gdLbl('요금DC카드 이름', gdInp('plan.cardName', g.plan.cardName, { ph: '예) LG U+ 신한카드' }))}${gdLbl('요금DC카드 할인 (매달)', gdInp('plan.card', g.plan.card, { money: true }))}
+                    ${gdLbl('요금DC카드 이름', gdInp('plan.cardName', g.plan.cardName, { ph: '예) LG U+ 신한카드', list: 'dcCardList' }))}${gdLbl('요금DC카드 할인 (매달)', gdInp('plan.card', g.plan.card, { money: true }))}
                 </div>
                 <div class="rounded-xl bg-indigo-50 px-3 py-2.5 flex items-center justify-between"><span class="text-sm font-bold text-indigo-900">월 요금</span><span><b id="gdPlanNet" class="text-[17px] text-indigo-900">${arWon(c.planNet)}</b><span class="text-sm text-indigo-900">원</span></span></div>
                 <div id="gdPlanWarn">${gdPlanWarn(g, c)}</div>`);
@@ -26172,6 +26189,11 @@ familyStr + `\n` +
             gdLSSet('gdStore', { name: gd.store.name, tel: gd.store.tel });
             if (isSuperAdmin) saveDoc(doc(db, 'smart_global', 'settings'), { guideStoreName: gd.store.name, guideStoreTel: gd.store.tel }, { merge: true }).then(() => { appSettings = { ...appSettings, guideStoreName: gd ? gd.store.name : appSettings.guideStoreName, guideStoreTel: gd ? gd.store.tel : appSettings.guideStoreTel }; }).catch(e => console.warn(e));
         }
+        gdInner.addEventListener('input', (e) => {   // 💳 V440 안내서 요금DC카드 이름을 목록에서 고르면 매달 할인도 (비어 있을 때만)
+            const el = e.target; if (gdStage !== 'edit' || !gd || !el || (el.dataset && el.dataset.gd) !== 'plan.cardName') return;
+            const hit = dcCardFind(el.value); if (!hit || !(hit.amt > 0) || gdNum(gd.plan.card)) return;
+            setTimeout(() => { const f = gdInner.querySelector('[data-gd="plan.card"]'); if (!f || gdNum(gd.plan.card)) return; f.value = arWon(hit.amt); f.dispatchEvent(new Event('input', { bubbles: true })); }, 0);
+        });
         gdInner.addEventListener('input', (e) => {
             if (gdStage !== 'edit' || !gd) return;
             const el = e.target;
@@ -27097,13 +27119,28 @@ familyStr + `\n` +
             if (!L.length) return '';
             let acts = []; try { acts = actsOf(c).filter(a => a && a.kind !== '유선'); } catch (e) { /* 무시 */ }
             const cancelled = (d) => { const A = acts.filter(a => a.date === d); return A.length > 0 && A.every(a => a.canceled); };   // 그날 개통이 취소됐으면 표시
-            return `<div class="mt-2"><p class="text-xs font-bold text-gray-500 mb-1">💳 카드 안내 ${L.length}건</p>${L.map(x => `<a href="${escapeHtml(x.img)}" target="_blank" rel="noopener" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0"><img src="${escapeHtml(x.img)}" alt="" loading="lazy" class="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '카드 안내')}</span><span class="block text-xs text-gray-600">${x.d ? gdDot(x.d) + ' 개통' : ''}${x.d && cancelled(x.d) ? ' <b class="text-red-700">· 개통 취소</b>' : ''}${x.by ? ' · ' + escapeHtml(x.by) : ''} · 눌러서 크게 보기</span></span><i class="fa-solid fa-up-right-from-square text-gray-300 text-xs" aria-hidden="true"></i></a>`).join('')}</div>`;
+            return `<div class="mt-2"><p class="text-xs font-bold text-gray-500 mb-1">💳 카드 안내 ${L.length}건</p>${L.map(x => `<div class="flex items-center gap-1.5 border-b border-gray-100 last:border-b-0"><a href="${escapeHtml(x.img)}" target="_blank" rel="noopener" class="flex-1 min-w-0 flex items-center gap-2 py-2"><img src="${escapeHtml(x.img)}" alt="" loading="lazy" class="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '카드 안내')}</span><span class="block text-xs text-gray-600">${x.d ? gdDot(x.d) + ' 개통' : ''}${x.d && cancelled(x.d) ? ' <b class="text-red-700">· 개통 취소</b>' : ''}${x.by ? ' · ' + escapeHtml(x.by) : ''} · 눌러서 크게 보기</span></span></a><button type="button" data-cg-send="${escapeHtml(x.img)}" data-cg-name="${escapeHtml(x.name || '')}" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800">💬 보내기</button></div>`).join('')}</div>`;   // 💬 V440 다시 보내기
         }
         function gdProfileHtml(c) {
             const list = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id).slice().reverse();
             return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 구매 안내서 ${list.length}건</p><span class="flex gap-1"><button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button><button type="button" data-gd-cnew="wired" class="h-8 px-2.5 rounded-lg border border-sky-200 bg-sky-50 text-xs font-bold text-sky-800">＋ 유선</button></span></div>
                 ${list.map(e => `<button type="button" data-gd-copen="${escapeHtml(e.id)}" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0 text-left"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(e.t || '')}</span><span class="block text-xs text-gray-600">${gdDot(e.d)} · ${escapeHtml(e.by || '')} · ${e.act ? '✅ 개통등록' : (e.st === 'sent' ? '📩 보냄' : '✍ 서명')}${!e.act && gdPendingFor(c).some(x => x.id === e.id) ? ' · <b class="text-amber-800">⏳ 개통등록 전</b>' : ''}</span></span><i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}${cardGuidesHtml(c)}</div>`;   // 📷 V439
         }
+        profileModal.addEventListener('click', async (ev) => {   // 💬 V440 카드 안내 사진 다시 보내기 (매장폰 사진 문자 · 안 되면 문자앱 링크)
+            const b = ev.target.closest('[data-cg-send]'); if (!b) return;
+            const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
+            const to = phoneDigits(c.phone || c.id); if (!/^01\d{8,9}$/.test(to)) return customAlert('고객 휴대폰 번호가 없어요.');
+            const img = b.dataset.cgSend, name = b.dataset.cgName || '카드', text = `💳 ${name} 안내예요. 혜택 · 실적 조건 확인해 주세요.`;
+            const mms = pushRelayReady() && mmsActive();
+            if (!(await customConfirm(`${name} 안내 사진을 ${formatPhone(to)}로 보낼까요?\n\n${mms ? '매장 폰에서 사진 문자로 가요.' : '문자앱이 열려요 (사진 대신 링크).'}`))) return;
+            if (mms) {
+                if (!protectGate(c) || !(await lockGate(c, '문자', 'contact'))) return;
+                b.disabled = true;
+                try { await callSms('test', { to, text, mmsImage: img }); await window.logActionAndCall(c.id, 'sms', to, '카드 안내', text, { gated: true, noOpen: true }); stockToast('💬 카드 안내 사진 문자를 보냈어요 (1~2분)'); }
+                catch (e) { customAlert(`보내지 못했어요. ${e && e.message ? e.message : ''}`); }
+                finally { b.disabled = false; }
+            } else await window.logActionAndCall(c.id, 'sms', to, '카드 안내', `${text}\n${img}`);
+        });
         profileModal.addEventListener('click', (ev) => {
             const n = ev.target.closest('[data-gd-cnew]'), o = ev.target.closest('[data-gd-copen]');
             if (!n && !o) return;
@@ -29897,6 +29934,10 @@ familyStr + `\n` +
                     });
                 }
             }
+            {   // 📷 V440 카드 안내 사진을 아직 연결 안 한 고객 (V439 전에 개통 · 사진을 나중에 올린 카드)
+                const vis = isSuperAdmin ? null : new Set(custView().map(c => c.id)), L = customerDB.filter(c => (!vis || vis.has(c.id)) && cardGuideMissing(c).length);
+                if (dcCards().some(x => x.img)) add('고객', '📷 카드 안내 연결 안 한 고객', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 고객카드 제휴카드 · 할부카드에 안내 사진이 있는 카드예요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' …' : ''})${isSuperAdmin ? '' : ' · 대표 폰에서 연결할 수 있어요'}` : '카드 안내가 다 연결돼 있어요', L.length && isSuperAdmin ? { id: 'cardGuideFill', label: `📷 ${L.length}명 한 번에 연결` } : null);
+            }
             {   // 💳 V429 제휴카드 칸 빈 고객 (개통 기록 정책 줄에는 카드가 있음)
                 const L = isSuperAdmin ? cardFillTargets() : (() => { const vis = new Set(custView().map(c => c.id)); return cardFillTargets().filter(c => vis.has(c.id)); })();   // 직원은 볼 수 있는 고객만 (다매장)
                 add('고객', '💳 제휴카드 칸 비어 있음', L.length ? 'warn' : 'ok', L.length ? `${L.length}명 · 개통 기록엔 제휴카드가 있는데 고객카드 칸이 비었어요 (${L.slice(0, 4).map(c => c.name || '이름 없음').join(', ')}${L.length > 4 ? ' …' : ''})${isSuperAdmin ? '' : ' · 대표 폰에서 채울 수 있어요'}` : '개통 기록과 고객카드 제휴카드가 맞아요', L.length && isSuperAdmin ? { id: 'cardFill', label: `💳 ${L.length}명 카드 이름 채우기` } : null);
@@ -29950,7 +29991,7 @@ familyStr + `\n` +
                    ${pushRelayReady() ? `<button type="button" id="diagSmsTestBtn" class="w-full h-12 rounded-xl border border-emerald-300 bg-emerald-50 text-[15px] font-bold text-emerald-800"><i class="fa-solid fa-flask"></i> 🧪 예약 문자 시험 (1분 뒤 보내기 → 10분 뒤 결과 확인)</button>` : ''}
                    <p class="text-xs text-gray-500 leading-relaxed">이 폰 기준으로 점검해요. 직원 폰은 각자 한 번씩 눌러보세요. 점검은 아무것도 보내지 않아요.</p>`);
             const again = document.getElementById('diagAgain'); if (again) again.onclick = () => runDiag();
-            document.querySelectorAll('#calcSheetBody [data-diag-act]').forEach(b => { b.onclick = async () => { const f = { cardFill: cardFillRun, planOverdue: planOverdueShow }[b.dataset.diagAct]; if (f && (await f()) !== 'nodiag') runDiag(); }; });   // 🔧 V429 점검 줄 바로 고치기
+            document.querySelectorAll('#calcSheetBody [data-diag-act]').forEach(b => { b.onclick = async () => { const f = { cardFill: cardFillRun, planOverdue: planOverdueShow, cardGuideFill: cardGuideFillRun }[b.dataset.diagAct]; if (f && (await f()) !== 'nodiag') runDiag(); }; });   // 🔧 V429 점검 줄 바로 고치기
             const tb = document.getElementById('diagSmsTestBtn'); if (tb) tb.onclick = startDiagSmsTest;
         }
         // 🧪 예약 문자 시험: 1분 뒤 보내기로 예약 → 중계 서버 Cron이 돌면 목록에서 빠지고 폰에 문자가 옴
@@ -30770,7 +30811,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V439';
+        const APP_VER = 'V440';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30778,6 +30819,11 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V440', d: '2026-11-24', items: [
+                ['💳 안내서 요금DC카드 · 할부카드 이름 칸에서 제휴카드 목록 고르기 (요금DC카드는 매달 할인도 자동) — 이름이 맞아야 카드 안내 사진이 붙어요', 'a'],
+                ['💬 고객카드 \'💳 카드 안내\'에 [보내기] — 매장폰 사진 문자로 다시 보내기 (연락 기록에 남아요)', 'a'],
+                ['📷 점검: 카드 안내 연결 안 한 예전 고객 → 👑 [한 번에 연결]', 'a'],
+            ] },
             { v: 'V439', d: '2026-11-24', items: [
                 ['📷 개통등록한 제휴카드 · 할부카드에 안내 사진이 있으면 고객카드에 같이 저장 → 고객카드 \'구매 안내서\' 밑 \'💳 카드 안내\' (눌러서 크게 보기)', 'a'],
             ] },
