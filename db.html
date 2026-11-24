@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V447">
+    <link rel="stylesheet" href="crm.css?v=V449">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -12044,7 +12044,11 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 profileKV('가입/재약정일', c.wiredDate ? `${escapeHtml(c.wiredDate)}${c.wiredType ? ` <span class="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-bold">${escapeHtml(c.wiredType)}${c.wiredPrevCar ? ` · ${escapeHtml(c.wiredPrevCar)}에서` : ''}</span>` : ''}` : PROFILE_DASH),   // 📶 V372
                 ...(c.wiredTvDate ? [profileKV('📺 TV 약정 시작일', profileValue(c.wiredTvDate))] : []),
                 profileKV('약정 만료(36개월)', endHtml)
-            ].join('') + wiredNowHtml(c);
+            ].join('') + wiredNowHtml(c) + (() => {   // 💰 V448 유선 탭에도 유선 개통 정산정보
+                if (!canSeeSettle()) return '';
+                const w = actsOf(c).filter(a => !a.canceled && a.kind === '유선').pop();
+                return w ? actSettleBoxHtml(c, w, true).replace('>정산정보 · ', '>🏠 유선 정산정보 · ').replace('개통 정산 미입력', '유선 개통 정산 미입력') : '';
+            })() + (() => { let h = ''; try { h += gdProfileHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } try { h += buildDocFilesHtml(c, 'wired'); } catch (e) { /* 준비 전 */ } return h; })();   // 🏠 V449 유선 탭: 인터넷·TV 안내서 · 유선 서류
         }
         /* =====================================================================
            🏠 V244 지금 바꾸면 (인터넷 · TV) — 고객카드 유선 탭 · 모바일 '지금 바꾸면'처럼
@@ -23142,7 +23146,7 @@ familyStr + `\n` +
                 }
                 if (files.length) {
                     showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
-                    const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { date: actDay }).catch(e => ({ ok: 0, errs: [e.message] }));
+                    const ur = await uploadDocFiles({ id: digits, name: upd.name, phone: upd.phone }, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { date: actDay, ...(isM ? {} : { kind: 'wired' }) }).catch(e => ({ ok: 0, errs: [e.message] }));
                     hideUploadToast();
                     await done(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.\n${docUpText(ur)}${ur.errs.length ? `\n못 올린 것: ${ur.errs.slice(0, 2).join(' / ')}` : ''}${gdUp}`);
                 } else await done(`${upd.name}님 ${isM ? '개통' : '홈상품'} 등록을 저장했어요.${gdUp}${keepLatest ? '\n📜 예전 날짜라 개통 기록에만 넣었어요 (고객 정보는 최근 개통 그대로).' : ''}${editedAct ? '\n↩ 잘못 고쳤으면 고객카드 → 개통 기록 → [↩ 고치기 전으로]' : ''}${copied ? '\n📋 보고서 문구도 복사됐어요. 단톡방에 붙여넣기 하세요.' : '\n(이 폰에선 자동 복사가 막혔어요. [보고서] 버튼으로 복사해 주세요)'}`);
@@ -26573,7 +26577,7 @@ familyStr + `\n` +
             const f = new File([m.blob], `녹음_구매확인_${String(g.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || getTodayStr()).replace(/-/g, '')}_확인${m.ok}of${m.total}${m.down ? '_하향안내' : ''}.${ext}`, { type: m.mime });
             try {
                 showUploadToast('🎙 녹음을 서류에 올리는 중…');
-                const r = await uploadDocFiles({ id: g.custId, name: g.name || '', phone: g.phone || '' }, [f], null, { bundle: false, date: g.date });
+                const r = await uploadDocFiles({ id: g.custId, name: g.name || '', phone: g.phone || '' }, [f], null, { bundle: false, date: g.date, ...(g.kind === 'wired' ? { kind: 'wired' } : {}) });
                 hideUploadToast();
                 if (!r || !r.ok) return '⚠️ 녹음을 서류에 못 올렸어요.';
                 const rec = { at: m.at, dur: Math.round(m.dur / 1000), ok: m.ok, total: m.total, down: !!m.down, up: new Date().toISOString() };
@@ -26981,7 +26985,7 @@ familyStr + `\n` +
                 showUploadToast('📎 서명한 안내서를 서류에 올리는 중…');
                 const url = await gdImage(g), blob = await (await fetch(url)).blob();
                 const gf = new File([blob], `${gdFilePrefix(g)}_${String(g.name || c.name || '고객').replace(/[\\/:*?"<>|\s]/g, '')}_${String(g.date || actDay || getTodayStr()).replace(/-/g, '')}_서명.jpg`, { type: 'image/jpeg' });
-                const gr = await uploadDocFiles({ id: c.id, name: c.name || g.name || '', phone: c.phone || g.phone || '' }, [gf], null, { bundle: false, date: actDay || (g.act && g.act.date) || g.date });
+                const gr = await uploadDocFiles({ id: c.id, name: c.name || g.name || '', phone: c.phone || g.phone || '' }, [gf], null, { bundle: false, ...(g.kind === 'wired' ? { kind: 'wired' } : {}), date: actDay || (g.act && g.act.date) || g.date });
                 hideUploadToast();
                 if (gr && gr.ok) { const at = new Date().toISOString(); g.docAt = at; const hit = gdList.find(x => x.id === g.id); if (hit) hit.docAt = at; setDoc(doc(db, 'smart_guides', g.id), { docAt: at }, { merge: true }).catch(e => console.warn(e)); return { ok: true, msg: '📎 서명한 안내서도 서류에 첨부했어요.' }; }
                 return { ok: false, msg: '⚠️ 서명한 안내서를 서류에 못 올렸어요 · 안내서 화면에서 [📎 서류에 첨부]를 다시 눌러 주세요.' };
@@ -27173,9 +27177,9 @@ familyStr + `\n` +
             const cancelled = (d) => { const A = acts.filter(a => a.date === d); return A.length > 0 && A.every(a => a.canceled); };   // 그날 개통이 취소됐으면 표시
             return `<div class="mt-2"><p class="text-xs font-bold text-gray-500 mb-1">💳 카드 안내 ${L.length}건</p>${L.map(x => `<div class="flex items-center gap-1.5 border-b border-gray-100 last:border-b-0"><a href="${escapeHtml(x.img)}" target="_blank" rel="noopener" class="flex-1 min-w-0 flex items-center gap-2 py-2"><img src="${escapeHtml(x.img)}" alt="" loading="lazy" class="w-10 h-10 object-cover rounded-lg border border-gray-200 flex-shrink-0"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(x.name || '카드 안내')}</span><span class="block text-xs text-gray-600">${x.d ? gdDot(x.d) + ' 개통' : ''}${x.d && cancelled(x.d) ? ' <b class="text-red-700">· 개통 취소</b>' : ''}${x.by ? ' · ' + escapeHtml(x.by) : ''} · 눌러서 크게 보기</span></span></a><button type="button" data-cg-send="${escapeHtml(x.img)}" data-cg-name="${escapeHtml(x.name || '')}" class="flex-shrink-0 h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-[12px] font-bold text-indigo-800">💬 보내기</button></div>`).join('')}</div>`;   // 💬 V440 다시 보내기
         }
-        function gdProfileHtml(c) {
-            const list = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id).slice().reverse();
-            return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 구매 안내서 ${list.length}건</p><span class="flex gap-1"><button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button><button type="button" data-gd-cnew="wired" class="h-8 px-2.5 rounded-lg border border-sky-200 bg-sky-50 text-xs font-bold text-sky-800">＋ 유선</button></span></div>
+        function gdProfileHtml(c, kind) {   // 🏠 V449 kind 'wired' = 유선 탭 (인터넷·TV 안내서만) · 'mobile' = 모바일 탭 (유선 빼고)
+            const list = (Array.isArray(c.guides) ? c.guides : []).filter(e => e && e.id && (kind === 'wired' ? e.k === 'wired' : (kind === 'mobile' ? e.k !== 'wired' : true))).slice().reverse();
+            return `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-gray-500">📝 ${kind === 'wired' ? '인터넷·TV 안내서' : '구매 안내서'} ${list.length}건</p><span class="flex gap-1">${kind === 'wired' ? '' : `<button type="button" data-gd-cnew="dev" class="h-8 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-bold text-indigo-800">＋ 단말</button><button type="button" data-gd-cnew="usim" class="h-8 px-2.5 rounded-lg border border-emerald-200 bg-emerald-50 text-xs font-bold text-emerald-800">＋ 유심</button>`}<button type="button" data-gd-cnew="wired" class="h-8 px-2.5 rounded-lg border border-sky-200 bg-sky-50 text-xs font-bold text-sky-800">＋ 유선</button></span></div>
                 ${list.map(e => `<button type="button" data-gd-copen="${escapeHtml(e.id)}" class="w-full flex items-center gap-2 py-2 border-b border-gray-100 last:border-b-0 text-left"><span class="flex-1 min-w-0"><span class="block text-[14px] font-bold text-gray-900 truncate">${escapeHtml(e.t || '')}</span><span class="block text-xs text-gray-600">${gdDot(e.d)} · ${escapeHtml(e.by || '')} · ${e.act ? '✅ 개통등록' : (e.st === 'sent' ? '📩 보냄' : '✍ 서명')}${!e.act && gdPendingFor(c).some(x => x.id === e.id) ? ' · <b class="text-amber-800">⏳ 개통등록 전</b>' : ''}</span></span><i class="fa-solid fa-chevron-right text-gray-300 text-xs" aria-hidden="true"></i></button>`).join('')}${cardGuidesHtml(c)}</div>`;   // 📷 V439
         }
         profileModal.addEventListener('click', async (ev) => {   // 💬 V440 카드 안내 사진 다시 보내기 (매장폰 사진 문자 · 안 되면 문자앱 링크)
@@ -27896,25 +27900,14 @@ familyStr + `\n` +
         arEl.addEventListener('input', (e) => { if (e.target.id === 'ar-usim') arUsimNote(); });
         arEl.addEventListener('change', (e) => { if (['ar-usim', 'ar-store-sel', 'ar-store', 'ar-carrier', 'ar-date'].includes(e.target.id)) arUsimNote(); });
 
-        // 고객카드(모바일 탭) 아래: 개통 상세 + 정산 + [개통등록] 버튼
-        function buildActDetailHtml(c, opt = {}) {   // opt.tab: 📜 수정 화면 개통 기록 탭 (목록 → 정산 → 상세 · 안내서 · 개통등록 버튼 없음)
-            const kv = (l, v) => v || v === 0 ? profileKV(l, escapeHtml(String(v))) : '';
-            const won = (v) => (Number(v) ? `${arWon(v)}원` : '');
-            let h = '', hRows = '', hMoney = '', hList = '';
-            const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
-                kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('추가할인', won(c.etcDiscount)), (opt.tab ? kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')) : ''), kv('할부원금', won(c.loanPrincipal)),
-                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : (c.repUsedPhone || ((Array.isArray(c.usedOnly) && c.usedOnly.length) ? `${usedPhoneText(c.usedOnly[c.usedOnly.length - 1])} (개통 없음 · ${String(c.usedOnly[c.usedOnly.length - 1].date || '').slice(5).replace('-', '/')})` : ''))), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), (opt.tab ? kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')) : ''), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
-                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name && !(canSeeSettle() && (it.kind === '그레이드' || it.kind === '기타'))).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}`)) : [])].join('');   // 🧾 V397 정책 금액 · 그레이드 · 기타 정책 줄은 정산정보 안에서
-            if (rows) hRows = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
-            const acts = actsOf(c), money = canSeeSettle();
-            const lastM = acts.filter(a => !a.canceled && a.kind !== '유선').pop();
+        /* 💰 V448 정산정보 상자 (모바일 탭 · 유선 탭 같이 씀 · wired면 고객의 모바일 정책 줄은 안 섞음) */
+        function actSettleBoxHtml(c, lastM, wired) {
             const ymd2 = (d) => String(d || '').slice(2).replace(/-/g, '.');
-            if (money && lastM) {
                 if (lastM.settle) {
                     const S = lastM.settle, sv = actSales(lastM);
-                    hMoney = `<div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-amber-800">정산정보 · ${ymd2(lastM.date)} 개통${isSuperAdmin && appSettings.hideSettleFromStaff ? ' · 🔒 직원에게 숨김' : ''}</p>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="text-xs font-bold text-amber-800 underline underline-offset-2">고치기</button>` : ''}</div>
+                    return `<div class="mt-3 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2"><div class="flex items-center justify-between gap-2 mb-1"><p class="text-xs font-bold text-amber-800">정산정보 · ${ymd2(lastM.date)} 개통${isSuperAdmin && appSettings.hideSettleFromStaff ? ' · 🔒 직원에게 숨김' : ''}</p>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="text-xs font-bold text-amber-800 underline underline-offset-2">고치기</button>` : ''}</div>
                         ${(() => {   // 🧾 V397 정산금액이 어떻게 나왔는지 한눈에: 기본정책 + 정책 줄(그레이드 · 부가 · 기타…) + 추가정책 + 구두추가 − 유통망지원금 − 수수료 = 정산금액
-                            const PI = (Array.isArray(lastM.policyItems) ? lastM.policyItems : (Array.isArray(c.policyItems) ? c.policyItems : [])).filter(it => it && (Number(it.amount) || it.kind === '그레이드' || it.kind === '기타'));   // 부가 · 보험 · 카드는 정책 금액이 있을 때만 (가입 내역은 위 개통 상세에)
+                            const PI = (Array.isArray(lastM.policyItems) ? lastM.policyItems : (!wired && Array.isArray(c.policyItems) ? c.policyItems : [])).filter(it => it && (Number(it.amount) || it.kind === '그레이드' || it.kind === '기타'));   // 부가 · 보험 · 카드는 정책 금액이 있을 때만 (가입 내역은 위 개통 상세에)
                             const ln = (l, v, o = {}) => `<div class="flex justify-between gap-2 text-[13px] py-0.5 ${o.sub ? 'pl-2' : ''}"><span class="min-w-0 truncate ${o.warn ? 'text-amber-700 font-bold' : 'text-amber-900/70'}">${l}</span><b class="flex-shrink-0 ${o.warn ? 'text-amber-700' : (o.neg ? 'text-red-700' : 'text-amber-950')}">${o.txt || `${o.neg ? '−' : (o.plus ? '+' : '')}${arWon(Math.abs(Number(v) || 0))}원`}</b></div>`;
                             const out = [ln('기본정책', S.기본정책)];
                             PI.forEach(it => { const a = Number(it.amount) || 0, nm = `${it.kind === '그레이드' ? '⭐' : (it.kind === '부가' ? '📦' : (it.kind === '보험' ? '🛡' : (it.kind === '제휴카드' ? '💳' : '🏷')))} ${escapeHtml(it.kind === it.name || !it.name ? it.kind : `${it.kind} · ${it.name}`)}`; out.push(a ? ln(nm, a, { sub: true, plus: true }) : ln(nm, 0, { sub: true, warn: true, txt: '금액 없음' })); });
@@ -27928,8 +27921,23 @@ familyStr + `\n` +
                             [['판매마진', S.판매마진], ['실판매마진', S.실판매마진], ...(Number(S.중고폰) ? [['📱 중고폰 판매 (세금 X)', S.중고폰]] : []), ['총매출', sv.gross], ['실마진 (세금 제외)', sv.real]].filter(([, v]) => v || v === 0).forEach(([l, v]) => out.push(ln(l, v)));
                             return out.join('');
                         })()}</div>`;
-                } else hMoney = `<div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-center gap-2"><span class="flex-1 text-[13px] font-bold text-amber-900">💰 ${ymd2(lastM.date)} 개통 정산 미입력<span class="block text-[11px] font-medium text-amber-800">넣어야 매출 목표에 들어가요</span></span>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold">정산 입력</button>` : ''}</div>`;
-            }
+                } else return `<div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2.5 flex items-center gap-2"><span class="flex-1 text-[13px] font-bold text-amber-900">💰 ${ymd2(lastM.date)} 개통 정산 미입력<span class="block text-[11px] font-medium text-amber-800">넣어야 매출 목표에 들어가요</span></span>${isSuperAdmin ? `<button type="button" data-paction="actsettle" data-aid="${escapeHtml(lastM.id)}" class="flex-shrink-0 h-9 px-3 rounded-lg bg-amber-500 text-white text-xs font-bold">정산 입력</button>` : ''}</div>`;
+            return '';
+        }
+        // 고객카드(모바일 탭) 아래: 개통 상세 + 정산 + [개통등록] 버튼
+        function buildActDetailHtml(c, opt = {}) {   // opt.tab: 📜 수정 화면 개통 기록 탭 (목록 → 정산 → 상세 · 안내서 · 개통등록 버튼 없음)
+            const kv = (l, v) => v || v === 0 ? profileKV(l, escapeHtml(String(v))) : '';
+            const won = (v) => (Number(v) ? `${arWon(v)}원` : '');
+            let h = '', hRows = '', hMoney = '', hList = '';
+            const rows = [kv('개통종류', c.actType), kv('전통신사', c.prevCarrier), kv('단말기 일련번호', c.deviceSerial), kv('유심', [c.usimModel, c.usimSerial].filter(Boolean).join(' / ')),
+                kv('출고가', won(c.devicePrice)), kv('공통지원금', won(c.publicSupport)), kv('유통망지원금', won(c.distSupport)), kv('중고보상할인', won(c.tradeInDiscount)), kv('추가할인', won(c.etcDiscount)), (opt.tab ? kv('할부카드', c.instCardDiscount ? `${c.instCardName ? c.instCardName + ' ' : ''}${won(c.instCardDiscount)}` : (c.instCardName || '')) : ''), kv('할부원금', won(c.loanPrincipal)),
+                kv('📱 중고폰', c.usedPhone ? usedPhoneText(c.usedPhone) : (c.repUsedPhone || ((Array.isArray(c.usedOnly) && c.usedOnly.length) ? `${usedPhoneText(c.usedOnly[c.usedOnly.length - 1])} (개통 없음 · ${String(c.usedOnly[c.usedOnly.length - 1].date || '').slice(5).replace('-', '/')})` : ''))), kv('부가서비스', c.addons), kv('단말기보험', c.insurance), (opt.tab ? kv('제휴카드', [c.discountCard, Number(c.discountCardAmt) > 0 ? `월 -${arWon(c.discountCardAmt)}원` : ''].filter(Boolean).join(' · ')) : ''), docsOpen(c) ? profileKV('미비서류', `<span class="text-rose-800 font-bold">${escapeHtml(String(c.missingDocs).trim())}</span> <button type="button" data-docs-done class="ml-1 h-7 px-2 rounded-lg border border-rose-200 bg-rose-50 text-[12px] font-bold text-rose-800">📄 받음</button>`) : '',
+                ...(Array.isArray(c.policyItems) ? c.policyItems.filter(it => it.name && !(canSeeSettle() && (it.kind === '그레이드' || it.kind === '기타'))).map(it => kv(`${it.kind}${it.date ? ' 유지' : ''}`, `${it.name}${it.date ? ` → ${it.date}` : ''}`)) : [])].join('');   // 🧾 V397 정책 금액 · 그레이드 · 기타 정책 줄은 정산정보 안에서
+            if (rows) hRows = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">개통 상세</p>${rows}</div>`;
+            const acts = actsOf(c), money = canSeeSettle();
+            const lastM = acts.filter(a => !a.canceled && a.kind !== '유선').pop();
+            const ymd2 = (d) => String(d || '').slice(2).replace(/-/g, '.');
+            if (money && lastM) hMoney = actSettleBoxHtml(c, lastM, false);
             if (acts.length) {
                 hList = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">📜 개통 기록 ${acts.length}건 <span class="font-medium">(개통일이 다르면 따로 남아요)</span></p>${acts.slice().reverse().map(a => { const sv = actSales(a); return `<div class="py-2 border-b border-gray-100 last:border-b-0">
                     <div class="flex items-center gap-1.5"><span class="text-[14px] font-bold ${a.canceled ? 'text-gray-400 line-through' : 'text-gray-900'}">${ymd2(a.date)} · ${a.kind}${a.actType ? ' ' + escapeHtml(a.actType) : ''}</span>${a.carrier && a.kind !== '유선' ? `<span class="text-[11px] font-bold rounded-full border px-1.5 ${isMvno(a.carrier) ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-600'}">${escapeHtml(carrierLabel(a.carrier, a.mvno))}</span>` : ''}${a.canceled ? (a.notSale ? `<span class="text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5">📺 개통 아님 (인터넷·TV 정보)</span>` : `<span class="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5">취소됨${a.cancelBy ? ' · ' + escapeHtml(a.cancelBy) : ''}</span>`) : ''}${a.src === '폰클' ? '<span class="text-[10px] font-bold text-gray-500 border border-gray-200 rounded px-1">폰클</span>' : ''}<span class="ml-auto text-xs text-gray-500 truncate">${escapeHtml(actStaffKey(a, c))}</span></div>
@@ -27941,7 +27949,7 @@ familyStr + `\n` +
             }
             if (!can('cancelAct')) hList = hList.replace(/<button type="button" data-paction="act(?:cancel|restore)"[^>]*>[\s\S]*?<\/button>/g, '');   // 🎖 V247 권한 없으면 버튼 숨김
             h += opt.tab ? hList + hMoney + hRows : hRows + hMoney + hList;
-            if (!opt.tab) try { h += gdProfileHtml(c); } catch (e) { /* 준비 전 */ }   // 📝 V202
+            if (!opt.tab) try { h += gdProfileHtml(c, 'mobile'); } catch (e) { /* 준비 전 */ }   // 📝 V202
             if (opt.tab) return h;   // 📎 서류 · 📞 통화는 보기 화면(고객카드)에 그대로
             h += buildDocFilesHtml(c);
             h += buildCallLogsHtml(c);   // 📞 V221 전화 앱 통화 기록
@@ -28785,7 +28793,7 @@ familyStr + `\n` +
         }
         async function docUploadOne(cust, f, mode, today, custFolder, extra = {}) {
             if (f.size > 20 * 1024 * 1024) throw new Error(`${f.name}: 20MB가 넘어요`);
-            const name = `${today}_${(cust.name || '고객')}_${f.name}`.slice(0, 150);
+            const name = `${today}_${(cust.name || '고객')}_${extra.kind === 'wired' && !/^유선_/.test(f.name) ? '유선_' : ''}${f.name}`.slice(0, 150);   // 🏠 V449 유선 서류는 이름 앞에 '유선_' (같은 고객 폴더)
             const month = /^\d{4}-\d{2}$/.test(String(extra.__month || '')) ? extra.__month : today.slice(0, 7);   // 📁 V266 고객 폴더가 있는 달 (나중에 올린 서류도 같은 폴더로)
             extra = { ...extra }; delete extra.__month;
             const r = mode === 'admin' ? await uploadViaScript(f, name, month, custFolder) : await uploadViaGis(f, name, month, custFolder);
@@ -28809,7 +28817,7 @@ familyStr + `\n` +
             if (mode === 'off') throw new Error('서류 백업이 꺼져 있어요. 총관리자가 설정 → 서류 클라우드 백업에서 켜야 해요.');
             const today = /^\d{4}-\d{2}-\d{2}$/.test(String(opt.date || '')) ? opt.date : getTodayStr(), custFolder = docCustFolder(cust);   // 📅 V266 개통등록에서 올리면 개통일 기준 (월 폴더 · 파일 이름 앞 날짜)
             let ok = 0, bundled = 0, parts = 0, rest = files; const errs = [];
-            const mx = /^\d{4}-\d{2}$/.test(String(opt.month || '')) ? { __month: opt.month } : {};   // 📁 V266
+            const mx = { ...(/^\d{4}-\d{2}$/.test(String(opt.month || '')) ? { __month: opt.month } : {}), ...(opt.kind === 'wired' ? { kind: 'wired' } : {}) };   // 📁 V266 · 🏠 V449 유선 서류 표시
             if (opt.bundle !== false && docBundleOn() && files.length >= 2) {   // 📑 V216 한 묶음
                 try {
                     try { showUploadToast(`📑 서류 ${files.length}장을 PDF 한 묶음으로 만드는 중…`); } catch (e) { /* 무시 */ }
@@ -28846,15 +28854,15 @@ familyStr + `\n` +
             if (!res.ok) { const er = new Error(res.status === 401 ? '구글 연결이 끊겼어요. 다시 시도해 주세요.' : '이 폰에서 받을 수 없는 서류예요'); er.code = res.status === 401 ? '' : 'NO_ACCESS'; throw er; }
             return await res.blob();
         }
-        function docVisibleOf(c) {   // 고객 서류: 묶음에 들어간 원본은 접어 둠
-            const ids = [c.id, ...prevIdsOf(c)], all = docFiles.filter(f => ids.includes(f.customerId));
+        function docVisibleOf(c, kind) {   // 고객 서류: 묶음에 들어간 원본은 접어 둠 · 🏠 V449 kind 'wired'면 유선 서류만 · 'mobile'이면 유선 빼고 · 없으면 전부
+            const ids = [c.id, ...prevIdsOf(c)], all = docFiles.filter(f => ids.includes(f.customerId) && (kind === 'wired' ? f.kind === 'wired' : (kind === 'mobile' ? f.kind !== 'wired' : true)));
             const shown = all.filter(f => !f.bundledIn || !all.some(b => b.id === f.bundledIn));
             return { all, shown, inB: all.filter(f => !shown.includes(f)) };
         }
-        async function docMergeExisting(cid) {
+        async function docMergeExisting(cid, kind) {
             const c = customerDB.find(x => x.id === cid); if (!c) return;
             const mode = driveMode(); if (mode === 'off') return customAlert('서류 백업이 꺼져 있어요.');
-            const list = docVisibleOf(c).shown.filter(f => f.fileId && !/^audio\//.test(f.mime || '')).slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
+            const list = docVisibleOf(c, kind).shown.filter(f => f.fileId && !/^audio\//.test(f.mime || '')).slice().sort((a, b) => String(a.at || '').localeCompare(String(b.at || '')));
             if (list.length < 2) return customAlert('합칠 서류가 2개 이상 있어야 해요.');
             if (mode === 'self' && !driveTokenValid()) { try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[PDF 한 묶음으로 합치기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); } return; }
             if (!(await customConfirm(`서류 ${list.length}개를 PDF 한 묶음으로 합칠까요?\n\n· 묶음 PDF 하나만 누르면 다 보여요\n· 원본은 지우지 않고 '묶음에 들어간 원본'으로 접어 둬요`))) return;
@@ -28871,7 +28879,7 @@ familyStr + `\n` +
                 if (!B.blob) { hideUploadToast(); return customAlert('PDF로 만들지 못했어요.'); }
                 const inB = used.filter((u, i) => !B.left.includes(files[i]));
                 showUploadToast('📑 묶음 올리는 중…');
-                const rid = await docUploadOne(c, new File([B.blob], docBundleName(c, B.pages), { type: 'application/pdf' }), mode, getTodayStr(), docCustFolder(c), { __month: docCustMonth(c), bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40), partIds: inB.map(f => f.id).slice(0, 40) });
+                const rid = await docUploadOne(c, new File([B.blob], docBundleName(c, B.pages), { type: 'application/pdf' }), mode, getTodayStr(), docCustFolder(c), { __month: docCustMonth(c), ...(kind === 'wired' ? { kind: 'wired' } : {}), bundle: true, pages: B.pages, parts: inB.map(f => String(f.name || '').slice(0, 80)).slice(0, 40), partIds: inB.map(f => f.id).slice(0, 40) });
                 await Promise.all(inB.map(f => saveDoc(doc(db, 'doc_files', f.id), { bundledIn: rid }, { merge: true }).catch(e => console.warn(e))));
                 hideUploadToast();
                 customAlert(`서류 ${inB.length}개를 PDF 한 묶음(${B.pages}쪽)으로 합쳤어요.\n이제 묶음 하나만 누르면 다 보여요.${skip.length ? `\n받지 못해 빠진 것: ${skip.slice(0, 3).join(', ')}` : ''}`);
@@ -28950,9 +28958,9 @@ familyStr + `\n` +
                 if (await docRenderOne(body, f)) body.dataset.done = '1';
             }
         }
-        function docViewAll(cid, onlyId) {   // 👀 서류 보기 (V218: 앱 안에서 바로 · 못 받으면 드라이브 미리보기) — onlyId면 그 서류 하나
+        function docViewAll(cid, onlyId, kind) {   // 👀 서류 보기 (V218: 앱 안에서 바로 · 못 받으면 드라이브 미리보기) — onlyId면 그 서류 하나
             const c = customerDB.find(x => x.id === cid); if (!c) return;
-            const V = docVisibleOf(c), list = onlyId ? V.all.filter(f => f.id === onlyId) : V.shown;
+            const V = docVisibleOf(c, onlyId ? undefined : kind), list = onlyId ? V.all.filter(f => f.id === onlyId) : V.shown;
             if (!list.length) return;
             const old = document.getElementById('docViewSheet'); if (old) old.remove();
             docViewFree();
@@ -29588,9 +29596,9 @@ familyStr + `\n` +
             callTlAll = true; try { renderProfileCard(); } catch (e) { /* 무시 */ }
         });
         // 고객카드 안 '서류' 칸
-        function buildDocFilesHtml(c) {
-            const V = docVisibleOf(c), list = V.shown;   // 📑 V216 묶음에 들어간 원본은 접어 둠
-            const others = Math.max(0, (Number(c.docCount) || 0) - V.all.length);
+        function buildDocFilesHtml(c, kind = 'mobile') {   // 🏠 V449 kind 'wired' = 유선 탭 서류칸 (유선 서류만 · 올리면 유선으로 표시)
+            const W = kind === 'wired', V = docVisibleOf(c, kind), list = V.shown;   // 📑 V216 묶음에 들어간 원본은 접어 둠
+            const others = W ? 0 : Math.max(0, (Number(c.docCount) || 0) - docVisibleOf(c).all.length);
             const mode = driveMode();
             const row = (f) => `<div class="flex items-center gap-2 py-1.5 border-t border-gray-100 first:border-0 mt-1">
                     <i class="fa-regular ${/pdf/.test(f.mime || '') ? 'fa-file-pdf text-red-500' : 'fa-file-image text-indigo-500'}" aria-hidden="true"></i>
@@ -29600,10 +29608,10 @@ familyStr + `\n` +
                     <button type="button" data-docdel="${f.id}" aria-label="기록 지우기" class="w-9 h-9 flex-shrink-0 rounded-lg text-gray-400 hover:bg-gray-100"><i class="fa-solid fa-xmark"></i></button>
                 </div>`;
             let h = `<div class="mt-3 rounded-xl border border-gray-200 px-3 py-2" data-docbox>
-                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ 서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
-                <div class="flex items-center gap-1.5">${list.length >= 2 ? '<button type="button" data-paction="docviewall" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>' : ''}${mode === 'off' ? '' : '<button type="button" data-paction="idscan" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold">🪪 신분증 스캔</button>'}<button type="button" data-paction="docup" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
+                <div class="flex items-center justify-between gap-2"><p class="text-xs font-bold text-gray-600">☁️ ${W ? '유선 ' : ''}서류 ${list.length ? list.length + '개' : ''}${isSuperAdmin ? '' : ' <span class="font-normal text-gray-400">(내가 올린 것)</span>'}</p>
+                <div class="flex items-center gap-1.5">${list.length >= 2 ? `<button type="button" data-paction="docviewall" data-dockind="${kind}" class="h-9 px-2.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 text-xs font-bold">👀 한 번에 보기</button>` : ''}${mode === 'off' || W ? '' : '<button type="button" data-paction="idscan" class="h-9 px-2.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 text-xs font-bold">🪪 신분증 스캔</button>'}<button type="button" data-paction="docup" data-dockind="${kind}" class="h-9 px-3 rounded-lg ${mode === 'off' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-600 text-white'} text-xs font-bold"><i class="fa-solid fa-cloud-arrow-up"></i> 서류 올리기</button></div></div>`;
             h += list.length ? list.map(row).join('') : (others ? '' : `<p class="text-xs text-gray-500 py-1">${mode === 'off' ? '서류 백업이 꺼져 있어요.' : '올린 서류가 없어요. 신분증·가입신청서 사진을 올리면 구글 드라이브에 보관돼요.'}${mode !== 'off' && docBundleOn() ? ' 여러 장을 고르면 PDF 한 묶음으로 올라가요.' : ''}</p>`);
-            if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
+            if (list.length >= 2 && mode !== 'off') h += `<button type="button" data-paction="docmerge" data-dockind="${kind}" class="mt-1.5 w-full h-10 rounded-xl border border-dashed border-indigo-300 bg-white text-[13px] font-bold text-indigo-700">📑 PDF 한 묶음으로 합치기 <span class="font-medium text-gray-500">(하나만 누르면 다 보이게)</span></button>`;
             if (V.inB.length) h += `<details class="mt-1.5 border-t border-gray-100 pt-1" data-doc-inb><summary class="cursor-pointer text-[12px] font-bold text-gray-500 py-1">묶음에 들어간 원본 ${V.inB.length}개</summary>${V.inB.map(row).join('')}</details>`;
             if (others && !isSuperAdmin) h += `<p class="text-xs text-gray-600 py-1 border-t border-gray-100 mt-1"><i class="fa-solid fa-paperclip"></i> 다른 직원이 올린 서류 ${others}개가 있어요 (총관리자만 볼 수 있어요)</p>`;
             return h + '</div>';
@@ -29611,13 +29619,13 @@ familyStr + `\n` +
         const docInput = document.createElement('input');
         docInput.type = 'file'; docInput.multiple = true; docInput.accept = 'image/*,application/pdf'; docInput.className = 'hidden';
         document.body.appendChild(docInput);
-        let docTarget = null;
+        let docTarget = null, docTargetKind = '';   // 🏠 V449 유선 탭에서 올리면 'wired'
         docInput.addEventListener('change', async () => {
             const files = [...(docInput.files || [])];
             docInput.value = '';
             if (!files.length || !docTarget) return;
             showUploadToast(`서류 올리는 중… 0 / ${files.length}`);
-            const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { month: docCustMonth(docTarget) }).catch(e => ({ ok: 0, errs: [e.message] }));
+            const r = await uploadDocFiles(docTarget, files, (i, n) => showUploadToast(`서류 올리는 중… ${i} / ${n}`), { month: docCustMonth(docTarget), ...(docTargetKind === 'wired' ? { kind: 'wired' } : {}) }).catch(e => ({ ok: 0, errs: [e.message] }));
             hideUploadToast();
             customAlert(r.errs.length ? `${docUpText(r)}\n못 올린 것: ${r.errs.slice(0, 3).join('\n')}` : `${docUpText(r)} (구글 드라이브)`);
         });
@@ -29630,9 +29638,9 @@ familyStr + `\n` +
         profileModal.addEventListener('click', async (ev) => {
             const up = ev.target.closest('[data-paction="docup"]');
             const del = ev.target.closest('[data-docdel]');
-            if (ev.target.closest('[data-paction="docviewall"]') && currentProfileId) { docViewAll(currentProfileId); return; }   // 👀 V216
+            { const va = ev.target.closest('[data-paction="docviewall"]'); if (va && currentProfileId) { docViewAll(currentProfileId, '', va.dataset.dockind || 'mobile'); return; } }   // 👀 V216
             const dv1 = ev.target.closest('[data-docview]'); if (dv1 && currentProfileId) { docViewAll(currentProfileId, dv1.dataset.docview); return; }   // 👀 V218 하나만
-            if (ev.target.closest('[data-paction="docmerge"]') && currentProfileId) { docMergeExisting(currentProfileId); return; }   // 📑 V216
+            { const dm = ev.target.closest('[data-paction="docmerge"]'); if (dm && currentProfileId) { docMergeExisting(currentProfileId, dm.dataset.dockind || 'mobile'); return; } }   // 📑 V216
             if (ev.target.closest('[data-paction="idscan"]') && currentProfileId) {   // 🪪 V269 신분증 스캐너 → 다 찍으면 이 고객 서류로 (폰에 안 남김)
                 const c = customerDB.find(x => x.id === currentProfileId); if (!c) return;
                 location.href = `idscan.html?c=${encodeURIComponent(c.id)}&n=${encodeURIComponent(c.name || '')}`;
@@ -29640,7 +29648,7 @@ familyStr + `\n` +
             }
             if (up && currentProfileId) {
                 if (driveMode() === 'off') return customAlert(isSuperAdmin ? '설정 → 서류 클라우드 백업에서 방식을 먼저 골라주세요.' : '서류 백업이 꺼져 있어요. 총관리자에게 켜달라고 해주세요.');
-                docTarget = customerDB.find(x => x.id === currentProfileId);
+                docTarget = customerDB.find(x => x.id === currentProfileId); docTargetKind = up.dataset.dockind || '';
                 // 각자 드라이브: 구글 연결이 안 돼 있으면 먼저 연결 (연결 창 뒤엔 폰이 파일 선택을 막아서 한 번 더 누르게)
                 if (driveMode() === 'self' && !driveTokenValid()) {
                     try { await getDriveToken(false); customAlert('구글 드라이브에 연결했어요.\n[서류 올리기]를 한 번 더 눌러주세요.'); } catch (e) { customAlert(e.message); }
@@ -30863,7 +30871,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V447';
+        const APP_VER = 'V449';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30871,6 +30879,12 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V449', d: '2026-11-24', items: [
+                ['🏠 고객카드 유선 탭에 인터넷·TV 안내서 · 유선 서류칸 — 유선 탭에서 올린 서류 · 유선 개통등록 · 인터넷·TV 안내서 서류는 유선 칸에만 보여요 (구글 드라이브는 같은 고객 폴더 · 이름 앞에 \'유선_\')', 'a'],
+            ] },
+            { v: 'V448', d: '2026-11-24', items: [
+                ['💰 고객카드 유선 탭에도 유선 개통 정산정보 (정산금액 · 고객 할인 · 판매마진 · 실마진) — 모바일 탭처럼 바로 보여요', 'a'],
+            ] },
             { v: 'V447', d: '2026-11-24', items: [
                 ['💸 매장대납을 무선 · 유선 따로: 고객 약속에 \'매장대납 (유선)\' 칸 · 유선 안내서나 \'유선 위약금 · 유선 요금\' 대납은 서명하면 유선 칸으로 들어가요 (무선 대납과 안 섞여요)', 'a'],
             ] },
