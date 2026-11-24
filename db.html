@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V450">
+    <link rel="stylesheet" href="crm.css?v=V451">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -26330,7 +26330,12 @@ familyStr + `\n` +
                 if (k === 'kind') { gd.kind = v === 'usim' ? 'usim' : 'dev'; if (gd.kind === 'usim' && gd.sup === '공시') gd.sup = '선약'; if (gd.kind === 'dev' && gd.sup === '없음') gd.sup = '선약'; }
                 else if (k === 'carrier') { gd.carrier = v; if (!gd.keepTouched) gd.keep.code = gdKeepDefault(gd); const d = dealerByName(gd.dealer); if (d && gdCarOf(d.carrier) && gdCarOf(d.carrier) !== v) gdApplyDealer(gd, ''); }
                 else if (k === 'term') gd.term = v === '12+12' ? '12+12' : (Number(v) || 24);   // 📄 V234 12+12
-                else if (k === 'money.kind') { gd.money = { ...(gd.money || {}), kind: v }; if (v === 'Pay' && !Array.isArray(gd.money.parts)) gd.money.parts = [{ date: gd.money.date || '', amt: gdNum(gd.money.amt) }]; }   // 💸 V330 · V396 나눠서 대납
+                else if (k === 'money.kind') {   // 💸 V330 · V396 나눠서 대납 · 🛠 V451 대납 · 송금은 따로 (바꿔도 금액 · 날짜가 안 넘어감 · 다시 고르면 적던 것 그대로)
+                    const o = gd.money || {}, saved = { ...(o.saved || {}) }, F = ['date', 'amt', 'bank', 'holder', 'acct', 'car', 'what', 'target', 'how', 'card', 'parts'];
+                    if (o.kind) saved[o.kind] = Object.fromEntries(F.filter(f => o[f] !== undefined).map(f => [f, o[f]]));
+                    gd.money = { kind: v, saved, ...(v && saved[v] ? saved[v] : {}) };
+                    if (v === 'Pay' && !Array.isArray(gd.money.parts)) gd.money.parts = [{ date: '', amt: 0 }];
+                }
                 else if (k === 'money.what' || k === 'money.car' || k === 'money.how') { const f = k.slice(6); gd.money = { ...(gd.money || {}), [f]: gd.money && gd.money[f] === v ? '' : v }; }   // 💸 V396 대납 항목 · 통신사 · 방법 (한 번 더 누르면 빼기)
                 else gd[k] = v;
                 if (k === 'sup' && gd.sup !== '선약' && gd.term === '12+12') gd.term = 24;   // 공시엔 12+12가 없어요
@@ -30872,7 +30877,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V450';
+        const APP_VER = 'V451';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30880,6 +30885,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V451', d: '2026-11-24', items: [
+                ['🛠 안내서 매장대납 · 고객송금이 따로: 대납에 적은 금액 · 날짜가 송금으로 넘어가지 않아요 (다시 고르면 적던 것 그대로)', 'a'],
+            ] },
             { v: 'V450', d: '2026-11-24', items: [
                 ['🛠 인터넷·TV 안내서: 금액을 고치면 아래 \'매달 내실 금액\'도 바로 바뀌어요 (예전엔 화면을 다시 열어야 바뀜) · SK 요즘가족 결합은 인터넷 11,000 + TV 1,100이 결합할인 칸에 (휴대폰 할인은 요금제별로 직접)', 'a'],
             ] },
