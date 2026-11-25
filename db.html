@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V454">
+    <link rel="stylesheet" href="crm.css?v=V455">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -7543,7 +7543,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                         if (!c) return;
                         if (key === 'bday') { todoMarkDone(fin.dataset.todoDone); openTodoSheet(); renderTodoRow(); return; }
                         if (key === 'gift') { if (await markRefGift(id, dd, true)) { openTodoSheet(); renderTodoRow(); } return; }   // 🎁 드렸어요 (V186)
-                        if (key === 'home') { sh.remove(); openActReg(c, 'home', { homeDone: true }); return; }   // 🏠 V422 → 저장한 신청 내용 + 상태 '완료'로 열기
+                        if (key === 'home') { sh.remove(); homeQuickDone(c); return; }   // 🏠 V455 설치일만 골라서 바로 저장 (개통보고는 [자세히]로)
                         if (key === 'docs') { if (await docsReceive(c)) { openTodoSheet(); renderTodoRow(); } return; }   // 📄 받음 (V208)
                         if (!(await lockGate(c, '약속 끝내기', 'edit'))) return;
                         const pick = await pickDoneStatus(c, key);   // ✓ 끝 → 영업상태 골라서 같이 바꾸기 (V194)
@@ -8940,6 +8940,65 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 <button type="button" data-st-close class="w-full h-11 rounded-xl border border-gray-300 text-sm font-bold text-gray-800 mt-2">닫기</button></div>`;
         }
         document.getElementById('settleRow').addEventListener('click', openSettleSheet);
+        function wiredPayAmt(c, near) {   // 💸 V455 매장대납 (유선) 금액 → 유선 정산 할인금액 (예전 대납이 새 개통에 붙지 않게: 날짜가 그 개통 60일 안 · 날짜 없으면 아직 처리 안 한 것만)
+            if (!c) return 0; const amt = parseInt(String(c.promPayWAmt || '').replace(/\D/g, ''), 10) || 0; if (!amt) return 0;
+            const pd = String(c.promPayWDate || '').slice(0, 10), base = /^\d{4}-\d{2}-\d{2}$/.test(String(near || '')) ? near : getTodayStr();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(pd)) return Math.abs(Date.parse(pd) - Date.parse(base)) <= 60 * 864e5 ? amt : 0;
+            return c.promPayWChk ? 0 : amt;
+        }
+        /* 🏠 V455 할 일 [설치 완료]: 설치일만 고르고 저장 (상태 완료 · 유선 가입일 · 개통 기록 · 정산 · 상품 변경 약속 · 감사 문자) — 신청 때 넣은 내용은 그대로 */
+        function homeQuickDone(c) {
+            const today = getTodayStr(), ap = /^\d{4}-\d{2}-\d{2}$/.test(String(c.wiredApplyDate || '')) ? c.wiredApplyDate : '';
+            const S = siseSheet(`🏠 ${c.name || '고객'} 설치 완료`, '설치한 날만 골라 주세요 · 신청 때 넣은 내용은 그대로예요', () => `
+                <label class="block"><span class="block text-[13px] font-bold text-gray-700 mb-1">설치일</span><input type="date" id="hqdDate" value="${today}" ${ap ? `min="${ap}"` : ''} max="${today}" class="w-full h-12 px-3 border border-gray-300 rounded-xl text-[16px]"></label>
+                <p class="text-[13px] text-gray-700 bg-gray-50 rounded-xl px-3 py-2">${escapeHtml([c.internetProd, c.tvProd].filter(Boolean).join(' + ') || '홈상품')}${c.wiredOpenStore ? ` · ${escapeHtml(c.wiredOpenStore)}` : ''}${ap ? ` · 신청 ${gdDot(ap)}` : ''}</p>
+                <button type="button" data-hqd-save class="w-full h-12 rounded-xl bg-teal-600 text-white text-[15px] font-bold">✓ 설치 완료 저장</button>
+                <button type="button" data-hqd-full class="w-full h-11 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">개통보고 열어서 자세히 고치기</button>`,
+                '<button type="button" data-ss="close" class="w-full h-11 rounded-xl text-[13px] font-bold text-gray-500">닫기</button>');
+            S.sh.addEventListener('click', async (e) => {
+                if (e.target === S.sh || e.target.closest('[data-ss="close"]')) return S.close();
+                if (e.target.closest('[data-hqd-full]')) { S.close(); openActReg(c, 'home', { homeDone: true }); return; }
+                if (!e.target.closest('[data-hqd-save]')) return;
+                const d = String((document.getElementById('hqdDate') || {}).value || '');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return customAlert('설치일을 골라 주세요.');
+                if (d > today) return customAlert('설치일은 오늘이나 그 전 날로 골라 주세요.');
+                const btn = e.target.closest('[data-hqd-save]'); btn.disabled = true; btn.textContent = '저장하는 중…';
+                const now = new Date().toISOString(), me = getStaffName() || '';
+                let first = false, patch = null;
+                try {
+                    patch = await txCustomerUpdate(c.id, (cur) => {
+                        first = !(cur.wiredStatus === '완료' && /^\d{4}-\d{2}-\d{2}$/.test(String(cur.wiredDate || '')) && Math.abs(Date.parse(d) - Date.parse(cur.wiredDate)) < 60 * 864e5);
+                        const items = Array.isArray(cur.wiredItems) && cur.wiredItems.length ? cur.wiredItems : [cur.internetProd ? '인터넷' : '', cur.tvProd ? 'TV' : ''].filter(Boolean);
+                        const type = String(cur.wiredApplyType || '신규3년');
+                        const upd = { wiredStatus: '완료', wiredDate: d, salesStatus: '판매성공', salesStatusAt: d, wiredType: type.replace(/3년$/, ''), wiredPrevCar: /^원스탑/.test(type) ? (cur.wiredPrevCar || '') : '', updatedAt: now };
+                        const rec = { shopId: (Array.isArray(cur.shops) && cur.shops[0]) || saveShopFor(), date: d, kind: '유선', actType: type.replace(/3년$/, ''), staff: cur.wiredApplyManager || cur.wiredRepManager || me, store: cur.wiredOpenStore || '', device: items.join('+'), plan: [cur.internetProd, cur.tvProd].filter(Boolean).join(' + '), src: '홈상품', at: now, by: me, ...(cur.wiredSettle ? { settle: cur.wiredSettle } : {}) };
+                        upd.acts = storableActs(mergeAct(actsOf(cur), rec));
+                        const m = Number(cur.wiredPlanMonths) || 0;
+                        if (m > 0 && m <= 35 && !cur.promWPlanDate && !wplanDoneDate({ ...cur, wiredDate: d })) Object.assign(upd, { promWPlanDate: addMonthsDay(d, m), promWPlanMemo: `자동: 유선 상품 변경 (설치 ${m}개월)${cur.wiredTargetInternet || cur.wiredTargetTv ? ' · ' + [cur.wiredTargetInternet, cur.wiredTargetTv].filter(Boolean).join(' · ') : ''}`, promWPlanChk: false });
+                        upd.contactHistory = appendLine(cur.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 🏠 홈상품 설치 완료 (설치일 ${d.slice(5).replace('-', '/')}) · 담당: ${me || '-'}`);
+                        return upd;
+                    });
+                    if (patch) Object.assign(c, patch);
+                } catch (err) { btn.disabled = false; btn.textContent = '✓ 설치 완료 저장'; return customAlert(koreanError(err, '저장')); }
+                S.close();
+                const msg = `🏠 ${c.name || ''} 설치 완료로 저장했어요 (설치일 ${gdDot(d)})`;
+                if (first && pushRelayReady() && smsMobileDigits(c.phone)) {   // 🏠 V425 설치 감사 문자 (개통보고와 같게)
+                    let text = ''; const pv = smsShopCtx;
+                    try { smsShopCtx = multiShop() ? custHomeShop(c) : ''; text = fillSmsTemplate(smsSetting('smsTplHomeDone'), c); } finally { smsShopCtx = pv; }
+                    const hh = new Date().getHours(), night = hh < 9 || hh >= 21;
+                    if (text && await customConfirm(`${msg}\n\n🏠 설치 감사 문자를 지금 보낼까요?${night ? '\n⚠️ 지금은 밤이에요. 바로 나가요 (내일 보내려면 [취소])' : ''}\n\n${text}`)) {
+                        try {
+                            const dv = smsDevFor(ownerOf(c), 'act');
+                            await callSms('test', { to: smsMobileDigits(c.phone), text, ...(dv ? { dev: dv } : {}) });
+                            txCustomerUpdate(c.id, (c0) => ({ contactHistory: appendLine(c0.contactHistory, `[${today.replace(/-/g, '.')} ${nowHHMM()}] 💬 홈상품 설치 감사 문자 (담당: ${me || '직원'})`) })).catch(err => console.warn(err));
+                            stockToast('🏠 설치 감사 문자를 보냈어요');
+                        } catch (err) { customAlert(`문자를 못 보냈어요: ${err.message || err}`); }
+                    }
+                    return;
+                }
+                stockToast(msg);
+            });
+        }
         function openActSettle(cid, aid, fromList) {
             if (!canSeeSettle()) return customAlert('정산정보는 👑 대표 폰에서만 넣을 수 있어요.');
             if (!can('editSettle')) return noPerm('정산 입력');   // 🎖 V247
@@ -8950,7 +9009,8 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const itemSumOf = () => items.reduce((t, it) => t + (Number(it.amount) || 0), 0);
             const fields = W ? [['정책금액', '정책금액'], ['추가정책', '추가정책'], ['유통지원', '유통지원 (사은품 등)'], ['할인금액', '할인금액']]
                 : [['기본정책', '기본정책'], ['추가정책', '추가정책 (기타)'], ['구두추가1', '🗣 구두추가 1'], ['구두추가2', '🗣 구두추가 2'], ['수수료', '수수료 (MNP 대납 등)'], ['할인금액', '할인금액'], ['유통망지원금', '유통망지원금'], ['중고폰', '📱 중고폰 판매금액 (세금 X)']];
-            const v0 = (k) => (k === '중고폰' ? (S.중고폰 ?? (a.used && a.used.amount)) : (k === '유통망지원금' ? (S.유통망지원금 ?? a.dist) : S[k]));
+            const wPay = W && !Number(S.할인금액) ? wiredPayAmt(c, a.date) : 0;   // 💸 V455 유선 할인금액이 비어 있으면 매장대납 (유선) 금액으로
+            const v0 = (k) => (k === '중고폰' ? (S.중고폰 ?? (a.used && a.used.amount)) : (k === '유통망지원금' ? (S.유통망지원금 ?? a.dist) : (k === '할인금액' && wPay ? wPay : S[k])));
             let sh = document.getElementById('actSettleSheet');
             if (sh) sh.remove();
             sh = document.createElement('div'); sh.id = 'actSettleSheet';
@@ -8958,6 +9018,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             sh.innerHTML = `<div class="w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[92vh] overflow-y-auto p-4 space-y-3">
                 <div class="flex items-start justify-between gap-2"><div class="min-w-0"><p class="text-[17px] font-bold text-gray-900 truncate">💰 정산 ${a.settle ? '고치기' : '입력'} · ${escapeHtml(c.name || '')}</p><p class="text-xs text-gray-600 truncate">${stockMD(a.date)} ${a.kind} · ${escapeHtml([a.device || a.plan, a.store, actStaffKey(a, c)].filter(Boolean).join(' · '))}</p></div><button type="button" data-as-close class="w-10 h-10 -mr-1 rounded-xl text-gray-500 text-xl" aria-label="닫기">✕</button></div>
                 <div class="grid grid-cols-2 gap-2">${fields.map(([k, l]) => `<label class="block min-w-0 ${k === '중고폰' ? 'col-span-2' : ''}"><span class="block text-xs font-bold text-gray-600 mb-1">${l} (원)</span><input data-as="${k}" inputmode="numeric" value="${v0(k) ? arWon(v0(k)) : ''}" placeholder="0" class="w-full h-11 px-3 border border-gray-300 rounded-xl text-[15px] text-right bg-white"></label>`).join('')}</div>
+                ${wPay ? `<p class="text-[12px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">💸 매장대납 (유선) ${arWon(wPay)}원을 할인금액에 넣었어요 · 저장해야 반영돼요</p>` : ''}
                 ${W ? '' : '<div id="asItems" class="rounded-xl border border-gray-200 bg-gray-50/60 p-2.5 space-y-2"></div>'}
                 <div id="asCalc" class="grid grid-cols-2 gap-2 text-sm"></div>
                 <button type="button" data-as-save class="w-full h-12 rounded-xl bg-indigo-600 text-white text-[15px] font-bold">저장</button>
@@ -22529,11 +22590,11 @@ familyStr + `\n` +
                     ${arIn('ar-jumin', '주민번호 (앞 7자리만 저장)', c.repJumin || '', { ph: '900101-1', span: true })}
                     </div>${legalHtml}`);
                 html += arSec('상품선택', `<div class="grid grid-cols-3 gap-1.5">${AR_HOME_ITEMS.map(it => `<label class="h-11 rounded-xl border border-gray-300 flex items-center justify-center gap-1 text-[13px] font-bold cursor-pointer has-[:checked]:border-teal-600 has-[:checked]:bg-teal-50 has-[:checked]:text-teal-800"><input type="checkbox" name="hr-item" value="${it}" ${hp && Array.isArray(hp.wiredItems) && hp.wiredItems.includes(it) ? 'checked' : ''} class="accent-teal-600">${it}</label>`).join('')}</div>
-                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'], '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
+                    <div class="grid grid-cols-2 gap-2">${arSel('hr-type', '유형', ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'], (hp && ['신규3년', '재약정3년', '약정갱신3년', '원스탑3년'].includes(hp.wiredApplyType)) ? hp.wiredApplyType : '신규3년')}${arIn('hr-prevcar', '기존 통신사 (원스탑일 때)', '', { ph: '예) SK · KT · LG' })}
                     <p id="hr-type-hint" class="col-span-2 -mt-1 text-[11px] font-bold text-teal-800"></p>
                     ${arIn('hr-internet', '요금제 (인터넷)', c.internetProd || '', { ph: '예) 와이파이기본_기가 안심 1G' })}${arIn('hr-wifi', '상품 (와이파이 등)', '', { ph: '예) wifi(무료)' })}
-                    ${arIn('hr-tv', 'TV (주)', c.tvProd || '', { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', c.wiredStb || '', { ph: '예) UHD4' })}
-                    ${arIn('hr-extratv', 'TV (부)', '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', c.wiredStb2 || '', { ph: '예) UHD3' })}
+                    ${arIn('hr-tv', 'TV (주)', hp ? tvSplit(c.tvProd).main : (c.tvProd || ''), { ph: '예) 프리미엄 방송패스' })}${arIn('hr-stb', '셋탑 (주)', c.wiredStb || '', { ph: '예) UHD4' })}
+                    ${arIn('hr-extratv', 'TV (부)', hp ? (tvSplit(hp.tvProd).extra || '') : '', { ph: '예) 실속형' })}${arIn('hr-stb2', '셋탑 (부)', c.wiredStb2 || '', { ph: '예) UHD3' })}
                     ${arIn('hr-tvdate', '📺 TV 약정 시작일 (TV만 따로 약정했을 때만)', c.wiredTvDate || '', { type: 'date', span: true })}
                     ${(() => { const on = !!(c.wiredTargetInternet || c.wiredTargetTv || Number(c.wiredPlanMonths) > 0);   // 🏠 V434 상품 변경 예정 → 저장하면 '유선 상품 변경' 약속
                         return `<div class="col-span-2 rounded-xl border border-teal-200 bg-teal-50/40 p-2.5 space-y-2">
@@ -22546,14 +22607,14 @@ familyStr + `\n` +
                             ${arMoney('hr-wt-fee', '변경 후 월 요금', Number(c.wiredTargetFee) || 0)}
                             <p class="col-span-2 text-[11px] text-gray-600 leading-snug">저장하면 고객카드에 '🏠 유선 상품 변경' 약속 (설치일 + 개월) · 완료 체크한 날부터 위약금 · 매달 금액에 변경 후 상품으로 계산해요</p>
                         </div></div>`; })()}
-                    ${arMoney('hr-fee', '월 요금')}
+                    ${arMoney('hr-fee', '월 요금', hp ? (parseInt(String(hp.wiredFee || '').replace(/\D/g, ''), 10) || 0) : 0)}   ${''/* 🏠 V455 신청 때 넣은 월 요금 이어서 */}
                     ${arIn('hr-comb', '결합', prefCombo, { span: true })}${arIn('hr-subsidy', '지원금 (보고서용)', '', { span: true, ph: '예) 위약금 640,000원 + 설치비 70,000원' })}</div>
                     <p class="text-xs font-bold text-gray-600 pt-1">💸 지원금 송금 <span class="font-normal text-gray-500">(송금할 게 있을 때만 · 보고서에 들어가요)</span></p>
                     <div class="grid grid-cols-3 gap-2">${arIn('hr-payowner', '계좌주', '')}${arIn('hr-payacct', '은행 · 계좌번호', '', { num: false })}${arIn('hr-paydate', '송금일', '', { ph: '예) 11/10' })}</div>
                     ${arIn('hr-remark', '비고 (보고서용)', '', { span: true, ph: '예) 원스탑 · 설치 오후 2시' })}
                     <p class="text-xs font-bold text-gray-600 pt-1">고객 자동이체 계좌 <span class="font-normal text-gray-500">(보고서에만 들어가고 저장은 안 해요)</span></p>
                     <div class="grid grid-cols-3 gap-2">${arIn('hr-bank', '은행', '')}${arIn('hr-account', '계좌번호', '', { num: false })}${arIn('hr-owner', '예금주', '')}</div>`);
-                if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">${arMoney('hr-base', '정책금액')}${arMoney('hr-add', '추가정책')}${arMoney('hr-dist', '유통지원 (사은품 등)')}${arMoney('hr-disc', '할인금액')}</div>
+                if (showSettle) html += arSec('정산정보', `<div class="grid grid-cols-2 gap-2">${arMoney('hr-base', '정책금액', hp && hp.wiredSettle ? hp.wiredSettle.정책금액 : 0)}${arMoney('hr-add', '추가정책', hp && hp.wiredSettle ? hp.wiredSettle.추가정책 : 0)}${arMoney('hr-dist', '유통지원 (사은품 등)', hp && hp.wiredSettle ? hp.wiredSettle.유통지원 : 0)}${arMoney('hr-disc', '할인금액', hp && hp.wiredSettle && hp.wiredSettle.할인금액 ? hp.wiredSettle.할인금액 : wiredPayAmt(c))}</div>${wiredPayAmt(c) ? `<p class="text-[12px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">💸 매장대납 (유선) ${arWon(wiredPayAmt(c))}원을 할인금액에 넣었어요 · 다르면 고쳐 주세요</p>` : ''}
                     <div class="grid grid-cols-3 gap-2 text-sm">${[['정산금액', 'hr-settle'], ['판매마진', 'hr-margin'], ['실판매마진', 'hr-real']].map(([l, id]) => `<div class="rounded-xl bg-gray-50 px-2 py-2"><span class="block text-xs text-gray-600">${l}</span><b id="${id}" class="text-[15px] text-gray-900">0</b>원</div>`).join('')}</div>
                     <p class="text-xs text-gray-500">정산금액 = 정책 + 추가정책 − 유통지원 · 판매마진 = 정산금액 − 할인 · 실판매마진 = 판매마진 − 부가세(÷11)</p>`);
                 html += arSec('기타정보', `<label class="block"><span class="block text-xs font-bold text-gray-600 mb-1">메모</span><textarea id="hr-memo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-[15px] text-gray-900 bg-white"></textarea></label>`);
@@ -23059,7 +23120,8 @@ familyStr + `\n` +
                     wiredRepManager: arVal('hr-manager'),
                     ...(done ? { wiredType: arVal('hr-type').replace(/3년$/, ''), wiredPrevCar: /^원스탑/.test(arVal('hr-type')) ? arVal('hr-prevcar') : '' } : {}),   // 📶 V372 신규 · 재약정 · 약정갱신 · 원스탑
                     ...(/^\d{4}-\d{2}-\d{2}$/.test(arVal('hr-tvdate')) ? { wiredTvDate: arVal('hr-tvdate') } : (done && items.includes('TV') ? { wiredTvDate: '' } : {})),   // 📺 V372 TV만 따로 약정한 날 (비우면 인터넷과 같은 날)
-                    repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('hr-addr'), repBranch: arVal('hr-store'), repCombination: arVal('hr-comb')
+                    repJumin: maskJumin(arVal('ar-jumin')), repAddress: arVal('hr-addr'), repBranch: arVal('hr-store'), repCombination: arVal('hr-comb'),
+                    wiredApplyType: arVal('hr-type'), wiredApplyManager: arVal('hr-manager')   // 🏠 V455 신청할 때 유형 · 직원도 남겨서 [설치 완료]로 바로 저장할 때 씀
                 });
                 if (arVal('hr-extratv') && upd.tvProd) upd.tvProd += ` (추가 ${arVal('hr-extratv')})`;
                 if (items.includes('TV')) Object.assign(upd, { wiredStb: arVal('hr-stb').slice(0, 30), wiredStb2: tvSplit(upd.tvProd).extra ? arVal('hr-stb2').slice(0, 30) : '' });   // 📦 V446 개통보고 셋탑(주 · 부) → 고객 셋톱 칸 (TV를 새로 했으면 비운 칸도 비움)
@@ -25423,6 +25485,12 @@ familyStr + `\n` +
         function gdwData(ck) { try { return window.WiredCalc && window.WiredCalc.CARRIER_DATA[ck] || null; } catch (e) { return null; } }
         function gdwLists(g) { const d = gdwData(g.w.ck); if (!d) return null; const tab = g.w.tab || ((d.tabs || [])[0] || {}).id; return { d, tab, ints: ((d.internet || {})[tab] || []), wifis: ((d.wifiHw || {})[tab] || []), tvs: d.tv || [], stbs: d.stb || [], bundles: d.bundles || [] }; }
         const gdwDef = (l) => (l || []).find(x => x.default) || (l || [])[0] || null;
+        function gdwMLTable(bd, it) {   // 📱 V455 결합 휴대폰 회선 수별 할인 합계 (속도별 · 없으면 null)
+            const T = bd && bd.mobileByLines; if (!T || !it) return null;
+            const sp = Number(it.speed) || 500, ks = Object.keys(T).map(Number).sort((a, b) => a - b);
+            const k = ks.filter(x => x <= sp).pop() || ks[0]; return T[k] || null;
+        }
+        function gdwMobileByLines(bd, it, w) { const T = gdwMLTable(bd, it); if (!T) return null; const n = Math.max(1, Math.min(T.length, Number(w.mLines) || 1)); return T[n - 1] || 0; }
         function gdwApply(g, reset) {   // 고른 상품 → 이름 · 월 금액 (직접 고친 금액은 다시 고르기 전까지 그대로)
             const L = gdwLists(g); if (!L) return; const w = g.w;
             if (reset || !L.d.tabs.some(t => t.id === w.tab)) w.tab = L.tab;
@@ -25436,7 +25504,7 @@ familyStr + `\n` +
                 stbId: st ? st.id : '', stbName: st && st.id !== 'none' ? st.name : '', stbFee: st && st.id !== 'none' ? st.price : 0,
                 bundleName: bd ? bd.name : '' });
             const D = bd && it && window.WiredCalc.bundleDiscounts ? window.WiredCalc.bundleDiscounts(bd, it) : { wire: 0, mobile: 0 };
-            w.wireDisc = (D.wire || 0) + (bd && tv && tv.id !== 'none' && it ? (bd.tvBundleDisc || 0) : 0); w.mobileDisc = D.mobile || 0;   // 📺 V450 결합 TV 할인 (SK 요즘가족 1,100)도 결합할인 칸에
+            w.wireDisc = (D.wire || 0) + (bd && tv && tv.id !== 'none' && it ? (bd.tvBundleDisc || 0) : 0); w.mobileDisc = gdwMobileByLines(bd, it, w) ?? (D.mobile || 0);   // 📱 V455 SK 요즘가족은 휴대폰 회선 수로   // 📺 V450 결합 TV 할인 (SK 요즘가족 1,100)도 결합할인 칸에
             if (w.instAuto !== false) gdwInstAuto(g);   // 🔧 V303
         }
         function gdwCalc(g) { const w = g.w || {}, base = gdNum(w.intFee) + gdNum(w.wifiFee) + gdNum(w.tvFee) + gdNum(w.stbFee), disc = gdNum(w.wireDisc) + gdNum(w.etcDisc); return { base, disc, total: Math.max(0, base - disc), mobile: gdNum(w.mobileDisc), price: 0, pub: 0, icard: 0, loan: 0, n: 0, month: 0, fee: 0, pfee: 0, sel: 0, wel: 0, comb: 0, card: 0, planRaw: 0, planNet: 0, addFee: 0 }; }
@@ -25622,6 +25690,15 @@ familyStr + `\n` +
         function gdPayHint(m) { const w = String((m && m.what) || ''); return w === '위약금' ? '위약금은 이동한 통신사(새 통신사)에서 선납해요' : (w === '할부금' ? '할부금은 기존 통신사에 수납해요' : ''); }
         function gdPayPartsTxt(m) { const P = gdPayParts(m).filter(x => x.date || gdNum(x.amt)); return P.length > 1 ? P.map(x => `${x.date ? String(x.date).slice(5).replace('-', '/') : '날짜?'} ${arWon(gdNum(x.amt))}원`).join(' + ') : ''; }
         function gdMoneyOn(g) { const m = g && g.money; if (m && m.kind === 'Pay') gdPaySync(m); return !!(m && (m.kind === 'Pay' || m.kind === 'Send') && (m.date || gdNum(m.amt) || String(m.acct || '').trim() || (m.kind === 'Pay' && String(m.what || m.car || m.target || '').trim()))); }
+        /* 💸 V455 안내서 하나에 대납 + 송금 둘 다 (money.both): 고른 쪽 + 다른 쪽(적어 둔 것) → 각각 약속 · 그림 · 정산 할인 */
+        function gdMoneyParts(g) {
+            const m = g && g.money; if (!m || !m.kind) return [];
+            const out = [], one = (mm) => { const v = { ...g, money: mm }; if (gdMoneyOn(v)) out.push(v); };
+            one(m);
+            if (m.both) { const ok = m.kind === 'Pay' ? 'Send' : 'Pay', sv = (m.saved || {})[ok]; if (sv) one({ ...sv, kind: ok, ...(ok === 'Pay' && !Array.isArray(sv.parts) ? { parts: [{ date: sv.date || '', amt: gdNum(sv.amt) }] } : {}) }); }
+            return out;
+        }
+        function gdMoneyAmt(g) { return gdMoneyParts(g).reduce((t, pg) => t + gdNum(pg.money.amt), 0); }
         function gdMoneyMaskAcct(a) { const s0 = String(a || '').trim(); const n = s0.replace(/\D/g, '').length; let i = 0; return s0.replace(/\d/g, d => (++i <= 3 || i > n - 4) ? d : '*'); }
         function gdMoneyLine(g, masked) {
             const m = g.money || {}, amt = gdNum(m.amt);
@@ -25658,6 +25735,13 @@ familyStr + `\n` +
                 S.sh.addEventListener('click', (e) => { if (e.target === S.sh || e.target.closest('[data-mslot-x]') || e.target.closest('[data-ss="close"]')) return fin(null); const b = e.target.closest('[data-mslot]'); if (b) fin(b.dataset.mslot); });
             });
         }
+        function gdMoneyBothHtml(g) {   // 💸 V455 대납 + 송금 둘 다
+            const m = g.money || {}; if (m.kind !== 'Pay' && m.kind !== 'Send') return '';
+            const ok = m.kind === 'Pay' ? 'Send' : 'Pay', on = !!m.both, other = gdMoneyParts(g).find(pg => pg.money.kind === ok);
+            const nm = ok === 'Pay' ? '💸 매장대납' : '💰 고객송금';
+            return `<div class="mt-2.5 pt-2 border-t border-dashed border-gray-200"><label class="flex items-center gap-2 text-[14px] font-bold text-gray-800 min-h-[40px]"><input type="checkbox" data-gd-mboth class="w-5 h-5 accent-indigo-600 flex-shrink-0" ${on ? 'checked' : ''}><span>${nm}도 같이 넣기 <span class="font-normal text-gray-500">(둘 다 있을 때)</span></span></label>
+                ${on ? (other ? `<p class="text-[13px] text-gray-800 bg-gray-50 rounded-lg px-2.5 py-1.5">${nm}: <b>${escapeHtml(gdMoneyLine(other, true))}</b> <span class="text-gray-500">· 고치려면 위에서 [${nm}]</span></p>` : `<p class="text-[13px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">위에서 [${nm}]를 눌러 금액 · 날짜를 적어 주세요 (적은 뒤 돌아와도 그대로 있어요)</p>`) : ''}</div>`;
+        }
         function gdMoneySec(g) {
             const m = g.money || {};
             return gdSec('💸 매장대납 · 고객송금 <span class="font-normal text-gray-500">(있을 때만)</span>', `${gdChips('money.kind', [['', '없음'], ['Pay', '💸 매장대납'], ['Send', '💰 고객송금']], m.kind || '')}
@@ -25674,7 +25758,7 @@ familyStr + `\n` +
                         ${P.length > 1 ? `<p class="text-[13px] font-bold text-gray-800 mt-1 text-right" id="gdPayTotal">합계 ${arWon(m.amt)}원 · ${P.length}번</p>` : ''}</div>
                     <p class="text-[12px] text-gray-600 mt-1.5">💸 매장대납 = 매장에서 직접 납부해 드리는 돈이라 계좌는 안 받아요 · 서명하면 고객카드 약속(${gdMoneyIsWired(g) ? '매장대납 (유선)' : '매장대납'})에 자동으로 들어가요</p>`; })()
                 : m.kind === 'Send' ? `<div class="grid grid-cols-2 gap-2 mt-2">${gdLbl('보낼 날', gdInp('money.date', m.date || '', { type: 'date' }))}${gdLbl('금액', gdInp('money.amt', m.amt || 0, { money: true }))}${gdLbl('은행명', gdInp('money.bank', m.bank || '', { ph: '예) 국민' }))}${gdLbl('계좌주', gdInp('money.holder', m.holder || ''))}${gdLbl('계좌번호', gdInp('money.acct', m.acct || '', { ph: '예) 123-456-789012' }), 'col-span-2')}</div>
-                <p class="text-[12px] text-gray-600 mt-1.5">서명하면 고객카드 약속(${m.kind === 'Pay' ? '매장대납' : '고객송금'})에 자동으로 들어가요 · 안내서 그림엔 계좌주 · 계좌번호 가운데를 가려요</p>` : ''}`);
+                <p class="text-[12px] text-gray-600 mt-1.5">서명하면 고객카드 약속(${m.kind === 'Pay' ? '매장대납' : '고객송금'})에 자동으로 들어가요 · 안내서 그림엔 계좌주 · 계좌번호 가운데를 가려요</p>` : ''}${gdMoneyBothHtml(g)}`);
         }
         function gdStorable(g) {
             const o = gdClone(g);
@@ -25861,7 +25945,7 @@ familyStr + `\n` +
             const notes0 = snap ? g.notes : gdNotesFor(g);
             const notes = snap && g.notesV !== 2 && (c.icard || c.card) && !notes0.some(n => /실적/.test(n)) ? [...notes0, '카드 할인은 카드사 실적 조건이 있어요. 조건을 못 채운 달은 할인이 빠지거나 다시 청구될 수 있어요.'] : notes0;   // 💳 V204 (예전에 서명한 안내서만) · 📌 V212 조건별
             panel('📌 약정 기간', [gdTermInfo(g).line], { fill: '#FEF2F2', stroke: '#FCA5A5', titleColor: '#B91C1C', color: '#111827', size: 14 });   // 📌 V322
-            if (gdMoneyOn(g)) panel(g.money.kind === 'Pay' ? '💸 매장대납' : '💰 고객송금', [gdMoneyLine(g, true)], { fill: '#FFF7ED', stroke: '#FDBA74', titleColor: '#C2410C', color: '#111827', size: 14 });   // 💸 V330 (계좌 가림)
+            gdMoneyParts(g).forEach(pg => panel(pg.money.kind === 'Pay' ? '💸 매장대납' : '💰 고객송금', [gdMoneyLine(pg, true)], { fill: '#FFF7ED', stroke: '#FDBA74', titleColor: '#C2410C', color: '#111827', size: 14 }));   // 💸 V330 (계좌 가림) · V455 둘 다면 두 칸
             if (notes.length) panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
             // ⑥ 확인 · 서명
             const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
@@ -26043,6 +26127,8 @@ familyStr + `\n` +
                     ${gdLbl('TV 상품', gdInp('w.tvName', w.tvName))}${gdLbl('TV 월', gdInp('w.tvFee', w.tvFee, { money: true }))}
                     ${gdLbl('셋톱', gdInp('w.stbName', w.stbName))}${gdLbl('셋톱 월', gdInp('w.stbFee', w.stbFee, { money: true }))}
                     ${gdLbl('결합할인 (인터넷 · TV에서 · 월)', gdInp('w.wireDisc', w.wireDisc, { money: true }))}${gdLbl('추가 할인 (월)', gdInp('w.etcDisc', w.etcDisc, { money: true }))}
+                    ${(() => { const L = gdwLists(gd), bd = L && L.bundles.find(x => x.id === w.bundleId), it = L && L.ints.find(x => x.id === w.intId), T = gdwMLTable(bd, it); if (!T) return ''; const n = Math.max(1, Math.min(T.length, Number(w.mLines) || 1));
+                        return `<div class="col-span-2"><span class="block text-[12px] font-bold text-gray-600 mb-1">📱 결합하는 SKT 휴대폰 <span class="font-normal text-gray-500">(회선 수 · 할인은 휴대폰 요금에서)</span></span><div class="grid grid-cols-5 gap-1.5">${T.map((v, i) => `<button type="button" data-gdw-ml="${i + 1}" aria-pressed="${n === i + 1}" class="h-11 rounded-xl border text-[14px] font-bold ${n === i + 1 ? 'bg-gray-900 border-gray-900 text-white' : 'bg-white border-gray-300 text-gray-800'}">${i + 1}회선</button>`).join('')}</div><p class="text-[12px] text-gray-600 mt-1">${n}회선 · 회선당 약 ${arWon(Math.round(T[n - 1] / n))}원 · 합계 ${arWon(T[n - 1])}원 (SK 청약 화면 기준 · 요금제 상관없이 똑같이 나눠요)</p></div>`; })()}
                     ${gdLbl('휴대폰 요금에서 결합할인 (월 · 안내만)', gdInp('w.mobileDisc', w.mobileDisc, { money: true }), 'col-span-2')}
                 </div><div class="rounded-xl bg-sky-50 px-3 py-2.5"><div class="flex items-baseline justify-between"><span class="text-[13px] font-bold text-sky-900">매달 내실 금액</span><b class="text-[22px] font-extrabold text-sky-950"><span id="gdWTotal">${arWon(c.total)}</span>원</b></div><p id="gdWSub" class="text-[12px] text-sky-800"></p></div>`);
             const ins = gdwInst(g);
@@ -26063,7 +26149,8 @@ familyStr + `\n` +
             gdFoot.querySelector('#gdToSign').onclick = () => gdToSign();
             gdRecalcView();
         }
-        gdInner.addEventListener('click', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; const b = e.target.closest('[data-gdw-ck]'); if (!b) return; gd.w.ck = b.dataset.gdwCk; gd.carrier = GDW_CAR[gd.w.ck]; Object.assign(gd.w, { tab: '', intId: '', wifiId: '', tvId: '', stbId: '', bundleId: '' }); gdwApply(gd, true); gdDirty = true; gdLSSet('gdLastW', { ck: gd.w.ck }); gdRender(); });
+        gdInner.addEventListener('click', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return; { const mb = e.target.closest('[data-gdw-ml]'); if (mb) { gd.w.mLines = Number(mb.dataset.gdwMl) || 1; const L = gdwLists(gd), bd = L && L.bundles.find(x => x.id === gd.w.bundleId), it = L && L.ints.find(x => x.id === gd.w.intId), v = gdwMobileByLines(bd, it, gd.w); if (v != null) gd.w.mobileDisc = v; gdDirty = true; gdRender(); return; } }   // 📱 V455
+            const b = e.target.closest('[data-gdw-ck]'); if (!b) return; gd.w.ck = b.dataset.gdwCk; gd.carrier = GDW_CAR[gd.w.ck]; Object.assign(gd.w, { tab: '', intId: '', wifiId: '', tvId: '', stbId: '', bundleId: '' }); gdwApply(gd, true); gdDirty = true; gdLSSet('gdLastW', { ck: gd.w.ck }); gdRender(); });
         gdInner.addEventListener('change', (e) => { if (gdStage !== 'edit' || !gd || gd.kind !== 'wired') return;
             const ck = e.target.closest('[data-gdw-chk]'); if (ck) { gd.w[ck.dataset.gdwChk] = !!ck.checked; gdDirty = true; gdRender(); return; }   // 🔧 V303 설치비 야간 · 면제
             const el = e.target.closest('[data-gdw]'); if (!el) return; const k = el.dataset.gdw; gdDirty = true;
@@ -26106,7 +26193,7 @@ familyStr + `\n` +
                 panel('🔁 상품 변경 예정', [`${m ? `설치 ${m}개월 뒤${at} ` : ''}${[w.chgInt, w.chgTv].filter(Boolean).join(' + ') || '변경 상품'}으로 바꾸면${gdNum(w.chgFee) ? ` 매달 약 ${W(gdNum(w.chgFee))}` : ''}`, '바꾼 뒤에 해지하면 위약금은 바꾼 날부터 변경 상품 기준으로 쌓여요'], { fill: '#F0FDFA', stroke: '#5EEAD4', titleColor: '#115E59', color: '#111827', size: 14 });
             }
             panel('📌 약정 기간', [gdTermInfo(g).line], { fill: '#FEF2F2', stroke: '#FCA5A5', titleColor: '#B91C1C', color: '#111827', size: 14 });   // 📌 V322
-            if (gdMoneyOn(g)) panel(g.money.kind === 'Pay' ? '💸 매장대납' : '💰 고객송금', [gdMoneyLine(g, true)], { fill: '#FFF7ED', stroke: '#FDBA74', titleColor: '#C2410C', color: '#111827', size: 14 });   // 💸 V330 (계좌 가림)
+            gdMoneyParts(g).forEach(pg => panel(pg.money.kind === 'Pay' ? '💸 매장대납' : '💰 고객송금', [gdMoneyLine(pg, true)], { fill: '#FFF7ED', stroke: '#FDBA74', titleColor: '#C2410C', color: '#111827', size: 14 }));   // 💸 V330 (계좌 가림) · V455 둘 다면 두 칸
             const notes = g.st !== 'draft' && Array.isArray(g.notes) && g.notes.length ? g.notes : GDW_NOTES;
             panel('유의사항', notes, { stroke: '#E5E7EB', titleColor: '#374151', color: '#374151', size: 12 });
             const sh = 112, sw = 230, sx = R - sw - 12, sy = y + 10, sH = sh - 20;
@@ -26131,6 +26218,7 @@ familyStr + `\n` +
             set('hr-internet', w.intName); set('hr-wifi', w.wifiName); set('hr-tv', w.tvName); set('hr-stb', w.stbName); set('hr-comb', w.bundleName);   // 📋 V302 칸마다 따로
             const fe = document.getElementById('hr-fee'); if (fe && !fe.value) { fe.value = arWon(gdwCalc(g).total); fe.dispatchEvent(new Event('input', { bubbles: true })); }
             set('hr-subsidy', [gdNum(w.cash) ? `현금 ${wonMan(w.cash)}` : '', g.gift].filter(Boolean).join(' · ')); set('hr-apply', g.date);
+            { const ma = gdMoneyAmt(g); if (ma) set('hr-disc', arWon(ma)); }   // 💸 V455 안내서 매장대납 · 고객송금 → 유선 정산 할인금액 (비어 있을 때)
             if (gdNum(w.chgM) || w.chgInt || w.chgTv) {   // 🏠 V434 안내서의 상품 변경 예정 → 개통보고
                 const on = document.getElementById('hr-wplan-on'); if (on && !on.checked) { on.checked = true; on.dispatchEvent(new Event('change', { bubbles: true })); }
                 set('hr-wplan-m', gdNum(w.chgM) || ''); set('hr-wt-int', w.chgInt); set('hr-wt-tv', w.chgTv); if (gdNum(w.chgFee)) set('hr-wt-fee', arWon(gdNum(w.chgFee)));
@@ -26335,7 +26423,7 @@ familyStr + `\n` +
                 else if (k === 'money.kind') {   // 💸 V330 · V396 나눠서 대납 · 🛠 V451 대납 · 송금은 따로 (바꿔도 금액 · 날짜가 안 넘어감 · 다시 고르면 적던 것 그대로)
                     const o = gd.money || {}, saved = { ...(o.saved || {}) }, F = ['date', 'amt', 'bank', 'holder', 'acct', 'car', 'what', 'target', 'how', 'card', 'parts'];
                     if (o.kind) saved[o.kind] = Object.fromEntries(F.filter(f => o[f] !== undefined).map(f => [f, o[f]]));
-                    gd.money = { kind: v, saved, ...(v && saved[v] ? saved[v] : {}) };
+                    gd.money = { kind: v, saved, ...(o.both ? { both: true } : {}), ...(v && saved[v] ? saved[v] : {}) };
                     if (v === 'Pay' && !Array.isArray(gd.money.parts)) gd.money.parts = [{ date: '', amt: 0 }];
                 }
                 else if (k === 'money.what' || k === 'money.car' || k === 'money.how') { const f = k.slice(6); gd.money = { ...(gd.money || {}), [f]: gd.money && gd.money[f] === v ? '' : v }; }   // 💸 V396 대납 항목 · 통신사 · 방법 (한 번 더 누르면 빼기)
@@ -26679,7 +26767,8 @@ familyStr + `\n` +
             if (e.target.closest('[data-gd-zoom]')) { const img = document.getElementById('gdPrevImg') || document.getElementById('gdDoneImg'); if (img && img.src) gdZoom(img.src); return; }
             if (e.target.id === 'gdDoneImg') gdZoom(e.target.src);
         });
-        gdInner.addEventListener('change', (e) => { if (e.target.id === 'gdAgree') gdSignSync(); if (e.target.id === 'gdCardImgOn') { try { localStorage.setItem('gdCardImgOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } }   /* 📷 V438 */ if (e.target.id === 'gdCardOn') { try { localStorage.setItem('gdCardOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } } });
+        gdInner.addEventListener('change', (e) => { if (e.target.matches && e.target.matches('[data-gd-mboth]') && gd && gd.money) { gd.money.both = e.target.checked; gdDirty = true; gdRender(); return; }   // 💸 V455
+            if (e.target.id === 'gdAgree') gdSignSync(); if (e.target.id === 'gdCardImgOn') { try { localStorage.setItem('gdCardImgOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } }   /* 📷 V438 */ if (e.target.id === 'gdCardOn') { try { localStorage.setItem('gdCardOn', e.target.checked ? '1' : '0'); } catch (err) { /* 무시 */ } } });
         async function gdEnsureCustomer(g) {
             const d = phoneDigits(g.phone), now = new Date().toISOString(), me = getStaffName() || '';
             const c = customerDB.find(x => x.id === d || phoneDigits(x.phone) === d);
@@ -26693,8 +26782,8 @@ familyStr + `\n` +
             if (!document.getElementById('gdAgree').checked) { customAlert('확인 칸을 체크해 주세요.'); return; }
             if (!gdPad || gdPad.len < 25) { customAlert('서명 칸에 이름을 써 주세요.'); return; }
             const img = gdSignExport(), g = gd;
-            let moneyKey = '';
-            if (gdMoneyOn(g)) { moneyKey = await gdMoneyAskSlot(g); if (moneyKey === null) return; }   // 💸 V330 덮어쓰기 · 추가하기 · 안 넣기 (닫으면 서명 안 함)
+            const moneyKeys = [];   // 💸 V330 덮어쓰기 · 추가하기 · 안 넣기 (닫으면 서명 안 함) · V455 대납 + 송금 둘 다면 하나씩
+            for (const pg of gdMoneyParts(g)) { const k = await gdMoneyAskSlot(pg); if (k === null) return; if (k) moneyKeys.push([pg, k]); }
             btn.disabled = true; btn.textContent = '저장하는 중…';
             try {
                 const now = new Date().toISOString(), me = getStaffName() || '';
@@ -26709,7 +26798,7 @@ familyStr + `\n` +
                 gdSignCache.set(g.id, img);
                 gdRemember(g);
                 const line = `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 📝 구매 안내서 서명 · ${gdTitle(g)} (담당: ${me || '-'})`;
-                txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), ...gdMoneyProm(g, moneyKey), contactHistory: appendLine(cur.contactHistory, gdMoneyOn(g) && moneyKey ? `${line}\n[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ${(PROMISE_DEFS.find(t => t.key === moneyKey) || { label: '' }).label} 약속 ${/2$/.test(moneyKey) ? '추가' : '등록'} · ${gdMoneyLine(g, true)}` : line), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
+                txCustomerUpdate(g.custId, (cur) => ({ guides: gdIndexUpsert(cur.guides, g), ...Object.assign({}, ...moneyKeys.map(([pg, k]) => gdMoneyProm(pg, k))), contactHistory: appendLine(cur.contactHistory, [line, ...moneyKeys.map(([pg, k]) => `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] ${(PROMISE_DEFS.find(t => t.key === k) || { label: '' }).label} 약속 ${/2$/.test(k) ? '추가' : '등록'} · ${gdMoneyLine(pg, true)}`)].join('\n')), updatedAt: now, __audit: '구매 안내서' })).catch(err => console.error('안내서 고객 기록 실패', err));
                 gdDirty = false; gdStage = 'done'; gdRender();
                 setTimeout(async () => {   // 📜 V339 서명만 하고 개통등록을 빠뜨리면 실적 · 정산에 안 잡혀서 바로 물어봄 (안내서로 채워짐)
                     if (!gd || gd.id !== g.id || gdStage !== 'done' || g.act || !gdInner.querySelector('[data-gd-act]')) return;
@@ -26954,12 +27043,12 @@ familyStr + `\n` +
             const extra = [g.gift ? `사은품: ${g.gift}` : '', ...(g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && gdNum(p.fee)).map(p => `${p.kind} ${String(p.name || '').trim() || ''} 월 ${arWon(gdNum(p.fee))}원`), ...(g.promises || []).filter(p => p.kind === '기타' && String(p.name || '').trim()).map(p => `약속: ${p.name}${p.code ? ` (${keepLabel(p.code)})` : ''}`)].filter(Boolean).join(' · ');
             const memo = document.getElementById('ar-memo'); if (memo && extra && !memo.value.includes(extra)) memo.value = [memo.value.trim(), `📝 안내서 · ${extra}`].filter(Boolean).join('\n');
             {   // 💸 V378 안내서의 고객송금 · 매장대납 · 매장 추가할인 = 매장이 내는 돈 → 정산 '고객 할인금액'으로 (판매마진에서 빠짐 · 이미 적어 둔 금액은 그대로)
-                const mk = gdMoneyOn(g) ? g.money.kind : '', mAmt = mk ? gdNum(g.money.amt) : 0, etc = g.kind !== 'usim' ? gdNum(g.dev && g.dev.etc) : 0, sum = mAmt + etc;
+                const mk = gdMoneyOn(g) ? g.money.kind : '', mAmt = gdMoneyAmt(g), etc = g.kind !== 'usim' ? gdNum(g.dev && g.dev.etc) : 0, sum = mAmt + etc;
                 const de = document.getElementById('ar-disc');
                 if (de && sum > 0) {
                     if (!arNum('ar-disc')) de.value = arWon(sum);
                     let nt = document.getElementById('ar-disc-note'); if (!nt) { nt = document.createElement('p'); nt.id = 'ar-disc-note'; nt.className = 'mt-1 text-[11px] font-bold text-amber-800'; (de.closest('label') || de).after(nt); }
-                    nt.textContent = `📝 안내서: ${[mAmt ? `${mk === 'Pay' ? '매장대납' : '고객송금'} ${arWon(mAmt)}원` : '', etc ? `매장 추가할인 ${arWon(etc)}원` : ''].filter(Boolean).join(' + ')} → 판매마진에서 빠져요${arNum('ar-disc') !== sum ? ` (지금 칸 ${arWon(arNum('ar-disc'))}원 · 맞는지 확인)` : ''}`;
+                    nt.textContent = `📝 안내서: ${[mAmt ? `${gdMoneyParts(g).length > 1 ? '매장대납 + 고객송금' : (mk === 'Pay' ? '매장대납' : '고객송금')} ${arWon(mAmt)}원` : '', etc ? `매장 추가할인 ${arWon(etc)}원` : ''].filter(Boolean).join(' + ')} → 판매마진에서 빠져요${arNum('ar-disc') !== sum ? ` (지금 칸 ${arWon(arNum('ar-disc'))}원 · 맞는지 확인)` : ''}`;
                 }
             }
             try { renderArItems(); arSyncVis(); arRecalc(); } catch (e) { console.warn(e); }
@@ -30889,7 +30978,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V454';
+        const APP_VER = 'V455';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30897,6 +30986,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V455', d: '2026-11-25', items: [
+                ['💸 안내서 하나에 매장대납 + 고객송금 둘 다 (☑ 같이 넣기) · 매장대납 (유선) 금액이 유선 정산 할인금액에 자동으로 · 📱 인터넷·TV 안내서 SK 요즘가족: 결합 휴대폰 회선 수를 고르면 휴대폰 할인 자동', 'a'],
+                ['🏠 오늘 할 일 [설치 완료]: 설치일만 고르고 저장 (신청 때 넣은 내용 그대로 · 개통 기록 · 정산 · 감사 문자까지) — 자세히 고치려면 [개통보고 열어서]', 'a'],
+            ] },
             { v: 'V454', d: '2026-11-25', items: [
                 ['📋 고객카드 모바일 탭: 개통종류 · 전통신사 · 유심 같은 개통 상세를 위 정보 칸(개통일 아래)으로 — 아래 따로 있던 \'개통 상세\' 칸은 없앴어요', 'a'],
             ] },
