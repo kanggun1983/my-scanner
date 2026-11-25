@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V455">
+    <link rel="stylesheet" href="crm.css?v=V456">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -11828,7 +11828,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             return { src: 'guide', date: g.date, inst, left, n, pfee: C.pfee, sel: C.sel, comb: C.comb, wel: C.wel, card: C.card, planNet: changed ? after.planNet : C.planNet, total: changed ? after.total : inst + C.planNet, plan: changed ? tgt : (g.plan.name || ''), changed, kd, tgt, after: changed ? null : after, afterTxt: after ? after.txt : '', adds, gid: g.id };
         }
         /* 💳 V341 실납부금 계산: 할부원금 · 개월 → 월 할부금 (연 5.9%) + 요금제 기본료 − 선택약정 25% (결합 · 복지는 고객카드 칸이 없어서 빼지 않음 · 직접 고치면 그 값) */
-        function instMonthly(P, n) { P = Number(P) || 0; n = Number(n) || 0; if (!(P > 0) || !(n > 0)) return 0; const r = 0.059 / 12; return Math.floor(P * r / (1 - Math.pow(1 + r, -n)) / 10) * 10; }
+        function instMonthly(P, n) { P = Number(P) || 0; n = Number(n) || 0; if (!(P > 0) || !(n > 0)) return 0; const r = 0.059 / 12; return Math.round(P * r / (1 - Math.pow(1 + r, -n)) / 10) * 10; }   // 🛠 V456 10원 반올림 (청구서 81,300원 · 36개월 = 2,470원)
         //    🤝 V343 복지할인도 안내서와 같은 계산 (선약 뺀 요금에서 · 기초연금 12,100원까지 · 생계 28,600원 · 차상위 · 장애 · 유공 35% · 기기값에선 안 빠짐) — 고객카드 '복지' 칸 글자로 종류를 앎
         // 🩹 V345 '참쉬운가족결합 / 복지(기초연금 (만 65세↑))' → { comb: '참쉬운가족결합', wel: '기초연금 (만 65세↑)' }
         function splitCombWel(t) {
@@ -11870,8 +11870,11 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const pf = Number(c.planFee) || Number(String(c.fee || '').replace(/[^\d]/g, '')) || 0; if (!pf) return null;
             const sel = /선택약정|선약/.test(c.discountType || '') ? Math.round(pf * 0.25) : 0;
             let inst = 0, left = 0;
-            const m = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(getDynamicInstallment(c.installment || '', getInstallmentBaseInfo(c).date) || ''));
-            if (m) { const P = Number(m[1].replace(/,/g, '')), L = Number(m[2]); if (P > 0 && L > 0) { const r = 0.059 / 12; inst = Math.floor(P * r / (1 - Math.pow(1 + r, -L)) / 10) * 10; left = L; } }
+            {   // 🛠 V456 통신사처럼: 처음 할부원금 · 전체 개월로 한 번 계산한 금액을 매달 똑같이 (예전엔 남은 원금을 남은 개월로 다시 나눠서 조금씩 틀렸음)
+                const m0 = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(c.installment || ''));
+                const m = /([\d,]+)\s*원?\s*\/\s*(\d+)\s*개월/.exec(String(getDynamicInstallment(c.installment || '', getInstallmentBaseInfo(c).date) || ''));
+                if (m0 && m) { const L = Number(m[2]); inst = instMonthly(Number(m0[1].replace(/,/g, '')), Number(m0[2])); left = inst > 0 && L > 0 ? L : 0; if (!left) inst = 0; }
+            }
             const rp = Number(c.realPay) || 0, trp = Number(c.targetRealPay) || 0;   // 💳 V341 직접 넣은 실납부금이 있으면 그 금액으로
             // 🛠 V375 복지할인도 빼고 (수정 화면 자동 계산과 같게) · 직접 넣은 실납부금이 할부금보다 적으면(예전 값이 남은 것) 믿지 않고 계산값으로
             const wt = welTypeOf(c.welfare || splitCombWel(c.combination).wel), a0 = pf - sel, cb = Math.min(a0, Number(c.combDisc) || 0), wel = wt ? Math.min(a0 - cb, gdWelAuto(wt, a0 - cb, 5) || 0) : 0, cardD = Math.min(Math.max(0, a0 - cb - wel), Number(c.discountCardAmt) || 0), calcNet = Math.floor(Math.max(0, a0 - cb - wel - cardD) / 10) * 10;   // 💳 V428 제휴카드 월 할인 · 🤝 V376 결합 할인(월) → 복지는 결합 뺀 요금에서
@@ -30978,7 +30981,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V455';
+        const APP_VER = 'V456';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30986,6 +30989,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V456', d: '2026-11-25', items: [
+                ['🛠 고객카드 \'매달 내실 금액\'의 휴대폰 할부금: 통신사처럼 처음 할부원금 · 전체 개월로 계산한 금액을 매달 똑같이 (예: 81,300원 · 36개월 → 2,470원)', 'a'],
+            ] },
             { v: 'V455', d: '2026-11-25', items: [
                 ['💸 안내서 하나에 매장대납 + 고객송금 둘 다 (☑ 같이 넣기) · 매장대납 (유선) 금액이 유선 정산 할인금액에 자동으로 · 📱 인터넷·TV 안내서 SK 요즘가족: 결합 휴대폰 회선 수를 고르면 휴대폰 할인 자동', 'a'],
                 ['🏠 오늘 할 일 [설치 완료]: 설치일만 고르고 저장 (신청 때 넣은 내용 그대로 · 개통 기록 · 정산 · 감사 문자까지) — 자세히 고치려면 [개통보고 열어서]', 'a'],
