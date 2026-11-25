@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V456">
+    <link rel="stylesheet" href="crm.css?v=V457">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -16373,15 +16373,19 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             if (!targets.length) { if (!ids) localStorage.setItem('cardCheckAt', String(Date.now())); return; }
             cardChecking = true;
             try {
-                for (let i = 0; i < targets.length; i += 40) {
-                    const batch = targets.slice(i, i + 40);
-                    const data = await callPushRelay({ cardCheck: batch.map(c => c.cardId) });
+                for (let i = 0; i < targets.length; i += 10) {   // 🔔 V457 고객당 번호 최대 4개라 10명씩 (예전처럼 한 번에 40개 이하 · 중계 서버 한도 그대로)
+                    const batch = targets.slice(i, i + 10);
+                    const data = await callPushRelay({ cardCheck: [...new Set(batch.flatMap(c => [c.cardId, ...prevCardIdsOf(c).slice(-3)]))] });   // 🔔 V457 예전 명함번호도 같이 확인
                     if (!data || !data.result) throw new Error('old');
                     for (const c of batch) {
                         cardCheckedAt.set(c.id, Date.now());
-                        const r = data.result[c.cardId];
-                        if (!r || r.error) continue;
+                        let r = data.result[c.cardId];
                         const upd = {};
+                        if (!(r && !r.error && r.subscribed)) {   // 🔔 V457 대표 번호는 알림이 없는데 예전 번호 폰이 알림을 받고 있으면 → 그 번호를 대표로 (푸시도 그 폰으로)
+                            const alt = prevCardIdsOf(c).slice(-3).find(pc => { const x = data.result[pc]; return x && !x.error && x.subscribed; });
+                            if (alt) { upd.cardId = alt; upd.prevCardIds = [...new Set([...prevCardIdsOf(c).filter(x => x !== alt), c.cardId].filter(Boolean))]; r = data.result[alt]; c.cardId = alt; c.prevCardIds = upd.prevCardIds; }
+                        }
+                        if (!r || r.error) continue;
                         if (r.found && c.bizCardInstalled !== true) { upd.bizCardInstalled = true; upd.bizCardInstalledAt = c.bizCardInstalledAt || getTodayStr(); }
                         if ((c.pushSubscribed === true) !== !!r.subscribed) {
                             upd.pushSubscribed = !!r.subscribed;
@@ -30981,7 +30985,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V456';
+        const APP_VER = 'V457';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30989,6 +30993,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V457', d: '2026-11-25', items: [
+                ['🔔 명함 알림 확인할 때 예전 명함번호도 같이 봐요 — 고객 폰이 예전 번호로 연결돼 \'명함 알림 꺼짐\'으로 잘못 보이던 것 고침 (그 번호를 대표로 바꿔서 푸시도 그 폰으로)', 'a'],
+            ] },
             { v: 'V456', d: '2026-11-25', items: [
                 ['🛠 고객카드 \'매달 내실 금액\'의 휴대폰 할부금: 통신사처럼 처음 할부원금 · 전체 개월로 계산한 금액을 매달 똑같이 (예: 81,300원 · 36개월 → 2,470원)', 'a'],
             ] },
