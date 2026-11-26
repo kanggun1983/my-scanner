@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V460">
+    <link rel="stylesheet" href="crm.css?v=V461">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -26769,7 +26769,18 @@ familyStr + `\n` +
             x.setTransform(ratio, 0, 0, ratio, 0, 0); x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = '#1E3A8A'; x.lineWidth = 3.4;
             gdPad = { cv, x, strokes: [], cur: null, len: 0 };
             const pos = (e) => { const b = cv.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; };
-            cv.addEventListener('pointerdown', (e) => { e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ } const p = pos(e); gdPad.cur = [p]; x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(p[0] + 0.1, p[1] + 0.1); x.stroke(); const hint = document.getElementById('gdPadHint'); if (hint) hint.classList.add('hidden'); });
+            const fit = () => {   // 📱 V461 폴드처럼 화면 크기가 바뀌면(접기 · 펼치기 · 가로) 서명 칸 크기를 다시 맞추고 그린 것도 다시 그림 (안 맞추면 펼친 화면에서 서명이 안 보였음)
+                if (!gdPad || gdPad.cv !== cv || !cv.isConnected) return;
+                const rt = Math.max(1, window.devicePixelRatio || 1), b = cv.getBoundingClientRect(), W = Math.max(1, Math.round(b.width * rt)), Hh = Math.max(1, Math.round(b.height * rt));
+                if (cv.width === W && cv.height === Hh) return;
+                const ow = cv.width / rt, oh = cv.height / rt, sx = b.width && ow > 1 ? b.width / ow : 1, sy = b.height && oh > 1 ? b.height / oh : 1;
+                cv.width = W; cv.height = Hh; x.setTransform(rt, 0, 0, rt, 0, 0); x.lineCap = 'round'; x.lineJoin = 'round'; x.strokeStyle = '#1E3A8A'; x.lineWidth = 3.4;
+                gdPad.strokes = gdPad.strokes.map(st => st.map(([a, c2]) => [a * sx, c2 * sy]));
+                gdPad.strokes.forEach(st => { x.beginPath(); st.forEach(([a, c2], i) => { if (i) x.lineTo(a, c2); else { x.moveTo(a, c2); x.lineTo(a + 0.1, c2 + 0.1); } }); x.stroke(); });
+            };
+            if (window.ResizeObserver) { try { new ResizeObserver(() => fit()).observe(cv); } catch (err) { /* 무시 */ } }
+            window.addEventListener('resize', fit);
+            cv.addEventListener('pointerdown', (e) => { fit(); e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 무시 */ } const p = pos(e); gdPad.cur = [p]; x.beginPath(); x.moveTo(p[0], p[1]); x.lineTo(p[0] + 0.1, p[1] + 0.1); x.stroke(); const hint = document.getElementById('gdPadHint'); if (hint) hint.classList.add('hidden'); });
             cv.addEventListener('pointermove', (e) => { if (!gdPad || !gdPad.cur) return; e.preventDefault(); const p = pos(e), q = gdPad.cur[gdPad.cur.length - 1]; gdPad.len += Math.hypot(p[0] - q[0], p[1] - q[1]); gdPad.cur.push(p); x.beginPath(); x.moveTo(q[0], q[1]); x.lineTo(p[0], p[1]); x.stroke(); });
             const end = () => { if (gdPad && gdPad.cur) { gdPad.strokes.push(gdPad.cur); gdPad.cur = null; gdSignSync(); } };
             cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('pointerleave', end);
@@ -31008,7 +31019,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V460';
+        const APP_VER = 'V461';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31016,6 +31027,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V461', d: '2026-11-26', items: [
+                ['📱 폴드폰 안내서 서명: 화면을 펼치거나 접어도 서명 칸이 크기에 맞게 다시 맞춰져요 (펼친 화면에서 서명이 안 되던 것 고침)', 'a'],
+            ] },
             { v: 'V460', d: '2026-11-26', items: [
                 ['📝 고객 상세 \'기타 메모\'를 누르면 다 보여요 (다시 누르면 접기) — [수정]에 안 들어가도 돼요', 'a'],
             ] },
