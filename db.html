@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V457">
+    <link rel="stylesheet" href="crm.css?v=V458">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -26537,6 +26537,19 @@ familyStr + `\n` +
         document.body.appendChild(gdRecEl);
         function gdJo(w, a, b) { const t = String(w || '').trim(), ch = t.charCodeAt(t.length - 1); const has = ch >= 0xAC00 && ch <= 0xD7A3 ? (ch - 0xAC00) % 28 !== 0 : /[0-9LMNRlmnr]$/.test(t) && !/[2459]$/.test(t); return t + (has ? a : b); }   // 받침 따라 은/는 · 을/를 · 이/가
         function gdSpeak(x) { return String(x).replace(/(\d{4})\.(\d{2})\.(\d{2})/g, (m, y, mo, d) => `${y}년 ${Number(mo)}월 ${Number(d)}일`).replace(/안 돼요\./g, '안 됩니다.').replace(/돼요\./g, '됩니다.').replace(/돼요/g, '됩니다').replace(/예요\)/g, '입니다)').replace(/이에요\./g, '입니다.').replace(/조건이에요/g, '조건입니다').replace(/주셔야 해요/g, '주셔야 합니다').replace(/주세요\./g, '주시기 바랍니다.').replace(/예요\./g, '입니다.').replace(/있어요\./g, '있습니다.').replace(/해요\./g, '합니다.'); }   // 🗣 V268 말투 자연스럽게 (주십시오 ✕)
+        function gdRecRo(t) {   // 🎙 V458 '으로' / '로' (한글 받침 · 숫자 · 영어 글자 읽는 소리 기준)
+            t = String(t || '').replace(/[\s)\]]+$/, ''); const ch = t.slice(-1), c = ch.charCodeAt(0);
+            if (c >= 0xAC00 && c <= 0xD7A3) { const j = (c - 0xAC00) % 28; return j && j !== 8 ? '으로' : '로'; }
+            if (/[0-9]/.test(ch)) return '036'.includes(ch) ? '으로' : '로';   // 영 · 삼 · 육 (일 · 칠 · 팔은 ㄹ → 로)
+            if (/[A-Za-z]/.test(ch)) return /[MNmn]/.test(ch) ? '으로' : '로';   // 엠 · 엔만 받침
+            return '로';
+        }
+        function gdRecMoneyText(g) {   // 🎙 V458 매장대납 · 고객송금 약속도 녹음 대본에 (둘 다면 둘 다 · 계좌는 말하지 않음)
+            return gdMoneyParts(g).map(pg => { const m = pg.money, W = (n) => `${arWon(n)}원`;
+                if (m.kind === 'Pay') { gdPaySync(m); const pt = gdPayPartsTxt(m); return `매장에서 ${[gdPayWhat(m), String(m.target || '').trim()].filter(Boolean).join(' ') || '요금'} ${W(gdNum(m.amt))}을 ${pt ? `${pt}로 나눠서` : (m.date ? `${gdDateKo(String(m.date).slice(0, 10))}에` : '')} 대신 납부해 드립니다.`; }
+                return `매장에서 고객님께 ${W(gdNum(m.amt))}을 ${m.date ? `${gdDateKo(String(m.date).slice(0, 10))}까지 ` : ''}보내 드립니다${String(m.bank || '').trim() ? ` (${String(m.bank).trim()} 계좌)` : ''}.`;
+            }).join(' ');
+        }
         function gdRecScript(g) {
             if (g && g.kind === 'wired') {   // 📺 V301 인터넷 · TV 녹음 대본
                 const c = gdwCalc(g), w = g.w, W = (n) => `${arWon(n)}원`, out = [], add = (k, title, text, must) => { if (String(text || '').trim()) out.push({ k, title, text: String(text).replace(/\s+/g, ' ').trim(), ans: '네', must: !!must }); };
@@ -26547,13 +26560,15 @@ familyStr + `\n` +
                 { const ins = gdwInst(g); if (ins.base) add('inst', '설치비', w.instWaive ? `설치비는 면제됩니다. 약정 기간 안에 해지하시면 면제받은 설치비 ${W(ins.base + ins.night)}이 청구됩니다.` : `설치비 ${W(ins.total)}이 첫 달 요금에 한 번 청구됩니다.`); }   // 🔧 V303
                 if (gdNum(w.cash) || g.gift) add('gift', '사은품', `${gdNum(w.cash) ? `현금 사은품 ${W(w.cash)}${w.cashDay ? `는 ${w.cashDay}` : ''} 드립니다. ` : ''}${g.gift ? g.gift + '. ' : ''}약정 기간 안에 해지하시면 사은품을 돌려내셔야 할 수 있습니다.`, true);
                 if (w.bundleName) add('bundle', '결합', `${w.bundleName} 결합입니다. 결합 회선을 해지하거나 빼면 결합할인이 없어집니다.`);
+                if (gdNum(w.chgM) || w.chgInt || w.chgTv || gdNum(w.chgFee)) { const cm = gdNum(w.chgM); add('chg', '상품 변경 예정', `${cm ? `설치하고 ${cm}개월 뒤에 ` : '나중에 '}${[w.chgInt ? '인터넷 ' + w.chgInt : '', w.chgTv ? 'TV ' + w.chgTv : ''].filter(Boolean).join(', ') || '안내드린 상품'}${gdRecRo([w.chgInt ? '인터넷 ' + w.chgInt : '', w.chgTv ? 'TV ' + w.chgTv : ''].filter(Boolean).join(', ') || '안내드린 상품')} 바꾸실 수 있고${gdNum(w.chgFee) ? `, 바꾼 뒤 매달 요금은 약 ${W(gdNum(w.chgFee))}입니다` : ''}. 그 전에는 지금 상품을 유지하셔야 하고, 바꾼 뒤에 해지하시면 위약금은 바꾼 상품 기준으로 계산됩니다.`, true); }   // 🎙 V458
+                add('money', '매장대납 · 고객송금', gdRecMoneyText(g), true);   // 🎙 V458
                 add('end', '끝', '위 내용을 설명 듣고 이해하셨습니까?', true);
                 return out;
             }
             const c = gdCalc(g), W = (n) => `${arWon(n)}원`, dv = g.dev || {}, pl = g.plan || {}, dev = g.kind !== 'usim', out = [];
             const add = (k, title, text, ans, must) => { if (String(text || '').trim()) out.push({ k, title, text: String(text).replace(/\s+/g, ' ').trim(), ans: ans || '네', must: !!must }); };
             add('start', '시작 · 녹음 동의', '지금부터 고객님의 구매 사항과 계약 조건을 확인하기 위해 녹음을 진행합니다. 개인정보는 녹음하지 않습니다. 녹음에 동의하십니까?', '네, 동의합니다', true);
-            add('join', '가입 정보', `오늘 ${gdDateKo(g.date) || '오늘'}, ${gdCarLabel(g) || ''} ${g.actType || ''}${dev ? '' : ' 유심'}으로 개통합니다.`);
+            add('join', '가입 정보', `오늘 ${gdDateKo(g.date) || '오늘'}, ${gdCarLabel(g) || ''} ${(() => { const t = `${g.actType || ''}${dev || /유심/.test(String(g.actType || '')) ? '' : ' 유심'}`; return t + gdRecRo(t); })()} 개통합니다.`);
             if (dev) {
                 const sup = [];
                 if (g.sup === '공시' && c.pub) sup.push(`공통지원금 ${W(c.pub)}`); else if (g.sup === '선약') sup.push(`선택약정 ${g.term || 24}개월로 요금 25% 할인`);
@@ -26581,9 +26596,10 @@ familyStr + `\n` +
             if (c.card) disc.push(`${String(pl.cardName || '').trim() || '제휴카드'} 요금 할인 월 ${W(c.card)}`);
             if (disc.length) add('disc', '결합 · 복지 · 제휴카드', `${gdJo(disc.join(', '), '이', '가')} 들어갑니다.${c.comb || c.wel ? ' 결합 · 복지 할인은 통신사 확인 뒤 적용돼 첫 달은 빠질 수 있습니다.' : ''}${c.card ? ' 제휴카드 할인은 카드 실적을 채운 달만 됩니다.' : ''}`);
             const usim = g.usim && !Array.isArray(g.usim) ? g.usim : null, uf = usim ? gdNum(usim.fee) : 0;
-            add('total', '매달 내실 금액', `매달 할부금과 요금을 합쳐 약 ${W(c.total)}입니다${c.addFee ? `(부가 · 보험 월 ${W(c.addFee)}은 유지 기간 동안 별도)` : ''}. 첫 달은 개통일부터 쓴 날만큼 계산되고${uf ? `, 유심비 ${W(uf)}${usim.pay ? `(${usim.pay})` : ''}도 있어서` : ''} 금액이 달라질 수 있습니다.`);
+            add('total', '매달 내실 금액', `매달 ${dev && c.month ? '할부금과 요금을 합쳐 ' : ''}약 ${W(c.total)}입니다${c.addFee ? `(부가 · 보험 월 ${W(c.addFee)}은 유지 기간 동안 별도)` : ''}. 첫 달은 개통일부터 쓴 날만큼 계산되고${uf ? `, 유심비 ${W(uf)}${usim.pay ? `(${usim.pay})` : ''}도 있어서` : ''} 금액이 달라질 수 있습니다.`);
             if (/번호이동|MNP/.test(String(g.actType || ''))) add('mnp', '이전 통신사', '이전 통신사의 남은 할부금 · 위약금 · 마지막 달 요금은 이전 통신사에서 따로 청구될 수 있습니다. 소액결제 · 멤버십 · 결합도 이전 통신사에서 정리하셔야 합니다.');
             if (String(g.gift || '').trim()) add('gift', '사은품', `사은품은 ${String(g.gift).trim()}입니다.`);
+            add('money', '매장대납 · 고객송금', gdRecMoneyText(g), '네, 이해했습니다', true);   // 🎙 V458 약속한 대납 · 송금도 녹음으로
             add('end', '마무리', '개통 후 통화품질 · 단말 불량 외의 단순 변심으로는 개통 철회가 어렵습니다. 기존 폰의 사진 · 연락처 백업은 고객님께서 직접 확인해 주시기 바랍니다. 위 내용을 모두 듣고 이해하셨습니까?', '네, 모두 이해했습니다', true);
             return out;
         }
@@ -30985,7 +31001,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V457';
+        const APP_VER = 'V458';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -30993,6 +31009,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V458', d: '2026-11-26', items: [
+                ['🎙 구매 확인 녹음 대본 보완: 매장대납 · 고객송금 약속 (둘 다면 둘 다 · 계좌번호는 안 읽음) · 인터넷·TV 상품 변경 예정 · 유심단독은 \'할부금과 합쳐\' 말 빼고', 'a'],
+            ] },
             { v: 'V457', d: '2026-11-25', items: [
                 ['🔔 명함 알림 확인할 때 예전 명함번호도 같이 봐요 — 고객 폰이 예전 번호로 연결돼 \'명함 알림 꺼짐\'으로 잘못 보이던 것 고침 (그 번호를 대표로 바꿔서 푸시도 그 폰으로)', 'a'],
             ] },
