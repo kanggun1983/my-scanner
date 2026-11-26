@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V459">
+    <link rel="stylesheet" href="crm.css?v=V460">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -11629,7 +11629,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 headerRow('명함 링크', c.cardId ? `<span class="font-mono">${e(c.cardId)}</span> <span class="text-gray-400 font-medium">· ${c.pushSubscribed === true ? '알림 받는 중' : (c.bizCardInstalled === true ? '명함 열어봄 (알림은 아직)' : (c.bizCardSentAt ? `${e(formatShortDate(c.bizCardSentAt))} 보냄` : '아직 안 보냄'))}</span> <button type="button" data-paction="cardrefresh" class="ml-1 h-8 px-2 rounded-lg border border-gray-300 bg-white text-[11px] font-bold text-gray-700 align-middle"><i class="fa-solid fa-rotate"></i> 새로고침</button>` : '<span class="text-gray-400">[명함 보내기]로 개인 링크를 보내면 설치·알림을 자동으로 확인해요</span>'),
                 headerRow('디지털 명함', c.bizCardInstalled === true ? `<span class="text-pink-600">설치함</span>${c.bizCardInstalledAt ? ` <span class="text-gray-400 font-medium">(${e(c.bizCardInstalledAt)})</span>` : ''}` : '<span class="text-gray-400">미설치</span>'),
                 legalText ? headerRow('법정대리인', e(legalText)) : '',
-                headerRow('기타 메모', c.memo && c.memo.trim() ? `<span class="font-medium whitespace-pre-wrap line-clamp-3">${e(c.memo)}</span>` : PROFILE_DASH)
+                headerRow('기타 메모', c.memo && c.memo.trim() ? `<button type="button" data-memo-toggle class="block w-full text-left font-medium whitespace-pre-wrap line-clamp-3 cursor-pointer" aria-expanded="false" title="눌러서 다 보기">${e(c.memo)}</button>${String(c.memo).length > 60 || String(c.memo).split('\n').length > 3 ? '<span data-memo-hint class="block text-[11px] font-bold text-indigo-600 mt-0.5">▾ 눌러서 다 보기</span>' : ''}` : PROFILE_DASH)
             ].join('');
 
             // 3칸 요약 (영업상태 / 사용기간 / 할인유형)
@@ -29723,6 +29723,11 @@ familyStr + `\n` +
             if (!callTlAll && items.length > 30) h += `<button type="button" data-calltl-more class="w-full h-10 mt-2 rounded-xl border border-gray-200 text-xs font-bold text-gray-600">더 보기 (${items.length - 30}건)</button>`;
             return h + '</div>';
         }
+        profileModal.addEventListener('click', (ev) => {   // 📝 V460 기타 메모 눌러서 다 보기 · 다시 누르면 접기
+            const mb = ev.target.closest('[data-memo-toggle]'); if (!mb) return;
+            const open = mb.getAttribute('aria-expanded') !== 'true'; mb.setAttribute('aria-expanded', String(open)); mb.classList.toggle('line-clamp-3', !open);
+            const h = mb.parentElement && mb.parentElement.querySelector('[data-memo-hint]'); if (h) h.textContent = open ? '▴ 접기' : '▾ 눌러서 다 보기';
+        });
         profileModal.addEventListener('click', (ev) => {   // 📞 V223 타임라인 더 보기
             if (!ev.target.closest('[data-calltl-more]')) return;
             callTlAll = true; try { renderProfileCard(); } catch (e) { /* 무시 */ }
@@ -31003,7 +31008,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V459';
+        const APP_VER = 'V460';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31011,6 +31016,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V460', d: '2026-11-26', items: [
+                ['📝 고객 상세 \'기타 메모\'를 누르면 다 보여요 (다시 누르면 접기) — [수정]에 안 들어가도 돼요', 'a'],
+            ] },
             { v: 'V459', d: '2026-11-26', items: [
                 ['💳 개통등록: 개통종류를 유심신규 · 유심MNP로 고르거나 유심 안내서로 채우면 단말기할부가 \'일시불\'(할부 없음)로 자동', 'a'],
             ] },
