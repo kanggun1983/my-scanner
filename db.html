@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V462">
+    <link rel="stylesheet" href="crm.css?v=V463">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -7778,6 +7778,32 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             legacyActs(c).forEach(l => { if (!out.some(a => a.kind === l.kind && a.date === l.date)) out.push(l); });
             return out.sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.kind === '유선') - (b.kind === '유선'));
         }
+        /* 🗑 V463 취소한 개통은 7일 뒤 자동 삭제 (개통 기록 + 그날 올린 서류 기록 · 드라이브 파일은 그대로) — 고객카드를 열 때 · 하루 한 번 전체 */
+        const ACT_CANCEL_KEEP_DAYS = 7;
+        function actCancelExpired(a, now = Date.now()) { return !!(a && a.canceled && a.cancelAt && now - Date.parse(a.cancelAt) >= ACT_CANCEL_KEEP_DAYS * 864e5); }
+        async function purgeCanceledActs(c) {
+            if (!c || !Array.isArray(c.acts) || !c.acts.some(a => actCancelExpired(a))) return false;
+            if (!can('cancelAct')) return false;   // 취소 권한 있는 폰만 지움
+            let gone = [];
+            try {
+                const patch = await txCustomerUpdate(c.id, (cur) => {
+                    const list = Array.isArray(cur.acts) ? cur.acts : []; gone = list.filter(a => actCancelExpired(a));
+                    if (!gone.length) return {};
+                    return { acts: list.filter(a => !actCancelExpired(a)), contactHistory: appendLine(cur.contactHistory, `[${getTodayStr().replace(/-/g, '.')} ${nowHHMM()}] 🗑 취소한 개통 ${gone.length}건 자동 삭제 (${gone.map(a => `${String(a.date).slice(5).replace('-', '/')} ${a.kind}`).join(', ')} · 취소 7일 지남)`), updatedAt: new Date().toISOString() };
+                });
+                if (patch && patch.acts) Object.assign(c, patch);
+            } catch (e) { console.warn('취소 개통 자동 삭제 실패', e); return false; }
+            if (!gone.length) return false;
+            const live = new Set((c.acts || []).filter(a => !a.canceled).map(a => a.date)), ids = new Set([c.id, ...prevIdsOf(c)]);
+            const days = gone.map(a => a.date).filter(d => !live.has(d)), tags = days.map(d => String(d).replace(/-/g, ''));
+            const docs = docFiles.filter(f => ids.has(f.customerId) && (days.includes(String(f.at || '').slice(0, 10)) || tags.some(t => String(f.name || '').includes(t))));
+            for (const f of docs) { try { await deleteDoc(doc(db, 'doc_files', f.id)); if ((Number(c.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', c.id), { docCount: increment(-1) }, { merge: true }).catch(() => {}); } catch (e) { /* 다음에 */ } }
+            return true;
+        }
+        async function purgeCanceledAll() {   // 하루 한 번 (이 폰에서)
+            try { if (localStorage.getItem('actPurgeDay') === getTodayStr()) return; localStorage.setItem('actPurgeDay', getTodayStr()); } catch (e) { /* 무시 */ }
+            for (const c of customerDB.filter(x => Array.isArray(x.acts) && x.acts.some(a => actCancelExpired(a))).slice(0, 30)) await purgeCanceledActs(c);
+        }
         function storableActs(list) { return list.map(a => { const o = { ...a }; delete o.legacy; return o; }).slice(-ACT_KEEP); }
         function actSales(a) {
             if (!a || !a.settle) return { gross: 0, real: 0, missing: true };
@@ -9615,6 +9641,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             loadPushStats();
             syncAutoSms();
             checkCardLinks();
+            setTimeout(() => { purgeCanceledAll().catch(() => {}); }, 15000);   // 🗑 V463 취소 7일 지난 개통 정리
             checkRecentCardLinks();
             if (!cardWhoStarted) { cardWhoStarted = true; setTimeout(() => syncCardWho(), 20000); }
 
@@ -11534,6 +11561,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             currentProfileTab = (!hasMobileInfo(c) && hasWiredInfo(c)) ? 'wired' : 'mobile'; // 유선만 있는 고객은 유선 탭부터
             renderProfileCard();
             if (c.cardId) checkCardLinks({ ids: [c.id] });   // 명함을 열었는지·알림을 켰는지 바로 확인
+            purgeCanceledActs(c).then(d => { if (d && currentProfileId === c.id) renderProfileCard(); }).catch(() => {});   // 🗑 V463
             profileModal.style.display = 'flex';
             document.getElementById('profileBody').scrollTop = 0;
             // 안드로이드 [뒤로가기]를 누르면 앱이 꺼지지 않고 카드만 닫히도록 히스토리 한 칸 추가
@@ -28090,7 +28118,7 @@ familyStr + `\n` +
             const LA = opt.tab ? acts : acts.filter(a => opt.wiredList ? a.kind === '유선' : a.kind !== '유선');   // 🏠 V453 모바일 탭엔 무선 개통만 · 유선 탭엔 유선 개통만 (수정 화면 개통 기록 탭은 전부)
             if (LA.length) {
                 hList = `<div class="mt-3 pt-2 border-t border-dashed border-gray-200"><p class="text-xs font-bold text-gray-500 mb-1">📜 개통 기록 ${LA.length}건 <span class="font-medium">(개통일이 다르면 따로 남아요)</span></p>${LA.slice().reverse().map(a => { const sv = actSales(a); return `<div class="py-2 border-b border-gray-100 last:border-b-0">
-                    <div class="flex items-center gap-1.5"><span class="text-[14px] font-bold ${a.canceled ? 'text-gray-400 line-through' : 'text-gray-900'}">${ymd2(a.date)} · ${a.kind}${a.actType ? ' ' + escapeHtml(a.actType) : ''}</span>${a.carrier && a.kind !== '유선' ? `<span class="text-[11px] font-bold rounded-full border px-1.5 ${isMvno(a.carrier) ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-600'}">${escapeHtml(carrierLabel(a.carrier, a.mvno))}</span>` : ''}${a.canceled ? (a.notSale ? `<span class="text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5">📺 개통 아님 (인터넷·TV 정보)</span>` : `<span class="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5">취소됨${a.cancelBy ? ' · ' + escapeHtml(a.cancelBy) : ''}</span>`) : ''}${a.src === '폰클' ? '<span class="text-[10px] font-bold text-gray-500 border border-gray-200 rounded px-1">폰클</span>' : ''}<span class="ml-auto text-xs text-gray-500 truncate">${escapeHtml(actStaffKey(a, c))}</span></div>
+                    <div class="flex items-center gap-1.5"><span class="text-[14px] font-bold ${a.canceled ? 'text-gray-400 line-through' : 'text-gray-900'}">${ymd2(a.date)} · ${a.kind}${a.actType ? ' ' + escapeHtml(a.actType) : ''}</span>${a.carrier && a.kind !== '유선' ? `<span class="text-[11px] font-bold rounded-full border px-1.5 ${isMvno(a.carrier) ? 'bg-yellow-50 border-yellow-300 text-yellow-800' : 'bg-white border-gray-300 text-gray-600'}">${escapeHtml(carrierLabel(a.carrier, a.mvno))}</span>` : ''}${a.canceled ? (a.notSale ? `<span class="text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 rounded px-1.5">📺 개통 아님 (인터넷·TV 정보)</span>` : `<span class="text-[11px] font-bold text-red-700 bg-red-50 border border-red-200 rounded px-1.5">취소됨${a.cancelBy ? ' · ' + escapeHtml(a.cancelBy) : ''}${a.cancelAt ? ` · ${String(addDaysStr(String(a.cancelAt).slice(0, 10), ACT_CANCEL_KEEP_DAYS)).slice(5).replace('-', '/')} 자동 삭제` : ''}</span>`) : ''}${a.src === '폰클' ? '<span class="text-[10px] font-bold text-gray-500 border border-gray-200 rounded px-1">폰클</span>' : ''}<span class="ml-auto text-xs text-gray-500 truncate">${escapeHtml(actStaffKey(a, c))}</span></div>
                     <p class="text-xs text-gray-600 truncate">${escapeHtml([a.device, a.plan, a.store].filter(Boolean).join(' · ') || '-')}</p>
                     ${a.used ? `<p class="text-xs text-gray-600 truncate">📱 중고폰 ${escapeHtml(usedPhoneText(a.used))}</p>` : ''}
                     <div class="flex items-center gap-1.5 mt-1">${money ? (a.settle ? `<span class="text-[12px] font-bold text-emerald-800">💰 ${wonMan(sv.gross)} · 실 ${wonMan(sv.real)}</span>` : '<span class="text-[12px] font-bold text-amber-700">💰 정산 미입력</span>') : ''}
@@ -31027,7 +31055,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V462';
+        const APP_VER = 'V463';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31035,6 +31063,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V463', d: '2026-11-27', items: [
+                ['🗑 취소한 개통은 7일 뒤 자동 삭제 — 개통 기록과 그날 올린 서류 기록이 같이 지워져요 (취소 표시에 삭제 날짜가 나와요 · 7일 안엔 되살리기 가능 · 구글 드라이브 파일은 그대로)', 'a'],
+            ] },
             { v: 'V462', d: '2026-11-27', items: [
                 ['💳 알뜰폰 가입비: 안내서 · 개통등록 · 보고서에 가입비 금액(기본 9,900원 · 다르면 직접 · 없으면 비우기) + 처리(분납 · 면제 · 매장지원 · 고객선납) — 안내서 그림 · 확인 녹음에도 나오고 매장지원은 정산 할인금액에 들어가요', 'a'],
             ] },
