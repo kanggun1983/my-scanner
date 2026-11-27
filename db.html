@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V461">
+    <link rel="stylesheet" href="crm.css?v=V462">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -22477,6 +22477,7 @@ familyStr + `\n` +
                     ${arSel('ar-term', '약정개월', ['24개월', '12개월', '12+12개월', '무약정'], '24개월')}
                     ${arSel('ar-inst', '단말기할부', ['24개월', '36개월', '30개월', '48개월', '12개월', '일시불'], '24개월')}
                     ${arSel('ar-usimfee', '유심비', ['후납', '선납', '면제'], '후납')}
+                    <div data-mvno class="${isMvno(car0) ? '' : 'hidden'} col-span-2 grid grid-cols-2 gap-2">${arMoney('ar-joinamt', '가입비 (알뜰폰 · 다르면 직접)', 9900)}${arSel('ar-joinpay', '가입비 처리', ['분납', '면제', '매장지원', '고객선납'], '분납')}</div>   ${''/* 💳 V462 */}
                     </div>
                     <div data-tg="ar-tg-comb" class="col-span-2 grid grid-cols-2 gap-2 ${tgComb ? '' : 'hidden'}">
                         ${arIn('ar-comb', '결합 · 복지', prefCombo, { ph: '예) 가족결합 / 복지(장애)' })}${arMoney('ar-combdisc', '결합 할인 (월)')}
@@ -22912,7 +22913,7 @@ familyStr + `\n` +
                     (arVal('ar-target') ? `변경 요금제 : ${arVal('ar-target')}${feeOf('ar-targetfee')}${arNum('ar-targetreal') ? ` · 실납부 ${arWon(arNum('ar-targetreal'))}원` : ''}\n` : '') +
                     (arVal('ar-target2') && !document.getElementById('ar-plan2-wrap')?.classList.contains('hidden') ? `2차 변경 : ${arVal('ar-target2')}${feeOf('ar-targetfee2')}${(arKeepPlan().find(k => k.key === 'Plan2') || {}).date ? ` (${formatShortDate(arKeepPlan().find(k => k.key === 'Plan2').date)}~)` : ''}\n` : '') +
                     `유심 일련: ${[arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / ')}\n` +
-                    `유심 선납: ${arVal('ar-usimfee')}\n` +
+                    `유심 선납: ${arVal('ar-usimfee')}\n` + (isMvno(arVal('ar-carrier')) && arNum('ar-joinamt') ? `가입비: ${arWon(arNum('ar-joinamt'))}원 ${arVal('ar-joinpay')}\n` : '') +
                     `유형: ${typeStr}\n` +
                     `부가 : ${addonNames}\n` +
                     `보험 : ${insNames}\n` +
@@ -23022,7 +23023,7 @@ familyStr + `\n` +
                     repUsedPhone: usedPhoneText(arUsedPhone()), repBranch: arVal('ar-branch'), repSubsidy: arVal('ar-subsidy'), repTargetPlan: arVal('ar-target'),
                     repInternetTv: arVal('ar-inttv'), repCombination: arVal('ar-comb'),
                     repType: arVal('ar-type') + (arVal('ar-prev') ? ` (${arVal('ar-prev')}→${carrierLabel(arVal('ar-carrier'), arVal('ar-mvno'))})` : ''),
-                    repUsim: [arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / '), repUsimPay: arVal('ar-usimfee'),
+                    repUsim: [arVal('ar-usim'), arVal('ar-usimserial')].filter(Boolean).join(' / '), repUsimPay: arVal('ar-usimfee'), repJoinFee: isMvno(arVal('ar-carrier')) && arNum('ar-joinamt') ? `${arWon(arNum('ar-joinamt'))}원 ${arVal('ar-joinpay')}` : '',
                     repInstallment: arVal('ar-inst'), repDiscount: r.sup === '공시' ? '공시' : (arVal('ar-term') === '무약정' ? '무약정' : `선약 ${arVal('ar-term')}`)
                 });
                 {   // 📄 V208 미비서류 → 다음 날 '오늘 할 일' (같은 내용을 다시 저장하면 처음 날짜 그대로)
@@ -25129,6 +25130,11 @@ familyStr + `\n` +
         const GD_TYPES = ['신규', '번호이동', '기기변경'];
         const GD_INST = [24, 36, 30, 48, 12, 0];
         const GD_USIM_PAY = ['선납', '첫 달 청구', '면제', '기존 유심'];
+        const GD_JOIN_PAY = ['분납', '면제', '매장지원', '고객선납'];   // 💳 V462 알뜰폰 가입비
+        const GD_JOIN_FEE = 9900;   // 💳 V462 알뜰폰 가입비 기본 (다르면 칸에 직접 · 없으면 비우기)
+        function gdJoinOf(g) { const j = g && g.join && typeof g.join === 'object' ? g.join : {}; return { fee: j.fee === undefined ? GD_JOIN_FEE : gdNum(j.fee), pay: GD_JOIN_PAY.includes(j.pay) ? j.pay : '분납' }; }
+        function gdJoinOn(g) { return !!g && g.carrier === '알뜰폰' && gdJoinOf(g).fee > 0; }
+        function gdJoinTxt(g) { const j = gdJoinOf(g), W = `${arWon(j.fee)}원`; return j.pay === '면제' ? `${W} 면제` : (j.pay === '매장지원' ? `${W} 매장 지원` : (j.pay === '고객선납' ? `${W} 고객 선납` : `${W} 분납`)); }
         const GD_WELFARE = [['', '없음'], ['basic', '기초생활 (생계·의료급여)'], ['near', '주거·교육급여 · 차상위'], ['pension', '기초연금 (만 65세↑)'], ['disabled', '장애인'], ['merit', '국가유공자'], ['etc', '기타 복지']];
         // 🤝 V238 복지할인 공식 기준 (과기정통부 요금감면 · 통신 3사 같음 · 금액은 부가세 포함) · V239 순서: 선택약정 → 결합할인 → 복지할인 (결합까지 뺀 금액에)
         const GD_WEL_RULE = {
@@ -25140,7 +25146,7 @@ familyStr + `\n` +
         };
         const GD_RATE = 0.059;
         const GD_NOTES_DEFAULT = ['개통 후 통화품질 · 단말 불량 외의 사유로는 개통철회가 안 돼요. 불량이면 14일 안에 AS센터 불량판정서를 가져와 주세요.', '약정 기간 안에 정지 · 해지 · 명의변경을 하면 할인반환금이 생길 수 있어요.', '정해진 기간 안에 요금제를 바꾸면 지원금 차액이 청구될 수 있어요.'];
-        const GD_MONEY = new Set(['money.amt', 'dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'keep2.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash', 'w.instInt', 'w.instTv']);
+        const GD_MONEY = new Set(['join.fee', 'money.amt', 'dev.price', 'dev.pub', 'dev.sw', 'dev.extra', 'dev.used', 'dev.card', 'dev.etc', 'dev.prepay', 'plan.fee', 'plan.wel', 'plan.comb', 'plan.card', 'keep.targetFee', 'keep2.targetFee', 'usim.fee', 'w.intFee', 'w.wifiFee', 'w.tvFee', 'w.stbFee', 'w.wireDisc', 'w.mobileDisc', 'w.etcDisc', 'w.cash', 'w.instInt', 'w.instTv']);
         let gdList = [], gdListReady = false, gdUnsub = null, gdFilter = '', gdQuery = '';
         let gd = null, gdStage = '', gdPushed = false, gdDirty = false, gdPad = null, gdArId = '', gdArG = null;   // gdArG: [안내서로 채우기]한 안내서 (저장할 때 번호 확인)
         const gdSignCache = new Map(), gdImgCache = new Map();
@@ -25909,7 +25915,7 @@ familyStr + `\n` +
             // ④ C 유심 · 보험 · 부가
             const names = (k) => (g.promises || []).filter(p => p.kind === k && (String(p.name || '').trim() || gdNum(p.fee))).map(p => `${String(p.name || '').trim() || k}${gdNum(p.fee) ? ` 월 ${W(gdNum(p.fee))}` : ''}`);
             const usimTxt = g.usim.pay === '면제' ? '면제' : (g.usim.pay === '기존 유심' ? '기존 유심 사용' : `${W(gdNum(g.usim.fee))} ${g.usim.pay}`);
-            const cells = [[1, '유심', usimTxt], [0, '휴대폰 보험', names('보험').join(', ') || '없음'], [0, '부가서비스', names('부가').join(', ') || '없음']], cw = IW / 3;
+            const cells = [[1, '유심', usimTxt], ...(gdJoinOn(g) ? [[0, '가입비', gdJoinTxt(g)]] : []), [0, '휴대폰 보험', names('보험').join(', ') || '없음'], [0, '부가서비스', names('부가').join(', ') || '없음']], cw = IW / cells.length;   // 💳 V462 알뜰폰 가입비 칸
             gdFont(x, 13.5, 700);
             const cl = cells.map(c2 => gdWrapText(x, c2[2], cw - 24)), cH = 52 + (Math.max(...cl.map(l => l.length)) - 1) * 19 + 8;
             box(L, y, IW, cH, { stroke: '#D1D5DB' });
@@ -26308,7 +26314,7 @@ familyStr + `\n` +
                     <div class="grid gap-2" style="grid-template-columns: minmax(0, 1fr) 130px">${gdLbl('2차로 바꿀 요금제', gdInp('keep2.target', g.keep2.target || '', { list: 'gdPlanList', ph: '예) 33 요금제' }))}${gdLbl('2차 월정액', gdInp('keep2.targetFee', g.keep2.targetFee || 0, { money: true }))}</div>
                     <div id="gdKeep2After" class="rounded-xl bg-white/70 px-3 py-2.5">${gdAfterBox(gdAfterPay(g, g.keep2.targetFee), '2차 변경 후 월 요금')}</div>
                 </div>` : `<button type="button" data-gd-k2add class="w-full h-11 rounded-xl border border-dashed border-purple-300 bg-white text-[14px] font-bold text-purple-800"><i class="fa-solid fa-plus mr-1"></i>요금제 변경 한 번 더 (예: 3개월 85 → 그 뒤 저가)</button>`}`);
-            h += gdSec('C · 유심 · 부가 · 보험', `<div class="grid grid-cols-2 gap-2">${gdLbl('유심비', gdInp('usim.fee', g.usim.fee, { money: true }))}${gdLbl('유심 납부', `<select data-gd="usim.pay" class="${gdCls}">${GD_USIM_PAY.map(v => `<option value="${v}" ${g.usim.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}</div>
+            h += gdSec('C · 유심 · 부가 · 보험', `<div class="grid grid-cols-2 gap-2">${gdLbl('유심비', gdInp('usim.fee', g.usim.fee, { money: true }))}${gdLbl('유심 납부', `<select data-gd="usim.pay" class="${gdCls}">${GD_USIM_PAY.map(v => `<option value="${v}" ${g.usim.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}${g.carrier === '알뜰폰' ? (() => { const j = gdJoinOf(g); return `${gdLbl('가입비 (알뜰폰)', gdInp('join.fee', j.fee || '', { money: true, ph: '없으면 비움 · 기본 9,900' }))}${gdLbl('가입비 처리', `<select data-gd="join.pay" class="${gdCls}">${GD_JOIN_PAY.map(v => `<option value="${v}" ${j.pay === v ? 'selected' : ''}>${v}</option>`).join('')}</select>`)}`; })() : ''}</div>
                 <div id="gdProms" class="space-y-1.5">${gdPromRows(g)}</div>
                 <p id="gdAddFee" class="text-[12px] font-bold text-indigo-800">${c.addFee ? `부가 · 보험 매달 +${arWon(c.addFee)}원 (유지 기간 동안 · 위 매달 금액과 따로 안내해요)` : ''}</p>
                 <div class="grid grid-cols-3 gap-1.5"><button type="button" data-gd-padd="부가" class="h-10 rounded-xl border border-indigo-200 bg-indigo-50 text-[13px] font-bold text-indigo-800">+ 부가</button><button type="button" data-gd-padd="보험" class="h-10 rounded-xl border border-emerald-200 bg-emerald-50 text-[13px] font-bold text-emerald-800">+ 보험</button><button type="button" data-gd-padd="기타" class="h-10 rounded-xl border border-gray-300 bg-white text-[13px] font-bold text-gray-700">+ 기타 약속</button></div>
@@ -26597,6 +26603,7 @@ familyStr + `\n` +
             if (c.card) disc.push(`${String(pl.cardName || '').trim() || '제휴카드'} 요금 할인 월 ${W(c.card)}`);
             if (disc.length) add('disc', '결합 · 복지 · 제휴카드', `${gdJo(disc.join(', '), '이', '가')} 들어갑니다.${c.comb || c.wel ? ' 결합 · 복지 할인은 통신사 확인 뒤 적용돼 첫 달은 빠질 수 있습니다.' : ''}${c.card ? ' 제휴카드 할인은 카드 실적을 채운 달만 됩니다.' : ''}`);
             const usim = g.usim && !Array.isArray(g.usim) ? g.usim : null, uf = usim ? gdNum(usim.fee) : 0;
+            if (gdJoinOn(g)) { const j = gdJoinOf(g), W2 = `${arWon(j.fee)}원`; add('joinfee', '가입비', j.pay === '면제' ? `알뜰폰 가입비 ${W2}은 면제됩니다.` : (j.pay === '매장지원' ? `알뜰폰 가입비 ${W2}은 매장에서 대신 내 드립니다.` : (j.pay === '고객선납' ? `알뜰폰 가입비 ${W2}은 오늘 고객님께서 먼저 내십니다.` : `알뜰폰 가입비 ${W2}은 요금에 나눠서 청구됩니다.`)), '네, 이해했습니다', true); }   // 💳 V462
             add('total', '매달 내실 금액', `매달 ${dev && c.month ? '할부금과 요금을 합쳐 ' : ''}약 ${W(c.total)}입니다${c.addFee ? `(부가 · 보험 월 ${W(c.addFee)}은 유지 기간 동안 별도)` : ''}. 첫 달은 개통일부터 쓴 날만큼 계산되고${uf ? `, 유심비 ${W(uf)}${usim.pay ? `(${usim.pay})` : ''}도 있어서` : ''} 금액이 달라질 수 있습니다.`);
             if (/번호이동|MNP/.test(String(g.actType || ''))) add('mnp', '이전 통신사', '이전 통신사의 남은 할부금 · 위약금 · 마지막 달 요금은 이전 통신사에서 따로 청구될 수 있습니다. 소액결제 · 멤버십 · 결합도 이전 통신사에서 정리하셔야 합니다.');
             if (String(g.gift || '').trim()) add('gift', '사은품', `사은품은 ${String(g.gift).trim()}입니다.`);
@@ -27056,6 +27063,7 @@ familyStr + `\n` +
             set('ar-term', g.sup === '없음' ? '무약정' : `${g.term || 24}개월`);
             const sup = document.querySelector(`input[name="ar-sup"][value="${g.sup === '공시' ? '공시' : '선약'}"]`); if (sup && !sup.checked) { sup.checked = true; sup.dispatchEvent(new Event('change', { bubbles: true })); }
             set('ar-usimfee', g.usim.pay === '선납' ? '선납' : (g.usim.pay === '첫 달 청구' ? '후납' : '면제'));
+            if (gdJoinOn(g)) { const j = gdJoinOf(g); money('ar-joinamt', j.fee); set('ar-joinpay', j.pay); } else if (g.carrier === '알뜰폰') { const je = document.getElementById('ar-joinamt'); if (je) { je.value = ''; je.dispatchEvent(new Event('input', { bubbles: true })); } }   // 💳 V462 알뜰폰 가입비 (안내서에서 비웠으면 개통등록도 비움)
             if (usim) set('ar-inst', '일시불');   // 💳 V459 유심 안내서 → 할부 없음
             if (!usim) {
                 set('ar-model', g.dev.code || g.dev.name); set('ar-color', g.dev.color);
@@ -27079,12 +27087,12 @@ familyStr + `\n` +
             const extra = [g.gift ? `사은품: ${g.gift}` : '', ...(g.promises || []).filter(p => (p.kind === '부가' || p.kind === '보험') && gdNum(p.fee)).map(p => `${p.kind} ${String(p.name || '').trim() || ''} 월 ${arWon(gdNum(p.fee))}원`), ...(g.promises || []).filter(p => p.kind === '기타' && String(p.name || '').trim()).map(p => `약속: ${p.name}${p.code ? ` (${keepLabel(p.code)})` : ''}`)].filter(Boolean).join(' · ');
             const memo = document.getElementById('ar-memo'); if (memo && extra && !memo.value.includes(extra)) memo.value = [memo.value.trim(), `📝 안내서 · ${extra}`].filter(Boolean).join('\n');
             {   // 💸 V378 안내서의 고객송금 · 매장대납 · 매장 추가할인 = 매장이 내는 돈 → 정산 '고객 할인금액'으로 (판매마진에서 빠짐 · 이미 적어 둔 금액은 그대로)
-                const mk = gdMoneyOn(g) ? g.money.kind : '', mAmt = gdMoneyAmt(g), etc = g.kind !== 'usim' ? gdNum(g.dev && g.dev.etc) : 0, sum = mAmt + etc;
+                const mk = gdMoneyOn(g) ? g.money.kind : '', mAmt = gdMoneyAmt(g), etc = (g.kind !== 'usim' ? gdNum(g.dev && g.dev.etc) : 0) + (gdJoinOn(g) && gdJoinOf(g).pay === '매장지원' ? gdJoinOf(g).fee : 0), sum = mAmt + etc;   // 💳 V462 가입비 매장지원도 매장이 내는 돈
                 const de = document.getElementById('ar-disc');
                 if (de && sum > 0) {
                     if (!arNum('ar-disc')) de.value = arWon(sum);
                     let nt = document.getElementById('ar-disc-note'); if (!nt) { nt = document.createElement('p'); nt.id = 'ar-disc-note'; nt.className = 'mt-1 text-[11px] font-bold text-amber-800'; (de.closest('label') || de).after(nt); }
-                    nt.textContent = `📝 안내서: ${[mAmt ? `${gdMoneyParts(g).length > 1 ? '매장대납 + 고객송금' : (mk === 'Pay' ? '매장대납' : '고객송금')} ${arWon(mAmt)}원` : '', etc ? `매장 추가할인 ${arWon(etc)}원` : ''].filter(Boolean).join(' + ')} → 판매마진에서 빠져요${arNum('ar-disc') !== sum ? ` (지금 칸 ${arWon(arNum('ar-disc'))}원 · 맞는지 확인)` : ''}`;
+                    nt.textContent = `📝 안내서: ${[mAmt ? `${gdMoneyParts(g).length > 1 ? '매장대납 + 고객송금' : (mk === 'Pay' ? '매장대납' : '고객송금')} ${arWon(mAmt)}원` : '', etc ? `매장 추가할인${gdJoinOn(g) && gdJoinOf(g).pay === '매장지원' ? '(가입비 지원 포함)' : ''} ${arWon(etc)}원` : ''].filter(Boolean).join(' + ')} → 판매마진에서 빠져요${arNum('ar-disc') !== sum ? ` (지금 칸 ${arWon(arNum('ar-disc'))}원 · 맞는지 확인)` : ''}`;
                 }
             }
             try { renderArItems(); arSyncVis(); arRecalc(); } catch (e) { console.warn(e); }
@@ -31019,7 +31027,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V461';
+        const APP_VER = 'V462';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31027,6 +31035,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V462', d: '2026-11-27', items: [
+                ['💳 알뜰폰 가입비: 안내서 · 개통등록 · 보고서에 가입비 금액(기본 9,900원 · 다르면 직접 · 없으면 비우기) + 처리(분납 · 면제 · 매장지원 · 고객선납) — 안내서 그림 · 확인 녹음에도 나오고 매장지원은 정산 할인금액에 들어가요', 'a'],
+            ] },
             { v: 'V461', d: '2026-11-26', items: [
                 ['📱 폴드폰 안내서 서명: 화면을 펼치거나 접어도 서명 칸이 크기에 맞게 다시 맞춰져요 (펼친 화면에서 서명이 안 되던 것 고침)', 'a'],
             ] },
