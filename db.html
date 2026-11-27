@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V465">
+    <link rel="stylesheet" href="crm.css?v=V466">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -7783,7 +7783,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
         function actCancelExpired(a, now = Date.now()) { return !!(a && a.canceled && a.cancelAt && now - Date.parse(a.cancelAt) >= ACT_CANCEL_KEEP_DAYS * 864e5); }
         async function purgeCanceledActs(c) {
             if (!c || !Array.isArray(c.acts) || !c.acts.some(a => actCancelExpired(a))) return false;
-            if (!can('cancelAct')) return false;   // 취소 권한 있는 폰만 지움
+            if (!can('cancelAct') || !isSuperAdmin || !docFilesLoaded) return false;   // 🛠 V466 서류를 전부 보는 총관리자 폰에서만 (직원 폰은 본인 서류만 보여서 남는 서류가 생김) · 서류 목록 받은 뒤
             let gone = [];
             try {
                 const patch = await txCustomerUpdate(c.id, (cur) => {
@@ -7794,13 +7794,16 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
                 if (patch && patch.acts) Object.assign(c, patch);
             } catch (e) { console.warn('취소 개통 자동 삭제 실패', e); return false; }
             if (!gone.length) return false;
-            const live = new Set((c.acts || []).filter(a => !a.canceled).map(a => a.date)), ids = new Set([c.id, ...prevIdsOf(c)]);
-            const days = gone.map(a => a.date).filter(d => !live.has(d)), tags = days.map(d => String(d).replace(/-/g, ''));
-            const docs = docFiles.filter(f => ids.has(f.customerId) && (days.includes(String(f.at || '').slice(0, 10)) || tags.some(t => String(f.name || '').includes(t))));
+            // 🛠 V466 무선 취소 → 무선 서류만 · 유선 취소 → 유선 서류만 (같은 날 같은 종류 개통이 살아 있으면 안 지움)
+            const isW = (k) => k === '유선', ids = new Set([c.id, ...prevIdsOf(c)]);
+            const live = new Set((c.acts || []).filter(a => !a.canceled).map(a => (isW(a.kind) ? 'w' : 'm') + a.date));
+            const targets = gone.filter(a => !live.has((isW(a.kind) ? 'w' : 'm') + a.date)).map(a => ({ day: a.date, tag: String(a.date).replace(/-/g, ''), w: isW(a.kind) }));
+            const docs = docFiles.filter(f => ids.has(f.customerId) && targets.some(t => t.w === (f.kind === 'wired') && (String(f.at || '').slice(0, 10) === t.day || String(f.name || '').includes(t.tag))));
             for (const f of docs) { try { await driveTrash(f, { quiet: true }); await deleteDoc(doc(db, 'doc_files', f.id)); if ((Number(c.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', c.id), { docCount: increment(-1) }, { merge: true }).catch(() => {}); } catch (e) { /* 다음에 */ } }
             return true;
         }
         async function purgeCanceledAll() {   // 하루 한 번 (이 폰에서)
+            if (!isSuperAdmin || !docFilesLoaded || !can('cancelAct')) return;   // 🛠 V466 서류 목록 받기 전엔 다음 기회에
             try { if (localStorage.getItem('actPurgeDay') === getTodayStr()) return; localStorage.setItem('actPurgeDay', getTodayStr()); } catch (e) { /* 무시 */ }
             for (const c of customerDB.filter(x => Array.isArray(x.acts) && x.acts.some(a => actCancelExpired(a))).slice(0, 30)) await purgeCanceledActs(c);
         }
@@ -29046,7 +29049,7 @@ familyStr + `\n` +
                     if (d.ok || d.error === 'empty' || d.error === undefined) return 'old';   // v3 이하 창구는 trash를 모름
                     return /not found|찾을 수 없|No item/i.test(String(d.error)) ? 'ok' : 'fail';   // 이미 지워진 파일
                 }
-                const t = opt.quiet ? (driveTokenValid() ? gisToken : '') : await getDriveToken(false);
+                const t = opt.quiet ? (driveTokenValid() ? gisToken : '') : await Promise.race([getDriveToken(false), new Promise((_, rj) => setTimeout(() => rj(new Error('timeout')), 20000))]);   // 🛠 V466 구글 연결 창이 막혀도 20초 뒤 기록은 지움
                 if (!t) return 'fail';
                 const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(f.fileId)}`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
                 return res.ok || res.status === 404 ? 'ok' : 'fail';
@@ -31077,7 +31080,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V465';
+        const APP_VER = 'V466';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31085,6 +31088,10 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V466', d: '2026-11-27', items: [
+                ['🛠 취소 개통 자동 삭제 다듬기 — 무선 취소는 무선 서류만 · 유선 취소는 유선 서류만 지워요 · 서류를 전부 보는 총관리자 폰에서만 정리해요 (직원 서류가 남는 일 없게)', 'a'],
+                ['🛠 서류 ✕ 때 구글 연결 창이 막혀도 멈추지 않아요 (20초 뒤 기록은 지워요)', 'a'],
+            ] },
             { v: 'V465', d: '2026-11-27', items: [
                 ['🎙 녹음 백업 [연결 확인]에 업로드 창구 버전(v3 · v4)도 보여줘요', 'a'],
             ] },
