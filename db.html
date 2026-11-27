@@ -22,7 +22,7 @@
 
     <!-- ⚡ V333 화면 스타일을 미리 만든 파일(crm.css)로 — 예전엔 폰이 열 때마다 Tailwind로 스타일을 새로 만들어서 첫 화면이 느렸음
          · db.html을 고치면 crm.css도 다시 만들어요 (빠진 스타일이 있어도 아래 안전망이 몇 초 뒤 채워 줌) · V432 다시 만듦 (Tailwind 3.4.17 · content = db.html) -->
-    <link rel="stylesheet" href="crm.css?v=V463">
+    <link rel="stylesheet" href="crm.css?v=V464">
     <script>window.addEventListener('load', function () { setTimeout(function () { try { var s = document.createElement('script'); s.src = 'https://cdn.tailwindcss.com'; s.async = true; document.head.appendChild(s); } catch (e) {} }, 4000); });</script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -7797,7 +7797,7 @@ unsure: 글씨가 흐리거나 애매해서 확실하지 않은 항목 이름들
             const live = new Set((c.acts || []).filter(a => !a.canceled).map(a => a.date)), ids = new Set([c.id, ...prevIdsOf(c)]);
             const days = gone.map(a => a.date).filter(d => !live.has(d)), tags = days.map(d => String(d).replace(/-/g, ''));
             const docs = docFiles.filter(f => ids.has(f.customerId) && (days.includes(String(f.at || '').slice(0, 10)) || tags.some(t => String(f.name || '').includes(t))));
-            for (const f of docs) { try { await deleteDoc(doc(db, 'doc_files', f.id)); if ((Number(c.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', c.id), { docCount: increment(-1) }, { merge: true }).catch(() => {}); } catch (e) { /* 다음에 */ } }
+            for (const f of docs) { try { await driveTrash(f, { quiet: true }); await deleteDoc(doc(db, 'doc_files', f.id)); if ((Number(c.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', c.id), { docCount: increment(-1) }, { merge: true }).catch(() => {}); } catch (e) { /* 다음에 */ } }
             return true;
         }
         async function purgeCanceledAll() {   // 하루 한 번 (이 폰에서)
@@ -29033,6 +29033,25 @@ familyStr + `\n` +
             if (!res.ok) { const er = new Error(res.status === 401 ? '구글 연결이 끊겼어요. 다시 시도해 주세요.' : '이 폰에서 받을 수 없는 서류예요'); er.code = res.status === 401 ? '' : 'NO_ACCESS'; throw er; }
             return await res.blob();
         }
+        // 🗑 V464 드라이브 파일도 휴지통으로 (30일 안에 되살림) · 관리자 드라이브 = 업로드 창구 v4 · 각자 드라이브 = 이 폰 구글 연결
+        //   결과: 'ok' 지움 · 'old' 창구가 v3 이하 · 'none' 파일 정보 없음 · 'fail' 못 지움 (기록은 그래도 지움)
+        async function driveTrash(f, opt = {}) {
+            if (!f || !f.fileId) return 'none';
+            try {
+                if ((f.mode || driveMode()) === 'admin') {
+                    const url = String(appSettings.driveScriptUrl || '').trim(); if (!url) return 'fail';
+                    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ secret: appSettings.driveSecret || '', action: 'trash', id: f.fileId }) });
+                    const d = await res.json().catch(() => ({}));
+                    if (d.ok && d.trashed) return 'ok';
+                    if (d.ok || d.error === 'empty' || d.error === undefined) return 'old';   // v3 이하 창구는 trash를 모름
+                    return /not found|찾을 수 없|No item/i.test(String(d.error)) ? 'ok' : 'fail';   // 이미 지워진 파일
+                }
+                const t = opt.quiet ? (driveTokenValid() ? gisToken : '') : await getDriveToken(false);
+                if (!t) return 'fail';
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(f.fileId)}`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }) });
+                return res.ok || res.status === 404 ? 'ok' : 'fail';
+            } catch (e) { return 'fail'; }
+        }
         function docVisibleOf(c, kind) {   // 고객 서류: 묶음에 들어간 원본은 접어 둠 · 🏠 V449 kind 'wired'면 유선 서류만 · 'mobile'이면 유선 빼고 · 없으면 전부
             const ids = [c.id, ...prevIdsOf(c)], all = docFiles.filter(f => ids.includes(f.customerId) && (kind === 'wired' ? f.kind === 'wired' : (kind === 'mobile' ? f.kind !== 'wired' : true)));
             const shown = all.filter(f => !f.bundledIn || !all.some(b => b.id === f.bundledIn));
@@ -29843,9 +29862,12 @@ familyStr + `\n` +
             if (del) {
                 const f = docFiles.find(x => x.id === del.dataset.docdel);
                 if (!f) return;
-                if (!(await customConfirm(`'${f.name}' 기록을 지울까요?\n구글 드라이브의 파일은 그대로 남아요. (파일은 드라이브에서 직접 지워주세요)${f.bundle && Array.isArray(f.partIds) && f.partIds.length ? '\n\n묶음에 들어간 원본은 다시 보이게 돼요.' : ''}`))) return;
+                if (!(await customConfirm(`'${f.name}' 서류를 지울까요?\n구글 드라이브 파일은 휴지통으로 가요. (30일 안에는 드라이브 휴지통에서 되살릴 수 있어요)${f.bundle && Array.isArray(f.partIds) && f.partIds.length ? '\n\n묶음에 들어간 원본은 다시 보이게 돼요.' : ''}`))) return;
                 try {
+                    const tr = await driveTrash(f);   // 🗑 V464 드라이브 파일도 휴지통으로
                     await deleteDoc(doc(db, 'doc_files', f.id));
+                    if (tr === 'old') customAlert(isSuperAdmin ? '서류 기록은 지웠어요.\n드라이브 파일까지 지우려면 업로드 창구를 v4로 바꿔 주세요. (새 kangcrm-drive-upload.gs 붙여넣고 새 버전 배포)' : '서류 기록은 지웠어요.\n드라이브 파일은 남아 있어요. (대표님이 업로드 창구를 v4로 바꾸면 같이 지워져요)');
+                    else if (tr === 'fail') customAlert('서류 기록은 지웠어요.\n드라이브 파일은 못 지웠어요. 드라이브에서 직접 지워 주세요.');
                     if (f.bundle && Array.isArray(f.partIds)) f.partIds.forEach(pid => { if (docFiles.some(x => x.id === pid)) saveDoc(doc(db, 'doc_files', pid), { bundledIn: '' }, { merge: true }).catch(() => {}); });   // 📑 원본 다시 보이게
                     const cc = customerDB.find(x => x.id === f.customerId) || prevOwnerOf(f.customerId, { includeTrash: false });
                     if (cc && (Number(cc.docCount) || 0) > 0) saveDoc(doc(db, 'smart_customers', cc.id), { docCount: increment(-1) }, { merge: true }).catch(() => {});
@@ -29878,7 +29900,7 @@ familyStr + `\n` +
             const sc = document.getElementById('driveSecret'); if (sc && isSuperAdmin) sc.onchange = () => saveDriveSetting({ driveSecret: sc.value.trim() });
             const cb = document.getElementById('driveConnectBtn'); if (cb) cb.onclick = async () => { try { gisToken = null; await getDriveToken(true); customAlert('이 폰을 구글 드라이브에 연결했어요.'); renderDriveSettings(); } catch (e) { customAlert(e.message); } };
             const tb = document.getElementById('driveTestBtn'); if (tb) tb.onclick = async () => {
-                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? `✅ 업로드 창구가 정상이에요.${Number(d.version) >= 3 ? ' (v3 · 👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기 · 🎙 통화 녹음 돼요)' : (Number(d.version) >= 2 ? ' (v2 · 👀 서류 보기 · 📑 합치기 돼요)\n🎙 통화 녹음을 \'강CRM 녹음\' 폴더에 모으고 들으려면 창구를 v3로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).' : '\n👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기 · 🎙 통화 녹음을 쓰려면 창구를 v3로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).')}` : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
+                try { const r = await fetch(String(appSettings.driveScriptUrl || '').trim()); const d = await r.json(); customAlert(d.ready ? `✅ 업로드 창구가 정상이에요.${Number(d.version) >= 4 ? ' (v4 · 👀 서류 보기 · 📑 합치기 · 🎙 통화 녹음 · 🗑 서류 지우면 드라이브 파일도 휴지통으로)' : Number(d.version) >= 3 ? ' (v3 · 👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기 · 🎙 통화 녹음 돼요)\n🗑 서류를 지울 때 드라이브 파일도 같이 지우려면 창구를 v4로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).' : (Number(d.version) >= 2 ? ' (v2 · 👀 서류 보기 · 📑 합치기 돼요)\n🎙 통화 녹음을 \'강CRM 녹음\' 폴더에 모으고 들으려면 창구를 v3로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).' : '\n👀 앱 안에서 서류 보기 · 📑 예전 서류 합치기 · 🎙 통화 녹음을 쓰려면 창구를 v3로 바꿔 주세요 (새 kangcrm-drive-upload.gs → 새 버전 배포).')}` : '창구는 열렸는데 SECRET이 설정되지 않았어요. 앱스 스크립트의 스크립트 속성에 SECRET을 넣어주세요.'); }
                 catch (e) { customAlert('업로드 주소에 연결하지 못했어요. 주소와 배포 설정(액세스: 모든 사용자)을 확인해 주세요.'); }
             };
         }
@@ -31055,7 +31077,7 @@ familyStr + `\n` +
            · 날짜별 처음·마지막 시간 · 접속 횟수 (40일) + 최근 접속 30번 (시간·버전·기기)
            · 👑 총관리자: 설정 → 👤 직원 계정에서 직원마다 마지막 접속 · 예전 버전 경고 · [접속 기록]
            ===================================================================== */
-        const APP_VER = 'V463';
+        const APP_VER = 'V464';
         /* =====================================================================
            📢 업데이트 소식 (V199) — 새 버전을 이 폰에서 처음 연 날부터 3일 동안, 앱을 열 때마다 팝업
            · [그만보기] 체크하고 닫으면 이번 업데이트는 그만 (다음 버전이 나오면 다시)
@@ -31063,6 +31085,9 @@ familyStr + `\n` +
            · 설정 → 앱 정보 → 📢 업데이트 소식에서 언제든 다시 보기 · 새 버전을 올릴 때 맨 위에 한 줄씩 추가
            ===================================================================== */
         const WHATS_NEW = [
+            { v: 'V464', d: '2026-11-27', items: [
+                ['🗑 서류를 지우면 구글 드라이브 파일도 휴지통으로 — 서류 ✕와 취소 개통 7일 자동 삭제 모두 (30일 안엔 드라이브 휴지통에서 되살릴 수 있어요 · 관리자 드라이브는 업로드 창구 v4 필요)', 'a'],
+            ] },
             { v: 'V463', d: '2026-11-27', items: [
                 ['🗑 취소한 개통은 7일 뒤 자동 삭제 — 개통 기록과 그날 올린 서류 기록이 같이 지워져요 (취소 표시에 삭제 날짜가 나와요 · 7일 안엔 되살리기 가능 · 구글 드라이브 파일은 그대로)', 'a'],
             ] },
